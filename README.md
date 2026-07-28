@@ -38,16 +38,16 @@ code it produced, and each instruction choice is annotated with the reason:
 
 ## Why
 
-Two reasons, in that order.
+Three reasons.
 
-**To write small games and tools.** Momo is meant to be used rather than
-admired. The active program is a roguelike, the standard library is a text-mode
-screen and a keyboard, and the bar it is held to (`DESIGN.md` §15) is a list of
-programs that work, not of features that exist.
+**Primarily, to write small games and tools.** Momo is meant to be used rather
+than admired. The active program is a roguelike, the standard library is a
+text-mode screen and a keyboard, and the bar it is held to (`DESIGN.md` §15) is
+a list of programs that work, not of features that exist.
 
-**To show that x86 assembly is not overwhelming if you start with a small
-subset and work up.** Not by hiding the assembly — by shrinking it until it
-fits in your head. Most of the design falls out of that one idea:
+**Secondarily, to show that x86 assembly is not overwhelming if you start with
+a small subset and work up.** Not by hiding the assembly — by shrinking it
+until it fits in your head. Most of the design falls out of that one idea:
 
 - **37 mnemonics**, with `cpu 8086` at the top of every emitted file so NASM
   enforces the boundary on every build. There is no way to meet a 386
@@ -61,6 +61,19 @@ fits in your head. Most of the design falls out of that one idea:
 
 The compiler is the way in, not the destination: write Momo without looking at
 the assembly, then look at the assembly when you want to know what happened.
+
+**And to try out language ideas that have been rattling around for a decade,
+with echoes going back further.** Various small prototypes over the years;
+Yuki, in `_reference/`, is the one that survived to become a reference point.
+`DESIGN.md` §6 is where they are densest — bitwise operators bind tighter than
+comparison, so `flags & 1 == 0` means what it looks like; shifts bind with the
+multiplicatives, so `1 << 2 + 3` is 7 and not 32; assignment is a statement
+rather than an expression, so `if (x = 5)` will not parse; and comparison is
+non-associative, so `a < b < c` is a compile error rather than a surprise.
+
+Which is the other reason the first motivation comes first. A syntax idea is
+worth nothing until something has been written in it, and that is the job `rl`
+does — it is what keeps the operator table from being a matter of taste.
 
 ## What makes it unusual
 

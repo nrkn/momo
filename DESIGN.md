@@ -7,12 +7,22 @@ Named after a cat, continuing the tradition set by Yuki — the earlier language
 in `_reference/yuki.txt`, which is also the reference point for "level of
 language" we are aiming at.
 
-**Why.** To write small games and tools, and — secondarily — to show that x86
-assembly is not overwhelming if you start with a small subset and work up. The
-second is why the ISA is subsetted at all (§1), why the target is a DOS `.COM`
-in tiny model, and why the output is commented NASM meant to be read rather than
-an intermediate meant to be trusted. Where a decision below looks austere, that
-is usually the reason: the constraint is doing work.
+**Why.** Three reasons, and this document is mostly the third.
+
+Primarily, to write small games and tools. Secondarily, to show that x86
+assembly is not overwhelming if you start with a small subset and work up —
+which is why the ISA is subsetted at all (§1), why the target is a DOS `.COM` in
+tiny model, and why the output is commented NASM meant to be read rather than an
+intermediate meant to be trusted. Where a decision below looks austere, that is
+usually the reason: the constraint is doing work.
+
+And to settle language ideas that have been rattling around for a decade or
+more, across a series of small prototypes — Yuki above is the one that survived.
+That is why this file argues rather than specifies, why §6 spends more words on
+four structural choices than on the precedence table itself, and why §16, §17
+and §19 are written out in full without being built: an idea worked through is
+worth having on paper even when nothing needs it yet. Momo is where they finally
+have to compile.
 
 **Status.** §1–§15 and §18 describe what is built. §16, §17 and §19 are designed
 and not yet built, and say so in their headings. §20 collects open questions,
