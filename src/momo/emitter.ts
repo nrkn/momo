@@ -234,10 +234,15 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
 
   // Arguments are stored into the fn's parameter globals, then it is called.
   //
-  // When any argument itself contains a call, every argument is evaluated onto
-  // the stack FIRST and stored afterwards. Otherwise `outer(f(), g())` where `g`
-  // also calls `outer` would have `g` overwrite a slot already filled for the
-  // outer call.
+  // When there are SEVERAL arguments and any of them contains a call, every
+  // argument is evaluated onto the stack first and stored afterwards. Otherwise
+  // `outer(f(), g())` where `g` also calls `outer` would have `g` overwrite a
+  // slot already filled for the outer call.
+  //
+  // One argument needs none of that: no slot has been filled yet when it is
+  // evaluated, so there is nothing for an inner call to clobber. Parameter
+  // globals are mangled and never in scope, so an argument cannot name one
+  // either. Skipping the round trip saves a push/pop at every such call site.
   const emitCall = (label: string | undefined, args: Expression[]) => {
     const symbol = symbolFor(label)
 
@@ -246,7 +251,7 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
       return
     }
 
-    const viaStack = args.some(containsCall)
+    const viaStack = args.length > 1 && args.some(containsCall)
 
     if (viaStack) {
       for (const argument of args) {

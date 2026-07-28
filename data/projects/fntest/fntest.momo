@@ -31,8 +31,15 @@ u16 i
 putNumber(add(3, 4))
 newline()
 
-// nested call in an argument position
-putNumber(add(add(1, 2), add(3, 4)))
+// Nested call in an argument position. The numbers matter: with add(3, 4) as
+// the second argument the clobber is invisible, because the inner call happens
+// to overwrite slot `a` with the 3 that was already correctly in it. Picking a
+// second argument whose own operands differ from the first argument's VALUE is
+// what makes a broken evaluation order show up as a wrong number.
+//
+//   correct           3 + 70 = 73
+//   without the stack add__a clobbered to 30, add__b = 70 -> 100
+putNumber(add(add(1, 2), add(30, 40)))
 newline()
 
 // a fn calling a fn

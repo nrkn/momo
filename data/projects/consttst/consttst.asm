@@ -93,8 +93,6 @@ __entry:
         call    double
         mov     ax, [double__ret]
         add     ax, 1
-        push    ax                          ; argument evaluated before any is stored
-        pop     ax
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- putChar(' ')
@@ -107,14 +105,10 @@ __entry:
         call    double
         mov     ax, [double__ret]
         xor     ah, ah                      ; cast to u8
-        push    ax                          ; argument evaluated before any is stored
-        pop     ax
         mov     [double__n], al             ; narrowed to u8
         call    double
         mov     ax, [double__ret]
         add     ax, 1
-        push    ax                          ; argument evaluated before any is stored
-        pop     ax
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- newline()

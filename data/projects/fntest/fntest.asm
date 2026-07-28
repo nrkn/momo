@@ -17,13 +17,11 @@ __entry:
         mov     [add__b], ax
         call    add
         mov     ax, [add__ret]
-        push    ax                          ; argument evaluated before any is stored
-        pop     ax
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- newline()
         call    newline
-; ---- putNumber(add(add(1, 2), add(3, 4)))
+; ---- putNumber(add(add(1, 2), add(30, 40)))
         mov     ax, 1
         mov     [add__a], ax
         mov     ax, 2
@@ -31,9 +29,9 @@ __entry:
         call    add
         mov     ax, [add__ret]
         push    ax                          ; argument evaluated before any is stored
-        mov     ax, 3
+        mov     ax, 30
         mov     [add__a], ax
-        mov     ax, 4
+        mov     ax, 40
         mov     [add__b], ax
         call    add
         mov     ax, [add__ret]
@@ -44,8 +42,6 @@ __entry:
         mov     [add__a], ax
         call    add
         mov     ax, [add__ret]
-        push    ax                          ; argument evaluated before any is stored
-        pop     ax
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- newline()
@@ -57,8 +53,6 @@ __entry:
         mov     [wrap__b], ax
         call    wrap
         mov     ax, [wrap__ret]
-        push    ax                          ; argument evaluated before any is stored
-        pop     ax
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- newline()
@@ -68,8 +62,6 @@ __entry:
         mov     [absolute___v], ax
         call    absolute_
         mov     ax, [absolute___ret]
-        push    ax                          ; argument evaluated before any is stored
-        pop     ax
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- newline()

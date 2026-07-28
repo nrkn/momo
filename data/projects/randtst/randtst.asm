@@ -27,8 +27,6 @@ __entry:
         mov     [randomBelow__n], ax
         call    randomBelow
         mov     ax, [randomBelow__ret]
-        push    ax                          ; argument evaluated before any is stored
-        pop     ax
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- putChar(' ')
@@ -60,8 +58,6 @@ __entry:
         mov     [randomBetween__high], ax
         call    randomBetween
         mov     ax, [randomBetween__ret]
-        push    ax                          ; argument evaluated before any is stored
-        pop     ax
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- putChar(' ')
@@ -290,7 +286,7 @@ putNumber__digits times 5 db 0        ; u8[5]
 ; No storage is emitted - a .COM owns everything past its image, so
 ; these are addresses and NASM does the arithmetic.
 
-_hstack         equ     266        ; 10 worst-case + 256 interrupt reserve
+_hstack         equ     264        ; 8 worst-case + 256 interrupt reserve
 _htop           equ     0FFFEh - _hstack
 
 _hsize          dw      _htop - _heap        ; NASM computes this
