@@ -1,0 +1,5 @@
+// EXPECT-ERROR: the heap has no compile-time length; use _hsize
+// The heap is whatever is left once the image is sized, which NASM works out at
+// assembly time - so there is nothing for len() to fold to.
+u16 n
+n = len( _heap )

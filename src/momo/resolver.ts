@@ -510,6 +510,30 @@ export const resolve = (program: Program): ResolveResult => {
       return annotate(node, { type: 'u16', value: null })
     }
 
+    if (node.type === 'LenExpression') {
+      const symbol = lookup(node.target.name)
+      if (!symbol) raise(node, `"${node.target.name}" is not declared`)
+
+      if (symbol.kind !== 'array') {
+        raise(node, `len() needs an array - "${node.target.name}" is not one`)
+      }
+
+      // The heap is whatever is left over once the image is sized, which NASM
+      // works out at assembly time - there is no compile-time length to fold to.
+      if (symbol.dynamic) {
+        raise(
+          node,
+          `len() has no answer for "${node.target.name}" - the heap has no compile-time` +
+            ' length; use _hsize, which NASM computes',
+        )
+      }
+
+      // Deliberately no `node.target.label`. Unlike addr(), len() needs no
+      // storage, so asking for a length must not be what keeps an otherwise
+      // unused array in the output.
+      return annotate(node, { type: 'untyped', value: symbol.length })
+    }
+
     if (node.type === 'CastExpression') {
       const argument = resolveExpression(node.argument)
       const value = argument.value === null ? null : truncate(argument.value, node.to)

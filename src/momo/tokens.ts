@@ -41,6 +41,7 @@ export const keywords = [
   'return',
   'int',
   'addr',
+  'len',
   'true',
   'false',
 ]

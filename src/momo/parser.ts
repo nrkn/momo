@@ -262,13 +262,16 @@ export const parse = (tokens: Token[]): Program => {
         }
       }
 
-      if (token.text === 'addr') {
+      // addr(x) and len(x) share a shape: a keyword, one parenthesised name,
+      // never an expression. Both are reserved words, so neither can be shadowed
+      // and neither needs the symbol table to parse.
+      if (token.text === 'addr' || token.text === 'len') {
         advance()
         expect('op', '(')
         const name = expect('ident')
         expect('op', ')')
         return {
-          type: 'AddrExpression',
+          type: token.text === 'addr' ? 'AddrExpression' : 'LenExpression',
           target: { type: 'Identifier', name: name.text, file: name.file, line: name.line, col: name.col },
           file: token.file,
           line: token.line,

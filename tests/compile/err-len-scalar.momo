@@ -1,0 +1,4 @@
+// EXPECT-ERROR: len() needs an array - "x" is not one
+u8 x
+u16 n
+n = len( x )

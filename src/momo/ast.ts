@@ -12,7 +12,8 @@
 //     `a.b`, so `computed: true` would be pure JS baggage.
 //   - CastExpression is distinct from CallExpression. `u8(x)` looks like a call
 //     and is not; type names are reserved, so the parser can tell immediately.
-//   - IntStatement, AddrExpression: Momo primitives with no JS analogue.
+//   - IntStatement, AddrExpression, LenExpression: Momo primitives with no JS
+//     analogue.
 
 import type { ValueType } from './types.js'
 
@@ -130,6 +131,14 @@ export type AddrExpression = Located & {
   target: Identifier
 }
 
+// Folds to the declared length of an array. The target keeps no `label`: unlike
+// addr(), len() needs no storage, so asking for a length must not be what keeps
+// an otherwise unused array alive.
+export type LenExpression = Located & {
+  type: 'LenExpression'
+  target: Identifier
+}
+
 export type Expression =
   | Identifier
   | NumberLiteral
@@ -144,6 +153,7 @@ export type Expression =
   | IndexExpression
   | CastExpression
   | AddrExpression
+  | LenExpression
 
 // Only these can appear on the left of an assignment.
 export type LValue = Identifier | IndexExpression

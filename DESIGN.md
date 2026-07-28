@@ -305,6 +305,19 @@ const sqr(u8 n) = n * n                 // parameterised const: one expression
   This is C's rule and needs no new token. It is unambiguous because no statement
   can begin with a string literal — the parser looks past newlines for another
   one and, finding anything else, consumes nothing.
+- **`len(a)`** folds to an array's declared length, as an untyped constant — so a
+  map's height is counted rather than stated, and adding a row cannot
+  desynchronise it:
+
+  ```momo
+  const mapH = len( map ) / mapW
+  ```
+
+  It needs no storage, so unlike `addr` it does not keep an otherwise unused
+  array alive. `len` on the heap is an error — that size is not known until NASM
+  has assembled, so use `_hsize` (§13) — and `len` on a scalar is an error. It
+  resolves in declaration order like any name, so it cannot appear above the
+  array it measures. Designed as part of §19 and landed ahead of it.
 - Comments: `//` to end of line, and `/* ... */` block comments. **Block comments
   do not nest** (C behaviour). A block comment spanning lines counts as a newline
   for statement termination.
@@ -1356,7 +1369,7 @@ handy — not worth the confusion on their own.
 
 ---
 
-## 19. Planned: compile-time array parameters, and `len`
+## 19. Planned: compile-time array parameters
 
 Routines currently take scalars only, so `memcpy`, `fill`, `strLen` and
 `drawString` cannot be written as reusable library code. Allowing **arrays and
@@ -1374,28 +1387,21 @@ clear( mapData )
 clear( entityData )
 ```
 
-### `len` comes with it — and stands on its own
+### `len` came with it — and landed first
 
-`len(x)` folds to the declared length of an array, view or group. It is required
-here, because inside `clear` the length is only known per specialisation.
+**Built; see §5.** `len(x)` folds to the declared length of an array. It is
+required *here*, because inside `clear` the length is only known per
+specialisation — but it was independently useful, so it landed on its own, which
+is what "stands on its own" in the original note was betting on.
 
-But it is **independently useful and could land first.** Today a length is a
-hand-maintained const, and adding a row to a map silently desynchronises it:
+What is built covers arrays. Two cases wait on their own features:
 
-```momo
-const mapW = 10
-const u8[] map = "##########"
-                 "#........#"
-                 "##########"
+- `len` on a **group** is its instance count — `for ( i = 0; i < len( mob ); i++ )`
+  (§18).
+- `len` on a **view** is the view's length, not the underlying array's (§17).
 
-const mapH = len( map ) / mapW      // updates itself; no hand-counted constant
-```
-
-- `len` yields an untyped constant, so it adapts like any other literal.
-- `len` on a group is its instance count — `for ( i = 0; i < len( mob ); i++ )`.
-- `len` on `_heap` is an **error**: the heap has no compile-time length. Use
-  `_hsize`, which NASM computes (§13).
-- `len` on a scalar is an error.
+Both are additional symbol kinds rather than new machinery, so each is a case in
+the same fold.
 
 ### The mechanism is monomorphisation
 

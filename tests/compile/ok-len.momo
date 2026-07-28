@@ -1,0 +1,26 @@
+// len() folds to the declared length of an array, as an untyped constant - so
+// it adapts like any other literal, and arithmetic over it folds too.
+
+const mapW = 10
+const map = "##########"
+            "#........#"
+            "##########"
+
+// The point of the feature: adding a row to the map updates this, where a
+// hand-counted constant silently desynchronises.
+const mapH = len( map ) / mapW
+
+// Not just string consts: sized arrays, inferred arrays and mutable ones all
+// have a declared length.
+const u8[] table = [ 2, 4, 6, 8 ]
+u8[16] buffer
+u8[] inferred = [ 1, 2, 3 ]
+
+// len() must be declared before use, like any other name - it is resolved in
+// declaration order, so `mapH` could not sit above `map`.
+u16 out
+out = mapH + len( table ) + len( buffer ) + len( inferred ) + len( map )
+
+// Usable as an array size, since it is an ordinary compile-time constant.
+u8[len( table )] sameSize
+sameSize[0] = 1
