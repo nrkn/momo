@@ -1,0 +1,13 @@
+// EXPECT-ERROR: returns u16 but can end without returning a value
+// A loop that can finish proves nothing - this one runs zero times when n is 0,
+// and falls straight off the end. The endless-loop case is the one that counts,
+// and ok-fn-return-all-paths covers it.
+u16 firstBelow( u16 n ) {
+  u16 i
+  for( i = 0; i < n; i++ ){
+    return i
+  }
+}
+
+u16 out
+out = firstBelow( 0 )

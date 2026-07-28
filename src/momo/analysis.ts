@@ -1,11 +1,15 @@
-// Call graph analysis.
+// Whole-program structure: the call graph, and control flow within a body.
 //
 // Momo allocates locals statically, so a recursive call overwrites its own
 // caller's variables - recursion is never useful here, it is always a bug. That
 // makes rejecting it a straight win, and it also buys something else: with the
 // call graph proven acyclic, worst-case stack usage becomes a static quantity.
+//
+// Both halves are pure functions of the AST, with no dependency on the symbol
+// table, which is why they live here rather than in the resolver that calls
+// them.
 
-import type { Program, Statement } from './ast.js'
+import type { Expression, Program, Statement } from './ast.js'
 
 // Structural, to avoid importing the resolver and creating a cycle.
 type PrunableSymbol =
@@ -63,6 +67,84 @@ export const stackBytes = (graph: CallGraph, temporaries: Map<string, number>): 
   }
 
   return 2 * (temporaries.get(entryName) ?? 0) + deepest
+}
+
+// ---- control flow ---------------------------------------------------------
+//
+// Two questions, deliberately answered by two functions rather than one merged
+// verdict, because they disagree. An `if` whose consequent returns and whose
+// alternate breaks does NOT fall through - yet it does not always return
+// either, since the break path resumes after the enclosing loop.
+//
+// Both read `constValue`, so both must run after resolution: that is what makes
+// `while (true)` recognisable as endless.
+
+// A `break` belongs to the nearest enclosing loop, so a nested loop's breaks
+// are not this loop's - hence no recursion into loop bodies here. Momo has no
+// labelled break, so there is nothing else to weigh.
+const hasBreak = (statement: Statement): boolean => {
+  if (statement.type === 'BreakStatement') return true
+  if (statement.type === 'BlockStatement') return statement.body.some(hasBreak)
+  if (statement.type === 'IfStatement') {
+    if (hasBreak(statement.consequent)) return true
+    return statement.alternate !== null && hasBreak(statement.alternate)
+  }
+  return false
+}
+
+// `for (;;)`, or any loop whose test folds to a non-zero constant.
+const isEndless = (test: Expression | null): boolean => {
+  if (test === null) return true
+  return test.constValue !== null && test.constValue !== undefined && test.constValue !== 0
+}
+
+// A loop nothing escapes: control never reaches whatever follows it.
+const loopNeverExits = (test: Expression | null, body: Statement): boolean =>
+  isEndless(test) && !hasBreak(body)
+
+// Does control carry on past this statement to the next one?
+export const fallsThrough = (statement: Statement): boolean => {
+  if (statement.type === 'ReturnStatement') return false
+  if (statement.type === 'BreakStatement') return false
+  if (statement.type === 'ContinueStatement') return false
+
+  // A list falls through only if nothing in it stops first.
+  if (statement.type === 'BlockStatement') return statement.body.every(fallsThrough)
+
+  if (statement.type === 'IfStatement') {
+    if (!statement.alternate) return true // the untaken branch falls through
+    return fallsThrough(statement.consequent) || fallsThrough(statement.alternate)
+  }
+
+  if (statement.type === 'ForStatement') return !loopNeverExits(statement.test, statement.body)
+  if (statement.type === 'WhileStatement') return !loopNeverExits(statement.test, statement.body)
+  if (statement.type === 'DoWhileStatement') return !loopNeverExits(statement.test, statement.body)
+
+  return true
+}
+
+// Does every path through this statement reach a `return`?
+//
+// An endless loop with no break counts, because control never leaves it and so
+// can never arrive at the end of the routine empty-handed. That is what makes
+// `while (true) { ... return x ... }` legal rather than a false positive.
+export const alwaysReturns = (statement: Statement): boolean => {
+  if (statement.type === 'ReturnStatement') return true
+
+  // Anything after a returning statement is unreachable, so one is enough.
+  if (statement.type === 'BlockStatement') return statement.body.some(alwaysReturns)
+
+  if (statement.type === 'IfStatement') {
+    if (!statement.alternate) return false
+    return alwaysReturns(statement.consequent) && alwaysReturns(statement.alternate)
+  }
+
+  // A loop that CAN finish tells us nothing: it may run zero times.
+  if (statement.type === 'ForStatement') return loopNeverExits(statement.test, statement.body)
+  if (statement.type === 'WhileStatement') return loopNeverExits(statement.test, statement.body)
+  if (statement.type === 'DoWhileStatement') return loopNeverExits(statement.test, statement.body)
+
+  return false
 }
 
 export type CallSite = { name: string; file: string; line: number; col: number }

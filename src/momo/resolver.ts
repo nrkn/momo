@@ -19,7 +19,7 @@ import type {
   Statement,
   TypeNode,
 } from './ast.js'
-import { buildCallGraph, type CallGraph } from './analysis.js'
+import { alwaysReturns, buildCallGraph, type CallGraph } from './analysis.js'
 import { raise, type Location } from './diagnostics.js'
 import {
   combineRanges,
@@ -163,22 +163,6 @@ export const resolve = (program: Program): ResolveResult => {
   let loopDepth = 0
   const expanding = new Set<string>()
   let currentFn: (MomoSymbol & { kind: 'routine' }) | null = null
-
-  // Shallow scan for `return <expr>` anywhere in a body.
-  const hasReturnValue = (statements: Statement[]): boolean => {
-    for (const statement of statements) {
-      if (statement.type === 'ReturnStatement' && statement.argument) return true
-      if (statement.type === 'BlockStatement' && hasReturnValue(statement.body)) return true
-      if (statement.type === 'IfStatement') {
-        if (hasReturnValue([statement.consequent])) return true
-        if (statement.alternate && hasReturnValue([statement.alternate])) return true
-      }
-      if (statement.type === 'ForStatement' && hasReturnValue([statement.body])) return true
-      if (statement.type === 'WhileStatement' && hasReturnValue([statement.body])) return true
-      if (statement.type === 'DoWhileStatement' && hasReturnValue([statement.body])) return true
-    }
-    return false
-  }
 
   for (const reserved of reservedGlobals) {
     const symbol: MomoSymbol = {
@@ -980,18 +964,16 @@ export const resolve = (program: Program): ResolveResult => {
 
       if (!node.argument) {
         if (currentFn && currentFn.returnType) {
-          raise(node, `"${currentFn.name}" declares -> ${currentFn.returnType} - return a value`)
+          raise(node, `"${currentFn.name}" returns ${currentFn.returnType} - "return" needs a value`)
         }
         return
       }
 
+      // `currentFn` is set for the whole of any routine body, and a bare
+      // `return` outside one is already rejected above - so the only way here
+      // is a sub, which by definition has no return type.
       if (!currentFn || !currentFn.returnType) {
-        raise(
-          node,
-          subName && !currentFn
-            ? 'subs do not return a value - "return" is an early exit only'
-            : `"${subName}" has no return type - declare one with ->`,
-        )
+        raise(node, `"${subName}" is a sub - "return" is an early exit and carries no value`)
       }
 
       const value = resolveExpression(node.argument)
@@ -1081,8 +1063,14 @@ export const resolve = (program: Program): ResolveResult => {
 
     for (const statement of node.body.body) resolveStatement(statement)
 
-    if (symbol.returnType && !hasReturnValue(node.body.body)) {
-      raise(node, `"${node.name}" declares -> ${symbol.returnType} but never returns a value`)
+    // Every path must reach a `return`, not merely some path. Falling off the
+    // end would `ret` with the return slot holding whatever the last call left
+    // there - a wrong answer with no diagnostic anywhere.
+    if (symbol.returnType && !alwaysReturns(node.body)) {
+      raise(
+        node,
+        `"${node.name}" returns ${symbol.returnType} but can end without returning a value`,
+      )
     }
 
     currentFn = null

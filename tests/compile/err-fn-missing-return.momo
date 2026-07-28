@@ -1,4 +1,4 @@
-// EXPECT-ERROR: never returns a value
+// EXPECT-ERROR: returns u8 but can end without returning a value
 u8 f(u8 a) {
   _al = a
 }

@@ -1,0 +1,12 @@
+// EXPECT-ERROR: returns u16 but can end without returning a value
+// The old check only asked whether a `return <value>` appeared ANYWHERE in the
+// body, so this compiled: pick(0) fell through to `ret` with pick__ret holding
+// whatever the previous call had left in it.
+u16 pick( u8 a ) {
+  if( a > 0 ){
+    return 1
+  }
+}
+
+u16 out
+out = pick( 0 )

@@ -1,4 +1,4 @@
-// EXPECT-ERROR: declares -> u8 - return a value
+// EXPECT-ERROR: returns u8 - "return" needs a value
 u8 f(u8 a) {
   return
 }

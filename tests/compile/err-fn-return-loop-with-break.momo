@@ -1,0 +1,14 @@
+// EXPECT-ERROR: returns u16 but can end without returning a value
+// `while (true)` only makes the end of a routine unreachable when nothing
+// breaks out of it. This one does, and the break lands exactly there - at the
+// end, with no value. Nested-loop breaks belong to their own loop, which is why
+// hasBreak does not descend into one.
+u16 escape( u8 a ) {
+  while( true ){
+    if( a > 0 ) break
+    return 1
+  }
+}
+
+u16 out
+out = escape( 1 )
