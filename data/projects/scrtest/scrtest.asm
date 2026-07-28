@@ -56,7 +56,6 @@ __entry:
 ; ---- putNumber(lo(cell))             // 88 = 'X'
         mov     ax, [cell]
         xor     ah, ah                      ; cast to u8
-        xor     ah, ah                      ; cast to u8
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- putChar(' ')
@@ -67,7 +66,6 @@ __entry:
         mov     ax, [cell]
         mov     cl, 8                       ; 8086 has no shift-by-immediate
         shr     ax, cl                      ; unsigned >>
-        xor     ah, ah                      ; cast to u8
         xor     ah, ah                      ; cast to u8
         mov     [putNumber__n], ax
         call    putNumber
@@ -84,7 +82,6 @@ __entry:
 ; ---- putNumber(lo(cell))             // 35 = '#'
         mov     ax, [cell]
         xor     ah, ah                      ; cast to u8
-        xor     ah, ah                      ; cast to u8
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- putChar(' ')
@@ -95,7 +92,6 @@ __entry:
         mov     ax, [cell]
         mov     cl, 8                       ; 8086 has no shift-by-immediate
         shr     ax, cl                      ; unsigned >>
-        xor     ah, ah                      ; cast to u8
         xor     ah, ah                      ; cast to u8
         mov     [putNumber__n], ax
         call    putNumber
@@ -112,7 +108,6 @@ __entry:
 ; ---- putNumber(lo(cell))             // 32 = space
         mov     ax, [cell]
         xor     ah, ah                      ; cast to u8
-        xor     ah, ah                      ; cast to u8
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- putChar(' ')
@@ -123,7 +118,6 @@ __entry:
         mov     ax, [cell]
         mov     cl, 8                       ; 8086 has no shift-by-immediate
         shr     ax, cl                      ; unsigned >>
-        xor     ah, ah                      ; cast to u8
         xor     ah, ah                      ; cast to u8
         mov     [putNumber__n], ax
         call    putNumber

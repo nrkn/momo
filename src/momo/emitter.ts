@@ -463,6 +463,22 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
 
     if (node.type === 'CastExpression') {
       emitExpression(node.argument)
+
+      // A cast to the form the value is already in cannot change a bit, so it
+      // emits nothing. Provable rather than hopeful: arithmetic is always
+      // 16-bit (§4), so nothing typed narrower can arrive here un-widened -
+      // every route to a byte type (a variable, an array element, a fn's return
+      // slot, another cast) ends in the widening instruction, and a cast that
+      // folds to a constant never reaches this branch at all.
+      //
+      // `const u8 lo(u16 w) = u8(w)` is what makes it worth doing. A declared
+      // return type wraps the expansion in a cast to that type, and lo's body
+      // already ends in the same one, so every call emitted `xor ah, ah` twice.
+      const from = typeOf(node.argument)
+      if (node.to === from) return
+      // A bool is 0 or 1, so AH is clear and the byte is already the value.
+      if (node.to === 'u8' && from === 'bool') return
+
       if (node.to === 'u8') ins('xor', 'ah, ah', 'cast to u8')
       else if (node.to === 'i8') ins('cbw', '', 'cast to i8')
       else if (node.to === 'bool') {

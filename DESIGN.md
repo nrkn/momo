@@ -618,6 +618,15 @@ exceed 128 bytes under this codegen.
    exactly when its widening is — neither `xor ah, ah` nor `cbw` can change
    that — and only ZF is read, so the widening is dead work. `if (arr[i])` and
    `if (_cf)` (§10) both take this path; `if (someU16)` still tests AX.
+6. **A cast that cannot change the bits emits nothing** — `u8(x)` where `x` is
+   already `u8` or `bool`, `i8(x)` where `x` is already `i8`. Safe because
+   arithmetic is always 16-bit (§4), so nothing typed narrower can reach the
+   cast un-widened. `u8(i8 x)` and `i8(u8 x)` still emit: those reinterpret.
+
+   Worth having because §8's return-type rule creates the duplicate. A
+   parameterised const wraps its expansion in a cast to the declared type, and
+   `const u8 lo(u16 w) = u8(w)` already ends in that same cast — so every call
+   to `lo` emitted `xor ah, ah` twice.
 
 4 and 5 were listed here as built, for a long time, and were not. That is the
 argument for the golden `.asm` tier (§14): a claim about generated output that

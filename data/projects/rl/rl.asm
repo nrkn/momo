@@ -55,7 +55,6 @@ __entry:
 ; ---- if( lo( lastKey ) == keyEsc ) break
         mov     ax, [lastKey]
         xor     ah, ah                      ; cast to u8
-        xor     ah, ah                      ; cast to u8
         cmp     ax, 27
         je      .L7                         ; unsigned ==
         jmp     .L5
@@ -358,7 +357,6 @@ isMove:
 ; ---- bool isMove( u8 key ) => lo( lastKey ) == 0 && hi( lastKey ) == key
         mov     ax, [lastKey]
         xor     ah, ah                      ; cast to u8
-        xor     ah, ah                      ; cast to u8
         cmp     ax, 0
         je      .L29                        ; unsigned ==
         jmp     .L27
@@ -366,7 +364,6 @@ isMove:
         mov     ax, [lastKey]
         mov     cl, 8                       ; 8086 has no shift-by-immediate
         shr     ax, cl                      ; unsigned >>
-        xor     ah, ah                      ; cast to u8
         xor     ah, ah                      ; cast to u8
         mov     bl, [isMove__key]
         xor     bh, bh                      ; u8 -> u16
