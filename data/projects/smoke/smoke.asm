@@ -41,8 +41,7 @@ putChar:
         mov     byte [_ah], 2
 ; ---- _dl = char
         mov     al, [char]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [_dl], al                   ; narrowed to u8
+        mov     [_dl], al                   ; u8 -> u8, no widening
 ; ---- int 0x21
         call    int21
         ret
@@ -81,8 +80,7 @@ peekKey:
         call    int16
 ; ---- char = _al
         mov     al, [_al]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [char], al                  ; narrowed to u8
+        mov     [char], al                  ; u8 -> u8, no widening
         ret
 
 ; ============================================== sub putSpaces ====
@@ -195,8 +193,7 @@ putNumber:
         sub     ax, 1
         mov     bx, ax
         mov     al, [digits + bx]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [char], al                  ; narrowed to u8
+        mov     [char], al                  ; u8 -> u8, no widening
 ; ---- putChar()
         call    putChar
 .L17:
@@ -268,12 +265,10 @@ run:
         call    isDivisible
 ; ---- done = divResult
         mov     al, [divResult]
-        xor     ah, ah                      ; bool -> u16
-        mov     [done], al                  ; narrowed to bool
+        mov     [done], al                  ; bool -> bool, no widening
 ; ---- if (done) {
         mov     al, [done]
-        xor     ah, ah                      ; bool -> u16
-        test    ax, ax
+        test    al, al
         jnz     .L35
         jmp     .L33
 .L35:
@@ -289,8 +284,7 @@ run:
         call    isDivisible
 ; ---- if (divResult) {
         mov     al, [divResult]
-        xor     ah, ah                      ; bool -> u16
-        test    ax, ax
+        test    al, al
         jnz     .L38
         jmp     .L36
 .L38:
@@ -352,8 +346,7 @@ run:
         call    putChar
 ; ---- if (!done || value == limit) {
         mov     al, [done]
-        xor     ah, ah                      ; bool -> u16
-        test    ax, ax
+        test    al, al
         jnz     .L52
         jmp     .L51
 .L52:
@@ -365,8 +358,7 @@ run:
 .L51:
 ; ---- char = done ? '*' : value > 10 ? '#' : '.'   // nested, right-assoc
         mov     al, [done]
-        xor     ah, ah                      ; bool -> u16
-        test    ax, ax
+        test    al, al
         jnz     .L56
         jmp     .L54
 .L56:
@@ -400,8 +392,7 @@ run:
         mov     ax, dx                      ; remainder
         mov     bx, ax
         mov     al, [partial + bx]
-        xor     ah, ah                      ; u8 -> u16
-        test    ax, ax
+        test    al, al
         jnz     .L62
         jmp     .L60
 .L62:

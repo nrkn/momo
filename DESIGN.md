@@ -582,7 +582,7 @@ count emitted instructions and use the tight form when the skipped region is
 provably short. This is not theoretical — several bodies in the reference file
 exceed 128 bytes under this codegen.
 
-**Peepholes, built:**
+**Peepholes:**
 
 1. **Leaf RHS skips the stack** — load a variable/constant operand straight into
    BX instead of `push ax` / eval / `mov bx,ax` / `pop ax`. Biggest win, and the
@@ -593,18 +593,19 @@ exceed 128 bytes under this codegen.
 3. **Single-argument calls skip the argument stack** — the push/pop pair that
    protects an already-filled parameter slot is only needed when there are
    several arguments to protect (§7).
+4. **Same-width copy skips widening** — `u8 x = u8 x1` loads AL and stores it,
+   with nothing in between. Only a *bare* load qualifies: `x = x1 + 1` still
+   widens because arithmetic happens in 16 bits, and `u16 w = x1` still widens
+   because the store keeps all of AX.
+5. **Truthiness of a byte skips widening** — `test al, al`. A byte is zero
+   exactly when its widening is — neither `xor ah, ah` nor `cbw` can change
+   that — and only ZF is read, so the widening is dead work. `if (arr[i])` and
+   `if (_cf)` (§10) both take this path; `if (someU16)` still tests AX.
 
-**Peepholes, described here but never built.** Both are widening that is
-immediately thrown away, and both are cheap:
-
-- **Same-width copy** — `u8 x = u8 x1` still emits `mov al,[x1]` / `xor ah,ah` /
-  `mov [x],al`, widening a byte only to store the low half back.
-- **Truthiness of a byte** — `if (flag)` widens and then does `test ax, ax`
-  where `test al, al` would do. `if (_cf)` (§10) is now the canonical case.
-
-They were listed as built here for a long time before anyone checked, which is
-the argument for the golden `.asm` tier in §14: a claim about output that
-nothing compares against is a claim about nothing.
+4 and 5 were listed here as built, for a long time, and were not. That is the
+argument for the golden `.asm` tier (§14): a claim about generated output that
+nothing compares against is a claim about nothing. Building them took 84 bytes
+off the fourteen committed programs and added no instruction anywhere.
 
 **Comment style:** source line as a section header, *not* echoed per
 instruction. Inline comments reserved for width conversions, why `jbe` and not
@@ -614,7 +615,7 @@ instruction. Inline comments reserved for width conversions, why `jbe` and not
 drawLineHorizontal:
 ; ---- for (x = x1; x <= x2; x++) ----
         mov     al, [x1]
-        mov     [x], al                 ; x = x1  (u8 -> u8, no widening)
+        mov     [x], al                 ; u8 -> u8, no widening
 .for1_test:
         mov     al, [x]
         xor     ah, ah                  ; u8 -> u16

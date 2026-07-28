@@ -16,8 +16,7 @@ __entry:
         call    openFile
 ; ---- openFailed = _cf
         mov     al, [_cf]
-        xor     ah, ah                      ; bool -> u16
-        mov     [openFailed], al            ; narrowed to bool
+        mov     [openFailed], al            ; bool -> bool, no widening
 ; ---- handle = _ax
         mov     ax, [_ax]
         mov     [handle], ax
@@ -31,8 +30,7 @@ __entry:
         call    openFile
 ; ---- missingFailed = _cf
         mov     al, [_cf]
-        xor     ah, ah                      ; bool -> u16
-        mov     [missingFailed], al         ; narrowed to bool
+        mov     [missingFailed], al         ; bool -> bool, no widening
 ; ---- putNumber( u16( openFailed ) )
         mov     al, [openFailed]
         xor     ah, ah                      ; bool -> u16
@@ -61,8 +59,7 @@ putChar:
         mov     byte [_ah], 2
 ; ---- _dl = c
         mov     al, [putChar__c]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [_dl], al                   ; narrowed to u8
+        mov     [_dl], al                   ; u8 -> u8, no widening
 ; ---- int 0x21
         call    int21
         ret

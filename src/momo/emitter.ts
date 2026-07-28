@@ -149,7 +149,10 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     else ins('xor', 'ah, ah', `${type} -> u16`)
   }
 
-  const loadVariable = (symbol: MomoSymbol) => {
+  // `widening` is false only where the caller can prove the high half is about
+  // to be discarded - a byte stored straight back to a byte, or a truthiness
+  // test. See emitByteLoad.
+  const loadVariable = (symbol: MomoSymbol, widening = true) => {
     if (symbol.kind !== 'var' && symbol.kind !== 'const') return
     if (symbol.kind === 'const') {
       ins('mov', `ax, ${symbol.value}`)
@@ -160,10 +163,10 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
       return
     }
     ins('mov', `al, [${symbol.label}]`)
-    widen(symbol.type)
+    if (widening) widen(symbol.type)
   }
 
-  const emitIndexLoad = (node: IndexExpression) => {
+  const emitIndexLoad = (node: IndexExpression, widening = true) => {
     const symbol = symbolFor(node.array.label)
     if (symbol.kind !== 'array') return
 
@@ -176,7 +179,7 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
       if (width === 2) ins('mov', `ax, [${at}]`)
       else {
         ins('mov', `al, [${at}]`)
-        widen(symbol.elementType)
+        if (widening) widen(symbol.elementType)
       }
       return
     }
@@ -187,8 +190,55 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     if (width === 2) ins('mov', `ax, [${symbol.label} + bx]`)
     else {
       ins('mov', `al, [${symbol.label} + bx]`)
-      widen(symbol.elementType)
+      if (widening) widen(symbol.elementType)
     }
+  }
+
+  // Loads a plain byte from memory into AL WITHOUT widening, and reports the
+  // type it loaded. Returns null - having emitted nothing - when the operand is
+  // anything else, so callers fall back to the ordinary widened path.
+  //
+  // Only a bare load qualifies. `x + 1` needs the widening, because arithmetic
+  // happens in 16 bits.
+  const emitByteLoad = (node: Expression): ValueType | null => {
+    if (constOf(node) !== null) return null
+
+    if (node.type === 'Identifier') {
+      const symbol = symbolFor(node.label)
+      if (symbol.kind !== 'var' || widthOf(symbol.type) !== 1) return null
+      loadVariable(symbol, false)
+      return symbol.type
+    }
+
+    if (node.type === 'IndexExpression') {
+      const symbol = symbolFor(node.array.label)
+      if (symbol.kind !== 'array' || widthOf(symbol.elementType) !== 1) return null
+      emitIndexLoad(node, false)
+      return symbol.elementType
+    }
+
+    return null
+  }
+
+  // Leaves the operand's truth in ZF. A byte is zero exactly when its widening
+  // is - `xor ah, ah` cannot change that and `cbw` cannot either - and only ZF
+  // is read here, so the widening is dead work.
+  const emitTruthTest = (node: Expression) => {
+    if (emitByteLoad(node)) {
+      ins('test', 'al, al')
+      return
+    }
+    emitExpression(node)
+    ins('test', 'ax, ax')
+  }
+
+  const lvalueType = (target: LValue): ValueType | null => {
+    if (target.type === 'Identifier') {
+      const symbol = symbolFor(target.label)
+      return symbol.kind === 'var' ? symbol.type : null
+    }
+    const symbol = symbolFor(target.array.label)
+    return symbol.kind === 'array' ? symbol.elementType : null
   }
 
   // A leaf is something we can load straight into BX without touching AX.
@@ -505,8 +555,7 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
       return
     }
 
-    emitExpression(node)
-    ins('test', 'ax, ax')
+    emitTruthTest(node)
     jumpIf('jz', target)
   }
 
@@ -536,8 +585,7 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
       return
     }
 
-    emitExpression(node)
-    ins('test', 'ax, ax')
+    emitTruthTest(node)
     jumpIf('jnz', target)
   }
 
@@ -556,12 +604,12 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
   // ---- statements -----------------------------------------------------------
 
   // Store AX (or AL) into an lvalue. The caller has already put the value in AX.
-  const storeTo = (target: LValue) => {
+  const storeTo = (target: LValue, byteNote?: string) => {
     if (target.type === 'Identifier') {
       const symbol = symbolFor(target.label)
       if (symbol.kind !== 'var') return
       if (widthOf(symbol.type) === 2) ins('mov', `[${symbol.label}], ax`)
-      else ins('mov', `[${symbol.label}], al`, `narrowed to ${symbol.type}`)
+      else ins('mov', `[${symbol.label}], al`, byteNote ?? `narrowed to ${symbol.type}`)
       return
     }
 
@@ -624,6 +672,18 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
 
     if (node.operator === '=') {
       if (storeConstant(node.target, constOf(node.value))) return
+
+      // Byte to byte: the store keeps only AL, so widening the source would be
+      // computed and then discarded.
+      const targetType = lvalueType(node.target)
+      if (targetType && widthOf(targetType) === 1) {
+        const loaded = emitByteLoad(node.value)
+        if (loaded) {
+          storeTo(node.target, `${loaded} -> ${targetType}, no widening`)
+          return
+        }
+      }
+
       emitExpression(node.value)
       storeTo(node.target)
       return
@@ -733,12 +793,26 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
       if (!node.init || node.typeNode.array) return
       if (constOf(node.init) !== null) return
       quoteSource(node.file, node.line, node.endLine)
-      emitExpression(node.init)
-      const symbol = symbolFor(node.label)
-      if (symbol.kind === 'var') {
-        if (widthOf(symbol.type) === 2) ins('mov', `[${symbol.label}], ax`)
-        else ins('mov', `[${symbol.label}], al`)
-      }
+
+      // Exactly an assignment, so take that path rather than keep a second
+      // store here that has to remember the same widening rules.
+      emitAssignment({
+        type: 'AssignmentStatement',
+        operator: '=',
+        target: {
+          type: 'Identifier',
+          name: node.name,
+          label: node.label,
+          file: node.file,
+          line: node.line,
+          col: node.col,
+        },
+        value: node.init,
+        file: node.file,
+        line: node.line,
+        col: node.col,
+        endLine: node.endLine,
+      })
       return
     }
 

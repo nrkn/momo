@@ -114,8 +114,7 @@ putChar:
         mov     byte [_ah], 2
 ; ---- _dl = c
         mov     al, [putChar__c]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [_dl], al                   ; narrowed to u8
+        mov     [_dl], al                   ; u8 -> u8, no widening
 ; ---- int 0x21
         call    int21
         ret

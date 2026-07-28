@@ -79,8 +79,7 @@ __entry:
         xor     ah, ah                      ; u8 -> u16
         mov     bx, ax
         mov     al, [mob__alive + bx]
-        xor     ah, ah                      ; bool -> u16
-        test    ax, ax
+        test    al, al
         jnz     .L11
         jmp     .L9
 .L11:
@@ -158,8 +157,7 @@ putChar:
         mov     byte [_ah], 2
 ; ---- _dl = c
         mov     al, [putChar__c]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [_dl], al                   ; narrowed to u8
+        mov     [_dl], al                   ; u8 -> u8, no widening
 ; ---- int 0x21
         call    int21
         ret

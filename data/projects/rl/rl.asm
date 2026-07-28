@@ -62,12 +62,10 @@ __entry:
 .L5:
 ; ---- oldPx = playerX
         mov     al, [playerX]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [oldPx], al                 ; narrowed to u8
+        mov     [oldPx], al                 ; u8 -> u8, no widening
 ; ---- oldPy = playerY
         mov     al, [playerY]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [oldPy], al                 ; narrowed to u8
+        mov     [oldPy], al                 ; u8 -> u8, no widening
 ; ---- if( isMove( keyUp ) && playerY > 0 ){
         mov     ax, 72
         mov     [isMove__key], al           ; narrowed to u8
@@ -167,12 +165,10 @@ __entry:
 .L26:
 ; ---- playerX = oldPx
         mov     al, [oldPx]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [playerX], al               ; narrowed to u8
+        mov     [playerX], al               ; u8 -> u8, no widening
 ; ---- playerY = oldPy
         mov     al, [oldPy]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [playerY], al               ; narrowed to u8
+        mov     [playerY], al               ; u8 -> u8, no widening
         jmp     .L25
 .L24:
 ; ---- writeAt( oldPx, oldPy, tileAt( oldPx, oldPy ), defAttr )
@@ -243,8 +239,7 @@ clearScreen:
         mov     word [_ax], 1536
 ; ---- _bh = attr
         mov     al, [clearScreen__attr]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [_bh], al                   ; narrowed to u8
+        mov     [_bh], al                   ; u8 -> u8, no widening
 ; ---- _cx = 0                       // top-left: row 0, column 0
         mov     word [_cx], 0
 ; ---- _dh = screenRows - 1
@@ -264,12 +259,10 @@ moveTo:
         mov     byte [_bh], 0
 ; ---- _dh = row
         mov     al, [moveTo__row]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [_dh], al                   ; narrowed to u8
+        mov     [_dh], al                   ; u8 -> u8, no widening
 ; ---- _dl = col
         mov     al, [moveTo__col]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [_dl], al                   ; narrowed to u8
+        mov     [_dl], al                   ; u8 -> u8, no widening
 ; ---- int 0x10
         call    int10
         ret
@@ -281,14 +274,12 @@ putCell:
         mov     byte [_ah], 9
 ; ---- _al = ch
         mov     al, [putCell__ch]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [_al], al                   ; narrowed to u8
+        mov     [_al], al                   ; u8 -> u8, no widening
 ; ---- _bh = 0
         mov     byte [_bh], 0
 ; ---- _bl = attr
         mov     al, [putCell__attr]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [_bl], al                   ; narrowed to u8
+        mov     [_bl], al                   ; u8 -> u8, no widening
 ; ---- _cx = 1
         mov     word [_cx], 1
 ; ---- int 0x10

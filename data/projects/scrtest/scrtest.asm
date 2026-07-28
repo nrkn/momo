@@ -141,8 +141,7 @@ putChar:
         mov     byte [_ah], 2
 ; ---- _dl = c
         mov     al, [putChar__c]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [_dl], al                   ; narrowed to u8
+        mov     [_dl], al                   ; u8 -> u8, no widening
 ; ---- int 0x21
         call    int21
         ret
@@ -247,8 +246,7 @@ clearScreen:
         mov     word [_ax], 1536
 ; ---- _bh = attr
         mov     al, [clearScreen__attr]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [_bh], al                   ; narrowed to u8
+        mov     [_bh], al                   ; u8 -> u8, no widening
 ; ---- _cx = 0                       // top-left: row 0, column 0
         mov     word [_cx], 0
 ; ---- _dh = screenRows - 1
@@ -268,12 +266,10 @@ moveTo:
         mov     byte [_bh], 0
 ; ---- _dh = row
         mov     al, [moveTo__row]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [_dh], al                   ; narrowed to u8
+        mov     [_dh], al                   ; u8 -> u8, no widening
 ; ---- _dl = col
         mov     al, [moveTo__col]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [_dl], al                   ; narrowed to u8
+        mov     [_dl], al                   ; u8 -> u8, no widening
 ; ---- int 0x10
         call    int10
         ret
@@ -285,14 +281,12 @@ putCell:
         mov     byte [_ah], 9
 ; ---- _al = ch
         mov     al, [putCell__ch]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [_al], al                   ; narrowed to u8
+        mov     [_al], al                   ; u8 -> u8, no widening
 ; ---- _bh = 0
         mov     byte [_bh], 0
 ; ---- _bl = attr
         mov     al, [putCell__attr]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [_bl], al                   ; narrowed to u8
+        mov     [_bl], al                   ; u8 -> u8, no widening
 ; ---- _cx = 1
         mov     word [_cx], 1
 ; ---- int 0x10
@@ -306,14 +300,12 @@ repeatCell:
         mov     byte [_ah], 9
 ; ---- _al = ch
         mov     al, [repeatCell__ch]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [_al], al                   ; narrowed to u8
+        mov     [_al], al                   ; u8 -> u8, no widening
 ; ---- _bh = 0
         mov     byte [_bh], 0
 ; ---- _bl = attr
         mov     al, [repeatCell__attr]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [_bl], al                   ; narrowed to u8
+        mov     [_bl], al                   ; u8 -> u8, no widening
 ; ---- _cx = count
         mov     ax, [repeatCell__count]
         mov     [_cx], ax
