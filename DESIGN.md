@@ -653,6 +653,55 @@ all reserved globals in and out:
 Chunky, but an `int 21h` costs thousands of cycles — the sync is free in
 relative terms and needs no dataflow analysis.
 
+### `_cf` — the carry flag
+
+DOS and BIOS report failure in carry, so `bool _cf` holds it after every `int`:
+
+```momo
+_ah = 0x3D                    // open, read-only
+_al = 0
+_dx = addr( filename )
+int 0x21
+
+if ( _cf ) { ... }            // failed; _ax holds the error code
+```
+
+Captured at the end of the helper, once AX is free again — no `mov` disturbs
+flags, so CF is still the handler's:
+
+```nasm
+        mov     [_di], di
+        pushf
+        pop     ax
+        and     al, 1                       ; carry is bit 0
+        mov     [_cf], al
+```
+
+It survives `IRET` only because DOS and BIOS handlers arrange it — `RETF 2`
+discards the saved FLAGS image rather than restoring it. Universal convention,
+but not something the instruction semantics imply.
+
+Three decisions:
+
+- **Read-only.** Every other reserved global is bidirectional, but no DOS or
+  BIOS call reads carry on the way *in* — the convention is uniformly
+  carry-as-error-out. A writable `_cf` would let you write something that
+  silently means nothing, so assigning to it is an error. This costs the
+  `pushf`/`popf` restore an earlier draft of §20 budgeted for.
+- **Captured only when read.** The registers are synced unconditionally because
+  the helper references them regardless; `_cf` is pruned like an ordinary global
+  when nothing mentions it, and the four instructions are emitted only if it
+  survives. A program that ignores carry pays neither the byte nor the
+  instructions, and adding the feature moved no existing output at all.
+- **`bool`, not `u8`.** It is genuinely 0 or 1, and the type is also what tells
+  the emitter this reserved global is real storage: every `u8` one is a byte
+  alias into a register pair by construction, so a `u8 _cf` would have come out
+  as `equ _cx + 1`.
+
+**It is the carry from the most recent `int`, not from the one you care about.**
+Anything that prints goes through `int 21h` and replaces it, so read it out
+immediately — `data/projects/cftest` demonstrates both the reading and the trap.
+
 **Emit one helper sub per distinct INT number**, not the sync inline at every
 call site. The literal is baked into the helper, so `int 0x21` becomes
 `call int21` — 3 bytes instead of ~40. Confirmed working in
@@ -1491,8 +1540,7 @@ up, so where both fit, this is the more Momo-shaped answer.
   Direct buffer access is designed in §16 and deferred until something needs it.
 - **Port I/O (`in`/`out`).** Two instructions, needed for EGA/VGA planar modes,
   the PIT, and the speaker. Out of scope until a program wants one of those.
-- **`bool _cf`** — DOS file operations report errors in carry. Costs
-  `pushf`/`pop ax`/`and ax,1` per INT and adds `pushf`/`popf`. Add when files matter.
+- ~~**`bool _cf`**~~ — **built**, see §10.
 - **`peek8`/`poke8`/`peek16`/`poke16`** — the only route to a **runtime**
   address. `far` (§16) and `view` (§17) are both compile-time addressing, so
   neither overlaps with this:

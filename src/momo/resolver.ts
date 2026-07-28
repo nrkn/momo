@@ -58,6 +58,12 @@ export type MomoSymbol =
       builtin: boolean
       init: number
       owner?: string
+      // `_cf` reports what the machine did; there is nothing to say back to it.
+      readonly?: boolean
+      // Builtins are normally emitted whether used or not, because the int
+      // helpers reference the registers unconditionally. `_cf` is captured only
+      // when something reads it, so a program that ignores carry pays nothing.
+      onlyIfUsed?: boolean
     }
   | {
       kind: 'routine'
@@ -94,7 +100,12 @@ export type ResolveResult = {
 
 // The reserved globals are the machine registers. Byte aliases index into the
 // word storage; the emitter lays them out with `equ`.
-const reservedGlobals: { name: string; type: ValueType }[] = [
+const reservedGlobals: {
+  name: string
+  type: ValueType
+  readonly?: boolean
+  onlyIfUsed?: boolean
+}[] = [
   { name: '_ax', type: 'u16' }, { name: '_al', type: 'u8' }, { name: '_ah', type: 'u8' },
   { name: '_bx', type: 'u16' }, { name: '_bl', type: 'u8' }, { name: '_bh', type: 'u8' },
   { name: '_cx', type: 'u16' }, { name: '_cl', type: 'u8' }, { name: '_ch', type: 'u8' },
@@ -102,6 +113,11 @@ const reservedGlobals: { name: string; type: ValueType }[] = [
   { name: '_si', type: 'u16' }, { name: '_di', type: 'u16' },
   // Storage for _hsize sits in the heap block; NASM computes its value.
   { name: '_hsize', type: 'u16' },
+  // The carry flag after the most recent `int` - how DOS and BIOS report
+  // failure. `bool` rather than u8 both because that is what it is and because
+  // it is what tells the emitter this one is real storage rather than a byte
+  // view of a register (every u8 reserved global is an alias by construction).
+  { name: '_cf', type: 'bool', readonly: true, onlyIfUsed: true },
 ]
 
 // The heap is everything past the program image. No storage is emitted - these
@@ -198,6 +214,8 @@ export const resolve = (program: Program): ResolveResult => {
       type: reserved.type,
       builtin: true,
       init: 0,
+      readonly: reserved.readonly,
+      onlyIfUsed: reserved.onlyIfUsed,
     }
     globals.set(reserved.name, symbol)
     takenLabels.add(symbol.label)
@@ -1047,6 +1065,13 @@ export const resolve = (program: Program): ResolveResult => {
       }
       if (symbol.kind === 'group') {
         raise(target, `"${target.name}" is a group - assign to a field`)
+      }
+      if (symbol.kind === 'var' && symbol.readonly) {
+        raise(
+          target,
+          `"${target.name}" reports the carry flag after "int" - it cannot be assigned;` +
+            ' no DOS or BIOS call reads carry on the way in',
+        )
       }
       target.label = symbol.label
       return annotate(target, { type: symbol.type, value: null })

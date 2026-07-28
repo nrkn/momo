@@ -1,0 +1,23 @@
+// _cf reads like any other bool - it is one.
+
+bool failed
+u8   out
+
+_ah = 0x3D
+_al = 0
+_dx = 0
+int 0x21
+
+// Copy it out straight away: it is the carry from the most recent int, so any
+// other int - including the one putChar uses - replaces it.
+failed = _cf
+
+if( _cf ){
+  out = 1
+}
+
+if( !_cf && failed ){
+  out = 2
+}
+
+out = u8( failed ) + u8( _cf )

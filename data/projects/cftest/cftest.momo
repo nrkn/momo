@@ -1,0 +1,54 @@
+// cftest.momo - _cf, the carry flag after an int.
+//
+// DOS reports failure in carry, so this is the first Momo program that can find
+// out the machine said no. It opens two files: one that is certainly there (its
+// own assembly listing, which the build copies alongside the .com) and one that
+// certainly is not.
+//
+// DOS filenames are NUL-terminated, not '$'-terminated - that terminator is a
+// print convention, nothing more.
+
+include "std/io.momo"
+
+const u8[] present = "CFTEST.ASM\0"
+const u8[] missing = "NOSUCH.XYZ\0"
+
+// AH=3Dh open, AL=0 read-only, DS:DX -> name.
+sub openFile( u16 at ) {
+  _ah = 0x3D
+  _al = 0
+  _dx = at
+  int 0x21
+}
+
+// AH=3Eh close, BX = handle.
+sub closeFile( u16 handle ) {
+  _ah = 0x3E
+  _bx = handle
+  int 0x21
+}
+
+bool openFailed
+bool missingFailed
+u16  handle
+
+// ---- entry ----
+
+openFile( addr( present ) )
+
+// Read both out BEFORE anything else runs: _cf is the carry from the most
+// recent int, and putNumber goes through int 21h to print. Waiting until after
+// would report the carry from writing a digit.
+openFailed = _cf
+handle = _ax
+
+closeFile( handle )
+
+openFile( addr( missing ) )
+missingFailed = _cf
+
+// 0 1 - the first open succeeded, the second did not.
+putNumber( u16( openFailed ) )
+putChar( ' ' )
+putNumber( u16( missingFailed ) )
+newline()

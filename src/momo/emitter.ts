@@ -859,6 +859,11 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
       if (symbol.label === '_hsize') continue // emitted with the heap block
       if (widthOf(symbol.type) === 2) {
         lines.push(`${symbol.label.padEnd(15)} dw      0`)
+      } else if (symbol.type === 'bool') {
+        // Real storage, not a view of a register. `bool` is what distinguishes
+        // the two: every u8 reserved global is a byte alias by construction, so
+        // without this `_cf` would silently come out as `equ _cx + 1`.
+        lines.push(`${symbol.label.padEnd(15)} db      0`)
       } else {
         // Byte aliases index into the word storage; little-endian, low first.
         const parent = `_${symbol.label[1]}x`
@@ -1005,6 +1010,11 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
   note('One per distinct interrupt: the literal is baked in, so the register')
   note('sync is emitted once rather than at every call site.')
 
+  // Only when something reads it - see the `onlyIfUsed` rule in prune.
+  const capturesCarry = result.symbols.some(
+    (symbol) => symbol.kind === 'var' && symbol.label === '_cf',
+  )
+
   const registers = ['ax', 'bx', 'cx', 'dx', 'si', 'di']
   for (const interrupt of [...interrupts].sort((a, b) => a - b)) {
     blank()
@@ -1012,6 +1022,19 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     for (const register of registers) ins('mov', `${register}, [_${register}]`)
     ins('int', `0x${interrupt.toString(16).toUpperCase()}`)
     for (const register of registers) ins('mov', `[_${register}], ${register}`)
+
+    // Carry is how DOS and BIOS report failure. Captured last, once AX is free
+    // again: no `mov` disturbs the flags, so CF is still the handler's.
+    //
+    // (These helpers are emitted after every routine's temporaries have been
+    // recorded, so the pop below cannot disturb the stack figure.)
+    if (capturesCarry) {
+      ins('pushf')
+      ins('pop', 'ax')
+      ins('and', 'al, 1', 'carry is bit 0')
+      ins('mov', '[_cf], al')
+    }
+
     ins('ret')
   }
 

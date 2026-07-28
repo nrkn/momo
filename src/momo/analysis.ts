@@ -13,7 +13,14 @@ import type { Expression, Program, Statement } from './ast.js'
 
 // Structural, to avoid importing the resolver and creating a cycle.
 type PrunableSymbol =
-  | { kind: 'var'; name: string; label: string; builtin: boolean; owner?: string }
+  | {
+      kind: 'var'
+      name: string
+      label: string
+      builtin: boolean
+      owner?: string
+      onlyIfUsed?: boolean
+    }
   | { kind: 'array'; name: string; label: string; dynamic: boolean }
   | { kind: 'const'; name: string; label: string }
   | { kind: 'constfn'; name: string; label: string }
@@ -300,8 +307,14 @@ export const prune = <S extends PrunableSymbol>(result: {
     // A fn's parameter and return slots live or die with the fn: the call site
     // writes them even when the body never reads them.
     if (symbol.kind === 'var' && symbol.owner) return reachable.has(symbol.owner)
-    // Reserved registers, _hsize and the heap views are always present.
-    if (symbol.kind === 'var' && symbol.builtin) return true
+    // Reserved registers, _hsize and the heap views are always present - every
+    // int helper loads and stores the registers whether the program mentions
+    // them or not. `_cf` is the exception: it is captured only when something
+    // reads it, so a program that ignores carry pays neither the storage nor the
+    // four instructions per helper.
+    if (symbol.kind === 'var' && symbol.builtin) {
+      return symbol.onlyIfUsed ? used.has(symbol.label) : true
+    }
     if (symbol.kind === 'array' && symbol.dynamic) return true
     // A group emits nothing, so keeping it is free - and `npm run check` should
     // still show the shape even when only some of its fields survived.

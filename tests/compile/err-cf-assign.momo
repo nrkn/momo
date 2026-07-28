@@ -1,0 +1,4 @@
+// EXPECT-ERROR: it cannot be assigned
+// _cf reports what the machine did. Writing to it would look like signalling
+// something on the way in, which no DOS or BIOS call reads.
+_cf = true

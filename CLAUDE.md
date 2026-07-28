@@ -123,5 +123,5 @@ have consistently been the right ones.
 map" stage, using dirty-tile redraw. Everything else under `data/projects/` is
 either a test fixture or a demonstration of one language feature.
 
-121 tier-1 assertions (83 compile tests, 13 golden `.asm`, 25 type), 12 e2e
+125 tier-1 assertions (86 compile tests, 14 golden `.asm`, 25 type), 13 e2e
 programs, all green.
