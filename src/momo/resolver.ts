@@ -1079,16 +1079,11 @@ export const resolve = (program: Program): ResolveResult => {
       })
     }
 
-    let returned = false
-    for (const statement of node.body.body) {
-      resolveStatement(statement)
-      if (statement.type === 'ReturnStatement' && statement.argument) returned = true
-    }
+    for (const statement of node.body.body) resolveStatement(statement)
 
     if (symbol.returnType && !hasReturnValue(node.body.body)) {
       raise(node, `"${node.name}" declares -> ${symbol.returnType} but never returns a value`)
     }
-    void returned
 
     currentFn = null
     locals = null

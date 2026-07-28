@@ -115,6 +115,14 @@ const collectFromExpression = (value: unknown, into: CallSite[]) => {
   for (const key of Object.keys(node)) collectFromExpression(node[key], into)
 }
 
+// A `for`'s init and update clauses are walked twice - once by the generic
+// expression pass below, once by the explicit recursion - so a call in one of
+// them lands in `into` twice. Deliberately left alone: edges are only ever read
+// through a max (depth, stack) or a set (reachability, cycles), so a duplicate
+// is unobservable. Filtering it out would mean excluding `init` by statement
+// type, since on a VariableDeclaration that same key is the initialiser
+// expression and MUST be walked here - machinery, and a chance to drop a real
+// edge, for no change in behaviour.
 const collectCalls = (statements: Statement[], into: CallSite[]) => {
   for (const statement of statements) {
     collectFromExpression(

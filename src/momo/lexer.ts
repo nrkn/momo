@@ -196,6 +196,21 @@ export const tokenize = (source: string, file: string): Token[] => {
       const start = pos
 
       advance(1)
+
+      // A bare quote is never the body. `''` is empty, and `'''` is an
+      // unescaped apostrophe - which otherwise lexes as 39 without complaint,
+      // since the third quote closes the literal and the second reads as its
+      // contents. Both want catching here, where the two cases are still
+      // distinguishable.
+      if (source[pos] === "'") {
+        raise(
+          { file, line: startLine, col: startCol },
+          source[pos + 1] === "'"
+            ? 'an apostrophe inside a character literal must be escaped'
+            : 'a character literal cannot be empty',
+        )
+      }
+
       const code = readCharBody()
 
       if (pos >= source.length || source[pos] !== "'") {

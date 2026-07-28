@@ -1,0 +1,4 @@
+// EXPECT-ERROR: an apostrophe inside a character literal must be escaped
+// Three quotes lex as 39 without complaint if nothing checks: the third closes
+// the literal and the second reads as its contents. Write it as '\''.
+u8 c = '''

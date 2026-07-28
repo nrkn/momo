@@ -11,15 +11,9 @@
     "pretty": true,
     "sourceMap": true,
     "strict": true,
-    "noImplicitAny": false,
-    "strictNullChecks": true,
-    "noImplicitThis": true,
-    "alwaysStrict": true,
     "moduleResolution": "nodenext",
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": true,
     "types": ["node"]
   }
 }

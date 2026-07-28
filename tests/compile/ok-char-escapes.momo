@@ -1,0 +1,14 @@
+// The escaped forms must all still lex, including the apostrophe that
+// err-char-literal-bare-quote now requires you to write this way.
+u8 apostrophe = '\''
+u8 backslash  = '\\'
+u8 quote      = '\"'
+u8 newline    = '\n'
+u8 carriage   = '\r'
+u8 tab        = '\t'
+u8 nul        = '\0'
+
+const u8[] mixed = "it's \"quoted\"\r\n$"
+
+u8 out
+out = apostrophe + backslash + quote + newline + carriage + tab + nul + mixed[0]
