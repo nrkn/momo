@@ -1,0 +1,14 @@
+// EXPECT-ERROR: unreachable code - the "continue" above always jumps
+// Two unreachable statements here: `_al = 1` inside the loop, and `_ah = 2`
+// after it, since an if whose every branch jumps does not fall through either.
+// The inner one comes first in the source, so it is the one reported.
+u8 i
+for( i = 0; i < 3; i++ ){
+  if( i == 0 ){
+    continue
+    _al = 1
+  } else {
+    break
+  }
+  _ah = 2
+}

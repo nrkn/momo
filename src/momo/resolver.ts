@@ -19,7 +19,7 @@ import type {
   Statement,
   TypeNode,
 } from './ast.js'
-import { alwaysReturns, buildCallGraph, type CallGraph } from './analysis.js'
+import { alwaysReturns, buildCallGraph, fallsThrough, type CallGraph } from './analysis.js'
 import { raise, type Location } from './diagnostics.js'
 import {
   combineRanges,
@@ -984,6 +984,54 @@ export const resolve = (program: Program): ResolveResult => {
     if (node.type === 'IntStatement') return
   }
 
+  // ---- reachability ---------------------------------------------------------
+  //
+  // Anything following a statement that never falls through cannot run. Momo has
+  // no preprocessor, no goto and no labels, so there is no shape where this is
+  // deliberate - it is always either a typo or a misunderstanding of the control
+  // flow, and the same reasoning that makes recursion an error applies. Momo has
+  // no warnings to downgrade it to in any case.
+
+  const whyStopped = (statement: Statement): string => {
+    if (statement.type === 'ReturnStatement') return 'the "return" above always exits'
+    if (statement.type === 'BreakStatement') return 'the "break" above always jumps'
+    if (statement.type === 'ContinueStatement') return 'the "continue" above always jumps'
+    if (
+      statement.type === 'ForStatement' ||
+      statement.type === 'WhileStatement' ||
+      statement.type === 'DoWhileStatement'
+    ) {
+      return 'the loop above never ends'
+    }
+    return 'nothing above it can fall through'
+  }
+
+  // Nested bodies are checked before the statement itself is judged, so the
+  // innermost - and therefore earliest - unreachable statement is the one
+  // reported.
+  const checkReachableWithin = (statement: Statement) => {
+    if (statement.type === 'BlockStatement') return checkReachable(statement.body)
+    if (statement.type === 'IfStatement') {
+      checkReachableWithin(statement.consequent)
+      if (statement.alternate) checkReachableWithin(statement.alternate)
+      return
+    }
+    if (statement.type === 'ForStatement') return checkReachableWithin(statement.body)
+    if (statement.type === 'WhileStatement') return checkReachableWithin(statement.body)
+    if (statement.type === 'DoWhileStatement') return checkReachableWithin(statement.body)
+  }
+
+  const checkReachable = (statements: Statement[]) => {
+    for (let i = 0; i < statements.length; i++) {
+      checkReachableWithin(statements[i])
+      if (fallsThrough(statements[i])) continue
+
+      const next = statements[i + 1]
+      if (next) raise(next, `unreachable code - ${whyStopped(statements[i])}`)
+      return
+    }
+  }
+
   // Parameters and the return value become mangled globals. Nothing else in the
   // execution model changes: no frame, no BP, no recursion.
   const declareRoutine = (node: RoutineDeclaration) => {
@@ -1063,6 +1111,10 @@ export const resolve = (program: Program): ResolveResult => {
 
     for (const statement of node.body.body) resolveStatement(statement)
 
+    // After resolution, so a loop test carries the folded constant that makes
+    // `while (true)` recognisable as endless.
+    checkReachable(node.body.body)
+
     // Every path must reach a `return`, not merely some path. Falling off the
     // end would `ret` with the return slot holding whatever the last call left
     // there - a wrong answer with no diagnostic anywhere.
@@ -1111,6 +1163,12 @@ export const resolve = (program: Program): ResolveResult => {
     if (statement.type === 'VariableDeclaration') continue
     resolveStatement(statement)
   }
+
+  // Top-level statements are the entry point, so the same rule applies to them.
+  // Declarations fall through by default, so a routine sitting between two
+  // statements does not break the chain - and its own body was checked as it
+  // was resolved.
+  checkReachable(program.body)
 
   // Last, so that undefined-sub errors surface before graph shape ones.
   return { program, symbols, callGraph: buildCallGraph(program) }

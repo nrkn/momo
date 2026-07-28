@@ -1,0 +1,6 @@
+// EXPECT-ERROR: unreachable code - the "break" above always jumps
+u8 i
+for( i = 0; i < 3; i++ ){
+  break
+  _al = i
+}

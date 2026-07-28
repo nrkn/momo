@@ -1,0 +1,23 @@
+// rl.momo's main-loop shape: `while (true)` with a break inside, then more code
+// after it. The break makes the loop escapable, so what follows IS reachable
+// and must not be flagged. This is the false positive the check has to avoid.
+u8 done
+
+while( true ){
+  if( done ) break
+  done = 1
+}
+
+_al = 9
+
+// A break in a NESTED loop belongs to that loop, so it does not rescue this
+// one - but this loop has its own break too, so the end is still reachable.
+u8 i
+while( true ){
+  for( i = 0; i < 3; i++ ){
+    break
+  }
+  if( done ) break
+}
+
+_ah = 7

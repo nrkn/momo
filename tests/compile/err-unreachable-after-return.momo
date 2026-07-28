@@ -1,0 +1,6 @@
+// EXPECT-ERROR: unreachable code - the "return" above always exits
+sub t {
+  return
+  _al = 1
+}
+t()
