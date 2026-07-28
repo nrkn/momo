@@ -44,7 +44,7 @@ npm run parse -- <project>    # AST
 npm run check -- <project>    # symbol table
 npm run memory -- <project>   # exact static footprint
 
-npm test                      # tier 1: compile tests + type assertions, ~1s
+npm test                      # tier 1: compile tests, golden .asm, types, ~1s
 npm run test:e2e              # tier 2: run in DOSBox, compare output
 
 npm run grammar               # regenerate the grammar from tokens.ts
@@ -102,8 +102,11 @@ type checker, and two existed only in what NASM did with the output.
 they cover and confirm they fail. A suite that has never failed has not been
 tested.
 
-**`smoke` output must stay byte-identical** across any change that is not meant
-to alter behaviour. It is the strongest regression signal in the project.
+**Generated `.asm` must stay byte-identical** across any change that is not meant
+to alter behaviour. `npm test` now enforces this for every project rather than
+leaving it to whoever remembers to read `git status`. When a change *is* meant
+to alter output, adopt it with `npm run momoc:all` and read the diff — that
+reading is the point of the tier, not a formality.
 
 **Regenerate the grammar** (`npm run grammar`) after touching `tokens.ts`, and
 verify the emitted regexes compile — a TypeScript template literal will turn
@@ -120,4 +123,5 @@ have consistently been the right ones.
 map" stage, using dirty-tile redraw. Everything else under `data/projects/` is
 either a test fixture or a demonstration of one language feature.
 
-92 tier-1 assertions (67 compile tests, 25 type), 11 e2e programs, all green.
+104 tier-1 assertions (67 compile tests, 12 golden `.asm`, 25 type), 11 e2e
+programs, all green.

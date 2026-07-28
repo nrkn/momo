@@ -59,7 +59,7 @@ code it produced, and each instruction choice is annotated with the reason:
 
 ```bash
 npm install
-npm test                        # compile tests + type assertions, about a second
+npm test                        # compile tests, golden .asm, types - about a second
 ```
 
 That much needs no DOSBox. To assemble and run, point the toolchain at your

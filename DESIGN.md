@@ -829,7 +829,8 @@ stack reserve by 256 bytes.
 
 ## 14. Testing
 
-Two tiers, plus a deliberately small set of unit assertions.
+Three tiers, plus a deliberately small set of unit assertions. The first two run
+together in about a second and touch nothing outside Node.
 
 ```
 npm test          # tier 1 + type lattice - about a second, no DOSBox
@@ -845,6 +846,22 @@ the error it expects, in itself:
 
 Keeping the expectation inside the file means test and assertion cannot drift
 apart, and there is no manifest to forget.
+
+**Tier 1.5 — the committed `.asm` is the expectation.** Every project under
+`data/projects/` is compiled and compared against the assembly committed beside
+it. Nothing is written: a deliberate change is adopted by running
+`npm run momoc:all` and committing the diff, so **every codegen change has to be
+looked at by someone.**
+
+This exists because tier 1 asks only *whether* a program compiles, never what it
+emits, and tier 2 needs DOSBox — so between them nothing was watching codegen at
+all. "`smoke` must stay byte-identical" was a rule enforced by remembering to
+read `git status`, which is not a test. It also gives `rl` regression coverage
+for the first time, since it is interactive and can never have a `.expected`.
+
+Line endings are normalised before comparing. The emitter writes CRLF while git
+stores LF, so a clone that checks out LF would otherwise fail every case for a
+reason that has nothing to do with the compiler.
 
 **Tier 2 — any project with a `<name>.expected` file.** Compiled, assembled and
 actually run under DOSBox with stdout redirected to a file, then compared

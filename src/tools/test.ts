@@ -14,7 +14,7 @@
 // their keep: `combineRanges` and `truncate` encode facts about 16-bit integers,
 // not design choices we might revisit.
 
-import { readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { compile } from '../momo/compile.js'
@@ -24,6 +24,7 @@ import { combineRanges, naturalType, rangeOf, truncate } from '../momo/types.js'
 
 const root = process.cwd()
 const compileDir = join(root, 'tests', 'compile')
+const projectsDir = join(root, 'data', 'projects')
 
 let passed = 0
 const failures: string[] = []
@@ -124,14 +125,95 @@ const compileTests = () => {
   return files.length
 }
 
+// ---- golden output ---------------------------------------------------------
+//
+// Compile every project and compare against the .asm committed beside it.
+//
+// The compile tests above only ask WHETHER a program compiles, never what it
+// emits, and tier 2 needs DOSBox - so between them there was nothing watching
+// codegen at all. CLAUDE.md has said "smoke output must stay byte-identical"
+// since long before this existed, but that was enforced by remembering to read
+// `git status`, which is not a test.
+//
+// Nothing is written here. An intentional change is adopted by regenerating
+// with `npm run momoc:all` and committing the diff, which is the point: every
+// codegen change has to be looked at.
+
+// Normalised because the emitter writes CRLF while git stores LF. Without this
+// a fresh clone on a platform that checks out LF fails every case for a reason
+// that has nothing to do with codegen.
+const asLines = (text: string): string[] => text.replace(/\r\n/g, '\n').split('\n')
+
+// The whole file is far too much to print - smoke alone is nearly 700 lines - so
+// report the first line that differs, with a little context.
+const firstDifference = (actual: string, expected: string): string | null => {
+  const generated = asLines(actual)
+  const committed = asLines(expected)
+
+  let at = 0
+  while (at < generated.length && at < committed.length && generated[at] === committed[at]) {
+    at += 1
+  }
+
+  if (at === generated.length && at === committed.length) return null
+
+  const shown: string[] = [`first difference at line ${at + 1}:`]
+  for (let n = Math.max(0, at - 2); n < at; n++) shown.push(`      ${committed[n]}`)
+  shown.push(`    - ${committed[at] ?? '(end of file)'}`)
+  shown.push(`    + ${generated[at] ?? '(end of file)'}`)
+  shown.push(`    ${committed.length} lines committed, ${generated.length} generated`)
+
+  return shown.join('\n')
+}
+
+const goldenTests = (): number => {
+  // Projects with no .momo are hand-written assembly, and have nothing to
+  // compare against.
+  const projects = readdirSync(projectsDir)
+    .filter((name) => existsSync(join(projectsDir, name, `${name}.momo`)))
+    .sort()
+
+  for (const project of projects) {
+    const goldenPath = join(projectsDir, project, `${project}.asm`)
+    const sources = new Map<string, string>()
+
+    if (!existsSync(goldenPath)) {
+      check(project, false, `nothing committed at ${project}.asm`)
+      continue
+    }
+
+    let assembly: string
+    try {
+      assembly = compile(join(projectsDir, project, `${project}.momo`), libRootFor(root), sources)
+        .assembly
+    } catch (error) {
+      if (!isMomoError(error)) throw error
+      check(project, false, formatError(sources, error))
+      continue
+    }
+
+    const difference = firstDifference(assembly, readFileSync(goldenPath, 'utf8'))
+    check(project, difference === null, difference ?? '')
+  }
+
+  return projects.length
+}
+
 typeAssertions()
-const fileCount = compileTests()
+const typeCount = passed + failures.length
+const compileCount = compileTests()
+const goldenCount = goldenTests()
 
 for (const failure of failures) console.error(`  FAIL  ${failure}`)
 
 const total = passed + failures.length
 console.log(
-  `\n${passed}/${total} passed  (${fileCount} compile tests, ${total - fileCount} type assertions)`,
+  `\n${passed}/${total} passed` +
+    `  (${compileCount} compile tests, ${goldenCount} golden, ${typeCount} type assertions)`,
 )
+
+if (failures.some((failure) => failure.includes('first difference'))) {
+  console.error('\n  a deliberate codegen change is adopted with: npm run momoc:all')
+}
 
 if (failures.length > 0) process.exit(1)
