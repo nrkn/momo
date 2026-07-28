@@ -1,0 +1,10 @@
+// EXPECT-ERROR: recursion is not supported: step -> step
+// Laundering the recursion through a parameterised const must not hide it. The
+// const is substituted rather than called, so the cycle is `step -> step` - it
+// is only visible by following the expansion.
+u16 step( u8 n ) => wrap( n )
+
+const wrap( u8 n ) = step( n )
+
+u16 out
+out = step( 1 )

@@ -90,7 +90,19 @@ const collectFromExpression = (value: unknown, into: CallSite[]) => {
   // A call to a parameterised const carries its `expansion`, and is substituted
   // rather than called - so it is not an edge. Counting it inflated the reported
   // call depth and stack, and put a const in the "deepest path".
-  if (node.type === 'CallExpression' && !node.expansion) {
+  //
+  // Follow the expansion INSTEAD OF the arguments, never as well as. The
+  // expansion is the whole account of what gets emitted here: the calls written
+  // in the const's own body, plus the caller's argument nodes spliced in
+  // wherever a parameter was used. Walking `args` too would count an argument's
+  // calls twice - and an argument bound to a parameter the body never mentions
+  // is not emitted at all, so it is not a call either.
+  if (node.type === 'CallExpression' && node.expansion) {
+    collectFromExpression(node.expansion, into)
+    return
+  }
+
+  if (node.type === 'CallExpression') {
     const callee = node.callee as { name: string }
     into.push({
       name: callee.name,
@@ -100,10 +112,7 @@ const collectFromExpression = (value: unknown, into: CallSite[]) => {
     })
   }
 
-  for (const key of Object.keys(node)) {
-    if (key === 'expansion') continue // already covered by the original call
-    collectFromExpression(node[key], into)
-  }
+  for (const key of Object.keys(node)) collectFromExpression(node[key], into)
 }
 
 const collectCalls = (statements: Statement[], into: CallSite[]) => {

@@ -1,0 +1,16 @@
+// The same fn called from a const's body AND from the argument to that const.
+// The expansion holds both, so the edge is collected twice - harmless, since
+// edges are only used for reachability, cycles and max depth, and all three
+// ignore duplicates.
+//
+// Unlike ok-const-body-calls-fn, this one compiled even before expansions were
+// followed: the argument alone made `double` reachable. It is here for the
+// emitter, which has to splice a call-bearing argument into a substitution and
+// still evaluate it via the stack.
+
+u16 double( u8 n ) => n * 2
+
+const plusOne( u8 n ) = double( n ) + 1
+
+u16 out
+out = plusOne( u8( double( 2 ) ) )

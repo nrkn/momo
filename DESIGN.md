@@ -361,6 +361,17 @@ overwrite a slot already filled for the outer call. Evaluation is left to right.
 - **The call graph must walk expressions.** Calls now hide inside them; missing
   that would let a recursive routine through the cycle check *and* let
   tree-shaking delete a reachable one. Both silent, both fatal.
+- **Through a const, it must walk the expansion and not the arguments.** A const
+  call emits its expansion and nothing else, so the expansion is the whole
+  account of what happens there: the calls written in the const's own body, plus
+  the caller's argument nodes spliced in wherever a parameter was used. Walking
+  the arguments as well double-counts them; walking them *instead* — which is
+  what the first version did, to avoid exactly that double count — loses every
+  call the const's body makes. That cost a hard `internal: unresolved symbol`
+  when the emitter called a fn pruning had deleted, and it silently hid
+  `f -> aConst -> f` from the cycle check, which is the worse half. An argument
+  bound to a parameter the body never mentions is correctly *not* a call — it is
+  the zero-times end of the caveat in §8.
 - **Cycle detection covers unreachable code.** A recursive routine is a bug when
   it is written, not when it first becomes reachable.
 - **Worst-case stack sums down the call path** rather than taking the max across
@@ -651,6 +662,10 @@ Momo has no linker, so without pruning every `include` would pay for the whole
 library. The call graph built for the recursion check gives reachability for
 free: unreachable subs are dropped, then a walk over the retained AST collects
 referenced labels and drops unused globals and arrays with them.
+
+This makes the call graph load-bearing twice over — it decides what survives as
+well as what is legal — so anything that hides an edge from it deletes code the
+emitter still calls. Parameterised consts are the subtle case; see §7.
 
 `data/projects/heaptest` includes `std/io.momo` and uses three of its five subs;
 `putStr` and `waitKey`, and the `strAddr` and `key` globals, do not appear in the

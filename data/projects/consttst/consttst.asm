@@ -87,6 +87,38 @@ __entry:
         call    putNumber
 ; ---- newline()
         call    newline
+; ---- putNumber(plusOne(20))
+        mov     ax, 20
+        mov     [double__n], al             ; narrowed to u8
+        call    double
+        mov     ax, [double__ret]
+        add     ax, 1
+        push    ax                          ; argument evaluated before any is stored
+        pop     ax
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- putChar(' ')
+        mov     ax, 32
+        mov     [putChar__c], al            ; narrowed to u8
+        call    putChar
+; ---- putNumber(plusOne(u8(double(3))))
+        mov     ax, 3
+        mov     [double__n], al             ; narrowed to u8
+        call    double
+        mov     ax, [double__ret]
+        xor     ah, ah                      ; cast to u8
+        push    ax                          ; argument evaluated before any is stored
+        pop     ax
+        mov     [double__n], al             ; narrowed to u8
+        call    double
+        mov     ax, [double__ret]
+        add     ax, 1
+        push    ax                          ; argument evaluated before any is stored
+        pop     ax
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- newline()
+        call    newline
 
 ; ---- implicit exit ----
         mov     word [_ax], 0x4C00          ; DOS terminate, exit code 0
@@ -189,6 +221,17 @@ putNumber:
 .L14:
         ret
 
+; ============================================== u16 double ====
+
+double:
+; ---- u16 double(u8 n) => n * 2
+        mov     al, [double__n]
+        xor     ah, ah                      ; u8 -> u16
+        mov     bx, 2
+        mul     bx                          ; low 16 bits are sign-agnostic
+        mov     [double__ret], ax
+        ret
+
 ; ==================================================== int helpers ====
 ; One per distinct interrupt: the literal is baked in, so the register
 ; sync is emitted once rather than at every call site.
@@ -230,6 +273,8 @@ _di             dw      0
 ; ---- variables ----
 putChar__c      db      0        ; u8
 putNumber__n    dw      0        ; u16
+double__n       db      0        ; u8
+double__ret     dw      0        ; u16
 i               dw      0        ; u16
 runtime         dw      0        ; u16
 putNumber__i    db      0        ; u8

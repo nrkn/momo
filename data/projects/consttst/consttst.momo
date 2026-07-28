@@ -13,6 +13,13 @@ const u16[] squares = [ sqr(0), sqr(1), sqr(2), sqr(3), sqr(4), sqr(5) ]
 
 const packed = 0xBEEF
 
+// A const whose BODY calls a fn. The call exists only in the expansion, so the
+// call graph has to follow expansions or `double` is pruned and the emitter
+// calls a label that is no longer there.
+u16 double(u8 n) => n * 2
+
+const plusOne(u8 n) = double(n) + 1
+
 u16 i
 u16 runtime
 
@@ -45,4 +52,12 @@ newline()
 
 putNumber(isDigit('7'))
 putNumber(isDigit('x'))
+newline()
+
+// a fn called from inside a const body: double(20) + 1
+putNumber(plusOne(20))
+putChar(' ')
+// the same fn in the argument as well: double(double(3) + 1) is not what this
+// says - it is double(6) + 1, with the argument evaluated via the stack
+putNumber(plusOne(u8(double(3))))
 newline()

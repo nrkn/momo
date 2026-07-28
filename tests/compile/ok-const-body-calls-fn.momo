@@ -1,0 +1,14 @@
+// A parameterised const whose BODY calls a fn. That call exists only in the
+// expansion, so the call graph has to follow expansions to see it at all -
+// otherwise `double` is pruned as unreachable and the emitter emits a call to
+// a label that is no longer in the file.
+//
+// Nothing here may mention `double` outside the const body: an argument that
+// called it would make it reachable by the old path and hide the bug.
+
+u16 double( u8 n ) => n * 2
+
+const plusOne( u8 n ) = double( n ) + 1
+
+u16 out
+out = plusOne( 3 )
