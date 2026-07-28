@@ -1,0 +1,10 @@
+// EXPECT-ERROR: an initialiser here would run once at load
+// No loop needed: a sub-local is static storage, so c is set to 65 once before
+// the program runs. The first call yields 66, the second 67.
+sub f {
+  u8 c = 65
+  c++
+  _al = c
+}
+f()
+f()

@@ -1,0 +1,13 @@
+// EXPECT-ERROR: an initialiser here would run once at load
+// Arrays take the same rule rather than an exception, which is the whole reason
+// the rule is shaped this way: with no `rep movsb` in the 8086 subset there is
+// no cheap way to re-initialise an array, so load-time is the only thing an
+// array initialiser could ever be.
+//
+// One consequence: a nested array must be sized, since `u8[] buf` on its own is
+// already an error for having neither a size nor an initialiser.
+sub f {
+  u8[3] buf = [ 1, 2, 3 ]
+  _al = buf[0]
+}
+f()

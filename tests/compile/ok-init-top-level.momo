@@ -1,0 +1,27 @@
+// Initialisers are allowed exactly where "before the program runs" and "when
+// control reaches this line" are the same moment: the program's own top-level
+// statement sequence, unnested.
+
+u8   count  = 42
+i16  offset = -7
+bool ready  = true
+u8[4] buf   = [ 1, 2, 3, 4 ]
+u8[]  table = [ 2, 4, 6 ]
+
+const u8[] msg = "hi$"
+
+// Non-constant is fine here too. Top-level statements ARE the entry code, so
+// this runs once, in order, exactly where it is written - which is the property
+// the rule is protecting.
+u16 derived = count + 1
+
+// Nested declarations are still fine; only the initialiser is refused.
+sub f {
+  u8 scratch
+  scratch = count
+  _al = scratch
+}
+
+u8 out
+out = count + buf[0] + table[0] + msg[0] + u8( derived ) + u8( ready )
+f()

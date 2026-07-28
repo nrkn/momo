@@ -79,7 +79,11 @@ sub putSpaces {
 /* Block comments do not nest, and one spanning lines counts as a newline
    for statement termination. */
 sub putBar {
-  u8 n = 0
+  u8 n
+
+  // Assigned, not initialised: a sub-local is static storage, so an initialiser
+  // would set n once at load and a second call to putBar would start at 3.
+  n = 0
 
   do {
     char = '-'
@@ -90,8 +94,10 @@ sub putBar {
 
 // value -> decimal, most significant digit first
 sub putNumber {
-  u8  i = 0                         // sub-local: static storage, scoped name
-  u16 n = value
+  u8  i                             // sub-local: static storage, scoped name
+  u16 n
+
+  n = value
 
   if (n == 0) {
     char = zeroChar
@@ -221,6 +227,11 @@ strAddr = addr(banner)
 putStr()
 
 run()
+
+// Called twice on purpose. A sub-local is static, so if putBar's counter were
+// set by an initialiser rather than an assignment it would still hold 3 on the
+// second call and print one dash instead of three.
+putBar()
 putBar()
 newline()
 peekKey()

@@ -1,0 +1,9 @@
+// EXPECT-ERROR: an initialiser here would run once at load
+// A top-level loop body is nested, so the rule reaches it: this reads as "set c
+// to 65 each time round" and would set it once, at load - printing 66, 67, 68.
+u8 i
+for( i = 0; i < 3; i++ ){
+  u8 c = 65
+  c++
+  _al = c
+}

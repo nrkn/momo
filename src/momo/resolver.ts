@@ -707,8 +707,27 @@ export const resolve = (program: Program): ResolveResult => {
     )
   }
 
-  const resolveVariableDeclaration = (node: Statement) => {
+  // `atTopLevel` is true only for the program's own statement sequence - not for
+  // a routine body, and not for a block nested in one. An initialiser is a
+  // load-time value: it is written into the data section and never executed, so
+  // it is only honest where "before the program runs" and "when control reaches
+  // this line" are the same moment. Anywhere else it silently runs once, no
+  // matter how many times control arrives.
+  //
+  // This covers arrays with the same rule rather than an exception, which is the
+  // point: with no `rep movsb` in the 8086 subset there is no cheap way to
+  // re-initialise an array, so load-time is the only thing an array initialiser
+  // could ever be.
+  const resolveVariableDeclaration = (node: Statement, atTopLevel: boolean) => {
     if (node.type !== 'VariableDeclaration') return
+
+    if (!atTopLevel && node.init) {
+      raise(
+        node.init,
+        'an initialiser here would run once at load, not each time control reaches it' +
+          ` - declare "${node.name}" on its own, then assign to it`,
+      )
+    }
 
     if (node.typeNode.array) {
       node.label = labelFor(node.name)
@@ -857,7 +876,9 @@ export const resolve = (program: Program): ResolveResult => {
   }
 
   const resolveStatement = (node: Statement) => {
-    if (node.type === 'VariableDeclaration') return resolveVariableDeclaration(node)
+    // Everything reaching resolveStatement is nested: a routine body, or a block
+    // inside one - or inside a top-level loop, which is the original case.
+    if (node.type === 'VariableDeclaration') return resolveVariableDeclaration(node, false)
     if (node.type === 'ConstFunctionDeclaration') {
       raise(node, 'a parameterised const must be declared at the top level')
     }
@@ -1146,7 +1167,7 @@ export const resolve = (program: Program): ResolveResult => {
       continue
     }
     if (statement.type === 'VariableDeclaration') {
-      resolveVariableDeclaration(statement)
+      resolveVariableDeclaration(statement, true)
       continue
     }
   }

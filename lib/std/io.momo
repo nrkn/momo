@@ -29,7 +29,7 @@ sub space => putChar(32)
 // Decimal, most significant digit first.
 sub putNumber(u16 n) {
   u8[ioMaxDigits] digits        // private scratch: a local, not a shared global
-  u8 i = 0
+  u8 i
 
   if (n == 0) {
     putChar(ioZeroChar)

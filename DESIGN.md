@@ -59,7 +59,8 @@ Consequences:
 - **No stack frames.** The stack holds return addresses and expression
   temporaries only.
 - Variables declared inside a sub body are statically allocated with a scoped
-  label. Same codegen as a global, just name-scoped.
+  label. Same codegen as a global, just name-scoped — which is why they may not
+  carry an initialiser (§5): there is no per-call storage to initialise.
 - **Recursion is a compile error.** Because locals are static, a recursive call
   overwrites its own caller's variables — it is never useful, only ever a bug.
   The resolver builds the call graph and rejects any cycle, naming it:
@@ -241,6 +242,30 @@ const sqr(u8 n) = n * n                 // parameterised const: one expression
   then a name. No declarator grammar.
 - `u8[] foo` with no initialiser is an error. Count mismatch on
   `u8[4] foo = [1,2,3,4,5]` is an error.
+- **An initialiser is a load-time value, and is only allowed at the top level.**
+  It is written into the data section and never executed, so it is honest only
+  where "before the program runs" and "when control reaches this line" are the
+  same moment — the program's own statement sequence, unnested. Inside a routine
+  or any block, declare and then assign:
+
+  ```momo
+  sub putBar {
+    u8 n                      // u8 n = 0 would set n once, at load
+    n = 0
+    do { putChar('-') n++ } while (n < 3)
+  }
+  ```
+
+  Nothing about this is specific to loops: a sub-local is static, so a *second
+  call* to `putBar` would find `n` still at 3 and print one dash. The rule covers
+  arrays by the same reasoning rather than by an exception — with no `rep movsb`
+  in the subset there is no cheap way to re-initialise an array, so load-time is
+  the only thing an array initialiser could ever be, and a rule that held only
+  for scalars would make the same syntax mean two things.
+
+  The alternative — emitting the initialiser as code where it is written — was
+  rejected for that asymmetry, and hoisting for a sharper reason: running an
+  initialiser on routine entry is a **prologue**, and §2 has none.
 - **`sub name { }`** for routines that return nothing; a leading type for those
   that return a value. `=>` introduces a single-expression or single-statement
   body. There is no `->`.

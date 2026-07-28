@@ -23,6 +23,8 @@ __entry:
         call    run
 ; ---- putBar()
         call    putBar
+; ---- putBar()
+        call    putBar
 ; ---- newline()
         call    newline
 ; ---- peekKey()
@@ -108,6 +110,8 @@ putSpaces:
 ; ============================================== sub putBar ====
 
 putBar:
+; ---- n = 0
+        mov     byte [putBar__n], 0
 ; ---- do {
 .L5:
 ; ---- char = '-'
@@ -129,7 +133,7 @@ putBar:
 ; ============================================== sub putNumber ====
 
 putNumber:
-; ---- u16 n = value
+; ---- n = value
         mov     ax, [value]
         mov     [putNumber__n], ax
 ; ---- if (n == 0) {
