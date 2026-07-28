@@ -7,6 +7,13 @@ Named after a cat, continuing the tradition set by Yuki — the earlier language
 in `_reference/yuki.txt`, which is also the reference point for "level of
 language" we are aiming at.
 
+**Why.** To write small games and tools, and — secondarily — to show that x86
+assembly is not overwhelming if you start with a small subset and work up. The
+second is why the ISA is subsetted at all (§1), why the target is a DOS `.COM`
+in tiny model, and why the output is commented NASM meant to be read rather than
+an intermediate meant to be trusted. Where a decision below looks austere, that
+is usually the reason: the constraint is doing work.
+
 **Status.** §1–§15 and §18 describe what is built. §16, §17 and §19 are designed
 and not yet built, and say so in their headings. §20 collects open questions,
 §21 longer-term directions. Section numbers are stable — `group` was built where

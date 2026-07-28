@@ -36,6 +36,32 @@ code it produced, and each instruction choice is annotated with the reason:
         jmp     .for1_end
 ```
 
+## Why
+
+Two reasons, in that order.
+
+**To write small games and tools.** Momo is meant to be used rather than
+admired. The active program is a roguelike, the standard library is a text-mode
+screen and a keyboard, and the bar it is held to (`DESIGN.md` §15) is a list of
+programs that work, not of features that exist.
+
+**To show that x86 assembly is not overwhelming if you start with a small
+subset and work up.** Not by hiding the assembly — by shrinking it until it
+fits in your head. Most of the design falls out of that one idea:
+
+- **37 mnemonics**, with `cpu 8086` at the top of every emitted file so NASM
+  enforces the boundary on every build. There is no way to meet a 386
+  instruction before you have met an 8086 one.
+- **DOS `.COM`, tiny model.** One 64KB segment, `org 100h`, no linker, no
+  object files, no relocations — and segment registers that never appear at
+  all. The smallest complete x86 target that still does something real.
+- **Commented NASM is the product, not an intermediate.** Every statement is
+  quoted above the code it produced and every non-obvious choice is annotated,
+  so the output is there to be read rather than trusted.
+
+The compiler is the way in, not the destination: write Momo without looking at
+the assembly, then look at the assembly when you want to know what happened.
+
 ## What makes it unusual
 
 - **The whole memory footprint is known before you run it.** No dynamic
