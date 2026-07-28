@@ -81,6 +81,12 @@ rely on watching the DOSBox window.
 **8.3 filenames** for anything DOSBox touches: project directories and entry
 files are 1–8 characters. Tier 1 tests never touch DOS and can be named freely.
 
+**`git stash pop` does not rebuild `dist/`.** Reverting a change to check the
+suite has teeth runs `tsc` as part of `npm test` — so the build left behind is
+the *reverted* one. Any tool invoked directly afterwards (`node dist/tools/...`)
+is still running the reverted compiler, and reports a clean pass that means
+nothing. Run `npx tsc` after restoring. This produced one false all-clear.
+
 **Every emitted file starts with `cpu 8086`**, so NASM enforces the instruction
 subset mechanically. A 186+ instruction becomes an assembly error rather than a
 silent portability bug.
@@ -114,4 +120,4 @@ have consistently been the right ones.
 map" stage, using dirty-tile redraw. Everything else under `data/projects/` is
 either a test fixture or a demonstration of one language feature.
 
-68 tier-1 tests, 11 e2e programs, all green.
+92 tier-1 assertions (67 compile tests, 25 type), 11 e2e programs, all green.
