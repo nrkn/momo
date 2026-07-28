@@ -8,8 +8,6 @@ include "std/math.momo"
 
 // const
 
-const mapW = 20
-
 /*
   testing doubling walls on x to make rooms etc look more square as text 
   is ~1:2 aspect ratio
@@ -34,7 +32,7 @@ const map = "########    ########"
             "##....########....##"
             "########    ########"
 
-// Counted rather than stated: add or remove a row above and this follows.
+const mapW = 20
 const mapH = len( map ) / mapW
 
 const tileAt( u8 x, u8 y ) = map[ y * mapW + x ]
