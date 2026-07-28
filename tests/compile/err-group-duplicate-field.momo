@@ -1,0 +1,5 @@
+// EXPECT-ERROR: duplicate field "x" in group "mob"
+group mob[4] {
+  u8 x
+  u8 x
+}

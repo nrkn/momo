@@ -1,0 +1,44 @@
+// Every group shape that must work.
+
+const mobCount = 8
+
+group mob[mobCount] {
+  u8   x
+  i8   drift
+  u16  hp
+  bool alive
+}
+
+// No [n]: one of each field, and no index.
+group player {
+  u8  x
+  u16 hp
+}
+
+u8  i
+u16 total
+
+// Reads, writes, compound assignment and update all work on a field, because
+// after resolution it IS an ordinary array element - mob[i].hp is mob__hp[i].
+mob[i].x = 1
+mob[i].hp = 100
+mob[i].alive = true
+mob[i].drift = -1
+mob[i].hp += 10
+mob[i].x++
+mob[2].hp = 5                     // constant index, bounds-checked per field
+
+player.x = 1
+player.hp = 100
+player.hp += 1
+
+// len() on a group is its instance count.
+for( i = 0; i < len( mob ); i++ ){
+  if( mob[i].alive ){
+    total += mob[i].hp
+  }
+}
+
+// A field is an ordinary global, so it mixes like one.
+total = mob[i].hp + player.hp + u16( mob[i].x )
+_al = u8( total ) + u8( mob[i].drift )

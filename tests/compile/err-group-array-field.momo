@@ -1,0 +1,4 @@
+// EXPECT-ERROR: group fields are scalars
+group mob[4] {
+  u8[2] path
+}

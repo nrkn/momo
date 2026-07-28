@@ -1,0 +1,4 @@
+// EXPECT-ERROR: group fields have no initialiser
+group mob[4] {
+  u8 x = 5
+}

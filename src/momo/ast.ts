@@ -49,6 +49,13 @@ export type Identifier = Located & {
   type: 'Identifier'
   name: string
   label?: string // set by the resolver: which symbol this actually refers to
+  // Set when this name was written as `name.field` - a group field access. The
+  // parser could mangle straight to `mob__x`, but then a typo would report
+  // `"mob__z" is not declared` for source that says `mob[i].z`. Keeping the two
+  // apart until the resolver lets it say "z" is not a field of group "mob"
+  // instead. The emitter never sees it: by then only `label` matters, so a field
+  // access and an ordinary array index are the same thing to it.
+  field?: string
 }
 
 export type NumberLiteral = Located & {
@@ -137,6 +144,29 @@ export type AddrExpression = Located & {
 export type LenExpression = Located & {
   type: 'LenExpression'
   target: Identifier
+}
+
+// One field of a group. Scalars only - an array field would need arrays of
+// arrays, which is a separate problem (§18).
+export type GroupField = Located & {
+  type: 'GroupField'
+  name: string
+  typeNode: TypeNode
+}
+
+// `group mob[64] { ... }` many, `group player { ... }` one. The presence of a
+// count decides, exactly as it does for `u8 x` against `u8[4] x`, so no second
+// keyword is needed.
+//
+// Each field becomes an ordinary global - an array when there is a count, a
+// plain variable when there is not - labelled `mob__x`. By the time the emitter
+// sees a field access it is an ordinary index or load; see the `field` marker
+// on Identifier.
+export type GroupDeclaration = Spanned & {
+  type: 'GroupDeclaration'
+  name: string
+  count: Expression | null
+  fields: GroupField[]
 }
 
 export type Expression =
@@ -287,6 +317,7 @@ export type Statement =
   | ConstDeclaration
   | ConstFunctionDeclaration
   | VariableDeclaration
+  | GroupDeclaration
   | RoutineDeclaration
   | BlockStatement
   | IfStatement

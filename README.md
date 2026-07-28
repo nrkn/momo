@@ -94,7 +94,7 @@ compiler errors in the Problems panel.
 
 | | |
 |---|---|
-| **`DESIGN.md`** | The language and the reasoning behind every decision — including four designed-but-unbuilt features and the long-term directions |
+| **`DESIGN.md`** | The language and the reasoning behind every decision — including three designed-but-unbuilt features and the long-term directions |
 | **`STYLE.md`** | Code conventions |
 | **`CLAUDE.md`** | Orientation for contributors: layout, scripts, and the tooling traps |
 

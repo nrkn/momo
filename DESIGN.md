@@ -1236,11 +1236,11 @@ Static views stay sugar. That is the whole appeal.
 
 ---
 
-## 18. Planned: `group`
+## 18. `group`
 
-Deferred like §16 and §17. Sugar over the **structure-of-arrays** pattern, and
-the one of the three most likely to be wanted first — an entity pool is the
-shape almost every game reaches for.
+**Built.** Sugar over the **structure-of-arrays** pattern — an entity pool is the
+shape almost every game reaches for, which is why this was the first of §16–§19
+to be wanted. `data/projects/grptest` exercises it.
 
 ```momo
 const mobCount = 64
@@ -1321,14 +1321,32 @@ ordinary array store. Bounds checks on constant indices work per field, unchange
 - **The AST keeps the original names** for diagnostics. The parser *could* rewrite
   straight to `mob__x` with no symbol table, but a typo would then report
   `"mob__z" is not declared` for source that says `mob[i].z`.
+
+  As built, the parser hangs an optional `field` marker on the identifier and the
+  resolver does the lookup — so `.` survives parsing as one string, and the
+  message is `"z" is not a field of group "mob"`, which neither alternative could
+  manage. The emitter is still untouched: by then only `label` matters, so a
+  field access and an array index are the same thing to it. An earlier draft of
+  this section claimed `.` was "gone by the end of parsing" *and* that names were
+  kept — those cannot both hold, and diagnostics won.
+- **Field globals are not in scope.** `mob__x` cannot be named from source, the
+  same way a routine's `add__a` cannot. Both labels are manufactured rather than
+  declared, so the resolver claims them in a shared set — two symbols wanting one
+  label is caught from whichever side is written second. That check found a
+  pre-existing hole: a global literally named `add__a` alongside `sub add(u8 a)`
+  emitted the label twice, silently, before `group` existed.
 - **Fields are scalars.** `u8[4] inventory` as a field would need arrays of
   arrays, which is a separate problem.
 - **The count must be a constant**, as for any array.
 - **Top-level only** in v1. Entity pools are inherently global.
 - **No field initialisers** in v1 — arrays zero-fill, matching `u8[4] buf`. Const
   groups carrying data are a separate question.
-- **Views compose**: a field is an ordinary array, so
-  `view u8[16] firstWave = mob__x[0]` works.
+- **Views compose** in principle — a field is an ordinary array — but not with
+  the spelling this section originally gave. `view u8[16] firstWave = mob__x[0]`
+  names a label that is deliberately out of scope (above), so when §17 lands it
+  needs a way to say *the whole field array*: `mob.x` with no index, which today
+  is an error because the indexed form requires one. Worth settling with `view`
+  rather than inventing now.
 
 ### `group` is namespacing, not views
 

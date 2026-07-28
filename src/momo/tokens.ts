@@ -29,6 +29,7 @@ export const typeNames = ['u8', 'i8', 'u16', 'i16', 'bool']
 export const keywords = [
   'const',
   'include',
+  'group',
   'sub',
   'fn',
   'if',
@@ -55,6 +56,9 @@ export const operators = [
   '+=', '-=', '*=', '/=', '%=', '&=', '|=', '^=',
   '+', '-', '*', '/', '%', '&', '|', '^', '~', '!',
   '<', '>', '=', '?', ':',
+  // '.' selects a group field and nothing else. There are no floats, so it can
+  // never begin or interrupt a numeric literal.
+  '.',
   '(', ')', '[', ']', '{', '}', ',', ';',
 ]
 

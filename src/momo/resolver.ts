@@ -12,6 +12,8 @@
 import type {
   ConstFunctionDeclaration,
   Expression,
+  GroupDeclaration,
+  Identifier,
   RoutineDeclaration,
   TypeName,
   LValue,
@@ -72,6 +74,16 @@ export type MomoSymbol =
       params: { name: string; type: ValueType }[]
       returnType: ValueType | null
       body: Expression
+    }
+  // Namespacing over structure-of-arrays. The group itself has no storage - it
+  // holds the field globals, which are ordinary arrays (or plain variables for
+  // the single-instance form) and are what actually gets emitted and pruned.
+  | {
+      kind: 'group'
+      name: string
+      label: string
+      count: number | null // null is the single-instance form: no index
+      fields: { name: string; symbol: MomoSymbol }[]
     }
 
 export type ResolveResult = {
@@ -164,6 +176,20 @@ export const resolve = (program: Program): ResolveResult => {
   const expanding = new Set<string>()
   let currentFn: (MomoSymbol & { kind: 'routine' }) | null = null
 
+  // Most labels come from a declared name, and the scope checks in `declare`
+  // keep those unique. Routine slots (`add__a`) and group fields (`mob__x`) are
+  // *manufactured*, so nothing else compares them - and two symbols sharing a
+  // label emits the same NASM definition twice. Claimed from both sides, so the
+  // clash is caught whichever was written first.
+  const takenLabels = new Set<string>()
+
+  const claimLabel = (label: string, at: Location, what: string) => {
+    if (takenLabels.has(label)) {
+      raise(at, `${what} would emit a second "${label}" - rename one of them`)
+    }
+    takenLabels.add(label)
+  }
+
   for (const reserved of reservedGlobals) {
     const symbol: MomoSymbol = {
       kind: 'var',
@@ -174,11 +200,13 @@ export const resolve = (program: Program): ResolveResult => {
       init: 0,
     }
     globals.set(reserved.name, symbol)
+    takenLabels.add(symbol.label)
     symbols.push(symbol)
   }
 
   for (const symbol of heapGlobals) {
     globals.set(symbol.name, symbol)
+    takenLabels.add(symbol.label)
     symbols.push(symbol)
   }
 
@@ -198,6 +226,10 @@ export const resolve = (program: Program): ResolveResult => {
     if (!locals && globals.has(symbol.name)) {
       raise(at, `"${symbol.name}" is already declared`)
     }
+    // Groups are claimed too. One emits no storage, but it still occupies the
+    // emitter's label->symbol map, so `group a__b` alongside `group a { u8 b }`
+    // would have a field access find the group instead of its array.
+    claimLabel(symbol.label, at, `"${symbol.name}"`)
     scope.set(symbol.name, symbol)
     symbols.push(symbol)
   }
@@ -294,7 +326,10 @@ export const resolve = (program: Program): ResolveResult => {
 
   // Used by both the read path and the assignment path - a constant index is
   // bounds-checked wherever it appears.
-  const checkIndex = (symbol: MomoSymbol, index: Expression) => {
+  // `shownAs` overrides the name in the message. A group field's symbol is named
+  // for its label, so without this `mob[9].x` would report against "mob__x" -
+  // a name the source never mentions.
+  const checkIndex = (symbol: MomoSymbol, index: Expression, shownAs?: string) => {
     if (symbol.kind !== 'array') return
 
     const resolved = resolveExpression(index)
@@ -303,7 +338,7 @@ export const resolve = (program: Program): ResolveResult => {
     }
     if (symbol.dynamic) return
     if (resolved.value !== null && (resolved.value < 0 || resolved.value >= symbol.length)) {
-      raise(index, `index ${resolved.value} is out of bounds for "${symbol.name}" (length ${symbol.length})`,
+      raise(index, `index ${resolved.value} is out of bounds for "${shownAs ?? symbol.name}" (length ${symbol.length})`,
       )
     }
   }
@@ -467,8 +502,17 @@ export const resolve = (program: Program): ResolveResult => {
     }
 
     if (node.type === 'Identifier') {
+      if (node.field !== undefined) return annotate(node, resolveGroupField(node, null))
+
       const symbol = lookup(node.name)
       if (!symbol) raise(node, `"${node.name}" is not declared`)
+
+      // A group denotes nothing on its own - there is no record for it to be.
+      if (symbol.kind === 'group') {
+        const example = symbol.fields[0]?.name ?? 'field'
+        const shape = symbol.count === null ? `${node.name}.${example}` : `${node.name}[i].${example}`
+        raise(node, `"${node.name}" is a group - name a field, like "${shape}"`)
+      }
 
       node.label = symbol.label
 
@@ -488,6 +532,10 @@ export const resolve = (program: Program): ResolveResult => {
     }
 
     if (node.type === 'IndexExpression') {
+      if (node.array.field !== undefined) {
+        return annotate(node, resolveGroupField(node.array, node.index))
+      }
+
       const symbol = lookup(node.array.name)
       if (!symbol) raise(node, `"${node.array.name}" is not declared`)
       if (symbol.kind !== 'array') {
@@ -513,6 +561,20 @@ export const resolve = (program: Program): ResolveResult => {
     if (node.type === 'LenExpression') {
       const symbol = lookup(node.target.name)
       if (!symbol) raise(node, `"${node.target.name}" is not declared`)
+
+      // On a group it is the instance count (§19). The single-instance form has
+      // none: asking for its length mistakes which form you are holding, and
+      // answering 1 would compile a loop that reads as iteration and is not.
+      if (symbol.kind === 'group') {
+        if (symbol.count === null) {
+          raise(
+            node,
+            `group "${node.target.name}" has a single instance, so len() has nothing to` +
+              ' count - it is only for the indexed form',
+          )
+        }
+        return annotate(node, { type: 'untyped', value: symbol.count })
+      }
 
       if (symbol.kind !== 'array') {
         raise(node, `len() needs an array - "${node.target.name}" is not one`)
@@ -782,6 +844,87 @@ export const resolve = (program: Program): ResolveResult => {
     )
   }
 
+  // Each field becomes its own global - an array when the group has a count, a
+  // plain variable when it does not. Structure-of-arrays, so `mob[i].x` needs no
+  // multiply: the field offset is folded into the label and the index is used
+  // as-is.
+  const resolveGroupDeclaration = (node: GroupDeclaration) => {
+    let count: number | null = null
+    if (node.count) {
+      count = foldConstant(node.count, 'group count')
+      if (count <= 0) raise(node.count, 'group count must be positive')
+    }
+
+    const seen = new Set<string>()
+    const fields: { name: string; symbol: MomoSymbol }[] = []
+
+    for (const field of node.fields) {
+      if (seen.has(field.name)) {
+        raise(field, `duplicate field "${field.name}" in group "${node.name}"`)
+      }
+      seen.add(field.name)
+
+      const label = `${safeLabel(node.name)}__${field.name}`
+      claimLabel(label, field, `field "${field.name}" of group "${node.name}"`)
+
+      const symbol: MomoSymbol =
+        count === null
+          ? {
+              kind: 'var', name: label, label, type: field.typeNode.name,
+              builtin: false, init: 0,
+            }
+          : {
+              kind: 'array', name: label, label, elementType: field.typeNode.name,
+              length: count, readonly: false, values: new Array<number>(count).fill(0),
+              dynamic: false,
+            }
+
+      // Pushed straight into the symbol table, never into scope - reachable only
+      // as `mob[i].x`, exactly as a routine's parameter slots are reachable only
+      // by calling it.
+      symbols.push(symbol)
+      fields.push({ name: field.name, symbol })
+    }
+
+    declare(
+      { kind: 'group', name: node.name, label: safeLabel(node.name), count, fields },
+      node,
+    )
+  }
+
+  // `mob[i].x` and `player.x`. Writes the field's label onto the identifier,
+  // after which the node is an ordinary index or load and the emitter never
+  // learns a group was involved.
+  const resolveGroupField = (target: Identifier, index: Expression | null): Resolved => {
+    const symbol = lookup(target.name)
+    if (!symbol) raise(target, `"${target.name}" is not declared`)
+    if (symbol.kind !== 'group') raise(target, `"${target.name}" is not a group`)
+
+    const entry = symbol.fields.find((candidate) => candidate.name === target.field)
+    if (!entry) {
+      raise(target, `"${target.field}" is not a field of group "${symbol.name}"`)
+    }
+
+    if (symbol.count === null && index !== null) {
+      raise(target, `group "${symbol.name}" has a single instance - write "${symbol.name}.${entry.name}"`)
+    }
+    if (symbol.count !== null && index === null) {
+      raise(
+        target,
+        `group "${symbol.name}" has ${symbol.count} instances - write` +
+          ` "${symbol.name}[i].${entry.name}"`,
+      )
+    }
+
+    target.label = entry.symbol.label
+
+    if (index !== null) checkIndex(entry.symbol, index, `${symbol.name}[].${entry.name}`)
+
+    if (entry.symbol.kind === 'array') return { type: entry.symbol.elementType, value: null }
+    if (entry.symbol.kind === 'var') return { type: entry.symbol.type, value: null }
+    raise(target, 'internal: group field is not storage')
+  }
+
   const resolveConstFunctionDeclaration = (node: ConstFunctionDeclaration) => {
     const seen = new Set<string>()
     for (const parameter of node.params) {
@@ -881,6 +1024,15 @@ export const resolve = (program: Program): ResolveResult => {
   }
 
   const resolveLValue = (target: LValue): Resolved => {
+    // A field access resolves to the field's own global, so assigning through it
+    // is an ordinary store - `mob[i].hp = 100` IS `mob__hp[i] = 100`.
+    if (target.type === 'Identifier' && target.field !== undefined) {
+      return annotate(target, resolveGroupField(target, null))
+    }
+    if (target.type === 'IndexExpression' && target.array.field !== undefined) {
+      return annotate(target, resolveGroupField(target.array, target.index))
+    }
+
     if (target.type === 'Identifier') {
       const symbol = lookup(target.name)
       if (!symbol) raise(target, `"${target.name}" is not declared`)
@@ -892,6 +1044,9 @@ export const resolve = (program: Program): ResolveResult => {
       if (symbol.kind === 'constfn') raise(target, `"${target.name}" is a const`)
       if (symbol.kind === 'array') {
         raise(target, `"${target.name}" is an array - assign to an element`)
+      }
+      if (symbol.kind === 'group') {
+        raise(target, `"${target.name}" is a group - assign to a field`)
       }
       target.label = symbol.label
       return annotate(target, { type: symbol.type, value: null })
@@ -914,6 +1069,9 @@ export const resolve = (program: Program): ResolveResult => {
     if (node.type === 'VariableDeclaration') return resolveVariableDeclaration(node, false)
     if (node.type === 'ConstFunctionDeclaration') {
       raise(node, 'a parameterised const must be declared at the top level')
+    }
+    if (node.type === 'GroupDeclaration') {
+      raise(node, 'a group must be declared at the top level - entity pools are global')
     }
     if (node.type === 'ConstDeclaration') return resolveConstDeclaration(node)
 
@@ -1117,6 +1275,7 @@ export const resolve = (program: Program): ResolveResult => {
     )
 
     for (const parameter of params) {
+      claimLabel(parameter.label, node, `parameter "${parameter.name}" of "${node.name}"`)
       symbols.push({
         kind: 'var',
         name: parameter.label,
@@ -1129,6 +1288,7 @@ export const resolve = (program: Program): ResolveResult => {
     }
 
     if (retLabel && node.returnType) {
+      claimLabel(retLabel, node, `the return slot of "${node.name}"`)
       symbols.push({
         kind: 'var',
         name: retLabel,
@@ -1203,6 +1363,10 @@ export const resolve = (program: Program): ResolveResult => {
       resolveVariableDeclaration(statement, true)
       continue
     }
+    if (statement.type === 'GroupDeclaration') {
+      resolveGroupDeclaration(statement)
+      continue
+    }
   }
 
   // ---- pass 2: bodies and top-level statements ------------------------------
@@ -1215,6 +1379,7 @@ export const resolve = (program: Program): ResolveResult => {
     if (statement.type === 'ConstDeclaration') continue
     if (statement.type === 'ConstFunctionDeclaration') continue
     if (statement.type === 'VariableDeclaration') continue
+    if (statement.type === 'GroupDeclaration') continue
     resolveStatement(statement)
   }
 

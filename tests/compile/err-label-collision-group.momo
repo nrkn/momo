@@ -1,0 +1,3 @@
+// EXPECT-ERROR: would emit a second "mob__x"
+u8 mob__x
+group mob[4] { u8 x }

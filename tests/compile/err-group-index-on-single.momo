@@ -1,0 +1,4 @@
+// EXPECT-ERROR: group "player" has a single instance - write "player.x"
+group player { u8 x }
+u8 i
+_al = player[i].x

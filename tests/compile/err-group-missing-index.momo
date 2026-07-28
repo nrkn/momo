@@ -1,0 +1,3 @@
+// EXPECT-ERROR: group "mob" has 4 instances - write "mob[i].x"
+group mob[4] { u8 x }
+_al = mob.x

@@ -17,6 +17,9 @@ type PrunableSymbol =
   | { kind: 'array'; name: string; label: string; dynamic: boolean }
   | { kind: 'const'; name: string; label: string }
   | { kind: 'constfn'; name: string; label: string }
+  // A group emits nothing itself - its field globals are ordinary arrays or
+  // variables, and are pruned per field.
+  | { kind: 'group'; name: string; label: string }
   | {
       kind: 'routine'
       name: string
@@ -300,6 +303,9 @@ export const prune = <S extends PrunableSymbol>(result: {
     // Reserved registers, _hsize and the heap views are always present.
     if (symbol.kind === 'var' && symbol.builtin) return true
     if (symbol.kind === 'array' && symbol.dynamic) return true
+    // A group emits nothing, so keeping it is free - and `npm run check` should
+    // still show the shape even when only some of its fields survived.
+    if (symbol.kind === 'group') return true
     return used.has(symbol.label)
   })
 

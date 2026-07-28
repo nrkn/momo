@@ -1,0 +1,6 @@
+// EXPECT-ERROR: "mob" is a group - name a field
+// A group alone is not an expression: there is no record for it to denote, and
+// admitting one would be the first step toward entity references in a language
+// with no pointers.
+group mob[4] { u8 x }
+_al = mob

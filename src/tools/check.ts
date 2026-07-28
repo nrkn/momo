@@ -31,6 +31,13 @@ const describe = (symbol: MomoSymbol): string => {
     return `const (${params}) -> ${symbol.returnType ?? 'inferred'}`
   }
   if (symbol.kind === 'var') return `${symbol.type}${symbol.builtin ? '  (reserved)' : ''}`
+  if (symbol.kind === 'group') {
+    // The group itself has no storage - its fields are listed separately, as the
+    // ordinary arrays or variables they compile to.
+    const fields = symbol.fields.map((field) => field.name).join(', ')
+    const shape = symbol.count === null ? 'group' : `group[${symbol.count}]`
+    return `${shape}  { ${fields} }`
+  }
   if (symbol.dynamic) return `${symbol.elementType}[_hsize]  heap`
   const bytes = symbol.length * (symbol.elementType === 'u16' || symbol.elementType === 'i16' ? 2 : 1)
   return `${symbol.elementType}[${symbol.length}]  ${bytes} bytes${symbol.readonly ? '  const' : ''}`

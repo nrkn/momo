@@ -1,0 +1,5 @@
+// EXPECT-ERROR: has a single instance, so len() has nothing to count
+// Answering 1 would compile a loop that reads as iteration and is not.
+group player { u8 x }
+u16 n
+n = len( player )

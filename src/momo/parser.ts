@@ -20,6 +20,8 @@ import type {
   Expression,
   RoutineDeclaration,
   ForStatement,
+  GroupDeclaration,
+  GroupField,
   Identifier,
   IfStatement,
   LValue,
@@ -319,6 +321,15 @@ export const parse = (tokens: Token[]): Program => {
         advance()
         const index = parseExpression()
         expect('op', ']')
+
+        // `mob[i].x`. The marker rides on the array identifier, which is where
+        // the resolver looks; the index passes through untouched, because this
+        // is a name substitution rather than layout arithmetic.
+        if (at('op', '.')) {
+          advance()
+          identifier.field = expect('ident').text
+        }
+
         return {
           type: 'IndexExpression',
           array: identifier,
@@ -327,6 +338,12 @@ export const parse = (tokens: Token[]): Program => {
           line: token.line,
           col: token.col,
         }
+      }
+
+      // `player.x` - the single-instance form, which takes no index.
+      if (at('op', '.')) {
+        advance()
+        identifier.field = expect('ident').text
       }
 
       return identifier
@@ -501,6 +518,67 @@ export const parse = (tokens: Token[]): Program => {
   }
 
   // `sub name { }`, `sub name() { }`, `sub name( args ) { }`, or any of those
+  // group mob[64] { u8 x  u8 y }   many - each field becomes an array
+  // group player  { u8 x  u8 y }   one  - each field becomes a plain variable
+  //
+  // The presence of `[n]` decides, exactly as it does for `u8 x` against
+  // `u8[4] x`, so no second keyword is needed.
+  const parseGroupDeclaration = (): GroupDeclaration => {
+    const start = expect('keyword', 'group')
+    const name = expect('ident')
+
+    let count: Expression | null = null
+    if (at('op', '[')) {
+      advance()
+      if (at('op', ']')) raise(peek(), 'a group needs a count - "[]" has no size to infer from')
+      count = parseExpression()
+      expect('op', ']')
+    }
+
+    expect('op', '{')
+    skipNewlines()
+
+    const fields: GroupField[] = []
+    while (!at('op', '}')) {
+      const typeNode = parseTypeNode()
+      if (typeNode.array) {
+        raise(typeNode, 'group fields are scalars - an array field would need arrays of arrays')
+      }
+
+      const fieldName = expect('ident')
+
+      // A deliberate v1 restriction rather than a syntax accident, so say so.
+      if (at('op', '=')) {
+        raise(peek(), 'group fields have no initialiser - they zero-fill, like "u8[4] buf"')
+      }
+
+      fields.push({
+        type: 'GroupField',
+        name: fieldName.text,
+        typeNode,
+        file: fieldName.file,
+        line: fieldName.line,
+        col: fieldName.col,
+      })
+
+      expectTerminator()
+      skipNewlines()
+    }
+
+    expect('op', '}')
+
+    return {
+      type: 'GroupDeclaration',
+      name: name.text,
+      count,
+      fields,
+      file: start.file,
+      line: start.line,
+      col: start.col,
+      endLine: previous().line,
+    }
+  }
+
   // with `=> statement`. A sub is a routine with no return type.
   const parseSubDeclaration = (): RoutineDeclaration => {
     const start = expect('keyword', 'sub')
@@ -609,11 +687,25 @@ export const parse = (tokens: Token[]): Program => {
       col: name.col,
     }
 
-    if (!at('op', '[')) return identifier
+    // `player.x = 1` - the single-instance group form.
+    if (!at('op', '[')) {
+      if (at('op', '.')) {
+        advance()
+        identifier.field = expect('ident').text
+      }
+      return identifier
+    }
 
     advance()
     const index = parseExpression()
     expect('op', ']')
+
+    // `mob[i].hp = 100`. Assignment falls out for free once resolved: the field
+    // is its own array, so this IS `mob__hp[i] = 100`.
+    if (at('op', '.')) {
+      advance()
+      identifier.field = expect('ident').text
+    }
 
     return {
       type: 'IndexExpression',
@@ -826,6 +918,7 @@ export const parse = (tokens: Token[]): Program => {
         }
       }
       if (token.text === 'const') return parseConstDeclaration()
+      if (token.text === 'group') return parseGroupDeclaration()
       if (token.text === 'sub') return parseSubDeclaration()
       if (token.text === 'fn') {
         // Migration aid - delete once the old spelling is out of muscle memory.

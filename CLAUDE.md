@@ -5,7 +5,7 @@ A small imperative language that transpiles to **commented NASM** for a strict
 predecessor Yuki (`_reference/yuki.txt`).
 
 - **`DESIGN.md`** — the language, and *why* every decision was made. 21 sections:
-  built features, four designed-but-deferred ones (§16–§19), open questions
+  built features, three designed-but-deferred ones (§16, §17, §19), open questions
   (§20), and long-term directions (§21). Read the relevant section before
   changing anything; the rationale matters more than the rules.
 - **`STYLE.md`** — TypeScript and Momo conventions.
@@ -123,5 +123,5 @@ have consistently been the right ones.
 map" stage, using dirty-tile redraw. Everything else under `data/projects/` is
 either a test fixture or a demonstration of one language feature.
 
-104 tier-1 assertions (67 compile tests, 12 golden `.asm`, 25 type), 11 e2e
+121 tier-1 assertions (83 compile tests, 13 golden `.asm`, 25 type), 12 e2e
 programs, all green.

@@ -1,0 +1,9 @@
+// EXPECT-ERROR: would emit a second "f__a"
+// Routine slots and group fields are the two manufactured labels, so nothing
+// else compares them against declared names. Two symbols sharing one would emit
+// the same NASM definition twice.
+u8 f__a
+sub f( u8 a ) {
+  _al = a
+}
+f( 1 )

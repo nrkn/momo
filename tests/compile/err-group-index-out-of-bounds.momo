@@ -1,0 +1,5 @@
+// EXPECT-ERROR: index 9 is out of bounds for "mob[].x" (length 4)
+// Bounds checks work per field, since each field is its own array - and the
+// message names the source spelling rather than the mob__x label.
+group mob[4] { u8 x }
+_al = mob[9].x

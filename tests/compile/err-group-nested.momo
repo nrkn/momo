@@ -1,0 +1,5 @@
+// EXPECT-ERROR: a group must be declared at the top level
+sub f {
+  group mob[4] { u8 x }
+}
+f()

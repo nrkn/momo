@@ -1,0 +1,7 @@
+// EXPECT-ERROR: "z" is not a field of group "mob"
+// The parser keeps the group and field names apart rather than mangling to
+// mob__z, so this can name the field rather than a label the source never
+// mentions.
+group mob[4] { u8 x }
+u8 i
+_al = mob[i].z

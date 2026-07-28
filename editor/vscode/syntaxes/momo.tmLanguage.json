@@ -155,7 +155,7 @@
         },
         {
           "name": "keyword.control.momo",
-          "match": "\\b(fn|if|else|for|while|do|break|continue|return|int|len)\\b"
+          "match": "\\b(group|fn|if|else|for|while|do|break|continue|return|int|len)\\b"
         }
       ]
     },
@@ -193,7 +193,7 @@
     },
     "operators": {
       "name": "keyword.operator.momo",
-      "match": "<<=|>>=|=>|==|!=|<=|>=|&&|\\|\\||<<|>>|\\+\\+|\\-\\-|\\+=|\\-=|\\*=|\\/=|%=|&=|\\|=|\\^=|\\+|\\-|\\*|\\/|%|&|\\||\\^|~|!|<|>|=|\\?|:"
+      "match": "<<=|>>=|=>|==|!=|<=|>=|&&|\\|\\||<<|>>|\\+\\+|\\-\\-|\\+=|\\-=|\\*=|\\/=|%=|&=|\\|=|\\^=|\\+|\\-|\\*|\\/|%|&|\\||\\^|~|!|<|>|=|\\?|:|\\."
     }
   }
 }

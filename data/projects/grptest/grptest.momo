@@ -1,0 +1,64 @@
+// grptest.momo - group: structure-of-arrays namespacing (§18).
+//
+// Each field becomes its own global, so `mob[i].x` is `mob__x[i]` - no multiply,
+// no mixed-width wart, and tree-shaking per field. `mob.y` below is declared and
+// never touched, so `mob__y` does not appear in the output at all.
+
+include "std/io.momo"
+
+const mobCount = 4
+
+group mob[mobCount] {
+  u8   x
+  u8   y
+  u16  hp
+  bool alive
+}
+
+// No [n], so one of each field and no index.
+group player {
+  u8  x
+  u8  y
+  u16 hp
+}
+
+u8  i
+u16 total
+
+// ---- entry ----
+
+player.x = 10
+player.y = 20
+player.hp = 100
+
+// len() on a group is its instance count, so the count lives in one place.
+for( i = 0; i < len( mob ); i++ ){
+  mob[i].x = i * 2
+  mob[i].hp = 50 + i
+  mob[i].alive = true
+}
+
+mob[2].alive = false
+
+total = 0
+for( i = 0; i < len( mob ); i++ ){
+  if( mob[i].alive ){
+    total += mob[i].hp
+  }
+}
+
+// 50 + 51 + 53, with mob[2] dead
+putNumber( total )
+newline()
+
+putNumber( player.hp )
+newline()
+
+putNumber( len( mob ) )
+newline()
+
+for( i = 0; i < len( mob ); i++ ){
+  putNumber( mob[i].x )
+  putChar( ' ' )
+}
+newline()
