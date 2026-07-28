@@ -92,6 +92,27 @@ evaluation on top of that.
 `return` is a bare early exit in a `sub`, and carries a value in a routine with
 a declared return type.
 
+**Every path must return.** A routine with a return type that can reach its own
+end is a compile error, not a zero. There is nothing sensible to fall through
+to: the return value is a mangled global, so falling off the end hands the
+caller whatever the previous call happened to leave in that slot — a wrong
+answer with no diagnostic anywhere, which is the worst shape a bug can take
+here.
+
+An endless loop counts as returning, because control never leaves it to arrive
+at the end empty-handed:
+
+```momo
+u16 waitForKey() {
+  while (true) {
+    if (ready()) return readKey()
+  }
+}
+```
+
+A `break` inside that loop takes it back, since the break lands exactly at the
+end of the routine.
+
 ---
 
 ## 3. Types
@@ -255,6 +276,12 @@ empty), `while`, `do { } while (...)`, `break`, `continue`, `return` (bare or
 with a value). `while` and `do while` are sugar — they share the `for` emitter,
 but keep distinct AST nodes so the generated source comment matches what was
 written.
+
+**Unreachable code is an error.** Anything after a `return`, `break`, `continue`
+or endless loop cannot run. With no preprocessor, no goto and no labels there is
+no shape where that is deliberate, so — as with recursion — the thing that is
+never useful is rejected rather than tolerated. Momo has no warnings to
+downgrade it to, and would not want one here.
 
 ---
 
