@@ -13,12 +13,9 @@ import { existsSync } from 'node:fs'
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-type Mode = 'run' | 'build'
+import { loadToolchain } from './toolchain.js'
 
-type Config = {
-  dosbox: Record<string, string>
-  winpos: string
-}
+type Mode = 'run' | 'build'
 
 type Options = {
   project: string
@@ -27,7 +24,6 @@ type Options = {
 }
 
 const root = process.cwd()
-const configPath = join(root, 'toolchain.json')
 const confPath = join(root, 'data', 'dosbox.conf')
 const nasmDir = join(root, 'data', 'dos-nasm')
 const projectsDir = join(root, 'data', 'projects')
@@ -85,24 +81,6 @@ const validateProjectName = (name: string) => {
   }
 }
 
-const loadConfig = async (): Promise<Config> => {
-  if (!existsSync(configPath)) fail(`missing config: ${configPath}`)
-  const text = await readFile(configPath, 'utf8')
-  return JSON.parse(text) as Config
-}
-
-const resolveDosbox = (config: Config): string => {
-  const fromEnv = process.env.LANG_DOSBOX
-  if (fromEnv) return fromEnv
-
-  const fromConfig = config.dosbox[process.platform]
-  if (!fromConfig) {
-    fail(`no dosbox path configured for platform "${process.platform}" in toolchain.json`)
-  }
-
-  return fromConfig
-}
-
 // C: is the staged project, D: is the bundled assembler. Mounting rather than
 // copying nasm keeps the build dir to just the project's own files.
 const buildBat = (project: string, mode: Mode): string => {
@@ -145,15 +123,16 @@ const main = async () => {
   const options = parseArgs(process.argv.slice(2))
   validateProjectName(options.project)
 
-  const config = await loadConfig()
-  const dosbox = resolveDosbox(config)
-  const winpos = options.winpos ?? config.winpos ?? '0,0'
+  // Throws with its own message if DOSBox cannot be located; the existence of
+  // the binary is checked there rather than here.
+  const toolchain = loadToolchain(root)
+  const dosbox = toolchain.dosbox
+  const winpos = options.winpos ?? toolchain.winpos
 
   const projectDir = join(projectsDir, options.project)
   const entryPath = join(projectDir, `${options.project}.asm`)
   const buildDir = join(buildRoot, options.project)
 
-  if (!existsSync(dosbox)) fail(`dosbox not found at "${dosbox}" - check toolchain.json`)
   if (!existsSync(confPath)) fail(`dosbox config not found at "${confPath}"`)
   if (!existsSync(entryPath)) fail(`project entry not found: "${entryPath}"`)
   if (!existsSync(join(nasmDir, 'nasm.exe'))) fail(`nasm not found under "${nasmDir}"`)

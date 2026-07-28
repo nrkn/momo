@@ -1,0 +1,8 @@
+{
+  "dosbox": {
+    "win32": "C:\\Program Files (x86)\\DOSBox-0.74-3\\DOSBox.exe",
+    "linux": "/usr/bin/dosbox",
+    "darwin": "/Applications/dosbox.app/Contents/MacOS/DOSBox"
+  },
+  "winpos": "0,0"
+}

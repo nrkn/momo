@@ -52,7 +52,7 @@ code it produced, and each instruction choice is annotated with the reason:
 ## Requirements
 
 - Node 22+
-- DOSBox (path configured per-platform in `toolchain.json`)
+- DOSBox
 - NASM is bundled — `data/dos-nasm`, run inside DOSBox
 
 ## Quick start
@@ -60,6 +60,14 @@ code it produced, and each instruction choice is annotated with the reason:
 ```bash
 npm install
 npm test                        # compile tests + type assertions, about a second
+```
+
+That much needs no DOSBox. To assemble and run, point the toolchain at your
+DOSBox first — copy `toolchain.example.json` to `toolchain.json` and edit the
+entry for your platform, or set `MOMO_DOSBOX`. `toolchain.json` is gitignored,
+since the path is yours rather than the project's.
+
+```bash
 npm start smoke                 # compile, assemble and run in DOSBox
 ```
 

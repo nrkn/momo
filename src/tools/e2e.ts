@@ -18,6 +18,7 @@ import { join } from 'node:path'
 import { compile } from '../momo/compile.js'
 import { formatError, isMomoError } from '../momo/diagnostics.js'
 import { libRootFor } from '../momo/loader.js'
+import { loadToolchain } from './toolchain.js'
 
 const root = process.cwd()
 const projectsDir = join(root, 'data', 'projects')
@@ -28,13 +29,6 @@ const buildRoot = join(root, 'build')
 const fail = (message: string): never => {
   console.error(`error: ${message}`)
   process.exit(1)
-}
-
-const dosboxPath = (): string => {
-  const fromEnv = process.env.LANG_DOSBOX
-  if (fromEnv) return fromEnv
-  const config = JSON.parse(readFileSync(join(root, 'toolchain.json'), 'utf8'))
-  return config.dosbox[process.platform] ?? fail('no dosbox configured for this platform')
 }
 
 const runDosbox = (exe: string, args: string[]): Promise<void> =>
@@ -92,7 +86,7 @@ const buildAndRun = async (exe: string, project: string): Promise<string> => {
 }
 
 const main = async () => {
-  const exe = dosboxPath()
+  const exe = loadToolchain(root).dosbox
   const only = process.argv.slice(2).find((arg) => !arg.startsWith('-'))
 
   const projects = readdirSync(projectsDir).filter((name) => {
