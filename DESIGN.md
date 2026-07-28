@@ -7,7 +7,11 @@ Named after a cat, continuing the tradition set by Yuki — the earlier language
 in `_reference/yuki.txt`, which is also the reference point for "level of
 language" we are aiming at.
 
----
+**Status.** §1–§15 and §18 describe what is built. §16, §17 and §19 are designed
+and not yet built, and say so in their headings. §20 collects open questions,
+§21 longer-term directions. Section numbers are stable — `group` was built where
+it sits rather than renumbered into the built range, because the numbers are
+referenced from source comments and from each other.
 
 ---
 
@@ -24,7 +28,7 @@ language" we are aiming at.
 Tiny model means segment registers are never emitted, never overridden, never
 thought about. `far` does not exist.
 
-### Instruction subset — 36 mnemonics
+### Instruction subset — 37 mnemonics
 
 | Group | Instructions |
 |---|---|
@@ -32,7 +36,7 @@ thought about. `far` does not exist.
 | Arith | `add` `sub` `inc` `dec` `neg` `cmp` `mul` `div` `idiv` `cbw` `cwd` |
 | Logic | `and` `or` `xor` `not` `test` `shl` `shr` `sar` |
 | Control | `jmp` `je` `jne` `jl` `jle` `jg` `jge` `jb` `jbe` `ja` `jae` `call` `ret` |
-| System | `int` |
+| System | `int` `pushf` |
 
 Deliberately absent:
 
@@ -41,7 +45,11 @@ Deliberately absent:
   two's complement, and with no 32-bit type we never read `DX`. `*` always emits `mul`.
 - **`enter`/`leave`, `pusha`/`popa`, 3-operand `imul`, `push imm`, `shl r,imm8`** — all 186+.
 - **`setcc`** — 386+. This is why conditions compile in control-flow context (§9).
-- Segment ops, BCD/ASCII adjusts, flag manipulation, `in`/`out`, `xlat`, far calls.
+- Segment ops, BCD/ASCII adjusts, `in`/`out`, `xlat`, far calls.
+- **Flag manipulation**, with one exception. `pushf` earns its place by being the
+  only way to read carry without `setcc` (386+), and carry is how DOS and BIOS
+  report failure — see `_cf` in §10. It appears once per int helper and nowhere
+  else. `popf`, `clc` and `stc` stay out, which is what keeps `_cf` read-only.
 
 Width extension needs no extra mnemonics: `u8→u16` is `xor ah,ah`, `i8→i16` is
 `cbw`, `u16→u32` (before `div`) is `xor dx,dx`, `i16→i32` (before `idiv`) is `cwd`.
@@ -574,14 +582,29 @@ count emitted instructions and use the tight form when the skipped region is
 provably short. This is not theoretical — several bodies in the reference file
 exceed 128 bytes under this codegen.
 
-**Peepholes** (these take the naive ~40 instructions for a typical indexed
-expression down to ~25):
+**Peepholes, built:**
 
 1. **Leaf RHS skips the stack** — load a variable/constant operand straight into
-   BX instead of `push ax` / eval / `mov bx,ax` / `pop ax`. Biggest win.
-2. **Constant store direct to memory** — `x = 0` is `mov byte [x], 0`.
-3. **Same-width copy skips widening** — `u8 x = u8 x1` needs no `xor ah,ah`.
-4. **Truthiness of a byte skips widening** — `test al, al`.
+   BX instead of `push ax` / eval / `mov bx,ax` / `pop ax`. Biggest win, and the
+   reason a binary expression over two variables is four instructions rather
+   than seven.
+2. **Constant store direct to memory** — `x = 0` is `mov byte [x], 0`, with no
+   round trip through AX.
+3. **Single-argument calls skip the argument stack** — the push/pop pair that
+   protects an already-filled parameter slot is only needed when there are
+   several arguments to protect (§7).
+
+**Peepholes, described here but never built.** Both are widening that is
+immediately thrown away, and both are cheap:
+
+- **Same-width copy** — `u8 x = u8 x1` still emits `mov al,[x1]` / `xor ah,ah` /
+  `mov [x],al`, widening a byte only to store the low half back.
+- **Truthiness of a byte** — `if (flag)` widens and then does `test ax, ax`
+  where `test al, al` would do. `if (_cf)` (§10) is now the canonical case.
+
+They were listed as built here for a long time before anyone checked, which is
+the argument for the golden `.asm` tier in §14: a claim about output that
+nothing compares against is a claim about nothing.
 
 **Comment style:** source line as a section header, *not* echoed per
 instruction. Inline comments reserved for width conversions, why `jbe` and not
@@ -798,8 +821,8 @@ well as what is legal — so anything that hides an edge from it deletes code th
 emitter still calls. Parameterised consts are the subtle case; see §7.
 
 `data/projects/heaptest` includes `std/io.momo` and uses three of its five subs;
-`putStr` and `waitKey`, and the `strAddr` and `key` globals, do not appear in the
-output at all.
+`putStr` and `space` do not appear in the output at all, and neither does
+`putStr`'s parameter slot `putStr__at`, which lives or dies with it.
 
 ---
 
@@ -815,10 +838,27 @@ footprint is known at compile time (`npm run memory -- <project>`):
 - **Code** — exact, but comes from NASM, so it needs a build. Since the `.COM`
   file is code plus data and data is known, `code = fileSize − dataSize`.
 
-One useful consequence of subs being statement-only calls: the expression stack
-is always empty at a call site, so **no two subs ever have temporaries live at
-the same time**. Worst-case stack is therefore
-`2 × callDepth + 2 × max(temporaries)`, not a sum down the call chain.
+**Temporaries sum down the call path**, they are not maxed across it:
+
+```
+cost(S) = 2 (its return address) + 2 × temporaries(S) + max(cost of callees)
+```
+
+This section used to give `2 × callDepth + 2 × max(temporaries)`, which was true
+while a call could only be a statement — the expression stack was empty at every
+call site, so no two routines ever had temporaries live at once. Typed routines
+(§7) ended that: a call inside an expression happens with the caller's
+temporaries still pushed. §7 records the change; §12 did not, and the two
+disagreed in the doc for as long as it took to notice.
+
+It is conservative rather than tight, assuming a routine's peak temporaries are
+live at its deepest call, which they need not be.
+
+**One thing sits outside the figure.** `int` is not a call-graph edge, so the
+2-byte return address of the helper it calls is not counted, nor is the `pushf`
+that `_cf` capture uses. Both are comfortably inside the 256-byte interrupt
+reserve below, which is why this is a footnote rather than a bug — but "exact"
+means exact about the parts that are computed.
 
 The one figure that is not computed is the interrupt reserve. DOS switches to an
 internal stack for most `int 21h` calls but BIOS handlers generally run on ours,
@@ -895,7 +935,7 @@ Three tiers, plus a deliberately small set of unit assertions. The first two run
 together in about a second and touch nothing outside Node.
 
 ```
-npm test          # tier 1 + type lattice - about a second, no DOSBox
+npm test          # tiers 1 and 1.5 + type lattice - about a second, no DOSBox
 npm run test:e2e  # tier 2 - launches DOSBox per case
 ```
 
@@ -984,6 +1024,11 @@ Where that stands:
 
 Still unwritten: a string library beyond `putStr`, and anything graphical (which
 needs the `ES` work in §16).
+
+Two things have since joined the list that were never on the original bar:
+`data/projects/grptest` for entity pools (§18), and `data/projects/cftest`,
+which opens a file and notices when that fails — the first Momo program that
+could find out the machine said no.
 
 ### On banning recursion
 
@@ -1540,7 +1585,9 @@ up, so where both fit, this is the more Momo-shaped answer.
   Direct buffer access is designed in §16 and deferred until something needs it.
 - **Port I/O (`in`/`out`).** Two instructions, needed for EGA/VGA planar modes,
   the PIT, and the speaker. Out of scope until a program wants one of those.
-- ~~**`bool _cf`**~~ — **built**, see §10.
+- **`bool _cf`** — **built; see §10.** DOS and BIOS report failure in carry, and
+  nothing in Momo could see it. Read-only, and captured only when something
+  reads it, so a program that ignores carry pays nothing.
 - **`peek8`/`poke8`/`peek16`/`poke16`** — the only route to a **runtime**
   address. `far` (§16) and `view` (§17) are both compile-time addressing, so
   neither overlaps with this:
@@ -1602,7 +1649,7 @@ up, so where both fit, this is the more Momo-shaped answer.
 
 ## 21. Longer-term directions
 
-Not planned like §16–§18 — these are directions rather than designs.
+Not planned like §16, §17 and §19 — these are directions rather than designs.
 
 ### CPU target levels
 
@@ -1982,11 +2029,14 @@ half wrong. Split four ways it is roomy.
 
 #### What it needs
 
-Almost nothing new. §18 `group` is structure-of-arrays, which is how a token
-table or an AST wants to be held on this machine; §19's array parameters and
-`len` give routines that take a buffer; §20's `_cf` gives DOS error reporting,
-and file access is otherwise writable *today* — `int 0x21` and `addr()` already
-work.
+Almost nothing new, and less than when this was written. **`group` (§18), `len`
+(§5) and `_cf` (§10) are now built** — structure-of-arrays is how a token table
+or an AST wants to be held on this machine, and `_cf` means a failed read can be
+noticed. With `int 0x21` and `addr()` already working, file access is writable
+today; `data/projects/cftest` opens one.
+
+What is still missing is §19's array parameters, for routines that take a buffer
+without one copy per call site.
 
 The one genuine gap is in §20's own table, which covers three cases of four:
 
@@ -2032,11 +2082,15 @@ compiler wants rather than by what the language should be. Neither of Momo's
 distinguishing properties — readable commented output, an exact memory footprint
 — is served by the compiler being written in itself.
 
-Used well it is a forcing function that exercises §18–§20 against a demanding
+Used well it is a forcing function that exercises §16–§20 against a demanding
 real program; used badly it is a reason to say yes to things. The tell is
-whether a feature still looks right with self-hosting struck out. The missing
-quadrant above passes that test — it was already latent in §20's table, and the
-use case only found it.
+whether a feature still looks right with self-hosting struck out.
+
+So far the record is good, and none of it was actually driven by this section:
+`len` was wanted for a map height, `group` for an entity pool, `_cf` because
+DOS reports failure in carry and nothing could see it. The missing quadrant
+passes the same test — it was already latent in §20's table, and the use case
+only found it.
 
 ---
 
