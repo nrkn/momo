@@ -1,0 +1,26 @@
+{
+  "name": "momo",
+  "displayName": "Momo",
+  "description": "Syntax highlighting for the Momo language",
+  "version": "0.1.0",
+  "publisher": "local",
+  "engines": { "vscode": "^1.75.0" },
+  "categories": ["Programming Languages"],
+  "contributes": {
+    "languages": [
+      {
+        "id": "momo",
+        "aliases": ["Momo", "momo"],
+        "extensions": [".momo"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "momo",
+        "scopeName": "source.momo",
+        "path": "./syntaxes/momo.tmLanguage.json"
+      }
+    ]
+  }
+}

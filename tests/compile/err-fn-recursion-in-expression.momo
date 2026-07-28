@@ -1,0 +1,11 @@
+// EXPECT-ERROR: recursion is not supported
+u8 a(u8 n) {
+  return b(n)
+}
+u8 b(u8 n) {
+  return a(n) + 1
+}
+u8 x
+sub t {
+  x = a(1)
+}

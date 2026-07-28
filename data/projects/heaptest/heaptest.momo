@@ -1,0 +1,46 @@
+// heaptest.momo - a bump allocator over the auto-generated heap.
+//
+// The heap is everything between the end of the program image and the bottom of
+// the stack. Momo generates `_heap` (u8 view), `_heapw` (u16 view) and `_hsize`;
+// the allocator itself is ordinary Momo code.
+
+include "std/io.momo"
+
+u16 hp = 0                      // bump pointer: byte offset into _heap
+u16 allocSize
+u16 allocPtr
+
+// allocSize bytes in, byte offset out in allocPtr
+sub halloc {
+  allocPtr = hp
+  hp += allocSize
+}
+
+u16 block
+u16 i
+u16 total
+
+// ---- entry ----
+
+// _hsize shifts with any codegen change, so assert a bound rather than print it.
+putNumber(_hsize > 60000 ? 1 : 0)
+newline()
+
+allocSize = 16                  // 8 words
+halloc()
+block = allocPtr >> 1           // byte offset -> word index
+
+for (i = 0; i < 8; i++) {
+  _heapw[block + i] = i * i
+}
+
+total = 0
+for (i = 0; i < 8; i++) {
+  total += _heapw[block + i]
+}
+
+putNumber(total)                   // expect 0+1+4+9+16+25+36+49 = 140
+newline()
+
+putNumber(hp)                      // bytes handed out
+newline()

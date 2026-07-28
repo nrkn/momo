@@ -1,0 +1,5 @@
+// EXPECT-ERROR: a routine needs a parameter list
+u16 someValue
+u16 getValue {
+  return someValue
+}

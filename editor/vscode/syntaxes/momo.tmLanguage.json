@@ -1,0 +1,199 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Momo",
+  "scopeName": "source.momo",
+  "fileTypes": [
+    "momo"
+  ],
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#characters"
+    },
+    {
+      "include": "#declarations"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#types"
+    },
+    {
+      "include": "#builtins"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#calls"
+    },
+    {
+      "include": "#operators"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.momo",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.momo",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "strings": {
+      "name": "string.quoted.double.momo",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.momo",
+          "match": "\\\\."
+        }
+      ]
+    },
+    "characters": {
+      "name": "string.quoted.single.momo",
+      "begin": "'",
+      "end": "'",
+      "patterns": [
+        {
+          "name": "constant.character.escape.momo",
+          "match": "\\\\."
+        }
+      ]
+    },
+    "declarations": {
+      "patterns": [
+        {
+          "match": "\\b(sub)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": {
+              "name": "keyword.declaration.momo"
+            },
+            "2": {
+              "name": "entity.name.function.momo"
+            }
+          }
+        },
+        {
+          "match": "\\b(u8|i8|u16|i16|bool)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(?=\\()",
+          "captures": {
+            "1": {
+              "name": "storage.type.momo"
+            },
+            "2": {
+              "name": "entity.name.function.momo"
+            }
+          }
+        },
+        {
+          "match": "\\b(const)\\s+(u8|i8|u16|i16|bool)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(?=\\()",
+          "captures": {
+            "1": {
+              "name": "keyword.declaration.momo"
+            },
+            "2": {
+              "name": "storage.type.momo"
+            },
+            "3": {
+              "name": "entity.name.function.momo"
+            }
+          }
+        },
+        {
+          "match": "\\b(const)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(?=\\()",
+          "captures": {
+            "1": {
+              "name": "keyword.declaration.momo"
+            },
+            "2": {
+              "name": "entity.name.function.momo"
+            }
+          }
+        },
+        {
+          "match": "\\b(const)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(?==)",
+          "captures": {
+            "1": {
+              "name": "keyword.declaration.momo"
+            },
+            "2": {
+              "name": "variable.other.constant.momo"
+            }
+          }
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.import.momo",
+          "match": "\\b(include)\\b"
+        },
+        {
+          "name": "constant.language.momo",
+          "match": "\\b(true|false)\\b"
+        },
+        {
+          "name": "support.function.builtin.momo",
+          "match": "\\b(addr)\\b"
+        },
+        {
+          "name": "keyword.declaration.momo",
+          "match": "\\b(sub|const)\\b"
+        },
+        {
+          "name": "keyword.control.momo",
+          "match": "\\b(fn|if|else|for|while|do|break|continue|return|int)\\b"
+        }
+      ]
+    },
+    "types": {
+      "name": "storage.type.momo",
+      "match": "\\b(u8|i8|u16|i16|bool)\\b"
+    },
+    "builtins": {
+      "name": "variable.language.momo",
+      "match": "\\b(_ax|_al|_ah|_bx|_bl|_bh|_cx|_cl|_ch|_dx|_dl|_dh|_si|_di|_hsize|_heap|_heapw)\\b"
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.hex.momo",
+          "match": "\\b0[xX][0-9a-fA-F][0-9a-fA-F_]*\\b"
+        },
+        {
+          "name": "constant.numeric.binary.momo",
+          "match": "\\b0[bB][01][01_]*\\b"
+        },
+        {
+          "name": "constant.numeric.decimal.momo",
+          "match": "\\b[0-9][0-9_]*\\b"
+        }
+      ]
+    },
+    "calls": {
+      "match": "\\b([A-Za-z_][A-Za-z0-9_]*)\\s*(?=\\()",
+      "captures": {
+        "1": {
+          "name": "entity.name.function.call.momo"
+        }
+      }
+    },
+    "operators": {
+      "name": "keyword.operator.momo",
+      "match": "<<=|>>=|=>|==|!=|<=|>=|&&|\\|\\||<<|>>|\\+\\+|\\-\\-|\\+=|\\-=|\\*=|\\/=|%=|&=|\\|=|\\^=|\\+|\\-|\\*|\\/|%|&|\\||\\^|~|!|<|>|=|\\?|:"
+    }
+  }
+}

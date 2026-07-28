@@ -1,0 +1,113 @@
+// rl.momo
+
+include "std/io.momo"
+include "std/screen.momo"
+include "std/key.momo"
+include "std/rand.momo"
+include "std/math.momo"
+
+// const
+
+const mapW = 20
+const mapH = 10
+
+/*
+  testing doubling walls on x to make rooms etc look more square as text 
+  is ~1:2 aspect ratio
+
+  we could go even go further and have "tiles" be 4x2, allowing very limited
+  ascii art for player, mobs, items etc:
+
+   () 
+  '||'
+
+   ()
+  ']['
+*/
+const map = "########    ########"
+            "##....########....##"
+            "##................##"
+            "####............####"
+            "  ##............##  "
+            "  ##............##  "
+            "####............####"
+            "##................##"
+            "##....########....##"
+            "########    ########"            
+
+const tileAt( u8 x, u8 y ) = map[ y * mapW + x ]
+
+const defAttr = color( lightGray, black )
+
+const solidBlock = 219
+
+// state
+
+u8 playerX = 9
+u8 playerY = 4
+
+// start
+
+sub cls => clearScreen( defAttr )
+
+setTextMode()
+hideCursor()
+
+// tick
+
+u8 y
+u8 x
+u8 oldPx
+u8 oldPy
+u8 ch
+u16 lastKey
+
+bool isMove( u8 key ) => lo( lastKey ) == 0 && hi( lastKey ) == key
+
+sub draw {
+  for( y = 0; y < mapH; y++ ){
+    for( x = 0; x < mapW; x++ ){
+      ch = tileAt( x, y )
+      
+      if( ch == '#') ch = solidBlock
+
+      writeAt( x, y, ch, defAttr )
+    }
+  }
+}
+
+draw()
+writeAt( playerX, playerY, '@', defAttr )
+
+while( true ){
+  lastKey = readKey()
+
+  if( lo( lastKey ) == keyEsc ) break  
+  
+  oldPx = playerX
+  oldPy = playerY
+
+  if( isMove( keyUp ) && playerY > 0 ){
+    playerY--
+  } else if( isMove( keyDown ) && playerY < mapH - 1 ){
+    playerY++
+  } else if( isMove( keyLeft ) && playerX > 0 ){
+    playerX--
+  } else if( isMove( keyRight ) && playerX < mapW - 1 ){
+    playerX++
+  }
+
+  if( tileAt( playerX, playerY ) == '#'){
+    playerX = oldPx
+    playerY = oldPy
+  } else {
+    writeAt( oldPx, oldPy, tileAt( oldPx, oldPy ), defAttr )
+    writeAt( playerX, playerY, '@', defAttr )
+  }
+}
+
+// end
+
+moveTo( 0, 0 )
+showCursor()
+cls()

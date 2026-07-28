@@ -1,0 +1,5 @@
+// EXPECT-ERROR: is out of bounds
+u8[4] buf
+sub t {
+  buf[9] = 1
+}

@@ -1,0 +1,40 @@
+// std/key.momo - keyboard input via BIOS int 16h.
+
+include "std/math.momo"
+
+// Scancodes, reported in the high byte for keys with no ASCII value.
+const keyUp     = 72
+const keyDown   = 80
+const keyLeft   = 75
+const keyRight  = 77
+const keyHome   = 71
+const keyEnd    = 79
+const keyPgUp   = 73
+const keyPgDn   = 81
+const keyDelete = 83
+const keyInsert = 82
+
+// ASCII values, reported in the low byte.
+const keyEsc    = 27
+const keyEnter  = 13
+const keyTab    = 9
+const keySpace  = 32
+const keyBack   = 8
+
+// Blocks until a key is pressed. Returns AX: `lo()` is the ASCII value and
+// `hi()` is the scancode. Extended keys - arrows, function keys - report an
+// ASCII value of 0, so test `hi()` when `lo()` is zero.
+u16 readKey() {
+  _ah = 0x00
+  int 0x16
+  return _ax
+}
+
+// True when a keystroke is waiting. Uses the DOS call rather than int 16h
+// AH=01h, because that one reports "nothing pending" in ZF - and Momo has no
+// way to read flags.
+bool keyWaiting() {
+  _ah = 0x0B
+  int 0x21
+  return _al != 0
+}

@@ -1,0 +1,19 @@
+smoke
+1 a.  +
+2 a.  +
+3 fizz a  
+4 1a.  
+5 buzz 4b.  
+6 fizz 9b  +
+7 @b.  +
+8 Ib.  +
+9 fizz b  
+10 buzz c.  
+11 c#  
+12 fizz c  +
+14 c#  +
+15 fizz buzz c  
+16 c#  
+17 c#  
+4
+---

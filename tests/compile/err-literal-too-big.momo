@@ -1,0 +1,5 @@
+// EXPECT-ERROR: does not fit in 16 bits
+u16 x
+sub t {
+  x = 70000
+}

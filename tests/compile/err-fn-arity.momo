@@ -1,0 +1,8 @@
+// EXPECT-ERROR: takes 2 argument(s), got 1
+u16 add(u8 a, u8 b) {
+  return a + b
+}
+u16 x
+sub t {
+  x = add(1)
+}

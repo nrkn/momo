@@ -1,0 +1,11 @@
+// An untyped literal shifted by a runtime count, and a ternary whose test is
+// not known: both used to leave an untyped node with no value.
+u16 n
+u16 out
+bool flag
+
+sub t {
+  out = 1 << (n & 7)
+  out = flag ? 1 : 2
+  out = (n >> 3) | (1 << (n & 7))
+}

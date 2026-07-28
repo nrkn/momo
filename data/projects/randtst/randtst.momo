@@ -1,0 +1,16 @@
+include "std/io.momo"
+include "std/rand.momo"
+
+u16 i
+seedRandom(1234)
+for (i = 0; i < 6; i++) {
+  putNumber(randomBelow(100))
+  putChar(' ')
+}
+newline()
+seedRandom(1234)
+for (i = 0; i < 6; i++) {
+  putNumber(randomBetween(10, 19))
+  putChar(' ')
+}
+newline()

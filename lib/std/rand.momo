@@ -1,0 +1,19 @@
+// std/rand.momo - a 16-bit linear congruential generator.
+//
+// Good enough for a game, not for anything else.
+
+u16 randomSeed = 42
+
+sub seedRandom(u16 s) => randomSeed = s
+
+u16 nextRandom() {
+  randomSeed = randomSeed * 25173 + 13849
+  return randomSeed
+}
+
+// The low bit of an LCG alternates every call, so it is dropped before the
+// modulo. `n` must not be zero - an 8086 divide by zero raises INT 0.
+u16 randomBelow(u16 n) => (nextRandom() >> 1) % n
+
+// Inclusive on both ends.
+u16 randomBetween(u16 low, u16 high) => low + randomBelow(high - low + 1)

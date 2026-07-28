@@ -1,0 +1,6 @@
+i16 signed
+u16 unsigned
+sub t {
+  signed = signed + 300
+  unsigned = unsigned + 300
+}

@@ -1,0 +1,23 @@
+{
+  "type": "module",
+  "scripts": {
+    "compile": "tsc",
+    "start": "tsc && node dist/tools/run.js",
+    "build": "tsc && node dist/tools/run.js --build",
+    "lex": "tsc && node dist/tools/lex.js",
+    "lex:nl": "tsc && node dist/tools/lex.js --newlines",
+    "parse": "tsc && node dist/tools/parse.js",
+    "parse:json": "tsc && node dist/tools/parse.js --json",
+    "check": "tsc && node dist/tools/check.js",
+    "momoc": "tsc && node dist/tools/momoc.js",
+    "memory": "tsc && node dist/tools/memory.js",
+    "test": "tsc && node dist/tools/test.js",
+    "test:e2e": "tsc && node dist/tools/e2e.js",
+    "momoc:all": "tsc && node dist/tools/momoc.js --all",
+    "grammar": "tsc && node dist/tools/grammar.js",
+    "editor:install": "tsc && node dist/tools/editor.js"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1"
+  }
+}

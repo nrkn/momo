@@ -1,0 +1,17 @@
+// std/math.momo - parameterised consts. These emit no code at all: each call is
+// substituted inline, and folds completely when its arguments are constant.
+//
+// Momo has no overloading, so the signed variants carry an `i` prefix.
+
+const u16 min(u16 a, u16 b) = a < b ? a : b
+const u16 max(u16 a, u16 b) = a > b ? a : b
+const u16 clamp(u16 v, u16 low, u16 high) = v < low ? low : (v > high ? high : v)
+
+const i16 imin(i16 a, i16 b) = a < b ? a : b
+const i16 imax(i16 a, i16 b) = a > b ? a : b
+const i16 iabs(i16 v) = v < 0 ? -v : v
+const i16 iclamp(i16 v, i16 low, i16 high) = v < low ? low : (v > high ? high : v)
+
+// Byte halves of a word.
+const u8 lo(u16 w) = u8(w)
+const u8 hi(u16 w) = u8(w >> 8)

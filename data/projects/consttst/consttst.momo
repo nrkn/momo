@@ -1,0 +1,48 @@
+// consttst.momo - parameterised consts: substituted, never called.
+
+include "std/io.momo"
+
+const sqr(u8 n)                  = n * n
+const u16 min(u16 a, u16 b) = a < b ? a : b
+const u8 lo(u16 w) = u8(w)
+const u8 hi(u16 w) = u8(w >> 8)
+const isDigit(u8 c)              = c >= '0' && c <= '9'
+
+// Compile-time table generation: every element folds during resolution.
+const u16[] squares = [ sqr(0), sqr(1), sqr(2), sqr(3), sqr(4), sqr(5) ]
+
+const packed = 0xBEEF
+
+u16 i
+u16 runtime
+
+// ---- entry ----
+
+// folded at compile time -> a plain immediate
+putNumber(sqr(7))
+newline()
+
+// called with a runtime value -> substituted inline, no call emitted
+runtime = 9
+putNumber(sqr(u8(runtime)))
+newline()
+
+// nested const calls
+putNumber(min(sqr(4), sqr(3)))
+newline()
+
+// the compile-time table
+for (i = 0; i < 6; i++) {
+  putNumber(squares[i])
+  putChar(' ')
+}
+newline()
+
+putNumber(hi(packed))
+putChar(' ')
+putNumber(lo(packed))
+newline()
+
+putNumber(isDigit('7'))
+putNumber(isDigit('x'))
+newline()

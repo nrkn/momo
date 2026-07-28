@@ -1,0 +1,4 @@
+// EXPECT-ERROR: never returns a value
+u8 f(u8 a) {
+  _al = a
+}

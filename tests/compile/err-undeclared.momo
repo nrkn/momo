@@ -1,0 +1,4 @@
+// EXPECT-ERROR: "nope" is not declared
+sub t {
+  nope = 1
+}

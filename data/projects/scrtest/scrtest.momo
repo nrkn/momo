@@ -1,0 +1,38 @@
+// scrtest.momo - proves the BIOS screen calls actually work, by writing cells
+// and reading them back with int 10h AH=08h.
+
+include "std/screen.momo"
+
+u16 cell
+
+u16 readCellAt(u8 col, u8 row) {
+  moveTo(col, row)
+  _ah = 0x08                    // read character and attribute at cursor
+  _bh = 0
+  int 0x10
+  return _ax                    // lo = character, hi = attribute
+}
+
+setTextMode()
+clearScreen(color(lightGray, black))
+
+writeAt(5, 3, 'X', color(yellow, blue))
+fillRow(10, 7, '#', color(lightGreen, black), 4)
+
+cell = readCellAt(5, 3)
+putNumber(lo(cell))             // 88 = 'X'
+putChar(' ')
+putNumber(hi(cell))             // 30 = yellow on blue
+newline()
+
+cell = readCellAt(12, 7)        // inside the filled run
+putNumber(lo(cell))             // 35 = '#'
+putChar(' ')
+putNumber(hi(cell))             // 10 = lightGreen on black
+newline()
+
+cell = readCellAt(20, 20)       // untouched, so the clear attribute
+putNumber(lo(cell))             // 32 = space
+putChar(' ')
+putNumber(hi(cell))             // 7 = lightGray on black
+newline()

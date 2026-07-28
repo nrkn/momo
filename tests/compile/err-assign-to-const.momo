@@ -1,0 +1,5 @@
+// EXPECT-ERROR: is a const and cannot be assigned
+const k = 5
+sub t {
+  k = 1
+}

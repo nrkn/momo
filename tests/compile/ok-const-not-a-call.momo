@@ -1,0 +1,13 @@
+// A const is substituted, not called, so it must never appear as a call-graph
+// edge - it would inflate the reported call depth and stack.
+const u8 twice( u8 n ) = n * 2
+
+sub inner {
+  _al = 1
+}
+
+sub outer {
+  inner()
+  _ah = twice( 3 )
+}
+outer()

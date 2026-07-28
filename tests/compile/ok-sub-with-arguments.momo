@@ -1,0 +1,32 @@
+// Subs take arguments now. Only subs may omit an empty parameter list.
+sub draw {
+  _al = 1
+}
+
+sub drawAt() {
+  _al = 2
+}
+
+sub move( u8 dx, u8 dy ) {
+  _al = dx
+  _ah = dy
+}
+
+sub log( u8 n ) => move( n, n )
+sub cls => draw()
+
+u16 doubled( u16 n ) => n * 2
+u16 sum( u16 a, u16 b ) {
+  return a + b
+}
+
+u16 total
+sub t {
+  draw()
+  drawAt()
+  move(1, 2)
+  log(3)
+  cls()
+  total = sum(doubled(4), 5)
+}
+t()

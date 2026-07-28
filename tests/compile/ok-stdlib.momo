@@ -1,0 +1,31 @@
+// Every std module compiles together, and the parameterised consts fold.
+include "std/screen.momo"
+include "std/key.momo"
+include "std/rand.momo"
+
+const u8[] palette = [ color(white, black), color(red, yellow), color(cyan, blue) ]
+const u16[] limits = [ min(3, 9), max(3, 9), clamp(50, 0, 10) ]
+
+u16 k
+u16 roll
+
+sub t {
+  setTextMode()
+  hideCursor()
+  clearScreen(color(lightGray, black))
+  writeAt(1, 1, '@', palette[0])
+  fillRow(0, 0, '-', palette[1], screenCols)
+  writeStrAt(0, 24, addr(status))
+  writeNumberAt(70, 24, limits[1])
+
+  seedRandom(1234)
+  roll = randomBetween(1, 6)
+
+  k = readKey()
+  if (lo(k) == 0 && hi(k) == keyUp) roll = 0
+  if (lo(k) == keyEsc) roll = 1
+  if (keyWaiting()) roll = 2
+}
+
+const u8[] status = "hp 10/10$"
+t()

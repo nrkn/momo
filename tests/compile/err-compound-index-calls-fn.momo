@@ -1,0 +1,12 @@
+// EXPECT-ERROR: evaluates the index twice
+u8[4] buf
+u16 calls
+
+u16 idx() {
+  calls++
+  return 0
+}
+
+sub t {
+  buf[idx()] += 1
+}

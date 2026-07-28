@@ -1,0 +1,38 @@
+// maptest.momo - proves the concatenated map is one flat array, indexed by row.
+
+include "std/io.momo"
+
+const mapWidth  = 8
+const mapHeight = 5
+
+const u8[] map = "########"
+                 "#..@...#"
+                 "#.####.#"
+                 "#......#"
+                 "########"
+
+const tileAt(u16 x, u16 y) = map[y * mapWidth + x]
+
+u16 x
+u16 y
+u16 walls
+
+// Print it back, row by row.
+for (y = 0; y < mapHeight; y++) {
+  for (x = 0; x < mapWidth; x++) {
+    putChar(tileAt(x, y))
+  }
+  newline()
+}
+
+// Count walls, so the length is checked too.
+walls = 0
+for (y = 0; y < mapHeight; y++) {
+  for (x = 0; x < mapWidth; x++) {
+    if (tileAt(x, y) == '#') walls++
+  }
+}
+putNumber(walls)
+newline()
+putNumber(mapWidth * mapHeight)
+newline()

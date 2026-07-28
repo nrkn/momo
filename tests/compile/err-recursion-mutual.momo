@@ -1,0 +1,8 @@
+// EXPECT-ERROR: recursion is not supported: a -> b -> a
+sub a {
+  b()
+}
+sub b {
+  a()
+}
+a()

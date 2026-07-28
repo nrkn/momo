@@ -1,0 +1,7 @@
+// EXPECT-ERROR: u16 does not mix with signed types
+u16 a
+i16 b
+u16 c
+sub t {
+  c = a + b
+}

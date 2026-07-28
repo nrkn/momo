@@ -1,0 +1,2 @@
+// EXPECT-ERROR: needs either a size or an initialiser
+u8[] buf

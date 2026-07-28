@@ -1,0 +1,113 @@
+// qsort.momo - quicksort with an explicit stack on the heap.
+//
+// Momo bans recursion, because locals are statically allocated. That costs
+// nothing: a recursive algorithm just carries its own stack. Here the values
+// live at _heapw[0..count-1] and the pending (lo, hi) ranges above them.
+
+include "std/io.momo"
+
+const count = 20                // values to sort
+const stackBase = count         // ranges start here, in words
+
+u16 sp                          // stack depth, in words
+u16 lo
+u16 hi
+u16 i
+u16 j
+u16 pivot
+u16 tmp
+u16 pivotAt
+u16 fromLo
+u16 fromHi
+u16 seed = 7
+
+// 16-bit linear congruential generator.
+u16 nextRandom() {
+  seed = seed * 25173 + 13849
+  return seed >> 8
+}
+
+sub pushRange {
+  _heapw[stackBase + sp] = lo
+  _heapw[stackBase + sp + 1] = hi
+  sp += 2
+}
+
+sub popRange {
+  sp -= 2
+  lo = _heapw[stackBase + sp]
+  hi = _heapw[stackBase + sp + 1]
+}
+
+sub fill {
+  for (i = 0; i < count; i++) {
+    _heapw[i] = nextRandom() % 100
+  }
+}
+
+sub show {
+  for (i = 0; i < count; i++) {
+    putNumber(_heapw[i])
+    putChar(' ')
+  }
+  newline()
+}
+
+sub quicksort {
+  sp = 0
+  lo = 0
+  hi = count - 1
+  pushRange()
+
+  while (sp > 0) {
+    popRange()
+    fromLo = lo
+    fromHi = hi
+
+    // Lomuto partition around the last element.
+    pivot = _heapw[fromHi]
+    i = fromLo
+
+    for (j = fromLo; j < fromHi; j++) {
+      if (_heapw[j] < pivot) {
+        tmp = _heapw[i]
+        _heapw[i] = _heapw[j]
+        _heapw[j] = tmp
+        i++
+      }
+    }
+
+    tmp = _heapw[i]
+    _heapw[i] = _heapw[fromHi]
+    _heapw[fromHi] = tmp
+    pivotAt = i
+
+    // Guarded so an empty side never underflows: these are u16.
+    if (pivotAt > fromLo) {
+      lo = fromLo
+      hi = pivotAt - 1
+      pushRange()
+    }
+
+    if (pivotAt < fromHi) {
+      lo = pivotAt + 1
+      hi = fromHi
+      pushRange()
+    }
+  }
+}
+
+// ---- entry ----
+
+fill()
+show()
+quicksort()
+show()
+
+// Verify: report the number of out-of-order pairs.
+tmp = 0
+for (i = 1; i < count; i++) {
+  if (_heapw[i - 1] > _heapw[i]) tmp++
+}
+putNumber(tmp)
+newline()

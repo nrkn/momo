@@ -1,0 +1,18 @@
+// Adjacent string literals concatenate, so a map reads as it looks.
+const mapWidth  = 5
+const mapHeight = 5
+
+const u8[] map = "#####"
+                 "#   #"
+                 "# @ #"
+                 "#   #"
+                 "#####"
+
+// Still works on one line, and next to other declarations.
+const u8[] greeting = "hello, " "world$"
+const u8[] plain    = "unchanged$"
+
+u8 tile
+sub t {
+  tile = map[mapWidth * 2 + 2]
+}

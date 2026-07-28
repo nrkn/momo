@@ -1,0 +1,7 @@
+{
+  "dosbox": {
+    "win32": "D:\\Dropbox\\windows-apps\\dosbox ece\\DOSBox.exe",
+    "linux": "dosbox"
+  },
+  "winpos": "0,0"
+}

@@ -1,0 +1,9 @@
+// EXPECT-ERROR: is used more than once - assign it to a variable first
+u8 side(u8 n) {
+  return n
+}
+const sqr(u8 n) = n * n
+u16 x
+sub t {
+  x = sqr(side(3))
+}

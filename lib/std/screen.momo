@@ -1,0 +1,123 @@
+// std/screen.momo - text-mode screen via BIOS int 10h.
+//
+// Everything here goes through the BIOS, so no segment register is touched and
+// the tiny memory model stays intact. Direct writes to the B800:0000 text buffer
+// would be far faster but need ES - see DESIGN.md.
+
+include "std/io.momo"
+include "std/math.momo"
+
+const screenCols = 80
+const screenRows = 25
+
+const black        = 0
+const blue         = 1
+const green        = 2
+const cyan         = 3
+const red          = 4
+const magenta      = 5
+const brown        = 6
+const lightGray    = 7
+const darkGray     = 8
+const lightBlue    = 9
+const lightGreen   = 10
+const lightCyan    = 11
+const lightRed     = 12
+const lightMagenta = 13
+const yellow       = 14
+const white        = 15
+
+// Attribute byte: foreground in the low nibble, background in the high one.
+// Backgrounds above 7 set the blink bit on default hardware.
+const u8 color(u8 fg, u8 bg) = fg | (bg << 4)
+
+// 80x25, 16 colors. Also clears the screen.
+sub setTextMode() {
+  _ax = 0x0003
+  int 0x10
+}
+
+// AH=06 scrolls a window; AL=0 blanks it entirely.
+sub clearScreen(u8 attr) {
+  _ax = 0x0600
+  _bh = attr
+  _cx = 0                       // top-left: row 0, column 0
+  _dh = screenRows - 1
+  _dl = screenCols - 1
+  int 0x10
+}
+
+sub moveTo(u8 col, u8 row) {
+  _ah = 0x02
+  _bh = 0                       // page 0
+  _dh = row
+  _dl = col
+  int 0x10
+}
+
+// Writes at the cursor WITHOUT advancing it. That is what makes this the right
+// primitive for grid drawing: the teletype call advances, and writing to the
+// bottom-right cell with it scrolls the whole screen.
+sub putCell(u8 ch, u8 attr) {
+  _ah = 0x09
+  _al = ch
+  _bh = 0
+  _bl = attr
+  _cx = 1
+  int 0x10
+}
+
+// The same character `count` times from the cursor - one interrupt for a whole
+// run, which is much cheaper than a call per cell.
+sub repeatCell(u8 ch, u8 attr, u16 count) {
+  _ah = 0x09
+  _al = ch
+  _bh = 0
+  _bl = attr
+  _cx = count
+  int 0x10
+}
+
+sub writeAt(u8 col, u8 row, u8 ch, u8 attr) {
+  moveTo(col, row)
+  putCell(ch, attr)
+}
+
+sub fillRow(u8 col, u8 row, u8 ch, u8 attr, u16 count) {
+  moveTo(col, row)
+  repeatCell(ch, attr, count)
+}
+
+sub hideCursor() {
+  _ah = 0x01
+  _cx = 0x2000                  // bit 5 of CH hides the cursor
+  int 0x10
+}
+
+sub showCursor() {
+  _ah = 0x01
+  _cx = 0x0607                  // a small underline
+  int 0x10
+}
+
+// Writes a '$'-terminated string at a position. This goes out through DOS, so it
+// uses whatever attribute is already in each cell rather than one you choose.
+//
+// For coloured text, loop over the string where it is declared - indexing an
+// array in scope is ordinary:
+//
+//   for ( i = 0; msg[i] != '$'; i++ ) {
+//     writeAt( col + i, row, msg[i], attr )
+//   }
+//
+// Only factoring that into a routine here needs an address parameter, and so
+// peek8 - see DESIGN.md open questions.
+sub writeStrAt(u8 col, u8 row, u16 at) {
+  moveTo(col, row)
+  putStr(at)
+}
+
+sub writeNumberAt(u8 col, u8 row, u16 n) {
+  moveTo(col, row)
+  putNumber(n)
+}

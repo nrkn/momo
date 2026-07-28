@@ -1,0 +1,4 @@
+// EXPECT-ERROR: fn is no longer a keyword
+fn add( u8 a, u8 b ) -> u16 {
+  return a + b
+}

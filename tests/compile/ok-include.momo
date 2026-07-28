@@ -1,0 +1,8 @@
+include "std/io.momo"
+sub t {
+  putNumber(42)
+  putStr(addr(greeting))
+  newline()
+}
+const u8[] greeting = "hi$"
+t()

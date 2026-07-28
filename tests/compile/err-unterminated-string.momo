@@ -1,0 +1,2 @@
+// EXPECT-ERROR: unterminated string literal
+const u8[] s = "no closing quote

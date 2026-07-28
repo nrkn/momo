@@ -1,0 +1,5 @@
+// EXPECT-ERROR: cannot be nested
+sub a {
+  sub b {
+  }
+}

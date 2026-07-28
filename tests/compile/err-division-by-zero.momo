@@ -1,0 +1,2 @@
+// EXPECT-ERROR: division by zero
+const k = 10 / 0

@@ -1,0 +1,5 @@
+// EXPECT-ERROR: recursion is not supported
+sub f {
+  f()
+}
+f()

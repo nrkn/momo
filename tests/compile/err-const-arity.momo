@@ -1,0 +1,6 @@
+// EXPECT-ERROR: takes 1 argument(s), got 2
+const sqr(u8 n) = n * n
+u16 x
+sub t {
+  x = sqr(1, 2)
+}

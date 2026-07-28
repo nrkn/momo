@@ -1,0 +1,4 @@
+// EXPECT-ERROR: only valid inside a loop
+sub t {
+  break
+}

@@ -1,0 +1,20 @@
+u8 a
+i8 b
+u16 c
+i16 d
+bool e
+
+u8[4]  arr
+u8[]   inferred = [ 1, 2, 3 ]
+u8[6]  padded   = [ 1, 2 ]
+
+const k     = 20
+const hexed = 0x7F
+const bits  = 0b1010_1010
+
+sub t {
+  a = u8(c)
+  d = i16(c) - 1
+  c = u16(d)
+  e = a > 3 && c < 9
+}

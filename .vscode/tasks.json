@@ -1,0 +1,67 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "momo: compile all",
+      "detail": "Compile every project; errors appear in the Problems panel.",
+      "type": "shell",
+      "command": "npm run momoc:all",
+      "group": { "kind": "build", "isDefault": true },
+      "presentation": { "reveal": "silent", "clear": true },
+      "problemMatcher": {
+        "owner": "momo",
+        "source": "momo",
+        "fileLocation": "absolute",
+        "pattern": {
+          "regexp": "^(.*\\.momo):(\\d+):(\\d+):\\s+(error|warning):\\s+(.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "message": 5
+        }
+      }
+    },
+    {
+      "label": "momo: run current project",
+      "detail": "Compile and run the project owning the open file, in DOSBox.",
+      "type": "shell",
+      "command": "npm start ${fileBasenameNoExtension}",
+      "presentation": { "reveal": "always" },
+      "problemMatcher": {
+        "owner": "momo",
+        "source": "momo",
+        "fileLocation": "absolute",
+        "pattern": {
+          "regexp": "^(.*\\.momo):(\\d+):(\\d+):\\s+(error|warning):\\s+(.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "message": 5
+        }
+      }
+    },
+    {
+      "label": "momo: test",
+      "detail": "Run the compile-test suite and the type-lattice assertions.",
+      "type": "shell",
+      "command": "npm test",
+      "group": { "kind": "test", "isDefault": true },
+      "presentation": { "reveal": "always" },
+      "problemMatcher": {
+        "owner": "momo",
+        "source": "momo",
+        "fileLocation": "absolute",
+        "pattern": {
+          "regexp": "^(.*\\.momo):(\\d+):(\\d+):\\s+(error|warning):\\s+(.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "message": 5
+        }
+      }
+    }
+  ]
+}

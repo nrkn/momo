@@ -1,0 +1,3 @@
+// EXPECT-ERROR: already declared
+u8 x
+u16 x

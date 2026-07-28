@@ -1,0 +1,14 @@
+const sqr(u8 n)                = n * n
+const u16 min(u16 a, u16 b) = a < b ? a : b
+const u16[] table = [ sqr(0), sqr(1), sqr(2) ]
+
+u16 v
+sub t {
+  v = sqr(3)
+  v = min(v, 10)
+}
+
+// The declared return type sits where a variable's or a routine's would.
+const u8  narrow( u16 w ) = u8( w )
+const i16 negate( i16 v ) = -v
+const     inferred( u8 n ) = n * n

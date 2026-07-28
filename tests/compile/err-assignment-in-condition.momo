@@ -1,0 +1,7 @@
+// EXPECT-ERROR: expected ")" but found "="
+u8 a
+sub t {
+  if (a = 5) {
+    a = 1
+  }
+}

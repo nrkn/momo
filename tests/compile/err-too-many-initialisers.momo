@@ -1,0 +1,2 @@
+// EXPECT-ERROR: 3 initialisers for an array of 2
+u8[2] buf = [ 1, 2, 3 ]

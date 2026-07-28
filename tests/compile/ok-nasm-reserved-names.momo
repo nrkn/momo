@@ -1,0 +1,15 @@
+// Momo names that are NASM reserved words must still produce valid assembly.
+u16 word
+u8  byte
+u16 si
+
+i16 absolute(i16 v) {
+  return v < 0 ? -v : v
+}
+
+sub align {
+  word = 1
+  byte = 2
+  si = u16(absolute(-3))
+}
+align()

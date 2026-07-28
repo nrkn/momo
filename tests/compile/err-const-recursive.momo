@@ -1,0 +1,6 @@
+// EXPECT-ERROR: cannot be recursive
+const f(u8 n) = f(n)
+u16 x
+sub t {
+  x = f(1)
+}

@@ -1,0 +1,7 @@
+// EXPECT-ERROR: returns nothing - call it as a statement
+sub f {
+}
+u16 x
+sub t {
+  x = f()
+}

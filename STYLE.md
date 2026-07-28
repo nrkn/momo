@@ -1,0 +1,86 @@
+# Style guide
+
+Living document — we iterate on this as we go.
+
+## TypeScript
+
+**Simple and imperative.** Prefer the obvious procedure over the clever
+abstraction. This is a hobby compiler, not a framework.
+
+- **No classes**, no `this`, no `new`. Plain functions and data.
+- **`type`, never `interface`.**
+- **No function overloading.** One signature per function.
+- **`async`/`await`**, never `.then()`/`.catch()` chains.
+- **`for (;;)` and `for..of` / `for..in`** rather than `.forEach()`.
+  `.map()`/`.filter()` are fine where they read as expressions.
+- **Arrow functions** assigned to `const` for top-level definitions.
+- **No default exports.** Named exports only.
+- **`node:` prefix** on all builtin imports (`node:fs/promises`, not `fs/promises`).
+- **No semicolons.** Single quotes. Two-space indent.
+
+## Structure
+
+- Constants and paths at the top of the module, derived once.
+- Small named helpers over long inline blocks — but only when the helper has a
+  name worth reading. Don't extract for its own sake.
+- Fail fast and loudly: validate inputs up front, exit with a clear message
+  rather than throwing a stack trace at the user.
+
+## Errors: two layers
+
+- **Compiler stages** (`src/momo/`) call `raise(line, col, message)`, which
+  throws a `MomoError` carrying a source position. A bare `throw` from a
+  compiler stage means a bug in *the compiler*, not in the user's program.
+- **Tools** (`src/tools/`) catch `MomoError`, print it via `formatError` (source
+  line plus caret), and exit 1. `fail(message): never` is for tool-level
+  problems only — missing files, bad arguments, no DOSBox.
+
+## Errors
+
+Messages are lowercase, specific, and say what to do:
+
+```
+error: invalid project name "textadventure" - DOS 8.3 requires 1-8 characters
+```
+
+Not `Error: validation failed`.
+
+## Assembly (hand-written test programs)
+
+Hand-written `.asm` under `data/projects/` should read like transpiler output,
+so it doubles as a check on the codegen design:
+
+- `cpu 8086` at the top of every file. This makes NASM mechanically enforce the
+  strict-8086 decision from `DESIGN.md` — a 186+ instruction becomes an error.
+- `org 100h`, no sections.
+- Source-level intent as a `; ---- ... ----` section header, not echoed per
+  instruction.
+- Inline comments only for things a reader cannot infer: width conversions, why
+  `jbe` and not `jle`, branch-expansion idioms.
+- Labels in column 0, mnemonics indented 8, operands aligned.
+
+## Momo
+
+- **`=>` when the body is one thing.** It desugars to `{ return expr }` or
+  `{ statement }` in the parser, so there is no cost either way — it is purely
+  about reading:
+
+  ```momo
+  u16 randomBelow( u16 n ) => (nextRandom() >> 1) % n
+  sub cls => clearScreen( color( lightGray, black ) )
+  ```
+
+  It reads best when the body is an expression or a call. With an assignment the
+  two `=`-family tokens end up close together — `sub seed( u16 s ) => seed_ = s`
+  is legal and fine, but braces are also defensible there.
+
+- Reach for braces when the body is multi-statement, when a comment belongs
+  inside it, or when the line would wrap.
+
+## Naming
+
+- Files: `kebab-case.ts`.
+- Functions and variables: `camelCase`.
+- Types: `PascalCase`.
+- DOS-visible filenames must be **8.3** — project directories and entry files
+  are limited to 8 characters, letters/digits/underscore, starting with a letter.

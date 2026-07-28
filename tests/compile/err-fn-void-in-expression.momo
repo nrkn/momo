@@ -1,0 +1,8 @@
+// EXPECT-ERROR: returns nothing - call it as a statement
+sub nop(u8 a) {
+  _al = a
+}
+u16 x
+sub t {
+  x = nop(1)
+}

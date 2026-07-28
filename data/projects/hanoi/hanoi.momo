@@ -1,0 +1,96 @@
+// hanoi.momo - Towers of Hanoi with an explicit stack on the heap.
+//
+// Harder than quicksort: each frame carries a resume point, so the loop is a
+// state machine rather than a simple worklist. Frames are 4 words in _heapw.
+
+include "std/io.momo"
+
+const discs     = 4
+const frameSize = 4
+
+const fN     = 0                // disc count
+const fFrom  = 1                // source peg
+const fTo    = 2                // destination peg
+const fStage = 3                // resume point: 0, 1 or 2
+
+// The three pegs are 1, 2, 3 - so the spare one is whatever is left over.
+const spare(u16 a, u16 b) = 6 - a - b
+
+u16 sp                          // frames in use
+u16 moves
+
+u16 slotOf(u16 frame, u16 field) {
+  return frame * frameSize + field
+}
+
+u16 frameGet(u16 frame, u16 field) {
+  return _heapw[slotOf(frame, field)]
+}
+
+sub frameSet(u16 frame, u16 field, u16 value) {
+  _heapw[slotOf(frame, field)] = value
+}
+
+sub pushFrame(u16 n, u16 from, u16 to) {
+  frameSet(sp, fN, n)
+  frameSet(sp, fFrom, from)
+  frameSet(sp, fTo, to)
+  frameSet(sp, fStage, 0)
+  sp++
+}
+
+sub reportMove(u16 from, u16 to) {
+  putNumber(from)
+  putChar('>')
+  putNumber(to)
+  putChar(' ')
+  moves++
+}
+
+sub solve {
+  u16 top
+  u16 n
+  u16 from
+  u16 to
+  u16 stage
+
+  sp = 0
+  moves = 0
+  pushFrame(discs, 1, 3)
+
+  while (sp > 0) {
+    top = sp - 1
+    n = frameGet(top, fN)
+    from = frameGet(top, fFrom)
+    to = frameGet(top, fTo)
+    stage = frameGet(top, fStage)
+
+    if (n == 1) {
+      reportMove(from, to)
+      sp--
+      continue
+    }
+
+    if (stage == 0) {
+      frameSet(top, fStage, 1)
+      pushFrame(n - 1, from, spare(from, to))
+      continue
+    }
+
+    if (stage == 1) {
+      reportMove(from, to)
+      frameSet(top, fStage, 2)
+      pushFrame(n - 1, spare(from, to), to)
+      continue
+    }
+
+    sp--
+  }
+}
+
+// ---- entry ----
+
+solve()
+newline()
+putNumber(moves)                // expect 2^discs - 1 = 15
+newline()

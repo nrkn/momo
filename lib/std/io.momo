@@ -1,0 +1,48 @@
+// std/io.momo - console output via DOS int 21h.
+//
+// Keyboard input lives in std/key.momo.
+
+const ioBase      = 10
+const ioZeroChar  = '0'
+const ioMaxDigits = 5
+
+sub putChar(u8 c) {
+  _ah = 0x02
+  _dl = c
+  int 0x21
+}
+
+// Writes a '$'-terminated string. Pass addr(yourString).
+sub putStr(u16 at) {
+  _ah = 0x09
+  _dx = at
+  int 0x21
+}
+
+sub newline {
+  putChar(13)
+  putChar(10)
+}
+
+sub space => putChar(32)
+
+// Decimal, most significant digit first.
+sub putNumber(u16 n) {
+  u8[ioMaxDigits] digits        // private scratch: a local, not a shared global
+  u8 i = 0
+
+  if (n == 0) {
+    putChar(ioZeroChar)
+    return
+  }
+
+  // `n` is a parameter, so writing it here cannot affect the caller.
+  for (i = 0; n > 0; i++) {
+    digits[i] = u8(n % ioBase) + ioZeroChar
+    n /= ioBase
+  }
+
+  for (; i > 0; i--) {
+    putChar(digits[i - 1])
+  }
+}

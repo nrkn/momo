@@ -1,0 +1,7 @@
+// EXPECT-ERROR: comparison is non-associative
+u8 a
+u8 b
+u8 c
+sub t {
+  a = b < c < a
+}

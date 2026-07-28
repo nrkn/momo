@@ -1,0 +1,2 @@
+// EXPECT-ERROR: a const cannot return an array
+const u8[] rows( u8 n ) = n
