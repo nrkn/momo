@@ -1,0 +1,5 @@
+// EXPECT-ERROR: value 300 does not fit in u8 - write u8(300) if the truncation is deliberate
+// Silently became 44. The check existed but could never fire: it was guarded by
+// `fits(truncate(v, target), target)`, and truncate always returns something
+// that fits, so the condition was always false.
+u8 x = 300

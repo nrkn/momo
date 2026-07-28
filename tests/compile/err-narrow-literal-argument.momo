@@ -1,0 +1,7 @@
+// EXPECT-ERROR: value 300 does not fit in u8
+// checkAssignable guards arguments and returns as well as assignments, so one
+// fix covers all four.
+sub take( u8 c ) {
+  _al = c
+}
+take( 300 )

@@ -1,0 +1,28 @@
+// The two things that must stay legal.
+
+// 1. An explicit cast is how you say the truncation is meant. u8(300) resolves
+//    to a u8 valued 44, so it is no longer an untyped constant and the check
+//    does not apply.
+u8  wrapped = u8( 300 )
+i8  negative = i8( 200 )
+u16 mask = u16( -1 )
+
+// 2. Narrowing a RUNTIME value stays implicit, exactly as §4 says - declaring
+//    `u8 small` is the programmer stating the value is small, and there is
+//    nothing visible at compile time to contradict them.
+u16 wide = 1000
+u8 small
+
+sub narrow {
+  small = wide          // narrowed u16 -> u8 at the store, no diagnostic
+  small = wide * 3
+}
+
+// Constants that DO fit are untouched, including negatives into signed targets.
+u8  fine = 255
+i8  alsoFine = -128
+i16 wider = -32768
+
+u8 out
+narrow()
+out = wrapped + u8( negative ) + u8( mask ) + fine + u8( alsoFine ) + u8( wider ) + small

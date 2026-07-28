@@ -1,0 +1,12 @@
+// EXPECT-ERROR: value -1 does not fit in u16 - write u16(-1) if the truncation is deliberate
+// The return slot is assigned like anything else, so checkAssignable guards it.
+// -1 is used rather than something like 70000, which never reaches here: a
+// literal outside 16 bits is rejected earlier, when the literal itself is
+// resolved. This is also the negative-into-unsigned case, which used to become
+// 65535 in silence.
+u16 big() {
+  return -1
+}
+
+u16 out
+out = big()

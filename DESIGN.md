@@ -173,6 +173,22 @@ Free in codegen (compute in AX, store AL), and declaring `u8 y1` is the
 programmer stating the value is small. Requiring casts here would add noise to
 ~30 lines of the reference file.
 
+**But a constant that does not fit is an error, not a narrowing.** That
+permission is about *runtime* values, where declaring `u8 y1` is the programmer
+asserting something the compiler cannot check. There is nothing to assert about
+a literal whose value is right there:
+
+```momo
+u8 x = 300          // error: value 300 does not fit in u8
+u8 x = u8(300)      // 44, said deliberately
+```
+
+`u8 x = 300` has no use as anything but a typo, and the cast already exists to
+say otherwise. This also catches negatives going into unsigned targets — `u16 m
+= -1` was silently 65535. It applies wherever a value meets a declared type:
+initialisers, assignments, arguments and returns all pass through the same
+check.
+
 ### Untyped means constant
 
 `untyped` is not just "not yet decided" — it means *this is a constant whose type

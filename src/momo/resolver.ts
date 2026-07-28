@@ -834,17 +834,26 @@ export const resolve = (program: Program): ResolveResult => {
     at: Location,
   ) => {
     if (value.type === 'untyped') {
-      if (value.value !== null && !fits(value.value, target) && target !== 'bool') {
-        // Permitted - DESIGN.md makes narrowing implicit at assignment - but
-        // worth being loud about when we can see it at compile time.
-        if (!fits(truncate(value.value, target), target)) {
-          raise(at, `value ${value.value} does not fit in ${target}`)
-        }
+      // A constant we can already see is a different case from the implicit
+      // narrowing §4 allows. That rule is about RUNTIME values, where writing
+      // `u8 y` is the programmer stating the value is small; there is nothing to
+      // state about a literal whose value is right there. `u8 x = 300` has no
+      // use as anything but a typo, and `u8(300)` says it deliberately.
+      //
+      // `bool` is excluded because assigning to one is a truthiness conversion
+      // rather than a truncation - `truncate` normalises to 0/1 rather than
+      // masking - so "does not fit" would be the wrong thing to say.
+      if (value.value !== null && target !== 'bool' && !fits(value.value, target)) {
+        raise(
+          at,
+          `value ${value.value} does not fit in ${target}` +
+            ` - write ${target}(${value.value}) if the truncation is deliberate`,
+        )
       }
       return
     }
     if (value.type === 'bool' || target === 'bool') return
-    // Everything else narrows implicitly on assignment.
+    // A runtime value still narrows implicitly on assignment, per §4.
   }
 
   const resolveLValue = (target: LValue): Resolved => {
