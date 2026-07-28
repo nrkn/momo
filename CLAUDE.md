@@ -112,6 +112,12 @@ reading is the point of the tier, not a formality.
 verify the emitted regexes compile — a TypeScript template literal will turn
 `\b` into a backspace character if it is not doubled.
 
+**A new mnemonic means editing DESIGN §1.** The instruction table and its count
+are the only record of the subset, and nothing checks them — `cpu 8086` stops
+NASM assembling a 186+ instruction, but says nothing about an 8086 one the doc
+does not list. `_cf` added `pushf` and the table said 36 for a while. Everything
+else points at §1 rather than restating the number, so §1 is the only edit.
+
 **Prefer deleting a special case to adding a feature.** `include` retired the
 stdlib-as-prologue idea; `view` (§17) would retire `_heapw` and the register
 aliases. Features that remove compiler special cases while adding expressiveness

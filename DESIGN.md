@@ -1072,7 +1072,7 @@ const far u8[]      font      = 0xF000:0xFA6E   // ROM 8x8 font, read-only
 
 The instruction cost is near zero — `mov`, `push` and `pop` gain a
 segment-register operand class, and memory operands gain a `26h` prefix. No new
-mnemonics. The 36-instruction subset is unchanged.
+mnemonics: the subset in §1 is unchanged.
 
 The cost is entirely in invariants, and in the emitter carrying state it has
 never carried before.
@@ -1202,7 +1202,7 @@ So `far` unlocks text mode, CGA and mode 13h. Sixteen-colour planar modes are a
 separate decision costing two more instructions and a different mental model.
 
 **Mode 13h cannot be double-buffered in one segment.** The frame is 64000 bytes
-and the whole segment is 65536; `rl` currently has ~63,800 free. A back buffer
+and the whole segment is 65536; `rl` currently has a little under 64,000 free. A back buffer
 needs a second segment from `INT 21h AH=48h`, which in turn needs a **variable**
 segment (`mov es, [thatVar]` rather than an immediate). Barely harder than the
 constant form, but it is the piece that would have to come with it.
@@ -1922,11 +1922,11 @@ The endpoint of that trajectory is **no assembler either** — emit `.COM` bytes
 directly and drop the last external.
 
 This sounds like the largest of these directions and is close to the smallest,
-because of a decision taken for an unrelated reason. **The 36-mnemonic subset is
-the entire specification.** An assembler that handles only what Momo itself
-emits needs:
+because of a decision taken for an unrelated reason. **The instruction subset in
+§1 is the entire specification.** An assembler that handles only what Momo
+itself emits needs:
 
-- The 36 mnemonics, in the operand forms the emitter actually produces:
+- Those mnemonics, in the operand forms the emitter actually produces:
   immediate, `[label]`, `[label + disp]`, `[label + bx]`, register-register, and
   the `al`/`ax` accumulator forms.
 - `db` `dw` `times` `equ` `org` `align`, and `cpu` as a no-op.
@@ -2022,11 +2022,15 @@ intermediate files.** `lex` → tokens, `parse` → AST, `resolve` → annotated
 `emit` → `.asm`. The `lex`, `parse` and `check` tools already dump those
 representations, so the on-disk formats are half-designed.
 
-The sizing forces it. `rl` is 936 bytes of code, on the order of ten bytes per
-line of Momo; the compiler is ~4,400 lines of TypeScript, call it 6–8k lines of
+The sizing forces it. `rl` is ~900 bytes of code, on the order of ten bytes per
+line of Momo; the compiler is ~5k lines of TypeScript, call it 6–8k lines of
 Momo once recursion is unrolled into explicit stacks. That is 60–80KB as a
 single binary — over the ceiling, and still uncomfortable if the estimate is
 half wrong. Split four ways it is roomy.
+
+(Deliberately rounded. Exact figures here go stale on any codegen change — the
+peephole work in §9 moved `rl` by 18 bytes — and the conclusion is robust to
+being wrong by a factor of two, which is the only precision that matters.)
 
 #### What it needs
 
