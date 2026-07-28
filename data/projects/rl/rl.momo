@@ -1,4 +1,6 @@
 // rl.momo
+// ---
+// Minimal roguelike skeleton - an '@' moving around a hard coded map
 
 include "std/io.momo"
 include "std/screen.momo"
@@ -8,19 +10,6 @@ include "std/math.momo"
 
 // const
 
-/*
-  testing doubling walls on x to make rooms etc look more square as text 
-  is ~1:2 aspect ratio
-
-  we could go even go further and have "tiles" be 4x2, allowing very limited
-  ascii art for player, mobs, items etc:
-
-   () 
-  '||'
-
-   ()
-  ']['
-*/
 const map = "########    ########"
             "##....########....##"
             "##................##"
@@ -38,6 +27,7 @@ const mapH = len( map ) / mapW
 const tileAt( u8 x, u8 y ) = map[ y * mapW + x ]
 
 const defAttr = color( lightGray, black )
+const playerAttr = color( yellow, black )
 
 const solidBlock = 219
 
@@ -77,7 +67,7 @@ sub draw {
 }
 
 draw()
-writeAt( playerX, playerY, '@', defAttr )
+writeAt( playerX, playerY, '@', playerAttr )
 
 while( true ){
   lastKey = readKey()
@@ -102,7 +92,7 @@ while( true ){
     playerY = oldPy
   } else {
     writeAt( oldPx, oldPy, tileAt( oldPx, oldPy ), defAttr )
-    writeAt( playerX, playerY, '@', defAttr )
+    writeAt( playerX, playerY, '@', playerAttr )
   }
 }
 

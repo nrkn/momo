@@ -8,6 +8,7 @@ screenCols      equ     80
 screenRows      equ     25
 black           equ     0
 lightGray       equ     7
+yellow          equ     14
 keyUp           equ     72
 keyDown         equ     80
 keyLeft         equ     75
@@ -16,6 +17,7 @@ keyEsc          equ     27
 mapW            equ     20
 mapH            equ     10
 defAttr         equ     7
+playerAttr      equ     14
 solidBlock      equ     219
 
 ; =========================================================== entry ====
@@ -27,7 +29,7 @@ __entry:
         call    hideCursor
 ; ---- draw()
         call    draw
-; ---- writeAt( playerX, playerY, '@', defAttr )
+; ---- writeAt( playerX, playerY, '@', playerAttr )
         mov     al, [playerX]
         xor     ah, ah                      ; u8 -> u16
         mov     [writeAt__col], al          ; narrowed to u8
@@ -36,7 +38,7 @@ __entry:
         mov     [writeAt__row], al          ; narrowed to u8
         mov     ax, 64
         mov     [writeAt__ch], al           ; narrowed to u8
-        mov     ax, 7
+        mov     ax, 14
         mov     [writeAt__attr], al         ; narrowed to u8
         call    writeAt
 ; ---- while( true ){
@@ -192,7 +194,7 @@ __entry:
         mov     ax, 7
         mov     [writeAt__attr], al         ; narrowed to u8
         call    writeAt
-; ---- writeAt( playerX, playerY, '@', defAttr )
+; ---- writeAt( playerX, playerY, '@', playerAttr )
         mov     al, [playerX]
         xor     ah, ah                      ; u8 -> u16
         mov     [writeAt__col], al          ; narrowed to u8
@@ -201,7 +203,7 @@ __entry:
         mov     [writeAt__row], al          ; narrowed to u8
         mov     ax, 64
         mov     [writeAt__ch], al           ; narrowed to u8
-        mov     ax, 7
+        mov     ax, 14
         mov     [writeAt__attr], al         ; narrowed to u8
         call    writeAt
 .L25:
