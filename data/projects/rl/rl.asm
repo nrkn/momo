@@ -58,7 +58,6 @@ __entry:
         je      .L7                         ; unsigned ==
         jmp     .L5
 .L7:
-; ---- if( lo( lastKey ) == keyEsc ) break
         jmp     .L3
 .L5:
 ; ---- oldPx = playerX
@@ -430,7 +429,6 @@ draw:
         je      .L41                        ; unsigned ==
         jmp     .L39
 .L41:
-; ---- if( ch == '#') ch = solidBlock
         mov     byte [ch_], 219
 .L39:
 ; ---- writeAt( x, y, ch, defAttr )

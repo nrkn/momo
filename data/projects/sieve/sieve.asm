@@ -32,7 +32,6 @@ __entry:
         jnz     .L7
         jmp     .L5
 .L7:
-; ---- if (composite[i]) continue
         jmp     .L2
 .L5:
 ; ---- putNumber(i)
@@ -181,7 +180,6 @@ runSieve:
         jnz     .L25
         jmp     .L23
 .L25:
-; ---- if (composite[i]) continue
         jmp     .L20
 .L23:
 ; ---- for (j = i * i; j < limit; j += i) {

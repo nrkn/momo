@@ -47,7 +47,6 @@ __entry:
         ja      .L7                         ; unsigned >
         jmp     .L5
 .L7:
-; ---- if (_heapw[i - 1] > _heapw[i]) tmp++
         inc     word [tmp]
 .L5:
 .L2:

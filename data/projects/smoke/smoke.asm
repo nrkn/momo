@@ -239,7 +239,6 @@ run:
         je      .L29                        ; unsigned ==
         jmp     .L27
 .L29:
-; ---- if (value == 13) continue
         jmp     .L24
 .L27:
 ; ---- if (value > 17) break
@@ -248,7 +247,6 @@ run:
         ja      .L32                        ; unsigned >
         jmp     .L30
 .L32:
-; ---- if (value > 17) break
         jmp     .L25
 .L30:
 ; ---- putNumber()
@@ -448,7 +446,6 @@ checksum:
         je      .L68                        ; unsigned ==
         jmp     .L66
 .L68:
-; ---- if (i == maxDigits - 1) break
         jmp     .L65
 .L66:
 .L64:
@@ -545,7 +542,6 @@ checksum:
         jl      .L71                        ; signed <
         jmp     .L69
 .L71:
-; ---- if (signedAcc < 0) signedAcc = -signedAcc
         mov     ax, [signedAcc]
         neg     ax
         mov     [signedAcc], ax

@@ -36,7 +36,6 @@ __entry:
         jnz     .L7
         jmp     .L5
 .L7:
-; ---- if (isComposite(i)) continue
         jmp     .L2
 .L5:
 ; ---- count++
@@ -264,7 +263,6 @@ runSieve:
         jnz     .L32
         jmp     .L30
 .L32:
-; ---- if (isComposite(i)) continue
         jmp     .L27
 .L30:
 ; ---- for (j = i * i; j < limit; j += i) {

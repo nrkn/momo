@@ -80,7 +80,6 @@ __entry:
         je      .L19                        ; unsigned ==
         jmp     .L17
 .L19:
-; ---- if (tileAt(x, y) == '#') walls++
         inc     word [walls]
 .L17:
 .L14:

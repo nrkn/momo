@@ -72,6 +72,9 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
   // The init and update clauses of a `for` live on the header line, which the
   // loop has already quoted - re-quoting it for each clause just adds noise.
   let quoting = true
+  // Last `file:line` written as a source comment, to suppress an immediate
+  // repeat. See quoteSource.
+  let lastQuoted: string | null = null
   let currentRet: { label: string; type: ValueType } | null = null
 
   // ---- output helpers -------------------------------------------------------
@@ -99,12 +102,23 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
   // Quote the original source, so the assembly reads like the program.
   // Quoted from the statement's OWN file - included code must not be quoted
   // against the entry file's lines.
+  //
+  // A statement sharing a line with the header that encloses it - `if (x) y()`,
+  // `while (x) y()` - would otherwise quote that line twice, once for the
+  // header and once for the statement. Suppressing an immediate repeat is
+  // enough: emission is linear, so the only way to see the same line twice in a
+  // row is that nesting. `lastQuoted` resets per routine so the suppression can
+  // never reach across one.
   const quoteSource = (file: string, from: number, to: number) => {
     if (!quoting) return
     const sourceLines = (sources.get(file) ?? '').split('\n')
     for (let n = from; n <= to && n <= sourceLines.length; n++) {
       const text = (sourceLines[n - 1] ?? '').replace(/\r$/, '').trim()
-      if (text) note(`---- ${text}`)
+      if (!text) continue
+      const at = `${file}:${n}`
+      if (at === lastQuoted) continue
+      lastQuoted = at
+      note(`---- ${text}`)
     }
   }
 
@@ -948,6 +962,7 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
 
   pushDepth = 0
   maxPushDepth = 0
+  lastQuoted = null
   for (const statement of result.program.body) {
     if (statement.type === 'RoutineDeclaration') continue
     emitStatement(statement)
@@ -976,6 +991,7 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
 
     pushDepth = 0
     maxPushDepth = 0
+    lastQuoted = null
     emitStatement(statement.body)
     temporaries.set(statement.name, maxPushDepth)
 
