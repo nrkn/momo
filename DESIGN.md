@@ -1795,6 +1795,179 @@ buys what neither can: real fullscreen, audio latency, gamepads, a shippable
 binary, at the cost of object formats, a linker, an SDL2 dependency and per-OS
 builds.
 
+### Dropping the assembler
+
+§1 records the toolchain as "NASM only. No linker, no `.obj`, no relocations."
+The endpoint of that trajectory is **no assembler either** — emit `.COM` bytes
+directly and drop the last external.
+
+This sounds like the largest of these directions and is close to the smallest,
+because of a decision taken for an unrelated reason. **The 36-mnemonic subset is
+the entire specification.** An assembler that handles only what Momo itself
+emits needs:
+
+- The 36 mnemonics, in the operand forms the emitter actually produces:
+  immediate, `[label]`, `[label + disp]`, `[label + bx]`, register-register, and
+  the `al`/`ax` accumulator forms.
+- `db` `dw` `times` `equ` `org` `align`, and `cpu` as a no-op.
+- Labels including NASM's `.local` scoping, and one fixup pass for forward
+  jumps. Expressions no richer than `label + constant`.
+
+No macros, no sections, no object formats, no linking. That is a component of
+perhaps a thousand lines, not a rewrite of NASM. The subset was chosen so that
+NASM would enforce portability mechanically; that it also makes the toolchain
+self-containable is a payoff for a decision made about something else.
+
+#### What it buys, with no self-hosting at all
+
+- **The build stops needing DOSBox.** Assembly currently happens *inside* the
+  emulator, which is where the `-Z` capture, the `build.ok` marker file and
+  "DOSBox exits with its own status, not NASM's" all come from. That machinery
+  disappears; DOSBox is left doing only what it is for — running the program.
+- **Tier 2 gets cheaper**, and a further tier becomes possible: compare emitted
+  bytes without launching anything.
+- **1.6MB of bundled binaries leave the repository.**
+- **The 8086 becomes a viable host again.** The bundled NASM is a DPMI build
+  whose own README says "nothing older than a 386 is supported"; an assembler
+  written in Momo has no such floor.
+
+#### The check it costs, and how to keep it
+
+`cpu 8086` currently makes NASM enforce the instruction subset mechanically. A
+homegrown assembler enforces it *harder* — it cannot encode what it does not
+implement — but it stops being an independent opinion about whether the encoding
+is correct.
+
+Keep that with **differential assembly** while NASM is still here: assemble both
+ways, compare bytes, and treat any disagreement as a bug in the newcomer. The
+golden `.asm` tier (§14) already establishes the shape.
+
+The readable `.asm` stays a first-class output rather than becoming an
+intermediate. It is the headline feature; emitting bytes is an addition to it.
+
+---
+
+### Self-hosting
+
+Momo compiling Momo — and, the actual goal, **compiling on the target rather
+than on a host.** Working on a modern machine is more comfortable and will stay
+the default; the appeal is having the tooling be consistent with the thing it
+produces. That, and it is a genuinely fun thing to attempt, which is a permitted
+reason in a project named after a cat.
+
+Two goals get conflated here, and separating them makes the near half reachable:
+
+| | |
+|---|---|
+| **Written in Momo** | Compiled by the TypeScript Momo to a hosted target (above), running with modern memory. Answers whether the *language* can express a compiler. |
+| **Running on the target** | The same source as DOS binaries, in 64KB. The destination. |
+
+The first is a stage on the way to the second, not a rival to it.
+
+#### The constraint is the memory model, not the CPU level
+
+386 is transformative for codegen, and irrelevant to this: **386 real mode still
+has 64KB segments**, and a `.COM` is still tiny model. Register width was never
+the ceiling.
+
+There is a twist, though. On-target compilation already requires a 386 *today*,
+because the bundled NASM is a DPMI program. So `momo/386` is a consequence of
+the machine rather than a prerequisite for the work — and if "Dropping the
+assembler" above lands first, the requirement evaporates entirely and true 8086
+self-hosting comes back into range.
+
+#### Recursion is not the blocker it looks like
+
+The obvious reading is: a recursive-descent parser is dozens of mutually
+recursive calls, Momo rejects recursion, therefore self-hosting needs real stack
+frames — which would cost the exact memory analysis (§12), the most load-bearing
+decision in the language.
+
+It does not follow. **Shunting-yard is naturally non-recursive**: an operator
+stack and an operand stack, both explicit, both on the heap. The precedence
+table is already data. Statements become a flat loop over a block-nesting stack,
+and the tree walks in the resolver and emitter are the same shape — with an
+array-of-nodes AST there are `u16` indices rather than pointers, so a worklist is
+the natural form regardless.
+
+§15 already reports `hanoi` — hand-rolled recursion with a resume point per
+frame, the genuinely awkward case — coming out fine. A parser is easier than
+that. Self-hosting is evidence *for* the ban, not against it.
+
+#### Four binaries, because the pipeline already is four
+
+The four stages are pure and separable, which is exactly the shape a
+memory-constrained compiler wants: **four `.COM` files communicating through
+intermediate files.** `lex` → tokens, `parse` → AST, `resolve` → annotated AST,
+`emit` → `.asm`. The `lex`, `parse` and `check` tools already dump those
+representations, so the on-disk formats are half-designed.
+
+The sizing forces it. `rl` is 936 bytes of code, on the order of ten bytes per
+line of Momo; the compiler is ~4,400 lines of TypeScript, call it 6–8k lines of
+Momo once recursion is unrolled into explicit stacks. That is 60–80KB as a
+single binary — over the ceiling, and still uncomfortable if the estimate is
+half wrong. Split four ways it is roomy.
+
+#### What it needs
+
+Almost nothing new. §18 `group` is structure-of-arrays, which is how a token
+table or an AST wants to be held on this machine; §19's array parameters and
+`len` give routines that take a buffer; §20's `_cf` gives DOS error reporting,
+and file access is otherwise writable *today* — `int 0x21` and `addr()` already
+work.
+
+The one genuine gap is in §20's own table, which covers three cases of four:
+
+| | Address known | Segment |
+|---|---|---|
+| `far` | compile time | another one |
+| `view` | compile time | ours |
+| `peek`/`poke` | runtime | ours |
+| **missing** | **runtime** | **another one** |
+
+`INT 21h AH=48h` hands back a segment at runtime, so a DOS-allocated far block
+lands in the empty cell. That is the cheapest route to more memory: four
+tiny-model binaries with far blocks for the tables, no `.EXE`, no relocations, no
+linker, and code never split across segments.
+
+**Momo-0.** The bootstrap compiler need only compile *enough of Momo to compile
+itself*, not all of it — so drop tree-shaking, `include`, parameterised consts
+and the exact memory report. That also resolves a real tension: Momo's design
+has whole-program analysis baked in (the call graph for recursion and pruning,
+image size for `_hsize`), while a memory-constrained compiler wants to stream.
+Momo-0 simply does not owe those guarantees.
+
+#### If the model has to give: a profile, not a dialect
+
+Should far data prove insufficient, the escape hatch is `.EXE` and a laxer
+memory model — but as a **target profile**, not a second language. Momo already
+has a target axis (CPU levels above, `momo/z80` below); memory model is a second
+axis of the same idea. A dialect means two languages to keep honest and every
+guarantee quoted with an asterisk.
+
+It costs less than it looks. **§12 survives** — static allocation is static
+however many segments it spans, so the figures stay exact, per segment. What
+actually dies is §1's "segment registers are never emitted, never overridden,
+never thought about", and the mnemonic subset growing segment loads and `es:`
+prefixes. Only `.EXE` costs "no linker, no relocations", and the four-binary
+route avoids needing it.
+
+#### The hazard
+
+Everything else here gets built when something needs it. Self-hosting
+*manufactures* needs, and that is the risk: features justified by what the
+compiler wants rather than by what the language should be. Neither of Momo's
+distinguishing properties — readable commented output, an exact memory footprint
+— is served by the compiler being written in itself.
+
+Used well it is a forcing function that exercises §18–§20 against a demanding
+real program; used badly it is a reason to say yes to things. The tell is
+whether a feature still looks right with self-hosting struck out. The missing
+quadrant above passes that test — it was already latent in §20's table, and the
+use case only found it.
+
+---
+
 ### Other CPUs — `momo/z80`, `momo/6502`
 
 Unlike the hosted targets above, these **do** change the abstract machine. Very
