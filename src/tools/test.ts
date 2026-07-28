@@ -131,7 +131,7 @@ const compileTests = () => {
 //
 // The compile tests above only ask WHETHER a program compiles, never what it
 // emits, and tier 2 needs DOSBox - so between them there was nothing watching
-// codegen at all. CLAUDE.md has said "smoke output must stay byte-identical"
+// codegen at all. CONTRIBUTING.md has said "smoke output must stay byte-identical"
 // since long before this existed, but that was enforced by remembering to read
 // `git status`, which is not a test.
 //

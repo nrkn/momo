@@ -96,7 +96,8 @@ compiler errors in the Problems panel.
 |---|---|
 | **`DESIGN.md`** | The language and the reasoning behind every decision — including three designed-but-unbuilt features and the long-term directions |
 | **`STYLE.md`** | Code conventions |
-| **`CLAUDE.md`** | Orientation for contributors: layout, scripts, and the tooling traps |
+| **`CONTRIBUTING.md`** | Orientation: layout, scripts, the tooling traps, and the practices that keep this honest |
+| **`CLAUDE.md`** | The handful of things that differ when the contributor is an agent |
 
 `_reference/yuki.txt` is Momo's predecessor — a Pong for a fantasy console, and
 the benchmark for the level of language being aimed at.
