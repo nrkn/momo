@@ -3,8 +3,9 @@
 A small imperative language that transpiles to commented NASM source for a
 minimal 8086 subset. Source files use the `.momo` extension.
 
-Named after a cat, continuing the tradition set by Yuki — the earlier language
-in `_reference/yuki.txt`, which is also the reference point for "level of
+Named after a cat, continuing the tradition set by
+[Yuki](https://github.com/nrkn/yuki-js) — the earlier language. The Pong in
+`_reference/yuki.txt` is written in it, and is the reference point for "level of
 language" we are aiming at.
 
 **Why.** Three reasons, and this document is mostly the third.
@@ -18,11 +19,10 @@ usually the reason: the constraint is doing work.
 
 And to settle language ideas that have been rattling around for a decade or
 more, across a series of small prototypes — Yuki above is the one that survived.
-That is why this file argues rather than specifies, why §6 spends more words on
-four structural choices than on the precedence table itself, and why §16, §17
-and §19 are written out in full without being built: an idea worked through is
-worth having on paper even when nothing needs it yet. Momo is where they finally
-have to compile.
+That is why this file argues rather than specifies, and why §16, §17 and §19 are
+written out in full without being built: an idea worked through is worth having
+on paper even when nothing needs it yet. Momo is where they finally have to
+compile.
 
 **Status.** §1–§15 and §18 describe what is built. §16, §17 and §19 are designed
 and not yet built, and say so in their headings. §20 collects open questions,

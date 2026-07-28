@@ -64,16 +64,8 @@ the assembly, then look at the assembly when you want to know what happened.
 
 **And to try out language ideas that have been rattling around for a decade,
 with echoes going back further.** Various small prototypes over the years;
-Yuki, in `_reference/`, is the one that survived to become a reference point.
-`DESIGN.md` §6 is where they are densest — bitwise operators bind tighter than
-comparison, so `flags & 1 == 0` means what it looks like; shifts bind with the
-multiplicatives, so `1 << 2 + 3` is 7 and not 32; assignment is a statement
-rather than an expression, so `if (x = 5)` will not parse; and comparison is
-non-associative, so `a < b < c` is a compile error rather than a surprise.
-
-Which is the other reason the first motivation comes first. A syntax idea is
-worth nothing until something has been written in it, and that is the job `rl`
-does — it is what keeps the operator table from being a matter of taste.
+[Yuki](https://github.com/nrkn/yuki-js) is the one that survived to become a
+reference point.
 
 ## What makes it unusual
 
@@ -138,5 +130,6 @@ compiler errors in the Problems panel.
 | **`CONTRIBUTING.md`** | Orientation: layout, scripts, the tooling traps, and the practices that keep this honest |
 | **`CLAUDE.md`** | The handful of things that differ when the contributor is an agent |
 
-`_reference/yuki.txt` is Momo's predecessor — a Pong for a fantasy console, and
-the benchmark for the level of language being aimed at.
+[Yuki](https://github.com/nrkn/yuki-js) is Momo's predecessor.
+`_reference/yuki.txt` is a Pong for a fantasy console written in it, kept here
+as the benchmark for the level of language being aimed at.

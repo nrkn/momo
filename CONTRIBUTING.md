@@ -2,7 +2,8 @@
 
 A small imperative language that transpiles to **commented NASM** for a strict
 8086 subset, producing DOS `.COM` files. Named after a cat, following its
-predecessor Yuki (`_reference/yuki.txt`).
+predecessor [Yuki](https://github.com/nrkn/yuki-js), whose Pong for a fantasy
+console is kept as `_reference/yuki.txt`.
 
 - **`DESIGN.md`** — the language, and *why* every decision was made. 21 sections:
   built features, three designed-but-deferred ones (§16, §17, §19), open questions
