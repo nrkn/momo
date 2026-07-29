@@ -933,11 +933,20 @@ programmer supplies the policy.
 **Heap indices are not bounds-checked.** The resolver checks constant indices
 against a known length, but `_hsize` is not known until NASM has assembled.
 
-**`_hsize` assumes the full 64K segment.** DOS normally grants a `.COM` the
-largest available block, which is the whole segment, but this is not guaranteed.
-The robust version reads the end-of-allocation segment from `PSP:0x0002` at
-startup; that would make `_hsize` a runtime computation rather than an
-assembly-time one.
+**`_hsize` assumes the full 64K segment.** DOS grants a `.COM` the largest
+available block and this is not guaranteed to reach the top of the segment, so
+`_hsize` can in principle overstate what the program owns. The robust version
+reads the end-of-allocation segment from `PSP:0x0002` at startup — which for a
+`.COM` is simply offset 2 of our own segment, since the PSP occupies `0x00`–`0xFF`
+and code starts at `0x100`. That would make `_hsize` a runtime computation rather
+than an assembly-time one.
+
+The error usually runs the other way, and it matters to §16. That largest
+available block is typically **not** one segment but most of conventional memory —
+several hundred KB on a real machine. `_hsize` stops at `0FFFEh` because that is
+as far as it can address without a segment register, not because that is all DOS
+gave. Reaching the rest needs `far` with a runtime segment and nothing else: the
+memory is already the program's, so no allocation call is involved.
 
 ### A NASM trap worth recording
 
@@ -1093,6 +1102,54 @@ const far u8[]      font      = 0xF000:0xFA6E   // ROM 8x8 font, read-only
 > pixel, every hosted target would have to shim each call and maintain its own
 > framebuffer. With `far`, both DOS and hosted backends simply write memory. That
 > moves this up the priority list — it is not only the fast path on real hardware.
+>
+> **Decided:** a hosted target emulates the buffer rather than shimming the
+> calls. `int 10h` survives for mode setting, which is one call; everything
+> per-cell and per-pixel goes through memory. That is less work than shimming
+> and a better fit — a framebuffer is what the host has anyway.
+
+### Scope for v1
+
+Both forms of the address, since the constant one alone cannot double-buffer
+mode 13h:
+
+```momo
+far u8[64000] pixels     = 0xA000      // constant segment
+far u8[64000] backBuffer = bufferSeg   // runtime, from a u16 variable
+```
+
+- **The segment must be a constant or a plain `u16` variable**, never an
+  arbitrary expression. It keeps the load to one `mov`, mirrors §19's
+  "arguments must be names", and settles that `= bufferSeg` is a **live
+  reference re-read per access**, not a load-time snapshot — a snapshot would
+  be useless, since `far` declarations are top-level and run before anything
+  could have produced a segment.
+- **Runtime segments are never hoisted in v1.** The hoisting rule below is safe
+  for constants because ES is callee-saved. A runtime segment breaks that
+  reasoning in the one way §16 calls the worst possible failure: a callee that
+  reassigns the *variable* leaves our hoisted ES pointing at memory we no longer
+  mean, without ES itself being touched. Doing it properly needs "is this
+  variable assigned anywhere in the reachable call subtree", which the call
+  graph can answer — but nothing needs the speed yet, so v1 reloads per access
+  and the analysis waits for a program that cares. Not a discipline: the
+  compiler simply does not hoist them.
+- **`AH=48h` is dropped, not deferred.** It buys DOS's bookkeeping — a memory
+  control block the system knows about — which matters only for `EXEC` or going
+  resident, neither of which Momo can do. Meanwhile DOS has already granted a
+  `.COM` far more than its own segment (see §13), so `AH=48h` fails until the
+  program shrinks its own block with `AH=4Ah`, and shrinking invalidates
+  `_hsize`. Cost with no benefit. Reaching into that memory at all is out of
+  scope for now; when it returns it brings its own section.
+- **The first real user of the runtime form is probably not the back buffer.**
+  The text buffer is at `B800` on CGA and later but `B000` on MDA and Hercules,
+  which is a runtime decision read from the BIOS data area. `screen.momo` sets
+  mode 3 and so has always assumed colour, but a robust library would not.
+
+**What must stay true for the runtime form to drop in cleanly**, since v1 leads
+with the constant one: the symbol carries *where the segment comes from* rather
+than a constant; the syntax does not distinguish the two forms, so allowing a
+variable is a pure relaxation; and the ES tracker keys on the segment **source**,
+never on "ES has been loaded".
 
 ### Why it is deferred rather than dropped
 
@@ -1161,6 +1218,10 @@ documenting it. The cost is that an ES *returned* by a DOS call cannot be read
 back — that affects two obscure functions and can get its own mechanism if ever
 needed.
 
+It also puts calls that take ES as **input** out of reach — `int 10h AH=13h`
+(write string) wants `ES:BP`. Nothing in the standard library needs one, and
+recording it as a known consequence is better than rediscovering it later.
+
 **ES is callee-saved.** Any routine whose body touches ES wraps it in
 `push es` / `pop es`, exactly as the int helpers do. Two bytes, only in routines
 that use it — and it makes "ES is never disturbed by anything you call" an
@@ -1228,10 +1289,13 @@ So `far` unlocks text mode, CGA and mode 13h. Sixteen-colour planar modes are a
 separate decision costing two more instructions and a different mental model.
 
 **Mode 13h cannot be double-buffered in one segment.** The frame is 64000 bytes
-and the whole segment is 65536; `simplerl` currently has a little under 64,000 free. A back buffer
-needs a second segment from `INT 21h AH=48h`, which in turn needs a **variable**
-segment (`mov es, [thatVar]` rather than an immediate). Barely harder than the
-constant form, but it is the piece that would have to come with it.
+and the whole segment is 65536; `simplerl` currently has a little under 64,000
+free, so a back buffer in `_heap` would leave under 1.5KB for the image. It needs
+a second segment, and therefore the runtime form — but not `AH=48h`: the memory
+past ours is already the program's (§13). Out of scope until something wants it.
+
+Worth separating from "unlocks graphics", which the constant form does on its
+own. What the runtime form buys is **space**, not addressing.
 
 Text mode is 4000 bytes, so double buffering there is comfortable — and for a
 roguelike that is the interesting case anyway.
