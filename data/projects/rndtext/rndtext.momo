@@ -1,0 +1,47 @@
+// rndtext.momo - fill the text buffer with random characters and colours.
+//
+// A demo rather than a test: it draws, waits for a key, and puts the display
+// back. Every cell is written straight to video memory - no int 10h per cell.
+
+include "std/screen.momo"
+include "std/key.momo"
+include "std/rand.momo"
+
+// 80x25 cells. Each cell is a word: the character in the low byte, the
+// attribute in the high byte.
+far u16[2000] cells = 0xB800
+
+u8  savedMode
+u16 i
+
+// ---- entry ----
+
+// Ask the BIOS what mode we are in so it can be put back on the way out.
+// AH=0Fh reports the mode in AL; bit 7 is set when the last mode change
+// suppressed the screen clear, so it is masked off.
+_ah = 0x0F
+int 0x10
+savedMode = _al & 0x7F
+
+// 80x25, 16 colours - which is also what puts the buffer at 0xB800.
+setTextMode()
+hideCursor()
+
+for( i = 0; i < len( cells ); i++ ){
+  // A random word is already a random character in a random colour, so no
+  // arithmetic is needed. The shift does two jobs: it drops the low bit, which
+  // an LCG alternates on every call, and it vacates bit 15 - which is bit 7 of
+  // the attribute, the blink bit on default hardware. A screen of blinking
+  // cells is unreadable, and clearing it also holds the background to the
+  // first eight colours.
+  cells[i] = nextRandom() >> 1
+}
+
+readKey()
+
+// Back to whatever was there before. Setting a mode clears the screen, so this
+// tidies up as well as restoring.
+showCursor()
+_ah = 0x00
+_al = savedMode
+int 0x10

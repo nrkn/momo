@@ -142,8 +142,12 @@ map" stage, using dirty-tile redraw, and is **deliberately finished** — it is
 kept as the smallest thing that is recognisably a game, so anything further
 belongs in its own project. The name `rl` is reserved for a fuller one.
 
-Everything else under `data/projects/` is either a test fixture or a
-demonstration of one language feature.
+Most of what else is under `data/projects/` is a test fixture or a demonstration
+of one language feature. Two are **demos**: `rndtext` fills the text buffer with
+random characters, `rndpix` fills a mode 13h frame with random pixels. Both wait
+for a key and put the display back, so neither can have a `.expected` — tier 2
+cannot run something that blocks. The golden tier still covers them, which is the
+regression coverage that matters for a compiler.
 
-137 tier-1 assertions (97 compile tests, 15 golden `.asm`, 25 type), 14 e2e
+139 tier-1 assertions (97 compile tests, 17 golden `.asm`, 25 type), 14 e2e
 programs, all green.
