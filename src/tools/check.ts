@@ -31,6 +31,17 @@ const describe = (symbol: MomoSymbol): string => {
     return `const (${params}) -> ${symbol.returnType ?? 'inferred'}`
   }
   if (symbol.kind === 'var') return `${symbol.type}${symbol.builtin ? '  (reserved)' : ''}`
+  if (symbol.kind === 'far') {
+    // No bytes of ours, so no size is reported - the extent is an assertion
+    // about hardware, not something we allocated.
+    const where =
+      symbol.segment.from === 'const'
+        ? `0x${symbol.segment.value.toString(16).toUpperCase()}`
+        : `[${symbol.segment.label}]`
+    const at = symbol.offset === 0 ? where : `${where}:0x${symbol.offset.toString(16).toUpperCase()}`
+    const extent = symbol.length === null ? '' : `[${symbol.length}]`
+    return `far ${symbol.elementType}${extent} @ ${at}${symbol.readonly ? '  const' : ''}`
+  }
   if (symbol.kind === 'group') {
     // The group itself has no storage - its fields are listed separately, as the
     // ordinary arrays or variables they compile to.

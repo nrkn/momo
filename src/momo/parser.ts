@@ -19,6 +19,8 @@ import type {
   DoWhileStatement,
   Expression,
   RoutineDeclaration,
+  FarAddress,
+  FarDeclaration,
   ForStatement,
   GroupDeclaration,
   GroupField,
@@ -422,8 +424,16 @@ export const parse = (tokens: Token[]): Program => {
   //
   // The type sits in the same place as it does for a variable or a routine, so
   // there is nothing special to remember.
-  const parseConstDeclaration = (): ConstDeclaration | ConstFunctionDeclaration => {
+  const parseConstDeclaration = ():
+    | ConstDeclaration
+    | ConstFunctionDeclaration
+    | FarDeclaration => {
     const start = expect('keyword', 'const')
+
+    // `const far` - read-only region. The order matches §16 and reads as an
+    // adjective on `far`, which is what it is.
+    if (at('keyword', 'far')) return parseFarDeclaration(true, start)
+
     const typeNode = at('type') ? parseTypeNode() : null
     const name = expect('ident')
 
@@ -518,6 +528,74 @@ export const parse = (tokens: Token[]): Program => {
   }
 
   // `sub name { }`, `sub name() { }`, `sub name( args ) { }`, or any of those
+  // A segment or offset: a literal, or a name that the resolver will insist is
+  // either a scalar const or a `u16` variable. Deliberately not an expression -
+  // see FarAddress.
+  const parseFarAddress = (what: string): FarAddress => {
+    if (at('number')) {
+      const token = advance()
+      return {
+        type: 'NumberLiteral', value: token.num, text: token.text,
+        file: token.file, line: token.line, col: token.col,
+      }
+    }
+    if (at('ident')) {
+      const token = advance()
+      return {
+        type: 'Identifier', name: token.text,
+        file: token.file, line: token.line, col: token.col,
+      }
+    }
+    raise(peek(), `a far ${what} must be a number or a name, not an expression`)
+  }
+
+  // far       u16[2000] textCells = 0xB800
+  // const far u8[]      font      = 0xF000:0xFA6E
+  //
+  // The size is optional: with one, constant indices are bounds-checked; without,
+  // they are not, exactly as for an ordinary array.
+  const parseFarDeclaration = (readonly: boolean, start: Token): FarDeclaration => {
+    expect('keyword', 'far')
+    const typeNode = parseTypeNode()
+
+    if (!typeNode.array) {
+      raise(typeNode, 'a far region is an array - write "far u8[] name = 0xB800"')
+    }
+
+    const name = expect('ident')
+    expect('op', '=')
+
+    const segment = parseFarAddress('segment')
+    let offset: FarAddress | null = null
+    if (at('op', ':')) {
+      advance()
+      offset = parseFarAddress('offset')
+    }
+
+    // A trailing operator means someone wrote an expression. Say so, rather than
+    // letting the terminator check report "expected end of statement but found
+    // +", which enforces the rule without explaining it.
+    if (at('op') && !at('op', '}')) {
+      raise(peek(), 'a far address must be a number or a name, not an expression')
+    }
+
+    const endLine = previous().line
+    expectTerminator()
+
+    return {
+      type: 'FarDeclaration',
+      name: name.text,
+      typeNode,
+      readonly,
+      segment,
+      offset,
+      file: start.file,
+      line: start.line,
+      col: start.col,
+      endLine,
+    }
+  }
+
   // group mob[64] { u8 x  u8 y }   many - each field becomes an array
   // group player  { u8 x  u8 y }   one  - each field becomes a plain variable
   //
@@ -919,6 +997,7 @@ export const parse = (tokens: Token[]): Program => {
       }
       if (token.text === 'const') return parseConstDeclaration()
       if (token.text === 'group') return parseGroupDeclaration()
+      if (token.text === 'far') return parseFarDeclaration(false, token)
       if (token.text === 'sub') return parseSubDeclaration()
       if (token.text === 'fn') {
         // Migration aid - delete once the old spelling is out of muscle memory.

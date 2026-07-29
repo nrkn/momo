@@ -24,7 +24,7 @@ written out in full without being built: an idea worked through is worth having
 on paper even when nothing needs it yet. Momo is where they finally have to
 compile.
 
-**Status.** §1–§15 and §18 describe what is built. §16, §17 and §19 are designed
+**Status.** §1–§16 and §18 describe what is built. §17 and §19 are designed
 and not yet built, and say so in their headings. §20 collects open questions,
 §21 longer-term directions. Section numbers are stable — `group` was built where
 it sits rather than renumbered into the built range, because the numbers are
@@ -42,8 +42,14 @@ referenced from source comments and from each other.
 | CPU | **Strict 8086.** No 186+ instructions. Revisit later. |
 | Toolchain | NASM only. No linker, no `.obj`, no relocations. |
 
-Tiny model means segment registers are never emitted, never overridden, never
-thought about. `far` does not exist.
+Tiny model means CS, DS and SS are never emitted, never overridden, never thought
+about — one segment holds code, data and stack, so nothing in ordinary Momo has a
+segment to name.
+
+**ES is the one exception, and only where `far` (§16) is used.** A far region
+names memory outside our segment, so the emitter loads ES and prefixes the access
+with `es:`. Nothing else touches it, the int helpers preserve it, and a program
+with no `far` declaration emits no segment register at all.
 
 ### Instruction subset — 37 mnemonics
 
@@ -1058,8 +1064,8 @@ Where that stands:
 | Text-mode screen library | `lib/std/screen.momo`, verified by `data/projects/scrtest` |
 | Text adventure | not yet attempted |
 
-Still unwritten: a string library beyond `putStr`, and anything graphical (which
-needs the `ES` work in §16).
+Still unwritten: a string library beyond `putStr`. Graphics is no longer blocked —
+§16 is built, so the text buffer and mode 13h are both addressable as memory.
 
 Two things have since joined the list that were never on the original bar:
 `data/projects/grptest` for entity pools (§18), and `data/projects/cftest`,
@@ -1088,9 +1094,10 @@ for.
 
 ---
 
-## 16. Planned: `far` regions and ES
+## 16. `far` regions and ES
 
-Deferred, not vague. This is the design to build when something needs it.
+**Built, except the hoisting below.** Every access reloads ES; `data/projects/fartest`
+exercises it against the real text buffer.
 
 ```momo
 far       u16[2000] textCells = 0xB800          // text buffer, 80x25 cells
@@ -1151,14 +1158,47 @@ than a constant; the syntax does not distinguish the two forms, so allowing a
 variable is a pure relaxation; and the ES tracker keys on the segment **source**,
 never on "ES has been loaded".
 
-### Why it is deferred rather than dropped
+### What it cost
 
-The instruction cost is near zero — `mov`, `push` and `pop` gain a
+The instruction cost was near zero, as expected — `mov`, `push` and `pop` gain a
 segment-register operand class, and memory operands gain a `26h` prefix. No new
 mnemonics: the subset in §1 is unchanged.
 
-The cost is entirely in invariants, and in the emitter carrying state it has
-never carried before.
+**ES loads go through DX, not AX**, which is better than this section originally
+sketched. §9 has always documented DX as scratch and never live, so the load
+disturbs neither the accumulator nor a computed index:
+
+```nasm
+        mov     dx, 0xB800                  ; segment of cells
+        mov     es, dx
+        mov     [es:bx], ax
+```
+
+That removes the push/pop this section budgeted for under "setting ES needs AX".
+A far store with a constant index now needs no register saved at all.
+
+**Ordering is what makes nested access safe, and it is not optional.** ES is
+loaded *after* the index expression, never before, because the index may itself
+have read a different far region:
+
+```nasm
+; ---- v = cells[pixels[i]]
+        mov     dx, 0xA000                  ; segment of pixels
+        mov     es, dx
+        mov     al, [es:bx]
+        ...
+        mov     dx, 0xB800                  ; segment of cells
+        mov     es, dx
+        mov     ax, [es:bx]
+```
+
+Get that backwards and the outer access silently reads the inner region's
+segment — the failure this section names as the worst possible. It is handled by
+emission order rather than by analysis.
+
+**Nothing is paid by programs that do not use it.** `push es`/`pop es` appear in
+the int helpers only once something has actually put a segment in ES, so adding
+the whole feature moved no existing generated output.
 
 ### The pieces
 
@@ -1740,7 +1780,7 @@ up, so where both fit, this is the more Momo-shaped answer.
 
 ## 21. Longer-term directions
 
-Not planned like §16, §17 and §19 — these are directions rather than designs.
+Not planned like §17 and §19 — these are directions rather than designs.
 
 ### CPU target levels
 
@@ -2164,10 +2204,11 @@ has a target axis (CPU levels above, `momo/z80` below); memory model is a second
 axis of the same idea. A dialect means two languages to keep honest and every
 guarantee quoted with an asterisk.
 
-It costs less than it looks. **§12 survives** — static allocation is static
-however many segments it spans, so the figures stay exact, per segment. What
-actually dies is §1's "segment registers are never emitted, never overridden,
-never thought about", and the mnemonic subset growing segment loads and `es:`
+It costs less than it looks, and less than it did before §16 was built — ES is
+already emitted, already preserved across interrupts, already in the subset.
+**§12 survives** too: static allocation is static however many segments it spans,
+so the figures stay exact, per segment. What actually dies is CS, DS and SS
+staying uniform, and the mnemonic subset growing segment loads and `es:`
 prefixes. Only `.EXE` costs "no linker, no relocations", and the four-binary
 route avoids needing it.
 

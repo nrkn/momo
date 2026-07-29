@@ -27,6 +27,9 @@ type PrunableSymbol =
   // A group emits nothing itself - its field globals are ordinary arrays or
   // variables, and are pruned per field.
   | { kind: 'group'; name: string; label: string }
+  // A far region emits nothing either: segment and offset bake into the
+  // instructions, so there is no storage to keep or drop.
+  | { kind: 'far'; name: string; label: string }
   | {
       kind: 'routine'
       name: string
@@ -316,9 +319,10 @@ export const prune = <S extends PrunableSymbol>(result: {
       return symbol.onlyIfUsed ? used.has(symbol.label) : true
     }
     if (symbol.kind === 'array' && symbol.dynamic) return true
-    // A group emits nothing, so keeping it is free - and `npm run check` should
-    // still show the shape even when only some of its fields survived.
+    // Groups and far regions emit nothing, so keeping them is free - and
+    // `npm run check` should still show the shape either way.
     if (symbol.kind === 'group') return true
+    if (symbol.kind === 'far') return true
     return used.has(symbol.label)
   })
 

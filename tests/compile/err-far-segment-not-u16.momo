@@ -1,0 +1,3 @@
+// EXPECT-ERROR: a far segment must be u16
+u8 seg
+far u8[] buf = seg

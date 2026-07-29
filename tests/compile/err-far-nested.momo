@@ -1,0 +1,5 @@
+// EXPECT-ERROR: a far region must be declared at the top level
+sub f {
+  far u16[10] cells = 0xB800
+}
+f()

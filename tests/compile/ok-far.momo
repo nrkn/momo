@@ -1,0 +1,30 @@
+// Every far shape that must work.
+
+far       u16[2000] cells     = 0xB800
+far       u8[4000]  cellBytes = 0xB800      // overlapping, different element type
+far       u16[1]    cellFive  = 0xB800:10   // segment:offset
+far       u8[]      unsized   = 0xA000      // no size: no bounds checks, like u8[]
+const far u8[2048]  font      = 0xF000:0xFA6E
+
+const videoSeg = 0xB800
+far u16[2000] byConst = videoSeg            // a scalar const names a segment
+
+u16 seg
+far u8[64000] backBuffer = seg              // a u16 variable: read at each access
+
+u16 i
+u16 v
+u8  b
+
+cells[0] = 0x0741
+cells[i] = 0x0742
+cells[i]++
+v = cells[0]
+v = cells[i]
+b = cellBytes[3]
+v = cellFive[0]
+v = byConst[i]
+b = unsized[i]
+b = font[0]
+backBuffer[i] = 1
+v = len( cells )                            // a declared size is reportable

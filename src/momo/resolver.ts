@@ -12,6 +12,8 @@
 import type {
   ConstFunctionDeclaration,
   Expression,
+  FarAddress,
+  FarDeclaration,
   GroupDeclaration,
   Identifier,
   RoutineDeclaration,
@@ -80,6 +82,22 @@ export type MomoSymbol =
       params: { name: string; type: ValueType }[]
       returnType: ValueType | null
       body: Expression
+    }
+  // A window onto memory in another segment. Emits no storage: the segment and
+  // offset bake into the instructions.
+  //
+  // `segment` records where the value COMES FROM rather than what it is, which
+  // is what lets a runtime segment be added without disturbing anything that
+  // reads this - see §16.
+  | {
+      kind: 'far'
+      name: string
+      label: string
+      elementType: ValueType
+      length: number | null // null when unsized: no bounds checks, as for `u8[]`
+      readonly: boolean
+      segment: { from: 'const'; value: number } | { from: 'var'; label: string }
+      offset: number
     }
   // Namespacing over structure-of-arrays. The group itself has no storage - it
   // holds the field globals, which are ordinary arrays (or plain variables for
@@ -348,15 +366,20 @@ export const resolve = (program: Program): ResolveResult => {
   // for its label, so without this `mob[9].x` would report against "mob__x" -
   // a name the source never mentions.
   const checkIndex = (symbol: MomoSymbol, index: Expression, shownAs?: string) => {
-    if (symbol.kind !== 'array') return
+    // null means indexable but with no compile-time length: the heap, and a far
+    // region declared without a size. Both still type-check the index.
+    let length: number | null
+    if (symbol.kind === 'array') length = symbol.dynamic ? null : symbol.length
+    else if (symbol.kind === 'far') length = symbol.length
+    else return
 
     const resolved = resolveExpression(index)
     if (resolved.type === 'bool') {
       raise(index, 'array index must be numeric')
     }
-    if (symbol.dynamic) return
-    if (resolved.value !== null && (resolved.value < 0 || resolved.value >= symbol.length)) {
-      raise(index, `index ${resolved.value} is out of bounds for "${shownAs ?? symbol.name}" (length ${symbol.length})`,
+    if (length === null) return
+    if (resolved.value !== null && (resolved.value < 0 || resolved.value >= length)) {
+      raise(index, `index ${resolved.value} is out of bounds for "${shownAs ?? symbol.name}" (length ${length})`,
       )
     }
   }
@@ -543,6 +566,9 @@ export const resolve = (program: Program): ResolveResult => {
       if (symbol.kind === 'array') {
         raise(node, `"${node.name}" is an array - index it, or use addr()`)
       }
+      if (symbol.kind === 'far') {
+        raise(node, `"${node.name}" is a far region - index it`)
+      }
       if (symbol.kind === 'constfn' || symbol.kind === 'routine') {
         raise(node, `"${node.name}" takes arguments - call it with ${node.name}(...)`)
       }
@@ -556,6 +582,15 @@ export const resolve = (program: Program): ResolveResult => {
 
       const symbol = lookup(node.array.name)
       if (!symbol) raise(node, `"${node.array.name}" is not declared`)
+
+      // A far region indexes exactly like an array; only the emitter cares that
+      // the address is in another segment.
+      if (symbol.kind === 'far') {
+        node.array.label = symbol.label
+        checkIndex(symbol, node.index)
+        return annotate(node, { type: symbol.elementType, value: null })
+      }
+
       if (symbol.kind !== 'array') {
         raise(node, `"${node.array.name}" is not an array`)
       }
@@ -571,6 +606,10 @@ export const resolve = (program: Program): ResolveResult => {
       if (isSub(symbol)) raise(node, 'addr() does not take a sub')
       if (symbol.kind === 'const' || symbol.kind === 'constfn') {
         raise(node, 'addr() needs storage - a const has none')
+      }
+      // addr() yields an offset in OUR segment, which a far region has none of.
+      if (symbol.kind === 'far') {
+        raise(node, `addr() has no meaning for "${node.target.name}" - it is in another segment`)
       }
       node.target.label = symbol.label
       return annotate(node, { type: 'u16', value: null })
@@ -592,6 +631,19 @@ export const resolve = (program: Program): ResolveResult => {
           )
         }
         return annotate(node, { type: 'untyped', value: symbol.count })
+      }
+
+      // A far region has a length only when one was declared - it is an
+      // assertion about hardware, not something the compiler can measure.
+      if (symbol.kind === 'far') {
+        if (symbol.length === null) {
+          raise(
+            node,
+            `far region "${node.target.name}" was declared without a size, so len() has` +
+              ' nothing to report - give it one',
+          )
+        }
+        return annotate(node, { type: 'untyped', value: symbol.length })
       }
 
       if (symbol.kind !== 'array') {
@@ -862,6 +914,72 @@ export const resolve = (program: Program): ResolveResult => {
     )
   }
 
+  // A segment is a compile-time constant, or a `u16` variable read at each
+  // access. An offset is always compile-time: it folds into the displacement of
+  // an addressing mode we already emit, so it costs nothing.
+  const resolveFarAddress = (
+    node: FarAddress,
+    what: 'segment' | 'offset',
+  ): { from: 'const'; value: number } | { from: 'var'; label: string } => {
+    if (node.type === 'Identifier') {
+      const symbol = lookup(node.name)
+      if (!symbol) raise(node, `"${node.name}" is not declared`)
+
+      if (symbol.kind === 'const') return { from: 'const', value: symbol.value }
+
+      if (symbol.kind === 'var') {
+        if (what === 'offset') {
+          raise(node, 'a far offset must be constant - it folds into the instruction')
+        }
+        if (symbol.type !== 'u16') {
+          raise(node, `a far segment must be u16 - "${node.name}" is ${symbol.type}`)
+        }
+        // Deliberately NOT `node.label`: the reference is to the variable's
+        // storage, read afresh at every access rather than captured here.
+        return { from: 'var', label: symbol.label }
+      }
+
+      raise(node, `"${node.name}" is not a constant or a u16 variable`)
+    }
+
+    return { from: 'const', value: node.value }
+  }
+
+  const resolveFarDeclaration = (node: FarDeclaration) => {
+    const segment = resolveFarAddress(node.segment, 'segment')
+    const offsetSource = node.offset ? resolveFarAddress(node.offset, 'offset') : null
+    const offset = offsetSource && offsetSource.from === 'const' ? offsetSource.value : 0
+
+    if (segment.from === 'const' && (segment.value < 0 || segment.value > 0xffff)) {
+      raise(node.segment, `segment ${segment.value} does not fit in 16 bits`)
+    }
+    if (offset < 0 || offset > 0xffff) {
+      raise(node.offset ?? node, `offset ${offset} does not fit in 16 bits`)
+    }
+
+    let length: number | null = null
+    if (node.typeNode.size) {
+      length = foldConstant(node.typeNode.size, 'far region size')
+      if (length <= 0) raise(node.typeNode.size, 'far region size must be positive')
+    }
+
+    node.label = safeLabel(node.name)
+
+    declare(
+      {
+        kind: 'far',
+        name: node.name,
+        label: node.label,
+        elementType: node.typeNode.name,
+        length,
+        readonly: node.readonly,
+        segment,
+        offset,
+      },
+      node,
+    )
+  }
+
   // Each field becomes its own global - an array when the group has a count, a
   // plain variable when it does not. Structure-of-arrays, so `mob[i].x` needs no
   // multiply: the field offset is folded into the label and the index is used
@@ -1066,6 +1184,9 @@ export const resolve = (program: Program): ResolveResult => {
       if (symbol.kind === 'group') {
         raise(target, `"${target.name}" is a group - assign to a field`)
       }
+      if (symbol.kind === 'far') {
+        raise(target, `"${target.name}" is a far region - assign to an element`)
+      }
       if (symbol.kind === 'var' && symbol.readonly) {
         raise(
           target,
@@ -1079,6 +1200,16 @@ export const resolve = (program: Program): ResolveResult => {
 
     const symbol = lookup(target.array.name)
     if (!symbol) raise(target, `"${target.array.name}" is not declared`)
+
+    if (symbol.kind === 'far') {
+      if (symbol.readonly) {
+        raise(target, `"${target.array.name}" is a const far region and cannot be assigned`)
+      }
+      target.array.label = symbol.label
+      checkIndex(symbol, target.index)
+      return annotate(target, { type: symbol.elementType, value: null })
+    }
+
     if (symbol.kind !== 'array') raise(target, `"${target.array.name}" is not an array`)
     if (symbol.readonly) {
       raise(target, `"${target.array.name}" is a const array and cannot be assigned`)
@@ -1097,6 +1228,9 @@ export const resolve = (program: Program): ResolveResult => {
     }
     if (node.type === 'GroupDeclaration') {
       raise(node, 'a group must be declared at the top level - entity pools are global')
+    }
+    if (node.type === 'FarDeclaration') {
+      raise(node, 'a far region must be declared at the top level - a hardware address is not scoped')
     }
     if (node.type === 'ConstDeclaration') return resolveConstDeclaration(node)
 
@@ -1392,6 +1526,10 @@ export const resolve = (program: Program): ResolveResult => {
       resolveGroupDeclaration(statement)
       continue
     }
+    if (statement.type === 'FarDeclaration') {
+      resolveFarDeclaration(statement)
+      continue
+    }
   }
 
   // ---- pass 2: bodies and top-level statements ------------------------------
@@ -1405,6 +1543,7 @@ export const resolve = (program: Program): ResolveResult => {
     if (statement.type === 'ConstFunctionDeclaration') continue
     if (statement.type === 'VariableDeclaration') continue
     if (statement.type === 'GroupDeclaration') continue
+    if (statement.type === 'FarDeclaration') continue
     resolveStatement(statement)
   }
 

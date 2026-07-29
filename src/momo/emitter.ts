@@ -76,6 +76,9 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
   // repeat. See quoteSource.
   let lastQuoted: string | null = null
   let currentRet: { label: string; type: ValueType } | null = null
+  // Set the first time a far region is addressed. The int helpers only bother
+  // preserving ES if something actually put a segment in it.
+  let touchedEs = false
 
   // ---- output helpers -------------------------------------------------------
 
@@ -152,6 +155,38 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
   // `widening` is false only where the caller can prove the high half is about
   // to be discarded - a byte stored straight back to a byte, or a truthiness
   // test. See emitByteLoad.
+  // Load ES for a far region.
+  //
+  // Goes through DX, which §9 has always documented as scratch and never live.
+  // That is what makes this cost nothing beyond the two instructions: it
+  // disturbs neither AX (which may hold a value being stored) nor BX (which may
+  // hold a computed index), so no push/pop is needed around it.
+  //
+  // Always emitted per access in v1. §16's hoisting is a later refinement, and
+  // it must key on the segment SOURCE rather than on "ES has been loaded" -
+  // `textCells[i] = pixels[j]` names two segments and must reload between them.
+  const loadSegment = (symbol: MomoSymbol) => {
+    if (symbol.kind !== 'far') return
+    touchedEs = true
+
+    if (symbol.segment.from === 'const') {
+      const hex = symbol.segment.value.toString(16).toUpperCase()
+      ins('mov', `dx, 0x${hex}`, `segment of ${symbol.name}`)
+    } else {
+      ins('mov', `dx, [${symbol.segment.label}]`, `segment of ${symbol.name}`)
+    }
+    ins('mov', 'es, dx')
+  }
+
+  // The memory operand for a far access. A far region has no label - the segment
+  // and offset bake into the instruction - so a constant index folds all the way
+  // into a displacement and needs no register at all.
+  const farOperand = (symbol: MomoSymbol, fixedByteOffset: number | null): string => {
+    if (symbol.kind !== 'far') return ''
+    if (fixedByteOffset !== null) return `es:${symbol.offset + fixedByteOffset}`
+    return symbol.offset === 0 ? 'es:bx' : `es:bx + ${symbol.offset}`
+  }
+
   const loadVariable = (symbol: MomoSymbol, widening = true) => {
     if (symbol.kind !== 'var' && symbol.kind !== 'const') return
     if (symbol.kind === 'const') {
@@ -168,6 +203,37 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
 
   const emitIndexLoad = (node: IndexExpression, widening = true) => {
     const symbol = symbolFor(node.array.label)
+
+    if (symbol.kind === 'far') {
+      const width = widthOf(symbol.elementType)
+      const fixed = constOf(node.index)
+
+      if (fixed !== null) {
+        loadSegment(symbol)
+        const at = farOperand(symbol, fixed * width)
+        if (width === 2) ins('mov', `ax, [${at}]`)
+        else {
+          ins('mov', `al, [${at}]`)
+          if (widening) widen(symbol.elementType)
+        }
+        return
+      }
+
+      emitExpression(node.index)
+      if (width === 2) ins('shl', 'ax, 1', 'word elements')
+      ins('mov', 'bx, ax')
+      // ES after the index, never before: the index expression may itself have
+      // read a different far region and left its segment in ES.
+      loadSegment(symbol)
+      const at = farOperand(symbol, null)
+      if (width === 2) ins('mov', `ax, [${at}]`)
+      else {
+        ins('mov', `al, [${at}]`)
+        if (widening) widen(symbol.elementType)
+      }
+      return
+    }
+
     if (symbol.kind !== 'array') return
 
     const width = widthOf(symbol.elementType)
@@ -238,7 +304,8 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
       return symbol.kind === 'var' ? symbol.type : null
     }
     const symbol = symbolFor(target.array.label)
-    return symbol.kind === 'array' ? symbol.elementType : null
+    if (symbol.kind === 'array' || symbol.kind === 'far') return symbol.elementType
+    return null
   }
 
   // A leaf is something we can load straight into BX without touching AX.
@@ -630,6 +697,31 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     }
 
     const symbol = symbolFor(target.array.label)
+
+    if (symbol.kind === 'far') {
+      const width = widthOf(symbol.elementType)
+      const fixed = constOf(target.index)
+
+      if (fixed !== null) {
+        // The value is already in AX and the segment goes through DX, so nothing
+        // needs saving here - unlike the near path, which has no spare register.
+        loadSegment(symbol)
+        const at = farOperand(symbol, fixed * width)
+        ins('mov', width === 2 ? `[${at}], ax` : `[${at}], al`)
+        return
+      }
+
+      ins('push', 'ax', 'save value while computing the index')
+      emitExpression(target.index)
+      if (width === 2) ins('shl', 'ax, 1', 'word elements')
+      ins('mov', 'bx, ax')
+      loadSegment(symbol)
+      ins('pop', 'ax')
+      const at = farOperand(symbol, null)
+      ins('mov', width === 2 ? `[${at}], ax` : `[${at}], al`)
+      return
+    }
+
     if (symbol.kind !== 'array') return
 
     const width = widthOf(symbol.elementType)
@@ -738,6 +830,26 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     }
 
     const symbol = symbolFor(node.target.array.label)
+
+    if (symbol.kind === 'far') {
+      const width = widthOf(symbol.elementType)
+      const size = width === 2 ? 'word' : 'byte'
+      const fixed = constOf(node.target.index)
+
+      if (fixed !== null) {
+        loadSegment(symbol)
+        ins(mnemonic, `${size} [${farOperand(symbol, fixed * width)}]`)
+        return
+      }
+
+      emitExpression(node.target.index)
+      if (width === 2) ins('shl', 'ax, 1', 'word elements')
+      ins('mov', 'bx, ax')
+      loadSegment(symbol)
+      ins(mnemonic, `${size} [${farOperand(symbol, null)}]`)
+      return
+    }
+
     if (symbol.kind !== 'array') return
 
     const width = widthOf(symbol.elementType)
@@ -1109,6 +1221,13 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
   for (const interrupt of [...interrupts].sort((a, b) => a - b)) {
     blank()
     label(intHelperName(interrupt))
+
+    // Handlers may trash any register they do not document as preserved, and
+    // some use ES as input. Saving it here makes "ES survives everything you
+    // call" an invariant rather than a discipline - which is what §16's later
+    // hoisting will rest on. Only emitted when something actually uses ES.
+    if (touchedEs) ins('push', 'es')
+
     for (const register of registers) ins('mov', `${register}, [_${register}]`)
     ins('int', `0x${interrupt.toString(16).toUpperCase()}`)
     for (const register of registers) ins('mov', `[_${register}], ${register}`)
@@ -1124,6 +1243,8 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
       ins('and', 'al, 1', 'carry is bit 0')
       ins('mov', '[_cf], al')
     }
+
+    if (touchedEs) ins('pop', 'es')
 
     ins('ret')
   }

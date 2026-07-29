@@ -1,0 +1,5 @@
+// EXPECT-ERROR: addr() has no meaning
+// addr() yields an offset in OUR segment, which a far region has none of.
+far u16[2000] cells = 0xB800
+u16 a
+a = addr( cells )

@@ -1,0 +1,5 @@
+// EXPECT-ERROR: must be a number or a name, not an expression
+// Restricting it keeps the segment load to one instruction, and settles that
+// naming a variable is a live reference rather than a computed snapshot.
+u16 seg
+far u8[] buf = seg + 1

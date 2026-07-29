@@ -1,0 +1,62 @@
+// fartest.momo - far regions: writing and reading the text buffer directly.
+//
+// This is verifiable rather than visual. Video memory is readable as well as
+// writable, so the program writes cells, reads them back into variables, and
+// prints what it found - and under the e2e harness the printing is redirected to
+// a file while the far writes still go to the screen. No screen-scraping.
+
+include "std/screen.momo"
+
+// 80x25 cells, each a character byte and an attribute byte.
+far u16[2000] cells = 0xB800
+
+// The same bytes, byte-wise. Overlapping regions with different element types
+// are legal and useful - the same pattern as _heap and _heapw.
+far u8[4000] cellBytes = 0xB800
+
+// A segment:offset region. Offset 10 is cell 5, so this and cells[5] are two
+// names for one word - and the offset costs nothing, folding into the
+// displacement of an addressing mode we already emit.
+far u16[1] cellFive = 0xB800:10
+
+u16 word1
+u8  char1
+u8  attr1
+u16 viaOffset
+u16 i
+
+// ---- entry ----
+
+setTextMode()
+
+// Direct writes - no int 10h per cell.
+cells[0] = 0x0741                 // 'A', attribute 7
+cells[1] = 0x0742                 // 'B'
+cells[5] = 0x0745                 // 'E'
+
+// A computed index, so the runtime-index path is exercised too.
+i = 3
+cells[i] = 0x0744                 // 'D'
+
+// Read back as a word, and the same cell through the byte view. The buffer is
+// little-endian per cell, so the character is the low byte.
+word1 = cells[1]
+char1 = cellBytes[2]
+attr1 = cellBytes[3]
+
+// And through the offset region, which must land on cell 5.
+viaOffset = cellFive[0]
+
+// Below the row we wrote on, so the report does not overwrite it.
+moveTo( 0, 2 )
+
+putNumber( word1 )                // 0x0742 = 1858
+newline()
+putNumber( char1 )                // 0x42 = 66, 'B'
+newline()
+putNumber( attr1 )                // 7
+newline()
+putNumber( viaOffset )            // 0x0745 = 1861
+newline()
+putNumber( cells[i] )             // 0x0744 = 1860, read with a runtime index
+newline()

@@ -154,6 +154,27 @@ export type GroupField = Located & {
   typeNode: TypeNode
 }
 
+// Where a far region lives. Restricted to a literal or a name at parse time,
+// never an expression: it keeps the segment load to one instruction, and it
+// settles that `= someVar` is a live reference re-read per access rather than a
+// computed snapshot.
+export type FarAddress = NumberLiteral | Identifier
+
+// `far u16[2000] textCells = 0xB800`, `const far u8[] font = 0xF000:0xFA6E`.
+//
+// Names an address rather than contents - the `=` here is not the initialiser of
+// §5, which is why these are allowed to name a variable. Emits no storage: the
+// segment and offset bake into the instructions.
+export type FarDeclaration = Spanned & {
+  type: 'FarDeclaration'
+  name: string
+  typeNode: TypeNode // element type, and an optional size for bounds checking
+  readonly: boolean
+  segment: FarAddress
+  offset: FarAddress | null
+  label?: string // set by the resolver
+}
+
 // `group mob[64] { ... }` many, `group player { ... }` one. The presence of a
 // count decides, exactly as it does for `u8 x` against `u8[4] x`, so no second
 // keyword is needed.
@@ -318,6 +339,7 @@ export type Statement =
   | ConstFunctionDeclaration
   | VariableDeclaration
   | GroupDeclaration
+  | FarDeclaration
   | RoutineDeclaration
   | BlockStatement
   | IfStatement

@@ -6,7 +6,7 @@ predecessor [Yuki](https://github.com/nrkn/yuki-js), whose Pong for a fantasy
 console is kept as `_reference/yuki.txt`.
 
 - **`DESIGN.md`** — the language, and *why* every decision was made. 21 sections:
-  built features, three designed-but-deferred ones (§16, §17, §19), open questions
+  built features, two designed-but-deferred ones (§17, §19), open questions
   (§20), and long-term directions (§21). Read the relevant section before
   changing anything; the rationale matters more than the rules.
 - **`STYLE.md`** — TypeScript and Momo conventions.
@@ -145,5 +145,5 @@ belongs in its own project. The name `rl` is reserved for a fuller one.
 Everything else under `data/projects/` is either a test fixture or a
 demonstration of one language feature.
 
-125 tier-1 assertions (86 compile tests, 14 golden `.asm`, 25 type), 13 e2e
+137 tier-1 assertions (97 compile tests, 15 golden `.asm`, 25 type), 14 e2e
 programs, all green.

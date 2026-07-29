@@ -1,0 +1,2 @@
+// EXPECT-ERROR: a far region is an array
+far u16 port = 0xB800

@@ -1,0 +1,4 @@
+// EXPECT-ERROR: is a far region - index it
+far u16[2000] cells = 0xB800
+u16 v
+v = cells

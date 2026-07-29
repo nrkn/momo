@@ -30,6 +30,7 @@ export const keywords = [
   'const',
   'include',
   'group',
+  'far',
   'sub',
   'fn',
   'if',

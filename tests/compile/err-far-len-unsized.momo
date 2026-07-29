@@ -1,0 +1,4 @@
+// EXPECT-ERROR: was declared without a size, so len() has nothing to report
+far u8[] pixels = 0xA000
+u16 n
+n = len( pixels )

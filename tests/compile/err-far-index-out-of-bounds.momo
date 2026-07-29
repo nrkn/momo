@@ -1,0 +1,4 @@
+// EXPECT-ERROR: index 2000 is out of bounds for "cells" (length 2000)
+far u16[2000] cells = 0xB800
+u16 v
+v = cells[2000]

@@ -41,9 +41,9 @@ code it produced, and each instruction choice is annotated with the reason:
 Three reasons.
 
 **Primarily, to write small games and tools.** Momo is meant to be used rather
-than admired. The active program is a roguelike, the standard library is a
-text-mode screen and a keyboard, and the bar it is held to (`DESIGN.md` §15) is
-a list of programs that work, not of features that exist.
+than admired. There is a roguelike, the standard library is a text-mode screen
+and a keyboard, and the bar it is held to (`DESIGN.md` §15) is a list of programs
+that work, not of features that exist.
 
 **Secondarily, to show that x86 assembly is not overwhelming if you start with
 a small subset and work up.** Not by hiding the assembly — by shrinking it
@@ -53,8 +53,10 @@ until it fits in your head. Most of the design falls out of that one idea:
   enforces the boundary on every build. There is no way to meet a 386
   instruction before you have met an 8086 one.
 - **DOS `.COM`, tiny model.** One 64KB segment, `org 100h`, no linker, no
-  object files, no relocations — and segment registers that never appear at
-  all. The smallest complete x86 target that still does something real.
+  object files, no relocations, and no segment register you have to think about
+  — CS, DS and SS are all the same and never appear. The smallest complete x86
+  target that still does something real. ES shows up only where you ask for
+  memory outside that segment, to reach the screen.
 - **Commented NASM is the product, not an intermediate.** Every statement is
   quoted above the code it produced and every non-obvious choice is annotated,
   so the output is there to be read rather than trusted.
@@ -125,7 +127,7 @@ compiler errors in the Problems panel.
 
 | | |
 |---|---|
-| **`DESIGN.md`** | The language and the reasoning behind every decision — including three designed-but-unbuilt features and the long-term directions |
+| **`DESIGN.md`** | The language and the reasoning behind every decision — including two designed-but-unbuilt features and the long-term directions |
 | **`STYLE.md`** | Code conventions |
 | **`CONTRIBUTING.md`** | Orientation: layout, scripts, the tooling traps, and the practices that keep this honest |
 | **`CLAUDE.md`** | The handful of things that differ when the contributor is an agent |

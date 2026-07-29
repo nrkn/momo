@@ -1,0 +1,3 @@
+// EXPECT-ERROR: is a const far region and cannot be assigned
+const far u8[2048] font = 0xF000:0xFA6E
+font[0] = 1
