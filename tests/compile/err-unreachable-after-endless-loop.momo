@@ -1,6 +1,6 @@
 // EXPECT-ERROR: unreachable code - the loop above never ends
 // Nothing breaks out, so the statement after the loop can never run. Contrast
-// ok-reachable-after-loop-with-break, which is rl.momo's main-loop shape.
+// ok-reachable-after-loop-with-break, which is simplerl.momo's main-loop shape.
 while( true ){
   _al = 1
 }

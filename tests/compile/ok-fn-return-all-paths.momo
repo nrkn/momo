@@ -10,7 +10,7 @@ u16 both( u8 a ) {
 
 // An endless loop never reaches the end of the routine, so no trailing return
 // is needed. This is the case that would be a false positive if loops were
-// simply assumed able to finish - and `while (true)` is already how rl.momo
+// simply assumed able to finish - and `while (true)` is already how simplerl.momo
 // writes its main loop.
 u16 spin( u8 a ) {
   while( true ){

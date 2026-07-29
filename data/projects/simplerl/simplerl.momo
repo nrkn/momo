@@ -1,4 +1,8 @@
-// rl.momo
+// simplerl.momo - the minimal version: an '@' moving around a hard-coded map.
+//
+// Deliberately left at this size. Anything further - mobs, items, generated
+// levels - belongs in its own project rather than here, so this stays readable
+// as the smallest thing that is recognisably a roguelike.
 // ---
 // Minimal roguelike skeleton - an '@' moving around a hard coded map
 

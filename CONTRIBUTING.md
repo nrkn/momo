@@ -137,9 +137,13 @@ have consistently been the right ones.
 
 ## Current state
 
-`data/projects/rl` is the active program — a roguelike at the "move `@` around a
-map" stage, using dirty-tile redraw. Everything else under `data/projects/` is
-either a test fixture or a demonstration of one language feature.
+`data/projects/simplerl` is a roguelike at the "move `@` around a hard-coded
+map" stage, using dirty-tile redraw, and is **deliberately finished** — it is
+kept as the smallest thing that is recognisably a game, so anything further
+belongs in its own project. The name `rl` is reserved for a fuller one.
+
+Everything else under `data/projects/` is either a test fixture or a
+demonstration of one language feature.
 
 125 tier-1 assertions (86 compile tests, 14 golden `.asm`, 25 type), 13 e2e
 programs, all green.

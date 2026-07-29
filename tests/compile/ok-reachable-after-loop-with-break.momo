@@ -1,4 +1,4 @@
-// rl.momo's main-loop shape: `while (true)` with a break inside, then more code
+// simplerl.momo's main-loop shape: `while (true)` with a break inside, then more code
 // after it. The break makes the loop escapable, so what follows IS reachable
 // and must not be flagged. This is the false positive the check has to avoid.
 u8 done

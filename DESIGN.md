@@ -985,7 +985,7 @@ looked at by someone.**
 This exists because tier 1 asks only *whether* a program compiles, never what it
 emits, and tier 2 needs DOSBox — so between them nothing was watching codegen at
 all. "`smoke` must stay byte-identical" was a rule enforced by remembering to
-read `git status`, which is not a test. It also gives `rl` regression coverage
+read `git status`, which is not a test. It also gives `simplerl` regression coverage
 for the first time, since it is interactive and can never have a `.expected`.
 
 Line endings are normalised before comparing. The emitter writes CRLF while git
@@ -1228,7 +1228,7 @@ So `far` unlocks text mode, CGA and mode 13h. Sixteen-colour planar modes are a
 separate decision costing two more instructions and a different mental model.
 
 **Mode 13h cannot be double-buffered in one segment.** The frame is 64000 bytes
-and the whole segment is 65536; `rl` currently has a little under 64,000 free. A back buffer
+and the whole segment is 65536; `simplerl` currently has a little under 64,000 free. A back buffer
 needs a second segment from `INT 21h AH=48h`, which in turn needs a **variable**
 segment (`mov es, [thatVar]` rather than an immediate). Barely harder than the
 constant form, but it is the piece that would have to come with it.
@@ -1579,7 +1579,7 @@ this does not displace `peek`/`poke` (below).
 ### The one thing this makes worse
 
 **Diagnostics grow an instantiation chain.** An error inside a specialised body
-needs to say *"in `clear`, instantiated from rl.momo:42"* — the C++ template
+needs to say *"in `clear`, instantiated from simplerl.momo:42"* — the C++ template
 error problem in miniature. Momo's diagnostics are currently precise and
 single-location, and this is the only feature so far that erodes that. Worth
 building the chain properly rather than reporting the definition site alone.
@@ -1743,18 +1743,20 @@ needs two shift chains and a temporary. Factoring as `5 << 4`, with `5` as
 
 The rule is: pull out the largest power of two, then handle the odd residue.
 
-`rl`'s `tileAt` is `map[y * mapW + x]` with `mapW = 10`, so `10 = 5 << 1`:
+`simplerl`'s `tileAt` is `map[y * mapW + x]` with `mapW = 20`, and today that
+emits `mov bx, 20` / `mul bx`. Factored, `20 = 5 << 2` and `5 = (y << 2) + y`:
 
 ```nasm
         mov     bx, ax
         shl     ax, 1
-        shl     ax, 1           ; x * 4
-        add     ax, bx          ; x * 5
-        shl     ax, 1           ; x * 10
+        shl     ax, 1           ; y * 4
+        add     ax, bx          ; y * 5
+        shl     ax, 1
+        shl     ax, 1           ; y * 20
 ```
 
-11 cycles against ~128 — nearly 12x, for five extra bytes, a hundred times per
-draw.
+13 cycles against ~128 — about 10x, for seven extra bytes, and `draw` runs it
+`mapW × mapH` = 200 times per full redraw.
 
 Three tiers, with the cutoff between the first two:
 
@@ -2048,14 +2050,14 @@ intermediate files.** `lex` → tokens, `parse` → AST, `resolve` → annotated
 `emit` → `.asm`. The `lex`, `parse` and `check` tools already dump those
 representations, so the on-disk formats are half-designed.
 
-The sizing forces it. `rl` is ~900 bytes of code, on the order of ten bytes per
+The sizing forces it. `simplerl` is ~900 bytes of code, on the order of ten bytes per
 line of Momo; the compiler is ~5k lines of TypeScript, call it 6–8k lines of
 Momo once recursion is unrolled into explicit stacks. That is 60–80KB as a
 single binary — over the ceiling, and still uncomfortable if the estimate is
 half wrong. Split four ways it is roomy.
 
 (Deliberately rounded. Exact figures here go stale on any codegen change — the
-peephole work in §9 moved `rl` by 18 bytes — and the conclusion is robust to
+peephole work in §9 moved `simplerl` by 18 bytes — and the conclusion is robust to
 being wrong by a factor of two, which is the only precision that matters.)
 
 #### What it needs

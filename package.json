@@ -1,5 +1,6 @@
 {
-  "type": "module",
+  "name": "momo",
+  "version": "0.0.1",
   "scripts": {
     "compile": "tsc",
     "start": "tsc && node dist/tools/run.js",
@@ -19,5 +20,6 @@
   },
   "devDependencies": {
     "@types/node": "^26.1.1"
-  }
+  },
+  "type": "module"
 }
