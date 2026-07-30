@@ -6,142 +6,126 @@
 ; ---- constants: no storage, folded at assembly time ----
 ioBase          equ     10
 ioZeroChar      equ     48
-mobCount        equ     4
 
 ; =========================================================== entry ====
 
 __entry:
-; ---- player.x = 10
-        mov     byte [player__x], 10
-; ---- player.y = 20
-        mov     byte [player__y], 20
-; ---- player.hp = 100
-        mov     word [player__hp], 100
-; ---- for( i = 0; i < len( mob ); i++ ){
-        mov     byte [i], 0
-.L1:
-        mov     al, [i]
-        xor     ah, ah                      ; u8 -> u16
-        cmp     ax, 4
-        jb      .L4                         ; unsigned <
-        jmp     .L3
-.L4:
-; ---- mob[i].x = i * 2
-        mov     al, [i]
-        xor     ah, ah                      ; u8 -> u16
-        shl     ax, 1                       ; * 2 is << 1
-        push    ax                          ; save value while computing the index
-        mov     al, [i]
-        xor     ah, ah                      ; u8 -> u16
-        mov     bx, ax
-        pop     ax
-        mov     [mob__x + bx], al
-; ---- mob[i].hp = 50 + i
-        mov     ax, 50
-        mov     bl, [i]
-        xor     bh, bh                      ; u8 -> u16
-        add     ax, bx
-        push    ax                          ; save value while computing the index
-        mov     al, [i]
-        xor     ah, ah                      ; u8 -> u16
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
-        mov     [mob__hp + bx], ax
-; ---- mob[i].alive = true
-        mov     ax, 1
-        push    ax                          ; save value while computing the index
-        mov     al, [i]
-        xor     ah, ah                      ; u8 -> u16
-        mov     bx, ax
-        pop     ax
-        mov     [mob__alive + bx], al
-.L2:
-        inc     byte [i]
-        jmp     .L1
-.L3:
-; ---- mob[2].alive = false
-        mov     byte [mob__alive + 2], 0
-; ---- total = 0
-        mov     word [total], 0
-; ---- for( i = 0; i < len( mob ); i++ ){
-        mov     byte [i], 0
-.L5:
-        mov     al, [i]
-        xor     ah, ah                      ; u8 -> u16
-        cmp     ax, 4
-        jb      .L8                         ; unsigned <
-        jmp     .L7
-.L8:
-; ---- if( mob[i].alive ){
-        mov     al, [i]
-        xor     ah, ah                      ; u8 -> u16
-        mov     bx, ax
-        mov     al, [mob__alive + bx]
-        test    al, al
-        jnz     .L11
-        jmp     .L9
-.L11:
-; ---- total += mob[i].hp
-        mov     ax, [total]
-        push    ax                          ; save lhs: rhs is not a leaf
-        mov     al, [i]
-        xor     ah, ah                      ; u8 -> u16
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        mov     ax, [mob__hp + bx]
-        mov     bx, ax
-        pop     ax
-        add     ax, bx
-        mov     [total], ax
-.L9:
-.L6:
-        inc     byte [i]
-        jmp     .L5
-.L7:
-; ---- putNumber( total )
-        mov     ax, [total]
-        mov     [putNumber__n], ax
-        call    putNumber
-; ---- newline()
-        call    newline
-; ---- putNumber( player.hp )
-        mov     ax, [player__hp]
-        mov     [putNumber__n], ax
-        call    putNumber
-; ---- newline()
-        call    newline
-; ---- putNumber( len( mob ) )
-        mov     ax, 4
-        mov     [putNumber__n], ax
-        call    putNumber
-; ---- newline()
-        call    newline
-; ---- for( i = 0; i < len( mob ); i++ ){
-        mov     byte [i], 0
-.L12:
-        mov     al, [i]
-        xor     ah, ah                      ; u8 -> u16
-        cmp     ax, 4
-        jb      .L15                        ; unsigned <
-        jmp     .L14
-.L15:
-; ---- putNumber( mob[i].x )
-        mov     al, [i]
-        xor     ah, ah                      ; u8 -> u16
-        mov     bx, ax
-        mov     al, [mob__x + bx]
-        xor     ah, ah                      ; u8 -> u16
+; ---- u = 10000
+        mov     word [u], 10000
+; ---- putNumber( u * 8 )            // 80000 truncated = 14464
+        mov     ax, [u]
+        mov     cl, 3                       ; 8086 has no shift-by-immediate
+        shl     ax, cl                      ; * 8 is << 3
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- putChar( ' ' )
         mov     ax, 32
         mov     [putChar__c], al            ; narrowed to u8
         call    putChar
-.L13:
-        inc     byte [i]
-        jmp     .L12
-.L14:
+; ---- u = 65535
+        mov     word [u], 65535
+; ---- putNumber( u * 2 )            // 131070 truncated = 65534
+        mov     ax, [u]
+        shl     ax, 1                       ; * 2 is << 1
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- newline()
+        call    newline
+; ---- u = 1005
+        mov     word [u], 1005
+; ---- putNumber( u / 8 )            // 125
+        mov     ax, [u]
+        mov     cl, 3                       ; 8086 has no shift-by-immediate
+        shr     ax, cl                      ; / 8 is >> 3
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- putChar( ' ' )
+        mov     ax, 32
+        mov     [putChar__c], al            ; narrowed to u8
+        call    putChar
+; ---- putNumber( u % 8 )            // 5
+        mov     ax, [u]
+        and     ax, 7                       ; % 8 is a mask
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- newline()
+        call    newline
+; ---- u = 1005
+        mov     word [u], 1005
+; ---- putNumber( u * 3 )            // 3015
+        mov     ax, [u]
+        mov     bx, 3
+        mul     bx                          ; low 16 bits are sign-agnostic
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- putChar( ' ' )
+        mov     ax, 32
+        mov     [putChar__c], al            ; narrowed to u8
+        call    putChar
+; ---- putNumber( u / 10 )           // 100
+        mov     ax, [u]
+        mov     bx, 10
+        xor     dx, dx                      ; clear high half for div
+        div     bx
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- putChar( ' ' )
+        mov     ax, 32
+        mov     [putChar__c], al            ; narrowed to u8
+        call    putChar
+; ---- putNumber( u % 10 )           // 5
+        mov     ax, [u]
+        mov     bx, 10
+        xor     dx, dx                      ; clear high half for div
+        div     bx
+        mov     ax, dx                      ; remainder
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- newline()
+        call    newline
+; ---- s = -7
+        mov     word [s], 65529
+; ---- putNumber( u16( s * 8 ) )     // -56 as a bit pattern = 65480
+        mov     ax, [s]
+        mov     cl, 3                       ; 8086 has no shift-by-immediate
+        shl     ax, cl                      ; * 8 is << 3
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- putChar( ' ' )
+        mov     ax, 32
+        mov     [putChar__c], al            ; narrowed to u8
+        call    putChar
+; ---- s = -1000
+        mov     word [s], 64536
+; ---- putNumber( u16( s * 8 ) )     // -8000 = 57536
+        mov     ax, [s]
+        mov     cl, 3                       ; 8086 has no shift-by-immediate
+        shl     ax, cl                      ; * 8 is << 3
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- newline()
+        call    newline
+; ---- s = -7
+        mov     word [s], 65529
+; ---- putNumber( u16( s / 2 ) )     // -3 = 65533, and NOT -4 = 65532
+        mov     ax, [s]
+        mov     bx, 2
+        cwd                                 ; sign-extend AX into DX:AX
+        idiv    bx
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- putChar( ' ' )
+        mov     ax, 32
+        mov     [putChar__c], al            ; narrowed to u8
+        call    putChar
+; ---- putNumber( u16( s % 2 ) )     // -1 = 65535
+        mov     ax, [s]
+        mov     bx, 2
+        cwd                                 ; sign-extend AX into DX:AX
+        idiv    bx
+        mov     ax, dx                      ; remainder
+        mov     [putNumber__n], ax
+        call    putNumber
 ; ---- newline()
         call    newline
 
@@ -180,24 +164,24 @@ putNumber:
 ; ---- if (n == 0) {
         mov     ax, [putNumber__n]
         cmp     ax, 0
-        je      .L18                        ; unsigned ==
-        jmp     .L16
-.L18:
+        je      .L3                         ; unsigned ==
+        jmp     .L1
+.L3:
 ; ---- putChar(ioZeroChar)
         mov     ax, 48
         mov     [putChar__c], al            ; narrowed to u8
         call    putChar
 ; ---- return
         ret
-.L16:
+.L1:
 ; ---- for (i = 0; n > 0; i++) {
         mov     byte [putNumber__i], 0
-.L19:
+.L4:
         mov     ax, [putNumber__n]
         cmp     ax, 0
-        ja      .L22                        ; unsigned >
-        jmp     .L21
-.L22:
+        ja      .L7                         ; unsigned >
+        jmp     .L6
+.L7:
 ; ---- digits[i] = u8(n % ioBase) + ioZeroChar
         mov     ax, [putNumber__n]
         mov     bx, 10
@@ -218,18 +202,18 @@ putNumber:
         xor     dx, dx                      ; clear high half for div
         div     bx
         mov     [putNumber__n], ax
-.L20:
+.L5:
         inc     byte [putNumber__i]
-        jmp     .L19
-.L21:
+        jmp     .L4
+.L6:
 ; ---- for (; i > 0; i--) {
-.L23:
+.L8:
         mov     al, [putNumber__i]
         xor     ah, ah                      ; u8 -> u16
         cmp     ax, 0
-        ja      .L26                        ; unsigned >
-        jmp     .L25
-.L26:
+        ja      .L11                        ; unsigned >
+        jmp     .L10
+.L11:
 ; ---- putChar(digits[i - 1])
         mov     al, [putNumber__i]
         xor     ah, ah                      ; u8 -> u16
@@ -239,10 +223,10 @@ putNumber:
         xor     ah, ah                      ; u8 -> u16
         mov     [putChar__c], al            ; narrowed to u8
         call    putChar
-.L24:
+.L9:
         dec     byte [putNumber__i]
-        jmp     .L23
-.L25:
+        jmp     .L8
+.L10:
         ret
 
 ; ==================================================== int helpers ====
@@ -286,24 +270,18 @@ _di             dw      0
 ; ---- variables ----
 putChar__c      db      0        ; u8
 putNumber__n    dw      0        ; u16
-player__x       db      0        ; u8
-player__y       db      0        ; u8
-player__hp      dw      0        ; u16
-i               db      0        ; u8
-total           dw      0        ; u16
+u               dw      0        ; u16
+s               dw      0        ; i16
 putNumber__i    db      0        ; u8
 
 ; ---- arrays ----
-mob__x          times 4 db 0        ; u8[4]
-mob__hp         times 4 dw 0        ; u16[4]
-mob__alive      times 4 db 0        ; bool[4]
 putNumber__digits times 5 db 0        ; u8[5]
 
 ; ============================================================ heap ====
 ; No storage is emitted - a .COM owns everything past its image, so
 ; these are addresses and NASM does the arithmetic.
 
-_hstack         equ     264        ; 8 worst-case + 256 interrupt reserve
+_hstack         equ     262        ; 6 worst-case + 256 interrupt reserve
 _htop           equ     0FFFEh - _hstack
 
 _hsize          dw      _htop - _heap        ; NASM computes this

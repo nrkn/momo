@@ -439,12 +439,12 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     label(endLabel)
   }
 
-  const emitShift = (node: Expression) => {
+  const emitShift = (node: Expression, reason = '') => {
     if (node.type !== 'BinaryExpression') return
 
     const signed = isSigned(typeOf(node))
     const mnemonic = node.operator === '<<' ? 'shl' : signed ? 'sar' : 'shr'
-    const why = node.operator === '>>' ? (signed ? 'signed >>' : 'unsigned >>') : ''
+    const why = reason || (node.operator === '>>' ? (signed ? 'signed >>' : 'unsigned >>') : '')
 
     const count = constOf(node.right)
     emitExpression(node.left)
@@ -467,6 +467,59 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     ins('pop', 'ax')
     ins(mnemonic, 'ax, cl', why)
   }
+
+  // ---- strength reduction ---------------------------------------------------
+  //
+  // §21's unconditional tier: powers of two for `*`, and for unsigned `/` and
+  // `%`. Faster *and* smaller in every case, so it belongs in the ordinary
+  // emitter rather than behind a flag - `mov bx, n` + `mul bx` is 5 bytes and
+  // ~125 cycles, while `mov cl, k` + `shl ax, cl` is 4 bytes and at worst 68.
+  //
+  // §21 caps `*` at eight, which was more conservative than the numbers need:
+  // even a shift of fifteen through CL beats a multiply on both counts, so every
+  // power of two is reduced.
+
+  // The shift equivalent of multiplying or dividing by `value`, or null when it
+  // is not a power of two. Zero and negatives fall through to `mul`; 1 gives a
+  // shift of nothing, which is exactly right.
+  const powerOfTwo = (value: number | null): number | null => {
+    if (value === null || value < 1) return null
+    if ((value & (value - 1)) !== 0) return null
+
+    let shift = 0
+    for (let n = value; n > 1; n >>= 1) shift += 1
+    return shift
+  }
+
+  // A synthetic shift over the same operand, so the existing unroll-or-CL
+  // decision in emitShift is reused rather than duplicated. The same trick as
+  // compound assignment.
+  const asShift = (
+    node: Expression & { type: 'BinaryExpression' },
+    operator: '<<' | '>>',
+    operand: Expression,
+    shift: number,
+  ): Expression => ({
+    type: 'BinaryExpression',
+    operator,
+    left: operand,
+    right: {
+      type: 'NumberLiteral',
+      value: shift,
+      text: String(shift),
+      file: node.file,
+      line: node.line,
+      col: node.col,
+      resolvedType: 'untyped',
+      constValue: shift,
+    },
+    file: node.file,
+    line: node.line,
+    col: node.col,
+    resolvedType: node.resolvedType,
+    operandType: node.operandType,
+    constValue: null,
+  })
 
   const emitDivide = (node: Expression) => {
     if (node.type !== 'BinaryExpression') return
@@ -586,7 +639,24 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     if (node.type !== 'BinaryExpression') return
 
     if (node.operator === '<<' || node.operator === '>>') return emitShift(node)
-    if (node.operator === '/' || node.operator === '%') return emitDivide(node)
+
+    if (node.operator === '/' || node.operator === '%') {
+      // Signed is left alone deliberately. `sar` rounds toward minus infinity
+      // where division rounds toward zero, so -7 / 2 would give -4 rather than
+      // -3; correcting it needs a bias when the value is negative, and that is a
+      // separate decision (§21). Unsigned has no such trap.
+      const by = powerOfTwo(constOf(node.right))
+      if (by !== null && !isSigned(typeOf(node))) {
+        if (node.operator === '/') {
+          return emitShift(asShift(node, '>>', node.left, by), `/ ${1 << by} is >> ${by}`)
+        }
+        emitExpression(node.left)
+        // x % 2^k keeps the low k bits, and nothing else does.
+        ins('and', `ax, ${(1 << by) - 1}`, `% ${1 << by} is a mask`)
+        return
+      }
+      return emitDivide(node)
+    }
 
     if (node.operator in signedJumps) {
       emitJumpValue(node)
@@ -594,6 +664,17 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     }
 
     if (node.operator === '*') {
+      // Commutative, so either side may be the constant. Both cannot be: the
+      // resolver would have folded that before we got here.
+      const byRight = powerOfTwo(constOf(node.right))
+      if (byRight !== null) {
+        return emitShift(asShift(node, '<<', node.left, byRight), `* ${1 << byRight} is << ${byRight}`)
+      }
+      const byLeft = powerOfTwo(constOf(node.left))
+      if (byLeft !== null) {
+        return emitShift(asShift(node, '<<', node.right, byLeft), `* ${1 << byLeft} is << ${byLeft}`)
+      }
+
       emitOperands(node.left, node.right, true)
       ins('mul', 'bx', 'low 16 bits are sign-agnostic')
       return

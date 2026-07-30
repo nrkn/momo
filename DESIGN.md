@@ -1933,10 +1933,24 @@ emits `mov bx, 20` / `mul bx`. Factored, `20 = 5 << 2` and `5 = (y << 2) + y`:
 
 Three tiers, with the cutoff between the first two:
 
-- **Unconditional.** Powers of two up to 8 for `*`, and *all* powers of two for
-  unsigned `/` and `%`. Division is the clear case: `x / 8` as `shr ax, 3` is
-  ~6 cycles against ~160, and it is *smaller*. `x % 8` becomes `and ax, 7`.
-  There is no tradeoff to weigh.
+- **Unconditional — built.** Powers of two for `*`, and for unsigned `/` and `%`.
+  Division is the clear case: `x / 8` as `shr` is ~24 cycles against ~160, and it
+  is *smaller*. `x % 8` becomes `and ax, 7`. There is no tradeoff to weigh.
+
+  **Every** power of two, not just up to eight as this section first said: that
+  cap was more conservative than the numbers need. `mov bx, n` + `mul bx` is
+  5 bytes and ~125 cycles; `mov cl, k` + `shl ax, cl` is 4 bytes and at worst 68,
+  so the shift wins on both counts at any shift width.
+
+  Signed `/` and `%` are deliberately left as `idiv`, which is what the trap
+  below asks for. Signed `*` **is** reduced — `shl` is bit-identical to a
+  multiply in the low 16 bits, so the sign never enters into it.
+
+  Measured on `data/projects/tilefill`, which has two `* 8` per row: 8.5% off a
+  full screen, ~4.13s to ~3.78s at 4.77MHz. The estimate beforehand was 9.7%,
+  and the shortfall is entirely the first trap below — it assumed a shift of
+  three cost ~6 cycles, where through CL it costs 20. Unrolling would recover
+  the rest.
 - **Behind `-o`.** Odd residues of 3, 5, 7 and 9, which covers 10, 40, 80, 160
   and 320 — practically every 2D stride is `2^k x small`, so this catches almost
   everything real with no search.
@@ -1949,6 +1963,13 @@ Two traps:
   through CL costs 24 where four separate `shl ax, 1` cost 8. The current rule
   ("unroll if the count is 2 or less, otherwise use CL") is *size*-optimal and
   actively poor for speed. Under `-o` it should unroll to about 8.
+
+  **Strength reduction made this trap load-bearing rather than theoretical.**
+  Reducing `* 8` produces a shift of three, which is exactly where CL becomes
+  slow — 20 cycles against 6 unrolled, for 2 bytes. So the reduction delivers
+  about 80% of what it could, and the remainder is one policy decision away.
+  Left alone deliberately: unrolling trades size for speed everywhere, not only
+  in reduced multiplies, and that is what `-o` is for.
 - **Signed division by a power of two is not just `sar`.** `sar` rounds toward
   minus infinity while division rounds toward zero, so `-7 / 2` yields -4 rather
   than -3. The value must be biased by `2^k - 1` when negative first — about five

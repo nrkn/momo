@@ -491,8 +491,7 @@ checksum:
         push    ax                          ; save lhs: rhs is not a leaf
         mov     al, [checksum__i]
         xor     ah, ah                      ; u8 -> u16
-        mov     bx, 2
-        mul     bx                          ; low 16 bits are sign-agnostic
+        shl     ax, 1                       ; * 2 is << 1
         mov     bx, ax
         pop     ax
         or      ax, bx
@@ -557,9 +556,7 @@ checksum:
         mov     [value], ax
 ; ---- value = value / 2 + 1               // bare /
         mov     ax, [value]
-        mov     bx, 2
-        xor     dx, dx                      ; clear high half for div
-        div     bx
+        shr     ax, 1                       ; / 2 is >> 1
         add     ax, 1
         mov     [value], ax
 ; ---- if (delta != 0 && signedAcc >= 0) {

@@ -132,8 +132,8 @@ putNumber:
 slotOf:
 ; ---- return frame * frameSize + field
         mov     ax, [slotOf__frame]
-        mov     bx, 4
-        mul     bx                          ; low 16 bits are sign-agnostic
+        shl     ax, 1                       ; * 4 is << 2
+        shl     ax, 1
         mov     bx, [slotOf__field]
         add     ax, bx
         mov     [slotOf__ret], ax

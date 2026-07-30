@@ -1,0 +1,50 @@
+// strred.momo - strength reduction: powers of two become shifts and masks.
+//
+// The values are chosen so a wrong reduction gives a different number, not the
+// same one. In particular the signed division cases distinguish `sar` from
+// `idiv`: -7 / 2 is -3 rounding toward zero, and -4 rounding toward minus
+// infinity, so a `sar` here would be visible.
+
+include "std/io.momo"
+
+u16 u
+i16 s
+
+// ---- unsigned multiply, including 16-bit truncation ----
+u = 10000
+putNumber( u * 8 )            // 80000 truncated = 14464
+putChar( ' ' )
+u = 65535
+putNumber( u * 2 )            // 131070 truncated = 65534
+newline()
+
+// ---- unsigned divide and modulo ----
+u = 1005
+putNumber( u / 8 )            // 125
+putChar( ' ' )
+putNumber( u % 8 )            // 5
+newline()
+
+// ---- not powers of two, so mul and div paths stay ----
+u = 1005
+putNumber( u * 3 )            // 3015
+putChar( ' ' )
+putNumber( u / 10 )           // 100
+putChar( ' ' )
+putNumber( u % 10 )           // 5
+newline()
+
+// ---- signed multiply DOES reduce: shl is sign-agnostic in 16 bits ----
+s = -7
+putNumber( u16( s * 8 ) )     // -56 as a bit pattern = 65480
+putChar( ' ' )
+s = -1000
+putNumber( u16( s * 8 ) )     // -8000 = 57536
+newline()
+
+// ---- signed divide must NOT reduce ----
+s = -7
+putNumber( u16( s / 2 ) )     // -3 = 65533, and NOT -4 = 65532
+putChar( ' ' )
+putNumber( u16( s % 2 ) )     // -1 = 65535
+newline()

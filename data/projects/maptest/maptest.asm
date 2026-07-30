@@ -30,8 +30,8 @@ __entry:
 .L8:
 ; ---- putChar(tileAt(x, y))
         mov     ax, [y]
-        mov     bx, 8
-        mul     bx                          ; low 16 bits are sign-agnostic
+        mov     cl, 3                       ; 8086 has no shift-by-immediate
+        shl     ax, cl                      ; * 8 is << 3
         mov     bx, [x]
         add     ax, bx
         mov     bx, ax
@@ -69,8 +69,8 @@ __entry:
 .L16:
 ; ---- if (tileAt(x, y) == '#') walls++
         mov     ax, [y]
-        mov     bx, 8
-        mul     bx                          ; low 16 bits are sign-agnostic
+        mov     cl, 3                       ; 8086 has no shift-by-immediate
+        shl     ax, cl                      ; * 8 is << 3
         mov     bx, [x]
         add     ax, bx
         mov     bx, ax

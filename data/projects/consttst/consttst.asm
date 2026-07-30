@@ -220,8 +220,7 @@ double:
 ; ---- u16 double(u8 n) => n * 2
         mov     al, [double__n]
         xor     ah, ah                      ; u8 -> u16
-        mov     bx, 2
-        mul     bx                          ; low 16 bits are sign-agnostic
+        shl     ax, 1                       ; * 2 is << 1
         mov     [double__ret], ax
         ret
 

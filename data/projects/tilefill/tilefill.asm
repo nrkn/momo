@@ -128,8 +128,8 @@ blit:
 ; ---- dest = ( u16( ty ) * tileH + row ) * screenW + u16( tx ) * tileW
         mov     al, [blit__ty]
         xor     ah, ah                      ; u8 -> u16
-        mov     bx, 8
-        mul     bx                          ; low 16 bits are sign-agnostic
+        mov     cl, 3                       ; 8086 has no shift-by-immediate
+        shl     ax, cl                      ; * 8 is << 3
         mov     bx, [blit__row]
         add     ax, bx
         mov     bx, 320
@@ -137,8 +137,8 @@ blit:
         push    ax                          ; save lhs: rhs is not a leaf
         mov     al, [blit__tx]
         xor     ah, ah                      ; u8 -> u16
-        mov     bx, 8
-        mul     bx                          ; low 16 bits are sign-agnostic
+        mov     cl, 3                       ; 8086 has no shift-by-immediate
+        shl     ax, cl                      ; * 8 is << 3
         mov     bx, ax
         pop     ax
         add     ax, bx
@@ -147,8 +147,8 @@ blit:
         mov     ax, [blit__from]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [blit__row]
-        mov     bx, 8
-        mul     bx                          ; low 16 bits are sign-agnostic
+        mov     cl, 3                       ; 8086 has no shift-by-immediate
+        shl     ax, cl                      ; * 8 is << 3
         mov     bx, ax
         pop     ax
         add     ax, bx
