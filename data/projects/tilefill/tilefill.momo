@@ -1,0 +1,96 @@
+// tilefill.momo - a tile blitter: two 8x8 tiles, checkerboarded over mode 13h.
+//
+// The shape a tile engine actually has, which makes it the honest test of a few
+// things nothing else exercises: many far writes inside one routine, a near read
+// and a far write in the same loop, and `y * 320` address arithmetic.
+
+include "std/key.momo"
+
+// 320 x 200, one byte per pixel, each an index into the palette.
+far u8[64000] pixels = 0xA000
+
+const tileW  = 8
+const tileH  = 8
+const screenW = 320
+
+// Derived rather than stated. len() works on a far region when it was declared
+// with a size, and that size is an assertion about hardware rather than
+// something the compiler measured.
+const screenH     = len( pixels ) / screenW   // 200
+const tilesAcross = screenW / tileW           // 40
+const tilesDown   = screenH / tileH           // 25
+const tileBytes   = tileW * tileH             // 64
+
+// Both tiles in one array. Routines take scalars, so a tile cannot be passed -
+// an offset into the set can, which is how a real tile engine does it anyway.
+const u8[] tiles = [
+  // 0: brick - red with white mortar
+  15,15,15,15,15,15,15,15,
+   4, 4, 4,15, 4, 4, 4,15,
+   4, 4, 4,15, 4, 4, 4,15,
+  15,15,15,15,15,15,15,15,
+   4,15, 4, 4, 4,15, 4, 4,
+   4,15, 4, 4, 4,15, 4, 4,
+  15,15,15,15,15,15,15,15,
+   4, 4, 4,15, 4, 4, 4,15,
+
+  // 64: a blue diamond on black
+   0, 0, 0, 9, 9, 0, 0, 0,
+   0, 0, 9, 1, 1, 9, 0, 0,
+   0, 9, 1, 1, 1, 1, 9, 0,
+   9, 1, 1, 1, 1, 1, 1, 9,
+   9, 1, 1, 1, 1, 1, 1, 9,
+   0, 9, 1, 1, 1, 1, 9, 0,
+   0, 0, 9, 1, 1, 9, 0, 0,
+   0, 0, 0, 9, 9, 0, 0, 0,
+]
+
+u8  savedMode
+u8  tx
+u8  ty
+
+// Copies one tile to grid position (tx, ty). `from` is a byte offset into
+// `tiles`. Sixty-four far writes per call, which is the shape §16's ES hoisting
+// would reward - one segment load for the routine instead of one per pixel.
+sub blit( u16 from, u8 tx, u8 ty ) {
+  u16 row
+  u16 col
+  u16 dest
+  u16 src
+
+  for( row = 0; row < tileH; row++ ){
+    dest = ( u16( ty ) * tileH + row ) * screenW + u16( tx ) * tileW
+    src  = from + row * tileW
+
+    for( col = 0; col < tileW; col++ ){
+      pixels[ dest + col ] = tiles[ src + col ]
+    }
+  }
+}
+
+// ---- entry ----
+
+_ah = 0x0F
+int 0x10
+savedMode = _al & 0x7F
+
+// AH=00h, AL=13h: 320x200, 256 colours, linear at 0xA000.
+_ax = 0x0013
+int 0x10
+
+for( ty = 0; ty < tilesDown; ty++ ){
+  for( tx = 0; tx < tilesAcross; tx++ ){
+    if( ( ( tx + ty ) & 1 ) == 0 ){
+      blit( 0, tx, ty )
+    } else {
+      blit( tileBytes, tx, ty )
+    }
+  }
+}
+
+readKey()
+
+// Restore the mode we found, which also clears the screen.
+_ah = 0x00
+_al = savedMode
+int 0x10

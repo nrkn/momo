@@ -1301,10 +1301,26 @@ Break-even is three accesses, or a loop of three-plus iterations inside the
 routine. It rewards a routine that does a block of work and penalises the
 per-pixel one, which is the shape most people reach for first.
 
-Worth building when something has the blitter shape. Not worth building for a
-demo, and the honest priority in a pixel loop is the 55%, not the 4% — that is
-§21's territory: a register-held loop counter and short jumps when the body is
-provably in range, which would speed up every loop rather than only far ones.
+**And the blitter shape does not rescue it.** `data/projects/tilefill` is that
+shape — 64 far writes per call, one segment — and measured over a full screen of
+1000 tiles at ~19.7M cycles:
+
+| | share | |
+|---|---|---|
+| Inner loop machinery | 27.6% | register counter, short jumps (§21) |
+| Index recomputation | 21.4% | `dest`/`src` reloaded per pixel; SI and DI are free (§9) |
+| Multiplies in row setup | 15.2% | `* 8` twice and `* 320` once |
+| `push`/`pop` per pixel | 8.8% | saving AL while the index is computed |
+| **ES load** | **1.9%** | what hoisting removes, net of `push es`/`pop es` |
+
+Hoisting is last on the list in its own best case. **Strength reduction on `* 8`
+alone is worth 9.7%** — five times more — and §21 already files powers of two up
+to 8 under "unconditional, no tradeoff to weigh". Register-holding the loop
+counter and the two offsets is worth more again.
+
+So ES hoisting stays unbuilt, not because it is wrong but because it is the
+smallest item in the loop it was designed for. Build it when the four rows above
+it are done and it is no longer the 1.9%.
 
 > **Benchmarking note.** DOSBox cannot measure this. `cycles = auto` makes it
 > adjust its budget against host load, so wall-clock time measures the host; and
