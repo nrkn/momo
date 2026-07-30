@@ -1012,6 +1012,17 @@ actually run under DOSBox with stdout redirected to a file, then compared
 exactly. This is the tier that catches what unit tests structurally cannot:
 bugs at the NASM boundary, and bugs that only appear when real 8086 code runs.
 
+**Graphics is testable, which is not obvious.** Video memory is readable as well
+as writable, so a program can draw, read specific cells or pixels back into
+variables, and print what it found — and under the tier 2 harness the printing
+is redirected to a file while the drawing still goes to the screen. No
+screen-scraping, no image comparison, fully deterministic. `fartest` does it for
+text cells; `tilefill` was checked the same way, five pixels covering both tiles,
+two rows and a tile at a non-zero position to catch stride arithmetic.
+
+What it cannot cover is anything that waits for a key — tier 2 has no way to
+press one — so the three demos are golden-tier only.
+
 **Unit tests, only for `types.ts`.** `combineRanges`, `truncate` and
 `naturalType` encode facts about 16-bit integers rather than design choices, so
 their contract will not move. Everything else is tested end to end.
@@ -1307,20 +1318,23 @@ shape — 64 far writes per call, one segment — and measured over a full scree
 
 | | share | |
 |---|---|---|
-| Inner loop machinery | 27.6% | register counter, short jumps (§21) |
-| Index recomputation | 21.4% | `dest`/`src` reloaded per pixel; SI and DI are free (§9) |
-| Multiplies in row setup | 15.2% | `* 8` twice and `* 320` once |
-| `push`/`pop` per pixel | 8.8% | saving AL while the index is computed |
-| **ES load** | **1.9%** | what hoisting removes, net of `push es`/`pop es` |
+| Inner loop machinery | 30.2% | register counter, short jumps (§21) |
+| Index recomputation | 23.4% | `dest`/`src` reloaded per pixel; SI and DI are free (§9) |
+| `push`/`pop` per pixel | 9.6% | saving AL while the index is computed |
+| The remaining `* 320` | 5.7% | odd residue 5, so behind `-o` (§21) |
+| **ES load** | **2.1%** | what hoisting removes, net of `push es`/`pop es` |
+| The two `shl` reduction left behind | 2.1% | unrolling would make this ~0.6% |
 
-Hoisting is last on the list in its own best case. **Strength reduction on `* 8`
-alone is worth 9.7%** — five times more — and §21 already files powers of two up
-to 8 under "unconditional, no tradeoff to weigh". Register-holding the loop
-counter and the two offsets is worth more again.
+Hoisting is last but one, in the shape it was designed for. That table is *after*
+§21's strength reduction, which took the screen from 19.7M cycles to 18.0M — the
+row that read "multiplies in row setup, 15.2%" is gone, and the two shifts that
+replaced it are now smaller than the ES load itself.
 
-So ES hoisting stays unbuilt, not because it is wrong but because it is the
-smallest item in the loop it was designed for. Build it when the four rows above
-it are done and it is no longer the 1.9%.
+So ES hoisting stays unbuilt: not wrong, just never the biggest thing left. The
+order to work down is the table — a register-held loop counter, then holding
+`dest` and `src` in SI and DI instead of reloading them, then the odd-residue
+multiply. **This table is the performance roadmap; keep it measured rather than
+estimated, since every entry on it has been wrong at least once.**
 
 > **Benchmarking note.** DOSBox cannot measure this. `cycles = auto` makes it
 > adjust its budget against host load, so wall-clock time measures the host; and

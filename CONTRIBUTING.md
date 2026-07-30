@@ -93,6 +93,20 @@ nothing. Run `npx tsc` after restoring. This produced one false all-clear.
 subset mechanically. A 186+ instruction becomes an assembly error rather than a
 silent portability bug.
 
+**DOSBox cannot measure performance.** `cycles = auto` in `data/dosbox.conf`
+means it adjusts its own budget against host load, so wall-clock time measures
+the host. Pinned to a fixed count it becomes repeatable, but its normal core
+charges roughly per *instruction* rather than modelling `mul` at 118 cycles
+against `shl` at 2 — so it would rank optimisations wrongly. Count instructions
+in the emitted `.asm` and apply documented 8086 timings instead; that is exact,
+and it is what the tables in DESIGN §16 and §21 are built from. Run under DOSBox
+to check correctness, not speed.
+
+**`git status` can show a generated `.asm` as modified when `git diff` is empty.**
+The emitter writes CRLF, `core.autocrlf` is `input`, so the working tree and the
+stored blob differ in line endings while comparing identical after normalisation.
+`git diff --stat` is the honest check after regenerating; `git status` is not.
+
 ## Working practices
 
 **Verify by running, not by reading.** Almost every real bug here was invisible
