@@ -260,30 +260,37 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     }
   }
 
-  // Loads a plain byte from memory into AL WITHOUT widening, and reports the
-  // type it loaded. Returns null - having emitted nothing - when the operand is
-  // anything else, so callers fall back to the ordinary widened path.
-  //
-  // Only a bare load qualifies. `x + 1` needs the widening, because arithmetic
-  // happens in 16 bits.
-  const emitByteLoad = (node: Expression): ValueType | null => {
+  // The type of a bare byte load - a byte variable, or an element of a byte
+  // array - or null for anything else. Only a bare load qualifies: `x + 1`
+  // needs the widening, because arithmetic happens in 16 bits.
+  const byteTypeOf = (node: Expression): ValueType | null => {
     if (constOf(node) !== null) return null
 
     if (node.type === 'Identifier') {
       const symbol = symbolFor(node.label)
-      if (symbol.kind !== 'var' || widthOf(symbol.type) !== 1) return null
-      loadVariable(symbol, false)
-      return symbol.type
+      return symbol.kind === 'var' && widthOf(symbol.type) === 1 ? symbol.type : null
     }
 
     if (node.type === 'IndexExpression') {
       const symbol = symbolFor(node.array.label)
-      if (symbol.kind !== 'array' || widthOf(symbol.elementType) !== 1) return null
-      emitIndexLoad(node, false)
-      return symbol.elementType
+      return symbol.kind === 'array' && widthOf(symbol.elementType) === 1
+        ? symbol.elementType
+        : null
     }
 
     return null
+  }
+
+  // Loads a plain byte from memory into AL WITHOUT widening, and reports the
+  // type it loaded. Returns null - having emitted nothing - when the operand is
+  // anything else, so callers fall back to the ordinary widened path.
+  const emitByteLoad = (node: Expression): ValueType | null => {
+    const type = byteTypeOf(node)
+    if (type === null) return null
+
+    if (node.type === 'Identifier') loadVariable(symbolFor(node.label), false)
+    else if (node.type === 'IndexExpression') emitIndexLoad(node, false)
+    return type
   }
 
   // Leaves the operand's truth in ZF. A byte is zero exactly when its widening
@@ -541,7 +548,10 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
   const emitExpression = (node: Expression) => {
     const fixed = constOf(node)
     if (fixed !== null) {
-      ins('mov', `ax, ${fixed}`)
+      // The classic zero idiom: one byte shorter than `mov ax, 0`, and nothing
+      // here has flags to preserve.
+      if (fixed === 0) ins('xor', 'ax, ax', '0')
+      else ins('mov', `ax, ${fixed}`)
       return
     }
 
@@ -681,6 +691,15 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     }
 
     const operand = emitOperands(node.left, node.right, false)
+
+    // `inc`/`dec` are a third the size of `add ax, 1` and twice as fast. They
+    // leave CF alone where `add` would set it, but nothing reads CF between
+    // expressions - `_cf` is captured inside the int helpers only.
+    if (operand === '1' && (node.operator === '+' || node.operator === '-')) {
+      ins(node.operator === '+' ? 'inc' : 'dec', 'ax')
+      return
+    }
+
     ins(arithmeticOps[node.operator] ?? 'add', `ax, ${operand}`)
   }
 
@@ -692,6 +711,14 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
   // ---- conditions in control-flow context -----------------------------------
 
   const emitJumpIfFalse = (node: Expression, target: string) => {
+    // A test that folded to a constant needs no code. `while (true)` lands here
+    // as 1: never false, so no jump and no dead `mov ax, 1` / `test`.
+    const fixed = constOf(node)
+    if (fixed !== null) {
+      if (fixed === 0) ins('jmp', target)
+      return
+    }
+
     if (node.type === 'UnaryExpression' && node.operator === '!') {
       emitJumpIfTrue(node.argument, target)
       return
@@ -724,6 +751,14 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
   }
 
   const emitJumpIfTrue = (node: Expression, target: string) => {
+    // Mirror of emitJumpIfFalse: `do { } while (true)` is an unconditional
+    // jump back, not a test of a constant.
+    const fixed = constOf(node)
+    if (fixed !== null) {
+      if (fixed !== 0) ins('jmp', target)
+      return
+    }
+
     if (node.type === 'UnaryExpression' && node.operator === '!') {
       emitJumpIfFalse(node.argument, target)
       return
@@ -759,8 +794,56 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     return `${kind} ${node.operator}`
   }
 
+  // The right-hand operand for a byte-width compare, or null when the compare
+  // must widen. Both operands have to be byte loads of the SAME signedness - or
+  // a constant the byte's own range holds - and that signedness must agree with
+  // the jump table the comparison already chose. Mixed u8/i8 stays widened:
+  // 0xC8 is 200 as a u8 and -56 as an i8, so the bytes comparing equal would be
+  // the wrong answer even for `==`.
+  const byteCompareOperand = (node: Expression & { type: 'BinaryExpression' }): string | null => {
+    const leftType = byteTypeOf(node.left)
+    if (leftType === null) return null
+
+    const signed = isSigned(node.operandType ?? 'u16')
+    if ((leftType === 'i8') !== signed) return null
+
+    const fixed = constOf(node.right)
+    if (fixed !== null) {
+      const holds = signed ? fixed >= -128 && fixed <= 127 : fixed >= 0 && fixed <= 255
+      return holds ? `${fixed}` : null
+    }
+
+    // Only a plain byte variable: an array element on the right would need AX
+    // for its index while AL holds the left operand.
+    if (node.right.type !== 'Identifier') return null
+    const symbol = symbolFor(node.right.label)
+    if (symbol.kind !== 'var' || widthOf(symbol.type) !== 1) return null
+    if ((symbol.type === 'i8') !== signed) return null
+    return `[${symbol.label}]`
+  }
+
   const emitCompare = (node: Expression) => {
     if (node.type !== 'BinaryExpression') return
+
+    // Byte operands compare in AL, skipping the widening: an 8-bit cmp leaves
+    // the same flags the widened 16-bit cmp would, provided the signedness
+    // matches - which byteCompareOperand has checked.
+    const byteOperand = byteCompareOperand(node)
+    if (byteOperand !== null) {
+      emitByteLoad(node.left)
+      // Against zero, `test` is the idiom: same flags as cmp with 0 (OF and CF
+      // clear either way), one byte shorter.
+      if (byteOperand === '0') ins('test', 'al, al')
+      else ins('cmp', `al, ${byteOperand}`, 'byte operands, no widening')
+      return
+    }
+
+    if (constOf(node.right) === 0) {
+      emitExpression(node.left)
+      ins('test', 'ax, ax')
+      return
+    }
+
     const operand = emitOperands(node.left, node.right, false)
     ins('cmp', `ax, ${operand}`)
   }
@@ -823,31 +906,50 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     ins('mov', width === 2 ? `[${symbol.label} + bx], ax` : `[${symbol.label} + bx], al`)
   }
 
-  // `x = 0` is `mov byte [x], 0` - no round trip through AX.
+  // `x = 0` is `mov byte [x], 0` - no round trip through AX. A constant value
+  // also never needs saving while an index is computed - it is an immediate in
+  // the store itself - so the push/pop the general path pays disappears too.
   const storeConstant = (target: LValue, value: number | null): boolean => {
     if (value === null) return false
 
-    let symbol: MomoSymbol
-    let at: string
-    let width: number
-
     if (target.type === 'Identifier') {
-      symbol = symbolFor(target.label)
+      const symbol = symbolFor(target.label)
       if (symbol.kind !== 'var') return false
-      width = widthOf(symbol.type)
-      at = symbol.label
-    } else {
-      symbol = symbolFor(target.array.label)
-      if (symbol.kind !== 'array') return false
-      const fixed = constOf(target.index)
-      if (fixed === null) return false
-      width = widthOf(symbol.elementType)
-      const offset = fixed * width
-      at = offset === 0 ? symbol.label : `${symbol.label} + ${offset}`
+      const width = widthOf(symbol.type)
+      const mask = width === 2 ? 0xffff : 0xff
+      ins('mov', `${width === 2 ? 'word' : 'byte'} [${symbol.label}], ${value & mask}`)
+      return true
     }
 
-    const mask = width === 2 ? 0xffff : 0xff
-    ins('mov', `${width === 2 ? 'word' : 'byte'} [${at}], ${value & mask}`)
+    const symbol = symbolFor(target.array.label)
+    if (symbol.kind !== 'array' && symbol.kind !== 'far') return false
+
+    const width = widthOf(symbol.elementType)
+    const size = width === 2 ? 'word' : 'byte'
+    const masked = value & (width === 2 ? 0xffff : 0xff)
+    const fixed = constOf(target.index)
+
+    if (fixed !== null) {
+      if (symbol.kind === 'far') {
+        loadSegment(symbol)
+        ins('mov', `${size} [${farOperand(symbol, fixed * width)}], ${masked}`)
+        return true
+      }
+      const offset = fixed * width
+      const at = offset === 0 ? symbol.label : `${symbol.label} + ${offset}`
+      ins('mov', `${size} [${at}], ${masked}`)
+      return true
+    }
+
+    emitExpression(target.index)
+    if (width === 2) ins('shl', 'ax, 1', 'word elements')
+    ins('mov', 'bx, ax')
+    if (symbol.kind === 'far') {
+      loadSegment(symbol)
+      ins('mov', `${size} [${farOperand(symbol, null)}], ${masked}`)
+      return true
+    }
+    ins('mov', `${size} [${symbol.label} + bx], ${masked}`)
     return true
   }
 

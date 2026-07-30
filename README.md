@@ -26,14 +26,15 @@ The generated assembly is meant to be read — every statement is quoted above t
 code it produced, and each instruction choice is annotated with the reason:
 
 ```nasm
-; ---- for (x = x1; x <= x2; x++) ----
+; ---- for (x = x1; x <= x2; x++) {
+        mov     al, [x1]
+        mov     [x], al                     ; u8 -> u8, no widening
+.L1:
         mov     al, [x]
-        xor     ah, ah                      ; u8 -> u16
-        mov     bl, [x2]
-        xor     bh, bh
-        cmp     ax, bx
-        jbe     .for1_body                  ; unsigned <= (both operands u8)
-        jmp     .for1_end
+        cmp     al, [x2]                    ; byte operands, no widening
+        jbe     .L4                         ; unsigned <=
+        jmp     .L3
+.L4:
 ```
 
 ## Why
@@ -119,9 +120,10 @@ npm start <name>                # run it
 npm run editor:install          # copies to ~/.vscode/extensions, then reload
 ```
 
-Syntax highlighting is **generated from the compiler's own token tables**, so it
-cannot drift from the language. `.vscode/tasks.json` adds a build task that puts
-compiler errors in the Problems panel.
+Syntax highlighting is **generated from the compiler's own token tables** — there
+is no hand-maintained copy, and `npm run grammar` brings it back in step whenever
+the language moves. `.vscode/tasks.json` adds a build task that puts compiler
+errors in the Problems panel.
 
 ## Documentation
 

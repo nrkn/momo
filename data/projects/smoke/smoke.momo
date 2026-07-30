@@ -39,6 +39,13 @@ u16  divN
 u16  divD
 bool divResult
 
+// Values chosen so signed and unsigned byte compares disagree: 200 is 0xC8,
+// negative if misread as signed, and -5 is 0xFB, large if misread as unsigned.
+u8   bigByte   = 200
+u8   smallByte = 100
+i8   negByte   = -5
+i8   posByte   = 100
+
 // ---- output ---------------------------------------------------------------
 
 sub putChar {
@@ -234,4 +241,17 @@ run()
 putBar()
 putBar()
 newline()
+
+// Same-signedness byte operands compare in AL with no widening. The values
+// make the signedness observable: misread, neither line prints its letter.
+if (bigByte > smallByte) {          // unsigned: 200 > 100
+  char = 'u'
+  putChar()
+}
+if (negByte < posByte) {            // signed: -5 < 100, though 0xFB > 0x64 unsigned
+  char = 'i'
+  putChar()
+}
+newline()
+
 peekKey()

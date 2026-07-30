@@ -82,7 +82,7 @@ __entry:
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- putNumber(isDigit('x'))
-        mov     ax, 0
+        xor     ax, ax                      ; 0
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- newline()
@@ -92,7 +92,7 @@ __entry:
         mov     [double__n], al             ; narrowed to u8
         call    double
         mov     ax, [double__ret]
-        add     ax, 1
+        inc     ax
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- putChar(' ')
@@ -108,7 +108,7 @@ __entry:
         mov     [double__n], al             ; narrowed to u8
         call    double
         mov     ax, [double__ret]
-        add     ax, 1
+        inc     ax
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- newline()
@@ -148,7 +148,7 @@ newline:
 putNumber:
 ; ---- if (n == 0) {
         mov     ax, [putNumber__n]
-        cmp     ax, 0
+        test    ax, ax
         je      .L7                         ; unsigned ==
         jmp     .L5
 .L7:
@@ -163,7 +163,7 @@ putNumber:
         mov     byte [putNumber__i], 0
 .L8:
         mov     ax, [putNumber__n]
-        cmp     ax, 0
+        test    ax, ax
         ja      .L11                        ; unsigned >
         jmp     .L10
 .L11:
@@ -194,15 +194,14 @@ putNumber:
 ; ---- for (; i > 0; i--) {
 .L12:
         mov     al, [putNumber__i]
-        xor     ah, ah                      ; u8 -> u16
-        cmp     ax, 0
+        test    al, al
         ja      .L15                        ; unsigned >
         jmp     .L14
 .L15:
 ; ---- putChar(digits[i - 1])
         mov     al, [putNumber__i]
         xor     ah, ah                      ; u8 -> u16
-        sub     ax, 1
+        dec     ax
         mov     bx, ax
         mov     al, [putNumber__digits + bx]
         xor     ah, ah                      ; u8 -> u16

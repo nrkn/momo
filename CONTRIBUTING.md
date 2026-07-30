@@ -134,9 +134,12 @@ leaving it to whoever remembers to read `git status`. When a change *is* meant
 to alter output, adopt it with `npm run momoc:all` and read the diff — that
 reading is the point of the tier, not a formality.
 
-**Regenerate the grammar** (`npm run grammar`) after touching `tokens.ts`, and
-verify the emitted regexes compile — a TypeScript template literal will turn
-`\b` into a backspace character if it is not doubled.
+**Regenerate the grammar** (`npm run grammar`) after touching `tokens.ts` *or
+the builtin globals in `resolver.ts`* — the grammar is generated from both, and
+`far` and `_cf` both reached main with the committed extension stale because
+this rule used to name only the first. Verify the emitted regexes compile — a
+TypeScript template literal will turn `\b` into a backspace character if it is
+not doubled.
 
 **A new mnemonic means editing DESIGN §1.** The instruction table and its count
 are the only record of the subset, and nothing checks them — `cpu 8086` stops
@@ -164,5 +167,5 @@ the display back, so none can have a `.expected` — tier 2 cannot run something
 that blocks. The golden tier still covers them, which is the regression coverage
 that matters for a compiler.
 
-141 tier-1 assertions (97 compile tests, 19 golden `.asm`, 25 type), 15 e2e
+146 tier-1 assertions (102 compile tests, 19 golden `.asm`, 25 type), 15 e2e
 programs, all green.

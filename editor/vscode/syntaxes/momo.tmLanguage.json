@@ -155,7 +155,7 @@
         },
         {
           "name": "keyword.control.momo",
-          "match": "\\b(group|fn|if|else|for|while|do|break|continue|return|int|len)\\b"
+          "match": "\\b(group|far|fn|if|else|for|while|do|break|continue|return|int|len)\\b"
         }
       ]
     },
@@ -165,7 +165,7 @@
     },
     "builtins": {
       "name": "variable.language.momo",
-      "match": "\\b(_ax|_al|_ah|_bx|_bl|_bh|_cx|_cl|_ch|_dx|_dl|_dh|_si|_di|_hsize|_heap|_heapw)\\b"
+      "match": "\\b(_ax|_al|_ah|_bx|_bl|_bh|_cx|_cl|_ch|_dx|_dl|_dh|_si|_di|_hsize|_cf|_heap|_heapw)\\b"
     },
     "numbers": {
       "patterns": [

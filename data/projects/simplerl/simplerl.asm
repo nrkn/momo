@@ -43,11 +43,6 @@ __entry:
         call    writeAt
 ; ---- while( true ){
 .L1:
-        mov     ax, 1
-        test    ax, ax
-        jnz     .L4
-        jmp     .L3
-.L4:
 ; ---- lastKey = readKey()
         call    readKey
         mov     ax, [readKey__ret]
@@ -56,11 +51,11 @@ __entry:
         mov     ax, [lastKey]
         xor     ah, ah                      ; cast to u8
         cmp     ax, 27
-        je      .L7                         ; unsigned ==
-        jmp     .L5
-.L7:
+        je      .L6                         ; unsigned ==
+        jmp     .L4
+.L6:
         jmp     .L3
-.L5:
+.L4:
 ; ---- oldPx = playerX
         mov     al, [playerX]
         mov     [oldPx], al                 ; u8 -> u8, no widening
@@ -74,19 +69,18 @@ __entry:
         mov     al, [isMove__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jnz     .L10
-        jmp     .L8
-.L10:
+        jnz     .L9
+        jmp     .L7
+.L9:
         mov     al, [playerY]
-        xor     ah, ah                      ; u8 -> u16
-        cmp     ax, 0
-        ja      .L11                        ; unsigned >
-        jmp     .L8
-.L11:
+        test    al, al
+        ja      .L10                        ; unsigned >
+        jmp     .L7
+.L10:
 ; ---- playerY--
         dec     byte [playerY]
-        jmp     .L9
-.L8:
+        jmp     .L8
+.L7:
 ; ---- } else if( isMove( keyDown ) && playerY < mapH - 1 ){
         mov     ax, 80
         mov     [isMove__key], al           ; narrowed to u8
@@ -94,19 +88,18 @@ __entry:
         mov     al, [isMove__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jnz     .L14
-        jmp     .L12
-.L14:
+        jnz     .L13
+        jmp     .L11
+.L13:
         mov     al, [playerY]
-        xor     ah, ah                      ; u8 -> u16
-        cmp     ax, 9
-        jb      .L15                        ; unsigned <
-        jmp     .L12
-.L15:
+        cmp     al, 9                       ; byte operands, no widening
+        jb      .L14                        ; unsigned <
+        jmp     .L11
+.L14:
 ; ---- playerY++
         inc     byte [playerY]
-        jmp     .L13
-.L12:
+        jmp     .L12
+.L11:
 ; ---- } else if( isMove( keyLeft ) && playerX > 0 ){
         mov     ax, 75
         mov     [isMove__key], al           ; narrowed to u8
@@ -114,19 +107,18 @@ __entry:
         mov     al, [isMove__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jnz     .L18
-        jmp     .L16
-.L18:
+        jnz     .L17
+        jmp     .L15
+.L17:
         mov     al, [playerX]
-        xor     ah, ah                      ; u8 -> u16
-        cmp     ax, 0
-        ja      .L19                        ; unsigned >
-        jmp     .L16
-.L19:
+        test    al, al
+        ja      .L18                        ; unsigned >
+        jmp     .L15
+.L18:
 ; ---- playerX--
         dec     byte [playerX]
-        jmp     .L17
-.L16:
+        jmp     .L16
+.L15:
 ; ---- } else if( isMove( keyRight ) && playerX < mapW - 1 ){
         mov     ax, 77
         mov     [isMove__key], al           ; narrowed to u8
@@ -134,21 +126,20 @@ __entry:
         mov     al, [isMove__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jnz     .L22
-        jmp     .L20
-.L22:
+        jnz     .L21
+        jmp     .L19
+.L21:
         mov     al, [playerX]
-        xor     ah, ah                      ; u8 -> u16
-        cmp     ax, 19
-        jb      .L23                        ; unsigned <
-        jmp     .L20
-.L23:
+        cmp     al, 19                      ; byte operands, no widening
+        jb      .L22                        ; unsigned <
+        jmp     .L19
+.L22:
 ; ---- playerX++
         inc     byte [playerX]
-.L20:
-.L17:
-.L13:
-.L9:
+.L19:
+.L16:
+.L12:
+.L8:
 ; ---- if( tileAt( playerX, playerY ) == '#'){
         mov     al, [playerY]
         xor     ah, ah                      ; u8 -> u16
@@ -161,17 +152,17 @@ __entry:
         mov     al, [map + bx]
         xor     ah, ah                      ; u8 -> u16
         cmp     ax, 35
-        je      .L26                        ; unsigned ==
-        jmp     .L24
-.L26:
+        je      .L25                        ; unsigned ==
+        jmp     .L23
+.L25:
 ; ---- playerX = oldPx
         mov     al, [oldPx]
         mov     [playerX], al               ; u8 -> u8, no widening
 ; ---- playerY = oldPy
         mov     al, [oldPy]
         mov     [playerY], al               ; u8 -> u8, no widening
-        jmp     .L25
-.L24:
+        jmp     .L24
+.L23:
 ; ---- writeAt( oldPx, oldPy, tileAt( oldPx, oldPy ), defAttr )
         mov     al, [oldPx]
         xor     ah, ah                      ; u8 -> u16
@@ -205,14 +196,14 @@ __entry:
         mov     ax, 14
         mov     [writeAt__attr], al         ; narrowed to u8
         call    writeAt
-.L25:
+.L24:
 .L2:
         jmp     .L1
 .L3:
 ; ---- moveTo( 0, 0 )
-        mov     ax, 0
+        xor     ax, ax                      ; 0
         mov     [moveTo__col], al           ; narrowed to u8
-        mov     ax, 0
+        xor     ax, ax                      ; 0
         mov     [moveTo__row], al           ; narrowed to u8
         call    moveTo
 ; ---- showCursor()
@@ -357,10 +348,10 @@ isMove:
 ; ---- bool isMove( u8 key ) => lo( lastKey ) == 0 && hi( lastKey ) == key
         mov     ax, [lastKey]
         xor     ah, ah                      ; cast to u8
-        cmp     ax, 0
-        je      .L29                        ; unsigned ==
-        jmp     .L27
-.L29:
+        test    ax, ax
+        je      .L28                        ; unsigned ==
+        jmp     .L26
+.L28:
         mov     ax, [lastKey]
         mov     cl, 8                       ; 8086 has no shift-by-immediate
         shr     ax, cl                      ; unsigned >>
@@ -368,14 +359,14 @@ isMove:
         mov     bl, [isMove__key]
         xor     bh, bh                      ; u8 -> u16
         cmp     ax, bx
-        je      .L30                        ; unsigned ==
-        jmp     .L27
-.L30:
+        je      .L29                        ; unsigned ==
+        jmp     .L26
+.L29:
         mov     ax, 1
-        jmp     .L28
-.L27:
+        jmp     .L27
+.L26:
         xor     ax, ax
-.L28:
+.L27:
         mov     [isMove__ret], al           ; narrowed to bool
         ret
 
@@ -384,22 +375,20 @@ isMove:
 draw:
 ; ---- for( y = 0; y < mapH; y++ ){
         mov     byte [y], 0
-.L31:
+.L30:
         mov     al, [y]
-        xor     ah, ah                      ; u8 -> u16
-        cmp     ax, 10
-        jb      .L34                        ; unsigned <
-        jmp     .L33
-.L34:
+        cmp     al, 10                      ; byte operands, no widening
+        jb      .L33                        ; unsigned <
+        jmp     .L32
+.L33:
 ; ---- for( x = 0; x < mapW; x++ ){
         mov     byte [x], 0
-.L35:
+.L34:
         mov     al, [x]
-        xor     ah, ah                      ; u8 -> u16
-        cmp     ax, 20
-        jb      .L38                        ; unsigned <
-        jmp     .L37
-.L38:
+        cmp     al, 20                      ; byte operands, no widening
+        jb      .L37                        ; unsigned <
+        jmp     .L36
+.L37:
 ; ---- ch = tileAt( x, y )
         mov     al, [y]
         xor     ah, ah                      ; u8 -> u16
@@ -414,13 +403,12 @@ draw:
         mov     [ch_], al                   ; narrowed to u8
 ; ---- if( ch == '#') ch = solidBlock
         mov     al, [ch_]
-        xor     ah, ah                      ; u8 -> u16
-        cmp     ax, 35
-        je      .L41                        ; unsigned ==
-        jmp     .L39
-.L41:
+        cmp     al, 35                      ; byte operands, no widening
+        je      .L40                        ; unsigned ==
+        jmp     .L38
+.L40:
         mov     byte [ch_], 219
-.L39:
+.L38:
 ; ---- writeAt( x, y, ch, defAttr )
         mov     al, [x]
         xor     ah, ah                      ; u8 -> u16
@@ -434,14 +422,14 @@ draw:
         mov     ax, 7
         mov     [writeAt__attr], al         ; narrowed to u8
         call    writeAt
-.L36:
+.L35:
         inc     byte [x]
-        jmp     .L35
-.L37:
-.L32:
+        jmp     .L34
+.L36:
+.L31:
         inc     byte [y]
-        jmp     .L31
-.L33:
+        jmp     .L30
+.L32:
         ret
 
 ; ==================================================== int helpers ====

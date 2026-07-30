@@ -1,0 +1,5 @@
+// EXPECT-ERROR: u8 is not a bool
+bool b
+u8 x
+
+b = x

@@ -21,8 +21,7 @@ __entry:
         mov     byte [i], 0
 .L1:
         mov     al, [i]
-        xor     ah, ah                      ; u8 -> u16
-        cmp     ax, 4
+        cmp     al, 4                       ; byte operands, no widening
         jb      .L4                         ; unsigned <
         jmp     .L3
 .L4:
@@ -49,13 +48,10 @@ __entry:
         pop     ax
         mov     [mob__hp + bx], ax
 ; ---- mob[i].alive = true
-        mov     ax, 1
-        push    ax                          ; save value while computing the index
         mov     al, [i]
         xor     ah, ah                      ; u8 -> u16
         mov     bx, ax
-        pop     ax
-        mov     [mob__alive + bx], al
+        mov     byte [mob__alive + bx], 1
 .L2:
         inc     byte [i]
         jmp     .L1
@@ -68,8 +64,7 @@ __entry:
         mov     byte [i], 0
 .L5:
         mov     al, [i]
-        xor     ah, ah                      ; u8 -> u16
-        cmp     ax, 4
+        cmp     al, 4                       ; byte operands, no widening
         jb      .L8                         ; unsigned <
         jmp     .L7
 .L8:
@@ -121,8 +116,7 @@ __entry:
         mov     byte [i], 0
 .L12:
         mov     al, [i]
-        xor     ah, ah                      ; u8 -> u16
-        cmp     ax, 4
+        cmp     al, 4                       ; byte operands, no widening
         jb      .L15                        ; unsigned <
         jmp     .L14
 .L15:
@@ -179,7 +173,7 @@ newline:
 putNumber:
 ; ---- if (n == 0) {
         mov     ax, [putNumber__n]
-        cmp     ax, 0
+        test    ax, ax
         je      .L18                        ; unsigned ==
         jmp     .L16
 .L18:
@@ -194,7 +188,7 @@ putNumber:
         mov     byte [putNumber__i], 0
 .L19:
         mov     ax, [putNumber__n]
-        cmp     ax, 0
+        test    ax, ax
         ja      .L22                        ; unsigned >
         jmp     .L21
 .L22:
@@ -225,15 +219,14 @@ putNumber:
 ; ---- for (; i > 0; i--) {
 .L23:
         mov     al, [putNumber__i]
-        xor     ah, ah                      ; u8 -> u16
-        cmp     ax, 0
+        test    al, al
         ja      .L26                        ; unsigned >
         jmp     .L25
 .L26:
 ; ---- putChar(digits[i - 1])
         mov     al, [putNumber__i]
         xor     ah, ah                      ; u8 -> u16
-        sub     ax, 1
+        dec     ax
         mov     bx, ax
         mov     al, [putNumber__digits + bx]
         xor     ah, ah                      ; u8 -> u16

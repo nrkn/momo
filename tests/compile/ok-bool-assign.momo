@@ -1,0 +1,22 @@
+// Everything that IS a bool can be assigned to one: literals, 0 and 1 (they
+// fit the range), comparisons, casts, the logical operators, a bool variable,
+// a ternary whose arms are both bool, and a bool-returning fn.
+
+bool a = true
+bool b
+u8 x
+
+bool flip(bool v) => !v
+
+b = false
+b = 1
+b = x != 0
+b = bool(x)
+b = a && b
+b = !a
+b = a
+b = x > 3 ? a : b
+b = flip(true)
+
+_ax = 0x4C00
+int 0x21

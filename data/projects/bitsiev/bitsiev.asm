@@ -85,7 +85,7 @@ newline:
 putNumber:
 ; ---- if (n == 0) {
         mov     ax, [putNumber__n]
-        cmp     ax, 0
+        test    ax, ax
         je      .L10                        ; unsigned ==
         jmp     .L8
 .L10:
@@ -100,7 +100,7 @@ putNumber:
         mov     byte [putNumber__i], 0
 .L11:
         mov     ax, [putNumber__n]
-        cmp     ax, 0
+        test    ax, ax
         ja      .L14                        ; unsigned >
         jmp     .L13
 .L14:
@@ -131,15 +131,14 @@ putNumber:
 ; ---- for (; i > 0; i--) {
 .L15:
         mov     al, [putNumber__i]
-        xor     ah, ah                      ; u8 -> u16
-        cmp     ax, 0
+        test    al, al
         ja      .L18                        ; unsigned >
         jmp     .L17
 .L18:
 ; ---- putChar(digits[i - 1])
         mov     al, [putNumber__i]
         xor     ah, ah                      ; u8 -> u16
-        sub     ax, 1
+        dec     ax
         mov     bx, ax
         mov     al, [putNumber__digits + bx]
         xor     ah, ah                      ; u8 -> u16
@@ -172,7 +171,7 @@ isComposite:
         mov     bx, ax
         pop     ax
         and     ax, bx
-        cmp     ax, 0
+        test    ax, ax
         jne     .L21                        ; unsigned !=
         jmp     .L19
 .L21:
@@ -227,12 +226,9 @@ clearBits:
         jmp     .L24
 .L25:
 ; ---- _heap[i] = 0
-        mov     ax, 0
-        push    ax                          ; save value while computing the index
         mov     ax, [i]
         mov     bx, ax
-        pop     ax
-        mov     [_heap + bx], al
+        mov     byte [_heap + bx], 0
 .L23:
         inc     word [i]
         jmp     .L22

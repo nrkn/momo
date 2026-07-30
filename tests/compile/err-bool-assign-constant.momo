@@ -1,0 +1,4 @@
+// EXPECT-ERROR: value 2 does not fit in bool
+bool b
+
+b = 2

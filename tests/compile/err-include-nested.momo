@@ -1,0 +1,4 @@
+// EXPECT-ERROR: include is only valid at the top level
+sub setup {
+  include "std/io.momo"
+}

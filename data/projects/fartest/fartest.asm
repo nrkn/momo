@@ -13,32 +13,26 @@ __entry:
 ; ---- setTextMode()
         call    setTextMode
 ; ---- cells[0] = 0x0741                 // 'A', attribute 7
-        mov     ax, 1857
         mov     dx, 0xB800                  ; segment of cells
         mov     es, dx
-        mov     [es:0], ax
+        mov     word [es:0], 1857
 ; ---- cells[1] = 0x0742                 // 'B'
-        mov     ax, 1858
         mov     dx, 0xB800                  ; segment of cells
         mov     es, dx
-        mov     [es:2], ax
+        mov     word [es:2], 1858
 ; ---- cells[5] = 0x0745                 // 'E'
-        mov     ax, 1861
         mov     dx, 0xB800                  ; segment of cells
         mov     es, dx
-        mov     [es:10], ax
+        mov     word [es:10], 1861
 ; ---- i = 3
         mov     word [i], 3
 ; ---- cells[i] = 0x0744                 // 'D'
-        mov     ax, 1860
-        push    ax                          ; save value while computing the index
         mov     ax, [i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     dx, 0xB800                  ; segment of cells
         mov     es, dx
-        pop     ax
-        mov     [es:bx], ax
+        mov     word [es:bx], 1860
 ; ---- word1 = cells[1]
         mov     dx, 0xB800                  ; segment of cells
         mov     es, dx
@@ -62,7 +56,7 @@ __entry:
         mov     ax, [es:10]
         mov     [viaOffset], ax
 ; ---- moveTo( 0, 2 )
-        mov     ax, 0
+        xor     ax, ax                      ; 0
         mov     [moveTo__col], al           ; narrowed to u8
         mov     ax, 2
         mov     [moveTo__row], al           ; narrowed to u8
@@ -139,7 +133,7 @@ newline:
 putNumber:
 ; ---- if (n == 0) {
         mov     ax, [putNumber__n]
-        cmp     ax, 0
+        test    ax, ax
         je      .L3                         ; unsigned ==
         jmp     .L1
 .L3:
@@ -154,7 +148,7 @@ putNumber:
         mov     byte [putNumber__i], 0
 .L4:
         mov     ax, [putNumber__n]
-        cmp     ax, 0
+        test    ax, ax
         ja      .L7                         ; unsigned >
         jmp     .L6
 .L7:
@@ -185,15 +179,14 @@ putNumber:
 ; ---- for (; i > 0; i--) {
 .L8:
         mov     al, [putNumber__i]
-        xor     ah, ah                      ; u8 -> u16
-        cmp     ax, 0
+        test    al, al
         ja      .L11                        ; unsigned >
         jmp     .L10
 .L11:
 ; ---- putChar(digits[i - 1])
         mov     al, [putNumber__i]
         xor     ah, ah                      ; u8 -> u16
-        sub     ax, 1
+        dec     ax
         mov     bx, ax
         mov     al, [putNumber__digits + bx]
         xor     ah, ah                      ; u8 -> u16
@@ -308,7 +301,7 @@ putNumber__digits times 5 db 0        ; u8[5]
 ; No storage is emitted - a .COM owns everything past its image, so
 ; these are addresses and NASM does the arithmetic.
 
-_hstack         equ     264        ; 8 worst-case + 256 interrupt reserve
+_hstack         equ     262        ; 6 worst-case + 256 interrupt reserve
 _htop           equ     0FFFEh - _hstack
 
 _hsize          dw      _htop - _heap        ; NASM computes this

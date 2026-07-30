@@ -722,7 +722,13 @@ export const resolve = (program: Program): ResolveResult => {
 
       const consequent = resolveExpression(node.consequent)
       const alternate = resolveExpression(node.alternate)
-      const type = combineOperands(consequent, alternate, '?:', node)
+      // The result is one of the arms, not arithmetic over them - so two bool
+      // arms stay bool, where range combination would promote to u16 and make
+      // `b = flag ? a : b` fail the bool assignment rule for no reason.
+      const type: ValueType =
+        consequent.type === 'bool' && alternate.type === 'bool'
+          ? 'bool'
+          : combineOperands(consequent, alternate, '?:', node)
 
       let value: number | null = null
       if (test.value !== null) value = test.value !== 0 ? consequent.value : alternate.value
@@ -1143,10 +1149,9 @@ export const resolve = (program: Program): ResolveResult => {
       // state about a literal whose value is right there. `u8 x = 300` has no
       // use as anything but a typo, and `u8(300)` says it deliberately.
       //
-      // `bool` is excluded because assigning to one is a truthiness conversion
-      // rather than a truncation - `truncate` normalises to 0/1 rather than
-      // masking - so "does not fit" would be the wrong thing to say.
-      if (value.value !== null && target !== 'bool' && !fits(value.value, target)) {
+      // A bool target takes the same rule: its range is {0, 1}, so `b = 1` is
+      // fine and `b = 2` does not fit.
+      if (value.value !== null && !fits(value.value, target)) {
         raise(
           at,
           `value ${value.value} does not fit in ${target}` +
@@ -1155,7 +1160,24 @@ export const resolve = (program: Program): ResolveResult => {
       }
       return
     }
-    if (value.type === 'bool' || target === 'bool') return
+
+    // A bool only takes a bool. The store is a raw byte - no normalisation is
+    // emitted - so admitting a scalar would let a bool hold 2, where `if (b)`
+    // says true and `b == true` says false at once. Comparisons, casts and the
+    // logical operators all produce a real bool, so the test is written where
+    // it is meant.
+    if (target === 'bool') {
+      if (value.type !== 'bool') {
+        raise(
+          at,
+          `${value.type} is not a bool - write a comparison ("x != 0"),` +
+            ' or bool(x) if the truthiness is deliberate',
+        )
+      }
+      return
+    }
+
+    if (value.type === 'bool') return
     // A runtime value still narrows implicitly on assignment, per §4.
   }
 
@@ -1223,6 +1245,12 @@ export const resolve = (program: Program): ResolveResult => {
     // Everything reaching resolveStatement is nested: a routine body, or a block
     // inside one - or inside a top-level loop, which is the original case.
     if (node.type === 'VariableDeclaration') return resolveVariableDeclaration(node, false)
+    // The loader splices includes at the top level of each file, so one nested
+    // in a block reaches the resolver unspliced - and silently including
+    // nothing would be the worst way to say no.
+    if (node.type === 'IncludeStatement') {
+      raise(node, 'include is only valid at the top level of a file')
+    }
     if (node.type === 'ConstFunctionDeclaration') {
       raise(node, 'a parameterised const must be declared at the top level')
     }
@@ -1250,6 +1278,12 @@ export const resolve = (program: Program): ResolveResult => {
       if (node.operator === '=') {
         checkAssignable(value, target.type, node.value)
         return
+      }
+
+      // `b += 1` would put arithmetic through a bool, exactly as `b++` would -
+      // and the result is not a bool, so the assignment half fails too.
+      if (target.type === 'bool') {
+        raise(node, `cannot apply "${node.operator}" to a bool`)
       }
 
       // `arr[i] op= e` loads through the index and stores through it again, so a

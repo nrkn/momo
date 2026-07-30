@@ -61,7 +61,7 @@ newline:
 putNumber:
 ; ---- if (n == 0) {
         mov     ax, [putNumber__n]
-        cmp     ax, 0
+        test    ax, ax
         je      .L3                         ; unsigned ==
         jmp     .L1
 .L3:
@@ -76,7 +76,7 @@ putNumber:
         mov     byte [putNumber__i], 0
 .L4:
         mov     ax, [putNumber__n]
-        cmp     ax, 0
+        test    ax, ax
         ja      .L7                         ; unsigned >
         jmp     .L6
 .L7:
@@ -107,15 +107,14 @@ putNumber:
 ; ---- for (; i > 0; i--) {
 .L8:
         mov     al, [putNumber__i]
-        xor     ah, ah                      ; u8 -> u16
-        cmp     ax, 0
+        test    al, al
         ja      .L11                        ; unsigned >
         jmp     .L10
 .L11:
 ; ---- putChar(digits[i - 1])
         mov     al, [putNumber__i]
         xor     ah, ah                      ; u8 -> u16
-        sub     ax, 1
+        dec     ax
         mov     bx, ax
         mov     al, [putNumber__digits + bx]
         xor     ah, ah                      ; u8 -> u16
@@ -179,7 +178,7 @@ pushFrame:
 ; ---- frameSet(sp, fN, n)
         mov     ax, [sp_]
         mov     [frameSet__frame], ax
-        mov     ax, 0
+        xor     ax, ax                      ; 0
         mov     [frameSet__field], ax
         mov     ax, [pushFrame__n]
         mov     [frameSet__value], ax
@@ -205,7 +204,7 @@ pushFrame:
         mov     [frameSet__frame], ax
         mov     ax, 3
         mov     [frameSet__field], ax
-        mov     ax, 0
+        xor     ax, ax                      ; 0
         mov     [frameSet__value], ax
         call    frameSet
 ; ---- sp++
@@ -253,18 +252,18 @@ solve:
 ; ---- while (sp > 0) {
 .L12:
         mov     ax, [sp_]
-        cmp     ax, 0
+        test    ax, ax
         ja      .L15                        ; unsigned >
         jmp     .L14
 .L15:
 ; ---- top = sp - 1
         mov     ax, [sp_]
-        sub     ax, 1
+        dec     ax
         mov     [solve__top], ax
 ; ---- n = frameGet(top, fN)
         mov     ax, [solve__top]
         mov     [frameGet__frame], ax
-        mov     ax, 0
+        xor     ax, ax                      ; 0
         mov     [frameGet__field], ax
         call    frameGet
         mov     ax, [frameGet__ret]
@@ -312,7 +311,7 @@ solve:
 .L16:
 ; ---- if (stage == 0) {
         mov     ax, [solve__stage]
-        cmp     ax, 0
+        test    ax, ax
         je      .L21                        ; unsigned ==
         jmp     .L19
 .L21:
@@ -326,7 +325,7 @@ solve:
         call    frameSet
 ; ---- pushFrame(n - 1, from, spare(from, to))
         mov     ax, [solve__n]
-        sub     ax, 1
+        dec     ax
         mov     [pushFrame__n], ax
         mov     ax, [solve__from]
         mov     [pushFrame__from], ax
@@ -362,7 +361,7 @@ solve:
         call    frameSet
 ; ---- pushFrame(n - 1, spare(from, to), to)
         mov     ax, [solve__n]
-        sub     ax, 1
+        dec     ax
         mov     [pushFrame__n], ax
         mov     ax, 6
         mov     bx, [solve__from]

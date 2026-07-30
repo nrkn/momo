@@ -19,7 +19,7 @@ __entry:
         mov     ax, 1
         jmp     .L2
 .L1:
-        mov     ax, 0
+        xor     ax, ax                      ; 0
 .L2:
         mov     [putNumber__n], ax
         call    putNumber
@@ -131,7 +131,7 @@ newline:
 putNumber:
 ; ---- if (n == 0) {
         mov     ax, [putNumber__n]
-        cmp     ax, 0
+        test    ax, ax
         je      .L14                        ; unsigned ==
         jmp     .L12
 .L14:
@@ -146,7 +146,7 @@ putNumber:
         mov     byte [putNumber__i], 0
 .L15:
         mov     ax, [putNumber__n]
-        cmp     ax, 0
+        test    ax, ax
         ja      .L18                        ; unsigned >
         jmp     .L17
 .L18:
@@ -177,15 +177,14 @@ putNumber:
 ; ---- for (; i > 0; i--) {
 .L19:
         mov     al, [putNumber__i]
-        xor     ah, ah                      ; u8 -> u16
-        cmp     ax, 0
+        test    al, al
         ja      .L22                        ; unsigned >
         jmp     .L21
 .L22:
 ; ---- putChar(digits[i - 1])
         mov     al, [putNumber__i]
         xor     ah, ah                      ; u8 -> u16
-        sub     ax, 1
+        dec     ax
         mov     bx, ax
         mov     al, [putNumber__digits + bx]
         xor     ah, ah                      ; u8 -> u16

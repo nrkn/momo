@@ -527,7 +527,6 @@ export const parse = (tokens: Token[]): Program => {
     }
   }
 
-  // `sub name { }`, `sub name() { }`, `sub name( args ) { }`, or any of those
   // A segment or offset: a literal, or a name that the resolver will insist is
   // either a scalar const or a `u16` variable. Deliberately not an expression -
   // see FarAddress.
@@ -657,6 +656,7 @@ export const parse = (tokens: Token[]): Program => {
     }
   }
 
+  // `sub name { }`, `sub name() { }`, `sub name( args ) { }`, or any of those
   // with `=> statement`. A sub is a routine with no return type.
   const parseSubDeclaration = (): RoutineDeclaration => {
     const start = expect('keyword', 'sub')

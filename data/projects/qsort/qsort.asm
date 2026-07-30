@@ -32,7 +32,7 @@ __entry:
 .L4:
 ; ---- if (_heapw[i - 1] > _heapw[i]) tmp++
         mov     ax, [i]
-        sub     ax, 1
+        dec     ax
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [_heapw + bx]
@@ -94,7 +94,7 @@ newline:
 putNumber:
 ; ---- if (n == 0) {
         mov     ax, [putNumber__n]
-        cmp     ax, 0
+        test    ax, ax
         je      .L10                        ; unsigned ==
         jmp     .L8
 .L10:
@@ -109,7 +109,7 @@ putNumber:
         mov     byte [putNumber__i], 0
 .L11:
         mov     ax, [putNumber__n]
-        cmp     ax, 0
+        test    ax, ax
         ja      .L14                        ; unsigned >
         jmp     .L13
 .L14:
@@ -140,15 +140,14 @@ putNumber:
 ; ---- for (; i > 0; i--) {
 .L15:
         mov     al, [putNumber__i]
-        xor     ah, ah                      ; u8 -> u16
-        cmp     ax, 0
+        test    al, al
         ja      .L18                        ; unsigned >
         jmp     .L17
 .L18:
 ; ---- putChar(digits[i - 1])
         mov     al, [putNumber__i]
         xor     ah, ah                      ; u8 -> u16
-        sub     ax, 1
+        dec     ax
         mov     bx, ax
         mov     al, [putNumber__digits + bx]
         xor     ah, ah                      ; u8 -> u16
@@ -195,7 +194,7 @@ pushRange:
         mov     ax, 20
         mov     bx, [sp_]
         add     ax, bx
-        add     ax, 1
+        inc     ax
         shl     ax, 1                       ; word elements
         mov     bx, ax
         pop     ax
@@ -225,7 +224,7 @@ popRange:
         mov     ax, 20
         mov     bx, [sp_]
         add     ax, bx
-        add     ax, 1
+        inc     ax
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [_heapw + bx]
@@ -306,7 +305,7 @@ quicksort:
 ; ---- while (sp > 0) {
 .L27:
         mov     ax, [sp_]
-        cmp     ax, 0
+        test    ax, ax
         ja      .L30                        ; unsigned >
         jmp     .L29
 .L30:
@@ -419,7 +418,7 @@ quicksort:
         mov     [lo], ax
 ; ---- hi = pivotAt - 1
         mov     ax, [pivotAt]
-        sub     ax, 1
+        dec     ax
         mov     [hi], ax
 ; ---- pushRange()
         call    pushRange
@@ -433,7 +432,7 @@ quicksort:
 .L43:
 ; ---- lo = pivotAt + 1
         mov     ax, [pivotAt]
-        add     ax, 1
+        inc     ax
         mov     [lo], ax
 ; ---- hi = fromHi
         mov     ax, [fromHi]

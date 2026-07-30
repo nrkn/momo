@@ -32,8 +32,7 @@ __entry:
         mov     byte [ty], 0
 .L1:
         mov     al, [ty]
-        xor     ah, ah                      ; u8 -> u16
-        cmp     ax, 25
+        cmp     al, 25                      ; byte operands, no widening
         jb      .L4                         ; unsigned <
         jmp     .L3
 .L4:
@@ -41,8 +40,7 @@ __entry:
         mov     byte [tx], 0
 .L5:
         mov     al, [tx]
-        xor     ah, ah                      ; u8 -> u16
-        cmp     ax, 40
+        cmp     al, 40                      ; byte operands, no widening
         jb      .L8                         ; unsigned <
         jmp     .L7
 .L8:
@@ -53,12 +51,12 @@ __entry:
         xor     bh, bh                      ; u8 -> u16
         add     ax, bx
         and     ax, 1
-        cmp     ax, 0
+        test    ax, ax
         je      .L11                        ; unsigned ==
         jmp     .L9
 .L11:
 ; ---- blit( 0, tx, ty )
-        mov     ax, 0
+        xor     ax, ax                      ; 0
         mov     [blit__from], ax
         mov     al, [tx]
         xor     ah, ah                      ; u8 -> u16

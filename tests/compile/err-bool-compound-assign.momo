@@ -1,0 +1,4 @@
+// EXPECT-ERROR: cannot apply "+=" to a bool
+bool b
+
+b += 1

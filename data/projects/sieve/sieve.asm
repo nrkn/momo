@@ -90,7 +90,7 @@ newline:
 putNumber:
 ; ---- if (n == 0) {
         mov     ax, [putNumber__n]
-        cmp     ax, 0
+        test    ax, ax
         je      .L10                        ; unsigned ==
         jmp     .L8
 .L10:
@@ -105,7 +105,7 @@ putNumber:
         mov     byte [putNumber__i], 0
 .L11:
         mov     ax, [putNumber__n]
-        cmp     ax, 0
+        test    ax, ax
         ja      .L14                        ; unsigned >
         jmp     .L13
 .L14:
@@ -136,15 +136,14 @@ putNumber:
 ; ---- for (; i > 0; i--) {
 .L15:
         mov     al, [putNumber__i]
-        xor     ah, ah                      ; u8 -> u16
-        cmp     ax, 0
+        test    al, al
         ja      .L18                        ; unsigned >
         jmp     .L17
 .L18:
 ; ---- putChar(digits[i - 1])
         mov     al, [putNumber__i]
         xor     ah, ah                      ; u8 -> u16
-        sub     ax, 1
+        dec     ax
         mov     bx, ax
         mov     al, [putNumber__digits + bx]
         xor     ah, ah                      ; u8 -> u16
@@ -191,12 +190,9 @@ runSieve:
         jmp     .L28
 .L29:
 ; ---- composite[j] = 1
-        mov     ax, 1
-        push    ax                          ; save value while computing the index
         mov     ax, [j]
         mov     bx, ax
-        pop     ax
-        mov     [composite + bx], al
+        mov     byte [composite + bx], 1
 .L27:
         mov     ax, [j]
         mov     bx, [i]

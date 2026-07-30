@@ -27,6 +27,30 @@ __entry:
         call    putBar
 ; ---- newline()
         call    newline
+; ---- if (bigByte > smallByte) {          // unsigned: 200 > 100
+        mov     al, [bigByte]
+        cmp     al, [smallByte]             ; byte operands, no widening
+        ja      .L3                         ; unsigned >
+        jmp     .L1
+.L3:
+; ---- char = 'u'
+        mov     byte [char], 117
+; ---- putChar()
+        call    putChar
+.L1:
+; ---- if (negByte < posByte) {            // signed: -5 < 100, though 0xFB > 0x64 unsigned
+        mov     al, [negByte]
+        cmp     al, [posByte]               ; byte operands, no widening
+        jl      .L6                         ; signed <
+        jmp     .L4
+.L6:
+; ---- char = 'i'
+        mov     byte [char], 105
+; ---- putChar()
+        call    putChar
+.L4:
+; ---- newline()
+        call    newline
 ; ---- peekKey()
         call    peekKey
 
@@ -87,22 +111,21 @@ peekKey:
 
 putSpaces:
 ; ---- while (spaceCount > 0) {
-.L1:
+.L7:
         mov     al, [spaceCount]
-        xor     ah, ah                      ; u8 -> u16
-        cmp     ax, 0
-        ja      .L4                         ; unsigned >
-        jmp     .L3
-.L4:
+        test    al, al
+        ja      .L10                        ; unsigned >
+        jmp     .L9
+.L10:
 ; ---- char = ' '
         mov     byte [char], 32
 ; ---- putChar()
         call    putChar
 ; ---- spaceCount--
         dec     byte [spaceCount]
-.L2:
-        jmp     .L1
-.L3:
+.L8:
+        jmp     .L7
+.L9:
         ret
 
 ; ============================================== sub putBar ====
@@ -111,21 +134,20 @@ putBar:
 ; ---- n = 0
         mov     byte [putBar__n], 0
 ; ---- do {
-.L5:
+.L11:
 ; ---- char = '-'
         mov     byte [char], 45
 ; ---- putChar()
         call    putChar
 ; ---- n++
         inc     byte [putBar__n]
-.L6:
+.L12:
         mov     al, [putBar__n]
-        xor     ah, ah                      ; u8 -> u16
-        cmp     ax, 3
-        jae     .L8                         ; unsigned <
-        jmp     .L5
-.L8:
-.L7:
+        cmp     al, 3                       ; byte operands, no widening
+        jae     .L14                        ; unsigned <
+        jmp     .L11
+.L14:
+.L13:
         ret
 
 ; ============================================== sub putNumber ====
@@ -136,25 +158,25 @@ putNumber:
         mov     [putNumber__n], ax
 ; ---- if (n == 0) {
         mov     ax, [putNumber__n]
-        cmp     ax, 0
-        je      .L11                        ; unsigned ==
-        jmp     .L9
-.L11:
+        test    ax, ax
+        je      .L17                        ; unsigned ==
+        jmp     .L15
+.L17:
 ; ---- char = zeroChar
         mov     byte [char], 48
 ; ---- putChar()
         call    putChar
 ; ---- return                          // bare early exit
         ret
-.L9:
+.L15:
 ; ---- for (i = 0; n > 0; i++) {
         mov     byte [putNumber__i], 0
-.L12:
+.L18:
         mov     ax, [putNumber__n]
-        cmp     ax, 0
-        ja      .L15                        ; unsigned >
-        jmp     .L14
-.L15:
+        test    ax, ax
+        ja      .L21                        ; unsigned >
+        jmp     .L20
+.L21:
 ; ---- digits[i] = u8(n % base) + zeroChar
         mov     ax, [putNumber__n]
         mov     bx, 10
@@ -175,31 +197,30 @@ putNumber:
         xor     dx, dx                      ; clear high half for div
         div     bx
         mov     [putNumber__n], ax
-.L13:
-        inc     byte [putNumber__i]
-        jmp     .L12
-.L14:
-; ---- for (; i > 0; i--) {              // empty init clause
-.L16:
-        mov     al, [putNumber__i]
-        xor     ah, ah                      ; u8 -> u16
-        cmp     ax, 0
-        ja      .L19                        ; unsigned >
-        jmp     .L18
 .L19:
+        inc     byte [putNumber__i]
+        jmp     .L18
+.L20:
+; ---- for (; i > 0; i--) {              // empty init clause
+.L22:
+        mov     al, [putNumber__i]
+        test    al, al
+        ja      .L25                        ; unsigned >
+        jmp     .L24
+.L25:
 ; ---- char = digits[i - 1]
         mov     al, [putNumber__i]
         xor     ah, ah                      ; u8 -> u16
-        sub     ax, 1
+        dec     ax
         mov     bx, ax
         mov     al, [digits + bx]
         mov     [char], al                  ; u8 -> u8, no widening
 ; ---- putChar()
         call    putChar
-.L17:
+.L23:
         dec     byte [putNumber__i]
-        jmp     .L16
-.L18:
+        jmp     .L22
+.L24:
         ret
 
 ; ============================================== sub isDivisible ====
@@ -211,15 +232,15 @@ isDivisible:
         xor     dx, dx                      ; clear high half for div
         div     bx
         mov     ax, dx                      ; remainder
-        cmp     ax, 0
-        je      .L22                        ; unsigned ==
-        jmp     .L20
-.L22:
+        test    ax, ax
+        je      .L28                        ; unsigned ==
+        jmp     .L26
+.L28:
         mov     ax, 1
-        jmp     .L21
-.L20:
+        jmp     .L27
+.L26:
         xor     ax, ax
-.L21:
+.L27:
         mov     [divResult], al             ; narrowed to bool
         ret
 
@@ -228,28 +249,28 @@ isDivisible:
 run:
 ; ---- for (value = 1; value <= limit; value++) {
         mov     word [value], 1
-.L23:
+.L29:
         mov     ax, [value]
         cmp     ax, 20
-        jbe     .L26                        ; unsigned <=
-        jmp     .L25
-.L26:
+        jbe     .L32                        ; unsigned <=
+        jmp     .L31
+.L32:
 ; ---- if (value == 13) continue
         mov     ax, [value]
         cmp     ax, 13
-        je      .L29                        ; unsigned ==
-        jmp     .L27
-.L29:
-        jmp     .L24
-.L27:
+        je      .L35                        ; unsigned ==
+        jmp     .L33
+.L35:
+        jmp     .L30
+.L33:
 ; ---- if (value > 17) break
         mov     ax, [value]
         cmp     ax, 17
-        ja      .L32                        ; unsigned >
-        jmp     .L30
-.L32:
-        jmp     .L25
-.L30:
+        ja      .L38                        ; unsigned >
+        jmp     .L36
+.L38:
+        jmp     .L31
+.L36:
 ; ---- putNumber()
         call    putNumber
 ; ---- char = ' '
@@ -269,15 +290,15 @@ run:
 ; ---- if (done) {
         mov     al, [done]
         test    al, al
-        jnz     .L35
-        jmp     .L33
-.L35:
+        jnz     .L41
+        jmp     .L39
+.L41:
 ; ---- strAddr = addr(fizz)
         mov     ax, fizz                    ; link-time constant
         mov     [strAddr], ax
 ; ---- putStr()
         call    putStr
-.L33:
+.L39:
 ; ---- divD = 5
         mov     word [divD], 5
 ; ---- isDivisible()
@@ -285,28 +306,28 @@ run:
 ; ---- if (divResult) {
         mov     al, [divResult]
         test    al, al
-        jnz     .L38
-        jmp     .L36
-.L38:
+        jnz     .L44
+        jmp     .L42
+.L44:
 ; ---- strAddr = addr(buzz)
         mov     ax, buzz                    ; link-time constant
         mov     [strAddr], ax
 ; ---- putStr()
         call    putStr
-.L36:
+.L42:
 ; ---- if (
 ; ---- value > 3 &&                  // multi-line condition: newline is not a
 ; ---- value < 9                     // terminator while bracket depth > 0
         mov     ax, [value]
         cmp     ax, 3
-        ja      .L41                        ; unsigned >
-        jmp     .L39
-.L41:
+        ja      .L47                        ; unsigned >
+        jmp     .L45
+.L47:
         mov     ax, [value]
         cmp     ax, 9
-        jb      .L42                        ; unsigned <
-        jmp     .L39
-.L42:
+        jb      .L48                        ; unsigned <
+        jmp     .L45
+.L48:
 ; ---- char = squares[value - 3] + zeroChar
         mov     ax, [value]
         sub     ax, 3
@@ -317,69 +338,69 @@ run:
         mov     [char], al                  ; narrowed to u8
 ; ---- putChar()
         call    putChar
-.L39:
+.L45:
 ; ---- if (value < 5) {
         mov     ax, [value]
         cmp     ax, 5
-        jb      .L45                        ; unsigned <
-        jmp     .L43
-.L45:
+        jb      .L51                        ; unsigned <
+        jmp     .L49
+.L51:
 ; ---- char = 'a'
         mov     byte [char], 97
-        jmp     .L44
-.L43:
+        jmp     .L50
+.L49:
 ; ---- } else if (value < 10) {
         mov     ax, [value]
         cmp     ax, 10
-        jb      .L48                        ; unsigned <
-        jmp     .L46
-.L48:
+        jb      .L54                        ; unsigned <
+        jmp     .L52
+.L54:
 ; ---- char = 'b'
         mov     byte [char], 98
-        jmp     .L47
-.L46:
+        jmp     .L53
+.L52:
 ; ---- char = 'c'
         mov     byte [char], 99
-.L47:
-.L44:
+.L53:
+.L50:
 ; ---- putChar()
         call    putChar
 ; ---- if (!done || value == limit) {
         mov     al, [done]
         test    al, al
-        jnz     .L52
-        jmp     .L51
-.L52:
+        jnz     .L58
+        jmp     .L57
+.L58:
         mov     ax, [value]
         cmp     ax, 20
-        je      .L53                        ; unsigned ==
-        jmp     .L49
-.L53:
-.L51:
+        je      .L59                        ; unsigned ==
+        jmp     .L55
+.L59:
+.L57:
 ; ---- char = done ? '*' : value > 10 ? '#' : '.'   // nested, right-assoc
         mov     al, [done]
         test    al, al
-        jnz     .L56
-        jmp     .L54
-.L56:
+        jnz     .L62
+        jmp     .L60
+.L62:
         mov     ax, 42
-        jmp     .L55
-.L54:
+        jmp     .L61
+.L60:
         mov     ax, [value]
         cmp     ax, 10
-        ja      .L59                        ; unsigned >
-        jmp     .L57
-.L59:
+        ja      .L65                        ; unsigned >
+        jmp     .L63
+.L65:
         mov     ax, 35
-        jmp     .L58
-.L57:
+        jmp     .L64
+.L63:
         mov     ax, 46
-.L58:
-.L55:
+.L64:
+.L61:
         mov     [char], al                  ; narrowed to u8
 ; ---- putChar()
         call    putChar
-.L49:
+.L55:
 ; ---- spaceCount = 2
         mov     byte [spaceCount], 2
 ; ---- putSpaces()
@@ -393,20 +414,20 @@ run:
         mov     bx, ax
         mov     al, [partial + bx]
         test    al, al
-        jnz     .L62
-        jmp     .L60
-.L62:
+        jnz     .L68
+        jmp     .L66
+.L68:
 ; ---- char = '+'
         mov     byte [char], 43
 ; ---- putChar()
         call    putChar
-.L60:
+.L66:
 ; ---- newline()
         call    newline
-.L24:
+.L30:
         inc     word [value]
-        jmp     .L23
-.L25:
+        jmp     .L29
+.L31:
 ; ---- checksum()                        // forward reference: defined below
         call    checksum
         ret
@@ -418,7 +439,7 @@ checksum:
         mov     byte [hash], 0
 ; ---- for (i = 0; ; i++) {              // empty condition + break
         mov     byte [checksum__i], 0
-.L63:
+.L69:
 ; ---- hash = u8((hash << 1) ^ digits[i])
         mov     al, [hash]
         xor     ah, ah                      ; u8 -> u16
@@ -436,17 +457,16 @@ checksum:
         mov     [hash], al                  ; narrowed to u8
 ; ---- if (i == maxDigits - 1) break
         mov     al, [checksum__i]
-        xor     ah, ah                      ; u8 -> u16
-        cmp     ax, 4
-        je      .L68                        ; unsigned ==
-        jmp     .L66
-.L68:
-        jmp     .L65
-.L66:
-.L64:
+        cmp     al, 4                       ; byte operands, no widening
+        je      .L74                        ; unsigned ==
+        jmp     .L72
+.L74:
+        jmp     .L71
+.L72:
+.L70:
         inc     byte [checksum__i]
-        jmp     .L63
-.L65:
+        jmp     .L69
+.L71:
 ; ---- hash &= mask
         mov     al, [hash]
         xor     ah, ah                      ; u8 -> u16
@@ -505,7 +525,7 @@ checksum:
         mov     [hash], al                  ; narrowed to u8
 ; ---- signedAcc = i16(value) - 1        // u16 x signed needs an explicit cast
         mov     ax, [value]
-        sub     ax, 1
+        dec     ax
         mov     [signedAcc], ax
 ; ---- signedAcc >>= 2                   // i16 -> sar, not shr
         mov     ax, [signedAcc]
@@ -532,14 +552,14 @@ checksum:
         mov     [signedAcc], ax
 ; ---- if (signedAcc < 0) signedAcc = -signedAcc
         mov     ax, [signedAcc]
-        cmp     ax, 0
-        jl      .L71                        ; signed <
-        jmp     .L69
-.L71:
+        test    ax, ax
+        jl      .L77                        ; signed <
+        jmp     .L75
+.L77:
         mov     ax, [signedAcc]
         neg     ax
         mov     [signedAcc], ax
-.L69:
+.L75:
 ; ---- value = u16(signedAcc)
         mov     ax, [signedAcc]
         mov     [value], ax
@@ -557,25 +577,24 @@ checksum:
 ; ---- value = value / 2 + 1               // bare /
         mov     ax, [value]
         shr     ax, 1                       ; / 2 is >> 1
-        add     ax, 1
+        inc     ax
         mov     [value], ax
 ; ---- if (delta != 0 && signedAcc >= 0) {
         mov     al, [delta]
-        cbw                                 ; i8 -> i16
-        cmp     ax, 0
-        jne     .L74                        ; signed !=
-        jmp     .L72
-.L74:
+        test    al, al
+        jne     .L80                        ; signed !=
+        jmp     .L78
+.L80:
         mov     ax, [signedAcc]
-        cmp     ax, 0
-        jge     .L75                        ; signed >=
-        jmp     .L72
-.L75:
+        test    ax, ax
+        jge     .L81                        ; signed >=
+        jmp     .L78
+.L81:
 ; ---- putNumber()
         call    putNumber
 ; ---- newline()
         call    newline
-.L72:
+.L78:
         ret
 
 ; ==================================================== int helpers ====
@@ -643,6 +662,10 @@ done            db      0        ; bool
 divN            dw      0        ; u16
 divD            dw      0        ; u16
 divResult       db      0        ; bool
+bigByte         db      200        ; u8 = 200
+smallByte       db      100        ; u8 = 100
+negByte         db      251        ; i8 = -5
+posByte         db      100        ; i8 = 100
 spaceCount      db      0        ; u8
 putBar__n       db      0        ; u8
 putNumber__i    db      0        ; u8

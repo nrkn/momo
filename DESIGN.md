@@ -61,6 +61,11 @@ with no `far` declaration emits no segment register at all.
 | Control | `jmp` `je` `jne` `jl` `jle` `jg` `jge` `jb` `jbe` `ja` `jae` `call` `ret` |
 | System | `int` `pushf` |
 
+`jz`/`jnz` also appear in the output. They are the same instructions as
+`je`/`jne` — NASM assembles both spellings to one opcode — and the emitter uses
+the z-spelling after a `test`, where "zero" is the honest reading, and the
+e-spelling after a `cmp`. Spellings, not additions: the count stays 37.
+
 Deliberately absent:
 
 - **`lea`** — no pointers, and `[disp16 + bx]` covers array indexing in one instruction.
@@ -152,6 +157,15 @@ end of the routine.
 `u8` `i8` `u16` `i16` `bool`
 
 - `bool` is one byte with `true`/`false` literals; comparisons produce it.
+- **Only a bool may be assigned to one.** The store is a raw byte — no
+  normalisation is emitted — so admitting a scalar would let a bool hold 2,
+  where `if (b)` says true and `b == true` says false at once. Write the test
+  (`x != 0`) or the cast (`bool(x)`), both of which produce a real 0-or-1.
+  Constants follow §4's fit rule against bool's range of {0, 1}: `b = 1` is
+  fine, `b = 2` is an error. A `?:` whose arms are both bool stays bool — the
+  result is one of the arms, not arithmetic over them. Applies wherever a value
+  meets a declared type: initialisers, assignments, arguments and returns.
+  Reading a bool into arithmetic remains free, since it is genuinely 0 or 1.
 - `if` accepts any scalar — non-zero is true, so `if (arr[i])` works.
 - Fixed-size arrays only. No pointers, no structs, no floats.
 
@@ -634,10 +648,33 @@ exceed 128 bytes under this codegen.
    `const u8 lo(u16 w) = u8(w)` already ends in that same cast — so every call
    to `lo` emitted `xor ah, ah` twice.
 
+7. **Zero uses the zero idioms** — a compare against 0 emits `test` (`cmp` with
+   0 clears CF and OF exactly as `test` does, so every jump reads the same), and
+   a constant 0 loads as `xor ax, ax`. Each a byte shorter, and each the form an
+   8086 reader expects.
+8. **Byte operands compare in AL** — when both sides are bare byte loads of the
+   same signedness, or one is a constant the byte's own range holds. The
+   signedness check is what makes it safe: 0xC8 is 200 as a u8 and −56 as an i8,
+   so mixed operands still widen — even for `==`, where the bytes comparing
+   equal would be the wrong answer.
+9. **A constant stored through a runtime index skips the save** — the value is
+   an immediate in the store itself, so the push/pop that protects AX while the
+   index is computed does nothing and is not emitted. Extends peephole 2 to
+   computed indices, and to far regions.
+10. **`+ 1` and `- 1` are `inc`/`dec`** — a third the size of `add ax, 1` and
+    twice as fast. They leave CF alone where `add` would set it, which is safe
+    because nothing reads CF between expressions — `_cf` is captured inside the
+    int helpers only.
+11. **A loop test that folded to a constant emits nothing** — `while (true)`
+    used to pay `mov ax, 1` / `test ax, ax` / `jnz` every iteration to discover
+    that 1 is true.
+
 4 and 5 were listed here as built, for a long time, and were not. That is the
 argument for the golden `.asm` tier (§14): a claim about generated output that
 nothing compares against is a claim about nothing. Building them took 84 bytes
-off the fourteen committed programs and added no instruction anywhere.
+off the fourteen committed programs and added no instruction anywhere. 7–11
+landed together in one later sweep, adopted by reading the golden diff case by
+case — every hunk in it is one of those five shapes.
 
 **Comment style:** source line as a section header, *not* echoed per
 instruction. Inline comments reserved for width conversions, why `jbe` and not
@@ -645,23 +682,21 @@ instruction. Inline comments reserved for width conversions, why `jbe` and not
 
 ```nasm
 drawLineHorizontal:
-; ---- for (x = x1; x <= x2; x++) ----
+; ---- for (x = x1; x <= x2; x++) {
         mov     al, [x1]
-        mov     [x], al                 ; u8 -> u8, no widening
-.for1_test:
+        mov     [x], al                     ; u8 -> u8, no widening
+.L1:
         mov     al, [x]
-        xor     ah, ah                  ; u8 -> u16
-        mov     bl, [x2]
-        xor     bh, bh
-        cmp     ax, bx
-        jbe     .for1_body              ; unsigned <= (both operands u8)
-        jmp     .for1_end
-.for1_body:
+        cmp     al, [x2]                    ; byte operands, no widening
+        jbe     .L4                         ; unsigned <=
+        jmp     .L3
+.L4:
+; ---- setPixel()
         call    setPixel
-.for1_cont:
-        inc     byte [x]                ; x++
-        jmp     .for1_test
-.for1_end:
+.L2:
+        inc     byte [x]
+        jmp     .L1
+.L3:
         ret
 ```
 
@@ -760,8 +795,9 @@ immediately — `data/projects/cftest` demonstrates both the reading and the tra
 
 **Emit one helper sub per distinct INT number**, not the sync inline at every
 call site. The literal is baked into the helper, so `int 0x21` becomes
-`call int21` — 3 bytes instead of ~40. Confirmed working in
-`data/projects/keytest`, which uses two.
+`call int21` — 3 bytes instead of ~40. The shape was proven by hand in
+`data/projects/keytest` before the transpiler depended on it; among compiled
+programs, `smoke` emits two helpers and runs under tier 2.
 
 **`addr(x)` builtin** returns a global's `u16` offset. In a `.COM` this is a
 link-time constant, so it compiles to `mov ax, msg` — an immediate. `lea` stays
@@ -1853,10 +1889,10 @@ up, so where both fit, this is the more Momo-shaped answer.
 
   Codegen is trivial: roughly `mov bx, ax` / `mov al, [bx]`.
 - **`asm { }` passthrough** for hand-written NASM. Probably not needed for a long time.
-- **Strength reduction for powers of two.** `i * 4` currently emits a `mul`
-  (~120 cycles on an 8086) where two `shl` would do, and `x / 8` a `div` (~160)
-  where `shr` would. Both are **faster *and* smaller**, so they belong in the
-  normal emitter rather than behind a flag. §21 sets out how far to take it and
+- **Strength reduction for powers of two** — **built; see §21.** `i * 4`
+  emitted a `mul` (~120 cycles on an 8086) where two `shl` do, and `x / 8` a
+  `div` (~160) where `shr` does. Faster *and* smaller, so it lives in the
+  normal emitter rather than behind a flag; §21 records how far to take it and
   the two traps involved.
 
 ---

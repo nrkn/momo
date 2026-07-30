@@ -105,7 +105,7 @@ newline:
 putNumber:
 ; ---- if (n == 0) {
         mov     ax, [putNumber__n]
-        cmp     ax, 0
+        test    ax, ax
         je      .L11                        ; unsigned ==
         jmp     .L9
 .L11:
@@ -120,7 +120,7 @@ putNumber:
         mov     byte [putNumber__i], 0
 .L12:
         mov     ax, [putNumber__n]
-        cmp     ax, 0
+        test    ax, ax
         ja      .L15                        ; unsigned >
         jmp     .L14
 .L15:
@@ -151,15 +151,14 @@ putNumber:
 ; ---- for (; i > 0; i--) {
 .L16:
         mov     al, [putNumber__i]
-        xor     ah, ah                      ; u8 -> u16
-        cmp     ax, 0
+        test    al, al
         ja      .L19                        ; unsigned >
         jmp     .L18
 .L19:
 ; ---- putChar(digits[i - 1])
         mov     al, [putNumber__i]
         xor     ah, ah                      ; u8 -> u16
-        sub     ax, 1
+        dec     ax
         mov     bx, ax
         mov     al, [putNumber__digits + bx]
         xor     ah, ah                      ; u8 -> u16
@@ -176,7 +175,7 @@ putNumber:
 seedRandom:
 ; ---- sub seedRandom(u16 s) => randomSeed = s == 0 ? 1 : s
         mov     ax, [seedRandom__s]
-        cmp     ax, 0
+        test    ax, ax
         je      .L22                        ; unsigned ==
         jmp     .L20
 .L22:
@@ -248,7 +247,7 @@ randomBetween:
         mov     ax, [randomBetween__high]
         mov     bx, [randomBetween__low]
         sub     ax, bx
-        add     ax, 1
+        inc     ax
         mov     [randomBelow__n], ax
         call    randomBelow
         mov     ax, [randomBelow__ret]
