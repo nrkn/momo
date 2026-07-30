@@ -77,6 +77,26 @@ so it doubles as a check on the codegen design:
 - Reach for braces when the body is multi-statement, when a comment belongs
   inside it, or when the line would wrap.
 
+## Prose
+
+`DESIGN.md`, `CONTRIBUTING.md` and this file already share a voice, and it is not
+the one most language READMEs use: precise, dry, and willing to say what something
+cost. *"This produced one false all-clear."* *"The reduction delivers about 80% of
+what it could."* *"Not wrong, just never the biggest thing left."* A claim is
+load-bearing or it is cut.
+
+- **Understatement over enthusiasm.** Say what the thing does and let the reader
+  decide whether that is impressive. Bolded superlatives and a bullet list of
+  features are the register of a product page.
+- **Record what a decision cost**, not only what it bought. A good share of the
+  value in these documents is the entries admitting a measurement came in under
+  its estimate, or that a claim had drifted from the code.
+- **Dry wit is welcome; jokes are not.** The test is whether it still reads well
+  on the fourth pass, when the reader is looking something up rather than
+  browsing.
+
+`README.md` does not currently follow any of this — see `CONTRIBUTING.md`.
+
 ## Naming
 
 - Files: `kebab-case.ts`.

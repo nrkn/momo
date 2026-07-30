@@ -186,5 +186,22 @@ the display back, so none can have a `.expected` — tier 2 cannot run something
 that blocks. The golden tier still covers them, which is the regression coverage
 that matters for a compiler.
 
+**`README.md` is provisional**, and knowing that is more useful than the file
+itself. It was written quickly to have something in place, in the register most
+language READMEs are written in — bolded claims, a feature list, a certain amount
+of selling — which is not the voice of the three documents it links to. `STYLE.md`
+describes the voice it should have.
+
+Rewriting it waits on two things. **Programs worth showing**, first: `simplerl` is
+deliberately the smallest thing that counts as a game, the three demos cannot be
+tier-2 tested, and everything else under `data/projects/` is a fixture. A README
+that shows off wants something to show, and the text adventure (§15) or a scroller
+once §22 is built are the candidates. And second, a draft **written rather than
+generated**, which is the other half of why it is waiting.
+
+The cost of waiting is that the first thing a visitor reads is the weakest
+document in the repo. That trade is made deliberately, and preferred to shipping a
+second draft in the same voice as the first.
+
 177 tier-1 assertions (126 compile tests, 23 golden `.asm`, 25 type, 3 subset),
 19 e2e programs, all green.
