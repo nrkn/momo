@@ -1233,6 +1233,18 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     return parts.length ? parts.join(', ') : '0'
   }
 
+  // An alias emits no storage - just a name for `parent + n`, which NASM folds
+  // into every displacement that uses it. A register byte half, `_heapw` and
+  // every `view` all come through here.
+  const aliasLine = (symbol: MomoSymbol, comment = '') => {
+    if (!('alias' in symbol) || !symbol.alias) return
+    const offset = symbol.alias.byteOffset === 0 ? '' : ` + ${symbol.alias.byteOffset}`
+    lines.push(
+      `${symbol.label.padEnd(15)} equ     ${symbol.alias.parent}${offset}` +
+        (comment ? `        ; ${comment}` : ''),
+    )
+  }
+
   const emitData = () => {
     blank()
     note('============================================================ data ====')
@@ -1242,23 +1254,21 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     for (const symbol of result.symbols) {
       if (symbol.kind !== 'var' || !symbol.builtin) continue
       if (symbol.label === '_hsize') continue // emitted with the heap block
-      if (widthOf(symbol.type) === 2) {
+      // A byte half is an alias into the word storage, and carries that as data -
+      // so this asks the symbol rather than inferring it from the spelling of the
+      // label. `_cf` is the reserved global that is NOT an alias: it is real
+      // storage, and used to be told apart by being the only `bool` here.
+      if (symbol.alias) {
+        aliasLine(symbol)
+      } else if (widthOf(symbol.type) === 2) {
         lines.push(`${symbol.label.padEnd(15)} dw      0`)
-      } else if (symbol.type === 'bool') {
-        // Real storage, not a view of a register. `bool` is what distinguishes
-        // the two: every u8 reserved global is a byte alias by construction, so
-        // without this `_cf` would silently come out as `equ _cx + 1`.
-        lines.push(`${symbol.label.padEnd(15)} db      0`)
       } else {
-        // Byte aliases index into the word storage; little-endian, low first.
-        const parent = `_${symbol.label[1]}x`
-        const offset = symbol.label.endsWith('l') ? '' : ' + 1'
-        lines.push(`${symbol.label.padEnd(15)} equ     ${parent}${offset}`)
+        lines.push(`${symbol.label.padEnd(15)} db      0`)
       }
     }
 
     const vars = result.symbols.filter(
-      (symbol) => symbol.kind === 'var' && !symbol.builtin,
+      (symbol) => symbol.kind === 'var' && !symbol.builtin && !symbol.alias,
     )
     if (vars.length) {
       blank()
@@ -1276,7 +1286,7 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     }
 
     const arrays = result.symbols.filter(
-      (symbol) => symbol.kind === 'array' && !symbol.dynamic,
+      (symbol) => symbol.kind === 'array' && !symbol.dynamic && !symbol.alias,
     )
     if (arrays.length) {
       blank()
@@ -1325,7 +1335,41 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     lines.push('_hsize          dw      _htop - _heap        ; NASM computes this')
     ins('align', '2', 'keep the u16 view aligned')
     label('_heap')
-    lines.push('_heapw          equ     _heap        ; same bytes, u16 view')
+
+    const heapw = result.symbols.find((symbol) => symbol.label === '_heapw')
+    if (heapw) aliasLine(heapw, 'same bytes, u16 view')
+  }
+
+  // Every view in the program, last, because a view of the heap can only be
+  // written after `_heap` - and NASM resolves a forward-referenced `equ` used as
+  // a displacement correctly, which was measured before this was relied on.
+  // Declaration order, so a view of a view still follows its parent.
+  const emitViews = () => {
+    const views = result.symbols.filter((symbol) => {
+      // The builtin aliases are emitted where their parents are: a register half
+      // in the reserved block, `_heapw` with the heap.
+      if (symbol.kind === 'array') return symbol.alias !== undefined && !symbol.dynamic
+      if (symbol.kind === 'var') return symbol.alias !== undefined && !symbol.builtin
+      return false
+    })
+    if (!views.length) return
+
+    blank()
+    note('=========================================================== views ====')
+    note('No storage: each is a name for an offset into something else.')
+    blank()
+
+    for (const symbol of views) {
+      if (symbol.kind === 'array') {
+        aliasLine(
+          symbol,
+          `${symbol.elementType}[${symbol.length}]${symbol.readonly ? ' const' : ''}`,
+        )
+        continue
+      }
+      if (symbol.kind !== 'var') continue
+      aliasLine(symbol, `${symbol.type}${symbol.readonly ? ' const' : ''}`)
+    }
   }
 
   // ---- assemble the file ----------------------------------------------------
@@ -1434,6 +1478,7 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
 
   emitData()
   emitHeap()
+  emitViews()
   blank()
 
   return { assembly: lines.join('\r\n'), temporaries }

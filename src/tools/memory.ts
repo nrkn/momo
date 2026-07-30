@@ -52,15 +52,27 @@ const main = async () => {
     let scalars = 0
     let arrays = 0
     let arrayCount = 0
+    let viewCount = 0
 
     for (const symbol of resolved.symbols) {
+      // An alias has no bytes of its own - a register byte half, `_heapw`, or a
+      // view. Counting one would report storage that was never allocated, and
+      // double-count what its parent already contributed. Only the ones the
+      // program wrote are worth reporting; arrays carry no `builtin` flag, so for
+      // those the one builtin alias is named.
+      if ((symbol.kind === 'var' || symbol.kind === 'array') && symbol.alias) {
+        const builtin = symbol.kind === 'var' ? symbol.builtin : symbol.label === '_heapw'
+        if (!builtin) viewCount += 1
+        continue
+      }
       if (symbol.kind === 'var') {
-        // Byte aliases are `equ` into the word storage - no bytes of their own.
-        if (symbol.builtin) reserved += widthOf(symbol.type) === 2 ? 2 : 0
+        if (symbol.builtin) reserved += widthOf(symbol.type)
         else scalars += widthOf(symbol.type)
         continue
       }
       if (symbol.kind === 'array') {
+        // The heap is reported on its own, below, and is not in the image.
+        if (symbol.dynamic) continue
         arrays += symbol.length * widthOf(symbol.elementType)
         arrayCount += 1
       }
@@ -87,6 +99,9 @@ const main = async () => {
     row('reserved globals', `${reserved}`, 2)
     row('scalars', `${scalars}`, 2)
     row(`arrays (${arrayCount})`, `${arrays}`, 2)
+    // Listed as aliases rather than counted: the bytes are above, in whatever the
+    // view points into.
+    if (viewCount) row(`views (${viewCount})`, 'aliases', 2)
 
     if (imageSize === null) {
       console.log('\n  code size needs a build - run: npm run build -- ' + project)

@@ -1,0 +1,3 @@
+// EXPECT-ERROR: a view needs an array to window onto - "count" is not one
+u16 count
+view u8[2] halves = count[0]

@@ -1,0 +1,3 @@
+// EXPECT-ERROR: a view offset cannot be negative
+u8[8] buf
+view u8[2] before = buf[-2]

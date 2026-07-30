@@ -1,0 +1,7 @@
+// EXPECT-ERROR: index 4 is out of bounds for "head" (length 4)
+// A view is bounded by its OWN length, not its parent's - buf[4] exists, and
+// head[4] is still off the end of head.
+u8[12] buf
+view u8[4] head = buf[0]
+u8 v
+v = head[4]

@@ -19,6 +19,9 @@ const fail = (message: string): never => {
   process.exit(1)
 }
 
+const at = (alias: { parent: string; byteOffset: number }): string =>
+  alias.byteOffset === 0 ? alias.parent : `${alias.parent} + ${alias.byteOffset}`
+
 const describe = (symbol: MomoSymbol): string => {
   if (symbol.kind === 'const') return `const ${symbol.type} = ${symbol.value}`
   if (symbol.kind === 'routine') {
@@ -29,6 +32,11 @@ const describe = (symbol: MomoSymbol): string => {
   if (symbol.kind === 'constfn') {
     const params = symbol.params.map((p) => p.type).join(', ')
     return `const (${params}) -> ${symbol.returnType ?? 'inferred'}`
+  }
+  // An alias reports where it points rather than a size: the bytes belong to its
+  // parent, and are counted there.
+  if (symbol.kind === 'var' && symbol.alias) {
+    return `view ${symbol.type} @ ${at(symbol.alias)}${symbol.readonly ? '  const' : ''}`
   }
   if (symbol.kind === 'var') return `${symbol.type}${symbol.builtin ? '  (reserved)' : ''}`
   if (symbol.kind === 'far') {
@@ -49,7 +57,16 @@ const describe = (symbol: MomoSymbol): string => {
     const shape = symbol.count === null ? 'group' : `group[${symbol.count}]`
     return `${shape}  { ${fields} }`
   }
+  // Before the alias case: `_heapw` is both, and "u16[0]" would be a worse
+  // answer than "the heap, as words" for something whose length is not known
+  // until NASM has run.
   if (symbol.dynamic) return `${symbol.elementType}[_hsize]  heap`
+  if (symbol.alias) {
+    return (
+      `view ${symbol.elementType}[${symbol.length}] @ ${at(symbol.alias)}` +
+      `${symbol.readonly ? '  const' : ''}`
+    )
+  }
   const bytes = symbol.length * (symbol.elementType === 'u16' || symbol.elementType === 'i16' ? 2 : 1)
   return `${symbol.elementType}[${symbol.length}]  ${bytes} bytes${symbol.readonly ? '  const' : ''}`
 }
@@ -73,7 +90,12 @@ const main = async () => {
       console.log(`  ${symbol.label.padEnd(width)}  ${describe(symbol)}`)
     }
 
-    const arrays = symbols.filter((symbol) => symbol.kind === 'array')
+    // Only arrays that occupy bytes. A view's storage is its parent's, and the
+    // heap's is not in the image at all - counting either reports data that was
+    // never allocated.
+    const arrays = symbols.filter(
+      (symbol) => symbol.kind === 'array' && !symbol.alias && !symbol.dynamic,
+    )
     const bytes = arrays.reduce(
       (total, symbol) =>
         symbol.kind === 'array'
@@ -81,8 +103,16 @@ const main = async () => {
           : total,
       0,
     )
+    const views = symbols.filter((symbol) => {
+      if (symbol.kind === 'array') return symbol.alias !== undefined && !symbol.dynamic
+      if (symbol.kind === 'var') return symbol.alias !== undefined && !symbol.builtin
+      return false
+    })
 
-    console.log(`\nok: ${shown.length} symbols, ${arrays.length} arrays, ${bytes} bytes of array data`)
+    console.log(
+      `\nok: ${shown.length} symbols, ${arrays.length} arrays, ${bytes} bytes of array data` +
+        (views.length ? `, ${views.length} views (no storage)` : ''),
+    )
   } catch (error) {
     if (!isMomoError(error)) throw error
     console.error(formatError(sources, error))

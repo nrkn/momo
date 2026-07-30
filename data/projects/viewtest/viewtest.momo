@@ -1,0 +1,159 @@
+// viewtest.momo - views: named windows into storage that already exists.
+//
+// Every case writes through one name and reads back through another, so what is
+// asserted is that two spellings of the same bytes agree. The values are chosen
+// so that a view landing at the wrong offset prints a different number rather
+// than the same one by luck.
+
+include "std/io.momo"
+include "std/screen.momo"
+
+// ---- a view of a far region inherits its segment, so §16 composes ----
+
+far u16[2000] cells = 0xB800
+
+view u16[80] row2 = cells[160]    // 80 cells to a row, so this one is row 2
+
+// ---- a buffer that is meaningful whole and in parts ----
+
+u8[12] buf
+
+view u8[4] head = buf[0]
+view u8[4] mid  = buf[4]
+view u8[]  tail = buf[8]          // no length: the remainder of buf, so 4
+
+// Views compose, and the offsets add: buf + 4 + 1.
+view u8[2] midPair = mid[1]
+
+// The same bytes as words. Type punning needs no cast - it is two declarations
+// of what one region is, which is the _heap / _heapw pattern in the language.
+view u16[6] words = buf[0]
+
+// A read-only window onto storage that is otherwise writable.
+const view u8[4] frozen = buf[0]
+
+// ---- records without structs: a scalar view is a named field ----
+
+u8[4] player
+
+view u8  playerX  = player[0]
+view u8  playerY  = player[1]
+view u16 playerHp = player[2]
+
+// ---- a view of a const array inherits the const ----
+
+const u8[] tag = "hi$"
+view u8[2] tagPair = tag[0]
+
+// ---- static heap partitioning: named regions, no allocator at all ----
+
+view u8[16] mapData  = _heap[0]
+view u16[8] entities = _heap[16]
+
+// Declared and never used. A view is pruned like any other storage, and takes
+// nothing with it - neither of these two names may appear in the output, which
+// is what stops an included library's views from costing anything.
+u8[64] scratch
+view u8[32] scratchHalf = scratch[32]
+
+u16 i
+u16 total
+
+// ---- entry ----
+
+// Each part written through its own name, read back through the whole.
+head[0] = 10
+mid[0]  = 20
+tail[0] = 30
+
+putNumber( buf[0] )                        // 10
+newline()
+putNumber( buf[4] )                        // 20
+newline()
+putNumber( buf[8] )                        // 30
+newline()
+
+// A view of a view lands at buf + 5.
+midPair[0] = 77
+putNumber( buf[5] )                        // 77
+newline()
+
+// addr() folds the alias, so the distance between two views is the offset
+// between them - the alias arithmetic itself, printed.
+putNumber( addr( head ) - addr( buf ) )    // 0
+newline()
+putNumber( addr( mid ) - addr( buf ) )     // 4
+newline()
+putNumber( addr( midPair ) - addr( buf ) ) // 5
+newline()
+
+// len() reports the view's own length, not its parent's.
+putNumber( len( head ) )                   // 4
+newline()
+putNumber( len( tail ) )                   // 4
+newline()
+putNumber( len( words ) )                  // 6
+newline()
+
+// The same two bytes read as one word, little-endian.
+buf[1] = 2
+putNumber( words[0] )                      // 2 * 256 + 10 = 522
+newline()
+
+// A const view reads the storage it points at.
+putNumber( frozen[0] )                     // 10
+newline()
+
+// A runtime index through a view: [label + bx], where the label is an equ.
+total = 0
+for ( i = 0; i < len( tail ); i++ ) {
+  tail[i] = u8( i * 3 + 1 )
+  total += tail[i]
+}
+putNumber( total )                         // 1 + 4 + 7 + 10 = 22
+newline()
+putNumber( buf[11] )                       // the last element of tail, so 10
+newline()
+
+// Scalar views, named as fields of one record.
+playerX  = 3
+playerY  = 4
+playerHp = 1000
+
+putNumber( player[0] )                     // 3
+newline()
+putNumber( player[1] )                     // 4
+newline()
+// 1000 is 0x03E8, and the word landed at byte 2, low half first.
+putNumber( player[2] )                     // 0xE8 = 232
+newline()
+putNumber( player[3] )                     // 0x03 = 3
+newline()
+putNumber( playerHp )                      // 1000
+newline()
+
+// A view of a const array is readable, and is const itself.
+putNumber( tagPair[0] )                    // 'h' = 104
+newline()
+
+// Two named heap regions that must not collide.
+mapData[15] = 99
+entities[0] = 1234
+entities[7] = 4321
+
+putNumber( mapData[15] )                   // 99, undisturbed by the words above
+newline()
+putNumber( entities[0] )                   // 1234
+newline()
+putNumber( entities[7] )                   // 4321
+newline()
+// entities starts at _heap + 16, so its first word is also _heapw[8].
+putNumber( _heapw[8] )                     // 1234
+newline()
+
+// Last, because it takes over the screen. The far view's offset folds into the
+// displacement of the `es:` access, so this cell and cells[160] are one cell.
+setTextMode()
+row2[0] = 0x0741                           // 'A', attribute 7
+putNumber( cells[160] )                    // 0x0741 = 1857
+newline()

@@ -1,0 +1,4 @@
+// EXPECT-ERROR: nothing is left of "buf" at offset 11 to make a u16 from
+// One byte remains, and one byte is not a u16 - the remainder rounds down.
+u8[12] buf
+view u16[] words = buf[11]

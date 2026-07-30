@@ -22,6 +22,7 @@ import type {
   Program,
   Statement,
   TypeNode,
+  ViewDeclaration,
 } from './ast.js'
 import { alwaysReturns, buildCallGraph, fallsThrough, type CallGraph } from './analysis.js'
 import { raise, type Location } from './diagnostics.js'
@@ -32,9 +33,20 @@ import {
   promote,
   rangeOf,
   truncate,
+  widthOf,
   type Range,
   type ValueType,
 } from './types.js'
+
+// A view's storage belongs to something else: the label is `parent + offset`,
+// which the emitter writes as an `equ`. Carried by the `array` and `var` kinds
+// rather than being a kind of its own, because a view of an array IS an array -
+// indexing, bounds checks, `len` and `addr` all want to treat it as one, and a
+// separate kind would mean a case in every one of them.
+//
+// `parent` is a label rather than a name: what an alias needs is the thing that
+// gets emitted, and a chain of views collapses to one offset from real storage.
+export type Alias = { parent: string; byteOffset: number }
 
 export type MomoSymbol =
   | { kind: 'const'; name: string; label: string; type: ValueType; value: number }
@@ -48,6 +60,7 @@ export type MomoSymbol =
       values: number[]
       // The heap has no compile-time length: no storage, no bounds checks.
       dynamic: boolean
+      alias?: Alias
     }
   // `owner` marks a fn's parameter or return slot, so pruning keeps it alive
   // whenever the fn itself is reachable - the call site writes it even if the
@@ -66,6 +79,8 @@ export type MomoSymbol =
       // helpers reference the registers unconditionally. `_cf` is captured only
       // when something reads it, so a program that ignores carry pays nothing.
       onlyIfUsed?: boolean
+      // A scalar view, or a register byte alias: no storage of its own.
+      alias?: Alias
     }
   | {
       kind: 'routine'
@@ -116,18 +131,28 @@ export type ResolveResult = {
   callGraph: CallGraph
 }
 
-// The reserved globals are the machine registers. Byte aliases index into the
-// word storage; the emitter lays them out with `equ`.
+// The reserved globals are the machine registers. A byte half is a scalar view
+// of the word storage - the same alias the language now spells `view`, which is
+// why these carry it as data rather than the emitter reconstructing it from the
+// spelling of the label. Little-endian, so the low byte is at offset 0.
+const low = (register: string): Alias => ({ parent: register, byteOffset: 0 })
+const high = (register: string): Alias => ({ parent: register, byteOffset: 1 })
+
 const reservedGlobals: {
   name: string
   type: ValueType
   readonly?: boolean
   onlyIfUsed?: boolean
+  alias?: Alias
 }[] = [
-  { name: '_ax', type: 'u16' }, { name: '_al', type: 'u8' }, { name: '_ah', type: 'u8' },
-  { name: '_bx', type: 'u16' }, { name: '_bl', type: 'u8' }, { name: '_bh', type: 'u8' },
-  { name: '_cx', type: 'u16' }, { name: '_cl', type: 'u8' }, { name: '_ch', type: 'u8' },
-  { name: '_dx', type: 'u16' }, { name: '_dl', type: 'u8' }, { name: '_dh', type: 'u8' },
+  { name: '_ax', type: 'u16' },
+  { name: '_al', type: 'u8', alias: low('_ax') }, { name: '_ah', type: 'u8', alias: high('_ax') },
+  { name: '_bx', type: 'u16' },
+  { name: '_bl', type: 'u8', alias: low('_bx') }, { name: '_bh', type: 'u8', alias: high('_bx') },
+  { name: '_cx', type: 'u16' },
+  { name: '_cl', type: 'u8', alias: low('_cx') }, { name: '_ch', type: 'u8', alias: high('_cx') },
+  { name: '_dx', type: 'u16' },
+  { name: '_dl', type: 'u8', alias: low('_dx') }, { name: '_dh', type: 'u8', alias: high('_dx') },
   { name: '_si', type: 'u16' }, { name: '_di', type: 'u16' },
   // Storage for _hsize sits in the heap block; NASM computes its value.
   { name: '_hsize', type: 'u16' },
@@ -145,9 +170,13 @@ const heapGlobals: MomoSymbol[] = [
     kind: 'array', name: '_heap', label: '_heap', elementType: 'u8',
     length: 0, readonly: false, values: [], dynamic: true,
   },
+  // The same bytes as `_heap`, indexed as words. An alias of offset 0, so it is
+  // the degenerate view - and now says so rather than being a line of hardcoded
+  // NASM in the emitter.
   {
     kind: 'array', name: '_heapw', label: '_heapw', elementType: 'u16',
     length: 0, readonly: false, values: [], dynamic: true,
+    alias: { parent: '_heap', byteOffset: 0 },
   },
 ]
 
@@ -234,6 +263,7 @@ export const resolve = (program: Program): ResolveResult => {
       init: 0,
       readonly: reserved.readonly,
       onlyIfUsed: reserved.onlyIfUsed,
+      alias: reserved.alias,
     }
     globals.set(reserved.name, symbol)
     takenLabels.add(symbol.label)
@@ -986,6 +1016,162 @@ export const resolve = (program: Program): ResolveResult => {
     )
   }
 
+  // A view is an alias, so it declares an ordinary symbol carrying one: a view of
+  // an array IS an array and a scalar view IS a variable. Nothing downstream of
+  // here needs a case for it - only the emitter, which writes an `equ` instead of
+  // storage.
+  //
+  // A view of a far region is the same idea one level out: the offset it needs is
+  // already in the far symbol, so adding to it is the whole implementation and
+  // the segment comes along for free.
+  const resolveViewDeclaration = (node: ViewDeclaration) => {
+    const parent = lookup(node.parent.name)
+    if (!parent) raise(node.parent, `"${node.parent.name}" is not declared`)
+
+    if (parent.kind !== 'array' && parent.kind !== 'far') {
+      raise(
+        node.parent,
+        `a view needs an array to window onto - "${node.parent.name}" is not one`,
+      )
+    }
+
+    const parentWidth = widthOf(parent.elementType)
+    const ownWidth = widthOf(node.typeNode.name)
+
+    // `bar[25]` on a u16 parent starts at byte 50: the offset is in the parent's
+    // elements, consistent with indexing everywhere else.
+    const offsetElements = foldConstant(node.offset, 'view offset')
+    if (offsetElements < 0) raise(node.offset, 'a view offset cannot be negative')
+    const offsetBytes = offsetElements * parentWidth
+
+    // The heap has no compile-time extent, and a far region has one only when it
+    // was declared. Both then have nothing to measure a view against.
+    const parentLength =
+      parent.kind === 'far'
+        ? parent.length
+        : parent.dynamic
+          ? null
+          : parent.length
+    const parentBytes = parentLength === null ? null : parentLength * parentWidth
+
+    if (parentBytes !== null && offsetBytes >= parentBytes) {
+      raise(
+        node.offset,
+        `offset ${offsetElements} is outside "${node.parent.name}"` +
+          ` (length ${parentLength})`,
+      )
+    }
+
+    let length: number
+    if (node.typeNode.size) {
+      length = foldConstant(node.typeNode.size, 'view size')
+      if (length <= 0) raise(node.typeNode.size, 'view size must be positive')
+    } else if (!node.typeNode.array) {
+      length = 1 // a scalar view: one element, and no index
+    } else if (parentBytes === null) {
+      raise(
+        node.typeNode,
+        `"${node.parent.name}" has no compile-time length, so the rest of it is not a` +
+          ' number - give the view a size',
+      )
+    } else {
+      // Rounded down: three u8s left over is not a u16.
+      length = Math.floor((parentBytes - offsetBytes) / ownWidth)
+      if (length <= 0) {
+        raise(
+          node.typeNode,
+          `nothing is left of "${node.parent.name}" at offset ${offsetElements} to make a` +
+            ` ${node.typeNode.name} from`,
+        )
+      }
+    }
+
+    // The extent check §17 is actually for: caught once, where it is written,
+    // rather than at every access that runs off the end.
+    if (parentBytes !== null && offsetBytes + length * ownWidth > parentBytes) {
+      raise(
+        node,
+        `this view runs off the end of "${node.parent.name}" -` +
+          ` ${length} x ${node.typeNode.name} from offset ${offsetElements} needs` +
+          ` ${offsetBytes + length * ownWidth} bytes of ${parentBytes}`,
+      )
+    }
+
+    // A view of a const array is read-only, or the const guarantee is a lie.
+    const readonly = node.readonly || parent.readonly
+
+    node.label = safeLabel(node.name)
+
+    // Views of far regions inherit the segment, so §16 composes with this. The
+    // far path has no scalar form - `far u16 port` is an error for the same
+    // reason - so a scalar view of one has nowhere to land.
+    if (parent.kind === 'far') {
+      if (!node.typeNode.array) {
+        raise(
+          node.typeNode,
+          `a view of far region "${node.parent.name}" is an array - write` +
+            ` "view ${node.typeNode.name}[1] ${node.name} = ${node.parent.name}` +
+            `[${offsetElements}]"`,
+        )
+      }
+
+      declare(
+        {
+          kind: 'far',
+          name: node.name,
+          label: node.label,
+          elementType: node.typeNode.name,
+          length,
+          readonly,
+          segment: parent.segment,
+          offset: parent.offset + offsetBytes,
+        },
+        node,
+      )
+      return
+    }
+
+    // Views compose, so the offsets add and the parent recorded here is always
+    // real storage rather than another alias.
+    const alias: Alias = parent.alias
+      ? { parent: parent.alias.parent, byteOffset: parent.alias.byteOffset + offsetBytes }
+      : { parent: parent.label, byteOffset: offsetBytes }
+
+    if (!node.typeNode.array) {
+      declare(
+        {
+          kind: 'var',
+          name: node.name,
+          label: node.label,
+          type: node.typeNode.name,
+          builtin: false,
+          init: 0,
+          readonly: readonly ? true : undefined,
+          alias,
+        },
+        node,
+      )
+      return
+    }
+
+    declare(
+      {
+        kind: 'array',
+        name: node.name,
+        label: node.label,
+        elementType: node.typeNode.name,
+        length,
+        readonly,
+        values: [],
+        // A view always has a length, even into the heap, where one had to be
+        // stated - so unlike `_heap` itself its indices are bounds-checked.
+        dynamic: false,
+        alias,
+      },
+      node,
+    )
+  }
+
   // Each field becomes its own global - an array when the group has a count, a
   // plain variable when it does not. Structure-of-arrays, so `mob[i].x` needs no
   // multiply: the field offset is folded into the label and the index is used
@@ -1210,11 +1396,15 @@ export const resolve = (program: Program): ResolveResult => {
         raise(target, `"${target.name}" is a far region - assign to an element`)
       }
       if (symbol.kind === 'var' && symbol.readonly) {
-        raise(
-          target,
-          `"${target.name}" reports the carry flag after "int" - it cannot be assigned;` +
-            ' no DOS or BIOS call reads carry on the way in',
-        )
+        // Two ways to be a read-only scalar, and they want different advice.
+        if (symbol.builtin) {
+          raise(
+            target,
+            `"${target.name}" reports the carry flag after "int" - it cannot be assigned;` +
+              ' no DOS or BIOS call reads carry on the way in',
+          )
+        }
+        raise(target, `"${target.name}" is a const view and cannot be assigned`)
       }
       target.label = symbol.label
       return annotate(target, { type: symbol.type, value: null })
@@ -1259,6 +1449,9 @@ export const resolve = (program: Program): ResolveResult => {
     }
     if (node.type === 'FarDeclaration') {
       raise(node, 'a far region must be declared at the top level - a hardware address is not scoped')
+    }
+    if (node.type === 'ViewDeclaration') {
+      raise(node, 'a view must be declared at the top level - it is a name for storage, not a local')
     }
     if (node.type === 'ConstDeclaration') return resolveConstDeclaration(node)
 
@@ -1564,6 +1757,10 @@ export const resolve = (program: Program): ResolveResult => {
       resolveFarDeclaration(statement)
       continue
     }
+    if (statement.type === 'ViewDeclaration') {
+      resolveViewDeclaration(statement)
+      continue
+    }
   }
 
   // ---- pass 2: bodies and top-level statements ------------------------------
@@ -1578,6 +1775,7 @@ export const resolve = (program: Program): ResolveResult => {
     if (statement.type === 'VariableDeclaration') continue
     if (statement.type === 'GroupDeclaration') continue
     if (statement.type === 'FarDeclaration') continue
+    if (statement.type === 'ViewDeclaration') continue
     resolveStatement(statement)
   }
 

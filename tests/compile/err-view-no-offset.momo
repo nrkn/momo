@@ -1,0 +1,3 @@
+// EXPECT-ERROR: a view starts at an offset into "buf"
+u8[8] buf
+view u8[4] head = buf

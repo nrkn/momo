@@ -1,0 +1,4 @@
+// EXPECT-ERROR: "pair" is a const array and cannot be assigned
+const u8[] tag = "hi$"
+view u8[2] pair = tag[0]
+pair[0] = 1

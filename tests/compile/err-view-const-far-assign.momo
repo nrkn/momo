@@ -1,0 +1,5 @@
+// EXPECT-ERROR: "glyphA" is a const far region and cannot be assigned
+// Read-only is inherited through a view, so a window onto ROM is still ROM.
+const far u8[2048] font = 0xF000:0xFA6E
+view u8[8] glyphA = font[520]
+glyphA[0] = 1

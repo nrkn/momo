@@ -19,13 +19,14 @@ usually the reason: the constraint is doing work.
 
 And to settle language ideas that have been rattling around for a decade or
 more, across a series of small prototypes — Yuki above is the one that survived.
-That is why this file argues rather than specifies, and why §16, §17 and §19 are
-written out in full without being built: an idea worked through is worth having
-on paper even when nothing needs it yet. Momo is where they finally have to
-compile.
+That is why this file argues rather than specifies, and why §16, §17 and §19 were
+written out in full before being built: an idea worked through is worth having on
+paper even when nothing needs it yet. Momo is where they finally have to compile —
+and §16 and §17 both did, close enough to what was written down that the sections
+needed correcting rather than rewriting.
 
-**Status.** §1–§16 and §18 describe what is built. §17 and §19 are designed
-and not yet built, and say so in their headings. §20 collects open questions,
+**Status.** §1–§18 describe what is built. §19 is designed and not yet built, and
+says so in its heading. §20 collects open questions,
 §21 longer-term directions. Section numbers are stable — `group` was built where
 it sits rather than renumbered into the built range, because the numbers are
 referenced from source comments and from each other.
@@ -285,6 +286,9 @@ u8[4] buf                               // sized, zero-filled
 u8[] table = [ 2, 4, 6, 8 ]             // size inferred from initialiser
 u8[10] partial = [ 1, 2, 3 ]            // tail zero-filled
 u8[playfieldWidth] row                  // const-folded size
+
+view u8[4] head  = buf[0]               // a window into storage that exists (§17)
+view u8    first = buf[0]               // no [n]: a scalar alias for one element
 
 sub clearScreen {                       // no arguments, no return
   for (y = 0; ; y++) {
@@ -966,9 +970,16 @@ every 16-bit block header would have to be hand-composed from two bytes. Both
 views work with the existing codegen: `_heap[i]` emits `[_heap + bx]`,
 `_heapw[i]` emits `[_heapw + bx]` with the index pre-scaled.
 
+`_heapw` is an alias of `_heap`, and since §17 it carries that the way any `view`
+does rather than as a line of NASM the emitter knew to write. It is still a
+builtin: the language spells a view's parent as an array with a length, and the
+heap has neither.
+
 Momo provides no allocator. `data/projects/heaptest` is a bump allocator written
 in Momo, which is the intended shape: the language supplies the memory, the
-programmer supplies the policy.
+programmer supplies the policy. **`view` (§17) is often the better answer** —
+`view u8[16] mapData = _heap[0]` partitions the heap into named, bounds-checked
+regions with no allocator at all, and no runtime cost.
 
 ### Two limitations, both deliberate
 
@@ -1001,9 +1012,16 @@ expression but **section-relative** inside an `equ`:
 | `dw _heap` | correct |
 | `dw _htop - _heap` | correct |
 | `equ _htop - _heap` | **0x100 too large** |
+| `equ _heap + 16`, used as a displacement | correct, even declared *after* every use |
 
-Verified empirically. Written as an `equ`, the heap would silently overlap the
-stack reserve by 256 bytes.
+Verified empirically, all four. Written as an `equ`, the heap would silently
+overlap the stack reserve by 256 bytes.
+
+The last row is what §17's views rest on, and it is worth keeping next to the
+trap: it is a label **difference** inside an `equ` that goes wrong, not a forward
+reference and not label-plus-constant. Views of `_heap` can only be emitted after
+`_heap` — the last label in the file — so if that row had gone the other way the
+feature would have needed a different shape entirely.
 
 ---
 
@@ -1058,6 +1076,15 @@ two rows and a tile at a non-zero position to catch stride arithmetic.
 
 What it cannot cover is anything that waits for a key — tier 2 has no way to
 press one — so the three demos are golden-tier only.
+
+**A tier 2 program is the worked example for its feature**, and the two written
+this way — `fartest` and `viewtest` — are worth reading as much as running. The
+shape falls out of the tier rather than being an extra effort: a test whose every
+write is read back through a *different* name has to explain why the two name the
+same bytes before it can assert anything, and that explanation is the tutorial.
+So the sections below point at their program, and the program is where to look
+first when the prose is not enough. They also cannot go stale, which is more than
+a code sample in a document can promise.
 
 **Unit tests, only for `types.ts`.** `combineRanges`, `truncate` and
 `naturalType` encode facts about 16-bit integers rather than design choices, so
@@ -1117,7 +1144,11 @@ Still unwritten: a string library beyond `putStr`. Graphics is no longer blocked
 Two things have since joined the list that were never on the original bar:
 `data/projects/grptest` for entity pools (§18), and `data/projects/cftest`,
 which opens a file and notices when that fails — the first Momo program that
-could find out the machine said no.
+could find out the machine said no. `data/projects/viewtest` (§17) makes three.
+
+**Dynamic allocation has an answer that is not an allocator.** `view` partitions
+the heap into named regions at compile time, so `heaptest`'s bump allocator is now
+the interesting case rather than the default one.
 
 ### On banning recursion
 
@@ -1144,7 +1175,8 @@ for.
 ## 16. `far` regions and ES
 
 **Built, except the hoisting below.** Every access reloads ES; `data/projects/fartest`
-exercises it against the real text buffer.
+exercises it against the real text buffer, and is the worked example for this
+section (§14) — read it alongside the rules below.
 
 ```momo
 far       u16[2000] textCells = 0xB800          // text buffer, 80x25 cells
@@ -1467,10 +1499,13 @@ peephole in the emitter, and `push es`/`pop es` in the int helpers.
 
 ---
 
-## 17. Planned: `view`
+## 17. `view`
 
-Deferred, not vague — like §16, this is the design to build when something wants
-it.
+**Built.** `data/projects/viewtest` exercises every shape, and one deliberately
+unused view, because pruning one is part of the feature. It is the worked example
+for this section (§14) and reads in the same order — every case below appears
+there, writing through one name and reading back through another. The one block
+that is there for the test rather than the language is the unused view; it says so.
 
 ```momo
 u8[100] bar
@@ -1490,9 +1525,13 @@ bottom          equ     bar + 50
 
 `bottom[i]` emits `[bottom + bx]`, which NASM folds to `[bar + 50 + bx]`. No
 storage, no instructions, no indirection. This is the `_heapw equ _heap` trick
-already used for the heap, promoted from a special case into the language — and
-`_heapw` could stop being a compiler builtin and become an ordinary view written
-in `lib/std`.
+already used for the heap, promoted from a special case into the language.
+
+**`const view` was added, which this section did not ask for**: a read-only
+window onto storage that is otherwise writable, spelled as the adjective on
+`view` exactly as `const far` is on `far`. Read-only is *inherited* from a const
+parent either way — this is for handing out part of a mutable buffer as
+read-only, which the rules below had no way to say.
 
 ### What it is actually for
 
@@ -1561,12 +1600,58 @@ the need for `halloc` entirely.
 - **Views of `far` regions inherit the segment**, so §16 composes with this.
 - **Views may overlap freely.** No aliasing analysis exists, and none is implied.
 - **Views into `_heap` cannot be extent-checked**, consistent with heap indexing
-  being unchecked today.
+  being unchecked today. Their own length *is* checked, though — a view has to
+  state one there, so `mapData[16]` on a `view u8[16]` is caught even where
+  `_heap[i]` is not. The view is the stricter way to use the heap.
+
+Three more, settled while building:
+
+- **A view must be declared at the top level**, like `far` and `group`. It names
+  storage rather than being storage, and a per-call scope for a name that has no
+  lifetime would mean nothing.
+- **The offset may be any constant expression** — `tiles[64 * 2]`. A far
+  *segment* is restricted to a literal or a name because it loads into a
+  register; this one folds into an `equ`, so there is nothing to restrict.
+- **A scalar view of a `far` region is an error.** `far u16 port` already is —
+  the far path has no scalar form to land in, since a far access is always an
+  `es:` operand built from an index. `view u16[1]` says the same thing and works.
 
 Implementation is an array symbol carrying an alias — `label = parent + offset` —
-which the emitter writes as an `equ` instead of storage. Tree-shaking must keep a
-live view's parent alive, and the memory report must list views as aliases rather
-than counting their bytes twice.
+which the emitter writes as an `equ` instead of storage. A **scalar** view is the
+same alias on a `var` symbol. Carrying it on the existing kinds rather than adding
+a `view` kind is what made this small: a view of an array *is* an array, so
+indexing, bounds checks, `len`, `addr` and the const rules all took no new case,
+and codegen took none at all — `[tail + bx]` is what an ordinary array emits.
+
+### What it cost
+
+**One emitter change, two tool changes, and no codegen.** Views are written last
+in the file, after the heap, because a view of `_heap` can only be written after
+`_heap` is — which makes every view a forward reference from the code that uses
+it. That was measured before it was relied on, with a hand-written probe: NASM
+resolves a forward-referenced `equ` correctly as a displacement under `-f bin`.
+The §13 trap is a *difference* of labels inside an `equ`, which is a different
+shape.
+
+Tree-shaking keeps a live view's parent alive, and a view's own declaration is
+not a use of its parent — so an unused view in an included library costs nothing,
+and neither does the array it points at.
+
+**Two compiler special cases went away**, which is the argument this section was
+originally making. Not as source, as it guessed: `_heapw` is an unsized view of
+`_heap`, which the rules above make an error, and the register halves alias a
+*scalar* rather than an array, which no view can do. What they can be is the same
+*mechanism* — `_heapw` and `_al`..`_dh` now carry an alias like any view, and the
+emitter's byte-alias arithmetic (reconstructing `_ax + 1` from the spelling of
+`_ah`) and its hardcoded `_heapw equ _heap` line are both gone. All 19 committed
+programs stayed byte-identical across that, which is what makes it a refactor.
+
+It also found a one-byte bug. The memory report counted only word-width reserved
+globals, on the reasoning that every byte-width one was an alias — true until
+`_cf` arrived, which is real storage. Any program reading the carry flag
+under-reported its data by the one byte `_cf db 0` occupies. Asking the symbol
+whether it is an alias, rather than inferring it from a width, fixes it: `cftest`
+went from 53 bytes to 54.
 
 ### Runtime offsets are deliberately excluded
 
@@ -1685,12 +1770,13 @@ ordinary array store. Bounds checks on constant indices work per field, unchange
 - **Top-level only** in v1. Entity pools are inherently global.
 - **No field initialisers** in v1 — arrays zero-fill, matching `u8[4] buf`. Const
   groups carrying data are a separate question.
-- **Views compose** in principle — a field is an ordinary array — but not with
-  the spelling this section originally gave. `view u8[16] firstWave = mob__x[0]`
-  names a label that is deliberately out of scope (above), so when §17 lands it
-  needs a way to say *the whole field array*: `mob.x` with no index, which today
-  is an error because the indexed form requires one. Worth settling with `view`
-  rather than inventing now.
+- **A view of a field is still not expressible**, and §17 landing did not change
+  that. A field *is* an ordinary array, so nothing in the mechanism objects — but
+  `view u8[16] firstWave = mob__x[0]` names a label deliberately out of scope
+  (above), and `mob.x[0]` means *element 0 of field x*, not *the field array*. The
+  missing piece is a way to say the whole field array, which is `mob.x` with no
+  index, and that is an error today because the indexed form requires one. Left
+  alone: it is a change to what a group name denotes, not a gap in `view`.
 
 ### `group` is namespacing, not views
 
@@ -1711,7 +1797,11 @@ features doing two jobs: **`group` names fields it creates; `view` names what
 already exists.**
 
 For the same reason `group` does *not* retire the `_al`/`_ah` register aliases.
-Those are genuinely views over `_ax`'s storage, and §17 still covers them.
+Those are genuinely views over `_ax`'s storage — and `view` does not retire them
+either, in the language: a view's parent is an array, and `_ax` is a scalar, so
+`view u8 al = _ax[0]` has nothing to index. They now share `view`'s *mechanism*
+without being expressible in it (§17), which is the honest half of a claim this
+file used to make in full.
 
 ### What it displaces
 
@@ -1756,14 +1846,13 @@ required *here*, because inside `clear` the length is only known per
 specialisation — but it was independently useful, so it landed on its own, which
 is what "stands on its own" in the original note was betting on.
 
-What is built covers arrays. Two cases wait on their own features:
+The two cases that were waiting on their own features have both arrived with them:
 
 - `len` on a **group** is its instance count — `for ( i = 0; i < len( mob ); i++ )`
   (§18).
-- `len` on a **view** is the view's length, not the underlying array's (§17).
-
-Both are additional symbol kinds rather than new machinery, so each is a case in
-the same fold.
+- `len` on a **view** is the view's length, not the underlying array's (§17). This
+  one took no code at all: a view *is* an array symbol, so it was already
+  answered.
 
 ### The mechanism is monomorphisation
 
@@ -1831,8 +1920,11 @@ up, so where both fit, this is the more Momo-shaped answer.
   be reentrant. Genuine stack frames would bring back BP, `lea` and recursion —
   and would destroy the exact static memory analysis, which is the trade that
   keeps them out.
-- **Graphics.** `int 10h` needs no extra ISA but costs an interrupt per cell.
-  Direct buffer access is designed in §16 and deferred until something needs it.
+- **Graphics** — **no longer blocked; see §16.** `int 10h` needs no extra ISA but
+  costs an interrupt per cell, and direct buffer access replaces that: `far` is
+  built, so the text buffer and mode 13h are ordinary memory, and `view` (§17)
+  names a row or a tile inside either. What is still open is a *library* — mode
+  setting, sprites, clipping — rather than any access to the hardware.
 - **Port I/O (`in`/`out`).** Two instructions, needed for EGA/VGA planar modes,
   the PIT, and the speaker. Out of scope until a program wants one of those.
 - **`bool _cf`** — **built; see §10.** DOS and BIOS report failure in carry, and

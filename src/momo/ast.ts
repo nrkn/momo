@@ -175,6 +175,26 @@ export type FarDeclaration = Spanned & {
   label?: string // set by the resolver
 }
 
+// `view u8[50] top = bar[0]`, `const view u8 first = bar[0]`.
+//
+// A named window into an existing array at a constant offset. Like a far region
+// this names a location rather than contents, so the `=` is not the initialiser
+// of §5 - which is why it may name another declaration. Emits no storage: the
+// label is an assembly-time alias for `parent + offset`.
+//
+// The three shapes are told apart by the TypeNode alone, exactly as they are for
+// an ordinary declaration: `u8[50]` sized, `u8[]` the remainder of the parent,
+// and `u8` a scalar alias for one element.
+export type ViewDeclaration = Spanned & {
+  type: 'ViewDeclaration'
+  name: string
+  typeNode: TypeNode
+  readonly: boolean
+  parent: Identifier
+  offset: Expression // in the PARENT's elements, folded by the resolver
+  label?: string // set by the resolver
+}
+
 // `group mob[64] { ... }` many, `group player { ... }` one. The presence of a
 // count decides, exactly as it does for `u8 x` against `u8[4] x`, so no second
 // keyword is needed.
@@ -340,6 +360,7 @@ export type Statement =
   | VariableDeclaration
   | GroupDeclaration
   | FarDeclaration
+  | ViewDeclaration
   | RoutineDeclaration
   | BlockStatement
   | IfStatement

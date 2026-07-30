@@ -31,6 +31,7 @@ import type {
   Statement,
   TypeName,
   TypeNode,
+  ViewDeclaration,
   WhileStatement,
 } from './ast.js'
 
@@ -427,12 +428,18 @@ export const parse = (tokens: Token[]): Program => {
   const parseConstDeclaration = ():
     | ConstDeclaration
     | ConstFunctionDeclaration
-    | FarDeclaration => {
+    | FarDeclaration
+    | ViewDeclaration => {
     const start = expect('keyword', 'const')
 
     // `const far` - read-only region. The order matches §16 and reads as an
     // adjective on `far`, which is what it is.
     if (at('keyword', 'far')) return parseFarDeclaration(true, start)
+
+    // `const view` reads the same way, and means a read-only window onto storage
+    // that is otherwise writable. A view of a const array is read-only whether
+    // this is written or not - see resolveViewDeclaration.
+    if (at('keyword', 'view')) return parseViewDeclaration(true, start)
 
     const typeNode = at('type') ? parseTypeNode() : null
     const name = expect('ident')
@@ -587,6 +594,64 @@ export const parse = (tokens: Token[]): Program => {
       typeNode,
       readonly,
       segment,
+      offset,
+      file: start.file,
+      line: start.line,
+      col: start.col,
+      endLine,
+    }
+  }
+
+  // view       u8[50] top    = bar[0]
+  // view       u8[]   tail   = bar[75]     length omitted: the rest of the parent
+  // view       u8     first  = bar[0]      no [n]: a scalar alias for one element
+  // const view u8[8]  header = buf[0]      read-only window onto writable storage
+  //
+  // The offset may be any constant expression - unlike a far segment, which is
+  // restricted to a literal or a name because it has to load into a register.
+  // This one folds into an `equ`, so `tiles[64 * 2]` costs nothing to allow.
+  const parseViewDeclaration = (readonly: boolean, start: Token): ViewDeclaration => {
+    expect('keyword', 'view')
+    const typeNode = parseTypeNode()
+    const name = expect('ident')
+    expect('op', '=')
+
+    // A name, never an expression: a view windows onto one declared thing, and
+    // `bar` is that thing rather than an address to compute.
+    if (!at('ident')) {
+      raise(peek(), 'a view names the array it windows onto - write "view u8[4] top = bar[0]"')
+    }
+    const parentToken = advance()
+    const parent: Identifier = {
+      type: 'Identifier',
+      name: parentToken.text,
+      file: parentToken.file,
+      line: parentToken.line,
+      col: parentToken.col,
+    }
+
+    // The offset is required even when it is zero. `= bar` would read as an
+    // initialiser, which is the one thing this `=` is not.
+    if (!at('op', '[')) {
+      raise(
+        peek(),
+        `a view starts at an offset into "${parent.name}" - name one, as in` +
+          ` "= ${parent.name}[0]"`,
+      )
+    }
+    advance()
+    const offset = parseExpression()
+    expect('op', ']')
+
+    const endLine = previous().line
+    expectTerminator()
+
+    return {
+      type: 'ViewDeclaration',
+      name: name.text,
+      typeNode,
+      readonly,
+      parent,
       offset,
       file: start.file,
       line: start.line,
@@ -998,6 +1063,7 @@ export const parse = (tokens: Token[]): Program => {
       if (token.text === 'const') return parseConstDeclaration()
       if (token.text === 'group') return parseGroupDeclaration()
       if (token.text === 'far') return parseFarDeclaration(false, token)
+      if (token.text === 'view') return parseViewDeclaration(false, token)
       if (token.text === 'sub') return parseSubDeclaration()
       if (token.text === 'fn') {
         // Migration aid - delete once the old spelling is out of muscle memory.

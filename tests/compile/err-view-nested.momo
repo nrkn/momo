@@ -1,0 +1,9 @@
+// EXPECT-ERROR: a view must be declared at the top level
+u8[8] buf
+
+sub show {
+  view u8[4] head = buf[0]
+  head[0] = 1
+}
+
+show()

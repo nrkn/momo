@@ -31,6 +31,7 @@ export const keywords = [
   'include',
   'group',
   'far',
+  'view',
   'sub',
   'fn',
   'if',

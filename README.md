@@ -129,10 +129,16 @@ errors in the Problems panel.
 
 | | |
 |---|---|
-| **`DESIGN.md`** | The language and the reasoning behind every decision — including two designed-but-unbuilt features and the long-term directions |
+| **`DESIGN.md`** | The language and the reasoning behind every decision — including the one designed-but-unbuilt feature and the long-term directions |
 | **`STYLE.md`** | Code conventions |
 | **`CONTRIBUTING.md`** | Orientation: layout, scripts, the tooling traps, and the practices that keep this honest |
 | **`CLAUDE.md`** | The handful of things that differ when the contributor is an agent |
+
+**For worked examples, read the programs.** `data/projects/*` are real programs
+that the test suite compiles and runs, so none of them can drift out of step with
+the compiler. `viewtest` and `fartest` are written to be read — each writes
+through one name and reads back through another, so every line says why it is
+true — and `smoke` is every construct in the language in one file.
 
 [Yuki](https://github.com/nrkn/yuki-js) is Momo's predecessor.
 `_reference/yuki.txt` is a Pong for a fantasy console written in it, kept here

@@ -1,0 +1,4 @@
+// EXPECT-ERROR: "hp" is a const view and cannot be assigned
+u8[8] buf
+const view u16 hp = buf[2]
+hp = 100

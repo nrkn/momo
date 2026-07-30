@@ -20,8 +20,15 @@ type PrunableSymbol =
       builtin: boolean
       owner?: string
       onlyIfUsed?: boolean
+      alias?: { parent: string; byteOffset: number }
     }
-  | { kind: 'array'; name: string; label: string; dynamic: boolean }
+  | {
+      kind: 'array'
+      name: string
+      label: string
+      dynamic: boolean
+      alias?: { parent: string; byteOffset: number }
+    }
   | { kind: 'const'; name: string; label: string }
   | { kind: 'constfn'; name: string; label: string }
   // A group emits nothing itself - its field globals are ordinary arrays or
@@ -296,6 +303,13 @@ export const prune = <S extends PrunableSymbol>(result: {
       return
     }
 
+    // Nor a view's, and nothing inside one is a use either: the parent is
+    // deliberately left unlabelled by the resolver, and the offset has already
+    // folded into the alias, so a const that only appears there is genuinely
+    // dead. Without this every view in an included library would be kept, and
+    // would keep its parent's storage with it.
+    if (node.type === 'ViewDeclaration') return
+
     if (typeof node.label === 'string') used.add(node.label)
     for (const key of Object.keys(node)) {
       if (key === 'label') continue
@@ -304,6 +318,21 @@ export const prune = <S extends PrunableSymbol>(result: {
   }
 
   walk(body)
+
+  // A live view keeps its parent alive: the alias is `equ parent + n`, so
+  // dropping the storage would leave NASM with an undefined symbol. Views
+  // collapse to real storage when they are declared, so one pass would do - the
+  // fixpoint is here so that stops being something this has to know.
+  for (;;) {
+    let added = false
+    for (const symbol of result.symbols) {
+      if (!('alias' in symbol) || !symbol.alias) continue
+      if (!used.has(symbol.label) || used.has(symbol.alias.parent)) continue
+      used.add(symbol.alias.parent)
+      added = true
+    }
+    if (!added) break
+  }
 
   const symbols = result.symbols.filter((symbol) => {
     if (symbol.kind === 'routine') return reachable.has(symbol.name)

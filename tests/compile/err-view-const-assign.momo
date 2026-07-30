@@ -1,0 +1,4 @@
+// EXPECT-ERROR: "frozen" is a const array and cannot be assigned
+u8[8] buf
+const view u8[4] frozen = buf[0]
+frozen[0] = 1

@@ -1,0 +1,3 @@
+// EXPECT-ERROR: offset 12 is outside "buf" (length 12)
+u8[12] buf
+view u8[2] past = buf[12]

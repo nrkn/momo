@@ -1,0 +1,3 @@
+// EXPECT-ERROR: a view of far region "cells" is an array
+far u16[2000] cells = 0xB800
+view u16 firstCell = cells[0]

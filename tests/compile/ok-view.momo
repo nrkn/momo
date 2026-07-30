@@ -1,0 +1,63 @@
+// Every view shape that must work.
+
+u8[12] buf
+
+view u8[4] head    = buf[0]
+view u8[4] mid     = buf[4]
+view u8[]  tail    = buf[8]         // no length: the remainder, so 4
+view u8[2] midPair = mid[1]         // views compose, offsets adding
+view u16[6] words  = buf[0]         // type punning, no cast
+
+const view u8[4] frozen = buf[0]    // read-only window onto writable storage
+
+view u8  first = buf[0]             // no [n]: a scalar alias
+view u16 pair  = buf[2]
+
+const u8[] tag = "hi$"
+view u8[2] tagPair = tag[0]         // a view of a const array is read-only
+
+view u8[16] mapData  = _heap[0]     // the heap needs a stated length
+view u16[8] entities = _heap[16]
+
+far u16[2000] cells = 0xB800
+view u16[80] row2     = cells[160]  // inherits the segment
+view u16[40] rightHalf = row2[40]   // and far views compose too
+
+// A view of an unsized far region is allowed with a stated size: there is no
+// extent to check it against, exactly as for the region itself.
+far u8[] vga = 0xA000
+view u8[320] scanline0 = vga[0]
+
+// Read-only comes through a far parent as well.
+const far u8[2048] font = 0xF000:0xFA6E
+view u8[8] glyphA = font[520]
+
+// An offset may be any constant expression - it folds into the equ.
+const stride = 4
+view u8[4] third = buf[stride * 2]
+
+u16 i
+u16 v
+u8  b
+
+head[0] = 1
+tail[i] = 2
+midPair[1]++
+words[0] = 65535
+first = 9
+pair = 1000
+row2[i] = 0x0741
+
+rightHalf[i] = 0x0742
+scanline0[i] = 13
+
+b = glyphA[0]                       // a const far view reads
+b = frozen[0]                       // reading a const view is fine
+b = tagPair[1]
+v = words[i]
+v = pair
+b = first
+v = len( tail )                     // the view's own length, not its parent's
+v = addr( mid )                     // an alias has an address like any storage
+mapData[i] = 3
+entities[i] = 4

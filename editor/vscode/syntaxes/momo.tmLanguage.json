@@ -155,7 +155,7 @@
         },
         {
           "name": "keyword.control.momo",
-          "match": "\\b(group|far|fn|if|else|for|while|do|break|continue|return|int|len)\\b"
+          "match": "\\b(group|far|view|fn|if|else|for|while|do|break|continue|return|int|len)\\b"
         }
       ]
     },

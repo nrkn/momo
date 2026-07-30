@@ -1,0 +1,3 @@
+// EXPECT-ERROR: view size must be positive
+u8[8] buf
+view u8[0] nothing = buf[0]

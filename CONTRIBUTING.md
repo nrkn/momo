@@ -6,7 +6,7 @@ predecessor [Yuki](https://github.com/nrkn/yuki-js), whose Pong for a fantasy
 console is kept as `_reference/yuki.txt`.
 
 - **`DESIGN.md`** — the language, and *why* every decision was made. 21 sections:
-  built features, two designed-but-deferred ones (§17, §19), open questions
+  built features (§1–§18), one designed-but-deferred (§19), open questions
   (§20), and long-term directions (§21). Read the relevant section before
   changing anything; the rationale matters more than the rules.
 - **`STYLE.md`** — TypeScript and Momo conventions.
@@ -148,9 +148,15 @@ does not list. `_cf` added `pushf` and the table said 36 for a while. Everything
 else points at §1 rather than restating the number, so §1 is the only edit.
 
 **Prefer deleting a special case to adding a feature.** `include` retired the
-stdlib-as-prologue idea; `view` (§17) would retire `_heapw` and the register
-aliases. Features that remove compiler special cases while adding expressiveness
-have consistently been the right ones.
+stdlib-as-prologue idea; `view` (§17) retired the emitter's byte-alias arithmetic
+and its hardcoded `_heapw equ _heap`. Features that remove compiler special cases
+while adding expressiveness have consistently been the right ones.
+
+Read what got retired carefully, though: `view` absorbed those two as *mechanism*,
+not as source. `_heapw` and `_al` still cannot be written as views — DESIGN said
+they could, and it was half wrong. A feature that subsumes a special case is worth
+having whether or not the special case can be re-spelled in it, but the two are
+different claims and only one of them survived contact.
 
 ## Current state
 
@@ -167,5 +173,5 @@ the display back, so none can have a `.expected` — tier 2 cannot run something
 that blocks. The golden tier still covers them, which is the regression coverage
 that matters for a compiler.
 
-146 tier-1 assertions (102 compile tests, 19 golden `.asm`, 25 type), 15 e2e
+162 tier-1 assertions (117 compile tests, 20 golden `.asm`, 25 type), 16 e2e
 programs, all green.

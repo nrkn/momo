@@ -1,0 +1,2 @@
+// EXPECT-ERROR: "_heap" has no compile-time length, so the rest of it is not a number
+view u8[] everything = _heap[0]
