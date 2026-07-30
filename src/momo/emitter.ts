@@ -287,11 +287,13 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
       return symbol.kind === 'var' && widthOf(symbol.type) === 1 ? symbol.type : null
     }
 
+    // A far element is a bare byte load too. Excluding it cost a dead `xor ah, ah`
+    // in every byte copy through video memory - which is the inner loop of a
+    // blitter, and the one place it is least affordable.
     if (node.type === 'IndexExpression') {
       const symbol = symbolFor(node.array.label)
-      return symbol.kind === 'array' && widthOf(symbol.elementType) === 1
-        ? symbol.elementType
-        : null
+      if (symbol.kind !== 'array' && symbol.kind !== 'far') return null
+      return widthOf(symbol.elementType) === 1 ? symbol.elementType : null
     }
 
     // peek8 is a bare byte load like any other, which is what makes

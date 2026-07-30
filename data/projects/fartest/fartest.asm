@@ -42,14 +42,12 @@ __entry:
         mov     dx, 0xB800                  ; segment of cellBytes
         mov     es, dx
         mov     al, [es:2]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [char1], al                 ; narrowed to u8
+        mov     [char1], al                 ; u8 -> u8, no widening
 ; ---- attr1 = cellBytes[3]
         mov     dx, 0xB800                  ; segment of cellBytes
         mov     es, dx
         mov     al, [es:3]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [attr1], al                 ; narrowed to u8
+        mov     [attr1], al                 ; u8 -> u8, no widening
 ; ---- viaOffset = cellFive[0]
         mov     dx, 0xB800                  ; segment of cellFive
         mov     es, dx

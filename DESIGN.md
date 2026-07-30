@@ -25,11 +25,13 @@ paper even when nothing needs it yet. Momo is where they finally have to compile
 and §16 and §17 both did, close enough to what was written down that the sections
 needed correcting rather than rewriting.
 
-**Status.** §1–§18 describe what is built. §19 is designed and not yet built, and
-says so in its heading. §20 collects open questions,
-§21 longer-term directions. Section numbers are stable — `group` was built where
-it sits rather than renumbered into the built range, because the numbers are
-referenced from source comments and from each other.
+**Status.** §1–§18 describe what is built. §19 and §22 are designed and not yet
+built, and say so in their headings. §20 collects open questions, §21 longer-term
+directions. Section numbers are stable — `group` was built where it sits rather
+than renumbered into the built range, because the numbers are referenced from
+source comments and from each other, and §22 is appended past the open-ended
+sections for the same reason rather than filed next to §19 where it belongs by
+kind.
 
 ---
 
@@ -81,7 +83,11 @@ Deliberately absent:
   two's complement, and with no 32-bit type we never read `DX`. `*` always emits `mul`.
 - **`enter`/`leave`, `pusha`/`popa`, 3-operand `imul`, `push imm`, `shl r,imm8`** — all 186+.
 - **`setcc`** — 386+. This is why conditions compile in control-flow context (§9).
-- Segment ops, BCD/ASCII adjusts, `in`/`out`, `xlat`, far calls.
+- Segment ops, BCD/ASCII adjusts, `xlat`, far calls.
+- **`in`/`out`** — absent, but **designed rather than rejected; see §22.** They are
+  what EGA/VGA planar modes, the PIT and the speaker need, and building them takes
+  this table from 37 to 39. Everything else in this list is out on principle;
+  these two are out only until something wants them, and something now does.
 - **Flag manipulation**, with one exception. `pushf` earns its place by being the
   only way to read carry without `setcc` (386+), and carry is how DOS and BIOS
   report failure — see `_cf` in §10. It appears once per int helper and nowhere
@@ -1996,8 +2002,9 @@ up, so where both fit, this is the more Momo-shaped answer.
   built, so the text buffer and mode 13h are ordinary memory, and `view` (§17)
   names a row or a tile inside either. What is still open is a *library* — mode
   setting, sprites, clipping — rather than any access to the hardware.
-- **Port I/O (`in`/`out`).** Two instructions, needed for EGA/VGA planar modes,
-  the PIT, and the speaker. Out of scope until a program wants one of those.
+- **Port I/O (`in`/`out`)** — **designed; see §22.** Two instructions, needed for
+  EGA/VGA planar modes, the PIT, and the speaker. It was out of scope until a
+  program wanted one of those, and smooth scrolling is the program that does.
 - **`bool _cf`** — **built; see §10.** DOS and BIOS report failure in carry, and
   nothing in Momo could see it. Read-only, and captured only when something
   reads it, so a program that ignores carry pays nothing.
@@ -2635,3 +2642,147 @@ existing "compute an address, then load" model. The 6502 is harder than it looks
 no 16-bit registers at all, no multiply or divide, a fixed 256-byte stack, and
 `abs,X` indexing with an 8-bit index — so arrays over 256 bytes need a different
 addressing scheme entirely, not just a different instruction.
+
+---
+
+## 22. Planned: port I/O
+
+Designed and not yet built, like §19 — and for the reason §20 gave: this was out
+of scope until a program wanted it, and **Carmack-style scrolling is the program
+that does.** Coarse scroll plus fine scroll plus adaptive tile refresh, which is
+how Commander Keen moved an EGA screen smoothly on hardware with no blitter.
+
+```momo
+out8( 0x3C4, 0x02 )              // sequencer index: map mask
+out16( 0x3C4, 0x0F02 )           // index and data in one instruction
+u8 status = in8( 0x3DA )
+```
+
+### Most of the technique already works
+
+Worth establishing first, because it makes this much smaller than it sounds. Of
+what adaptive tile refresh needs:
+
+- **The framebuffer** is `far u8[] ega = 0xA000` (§16).
+- **Naming a tile or a row inside it** is `view` (§17).
+- **The latch copy** — the hot loop, four planes moved per byte access under write
+  mode 1 — is `ega[dst] = ega[src]`, which emits a read from video memory and a
+  write back to it, with no widening in between. Nothing was added for this; it
+  was verified by compiling it and reading the output.
+- **Mode setting** is `int 10h`, one call.
+- **The dirty-tile bookkeeping** is ordinary Momo. `simplerl` already does the
+  idea in text mode.
+
+**Only the control registers are missing.** That is the whole feature.
+
+### What actually needs a port
+
+| | port | why |
+|---|---|---|
+| CRTC start address | `0x3D4/5` idx `0x0C`, `0x0D` | coarse scroll — 8px across, one scanline down |
+| Attribute pixel panning | `0x3C0` idx `0x13` | fine horizontal scroll, 0–7px |
+| Input status 1 | `0x3DA`, **read** | resets the attribute flip-flop; also retrace polling |
+| Sequencer map mask | `0x3C4/5` idx `0x02` | which planes a write reaches |
+| Graphics controller mode | `0x3CE/F` idx `0x05` | selects write mode 1, which is what makes the latch copy a latch copy |
+| Graphics controller bit mask | `0x3CE/F` idx `0x08` | partial-byte writes at a tile edge |
+
+The third row is why **`in` is not optional.** The attribute controller shares one
+port for index and data and alternates between them through a flip-flop that only
+a read of `0x3DA` resets — so fine horizontal scrolling is impossible with `out`
+alone. Retrace polling, which a scroll wants anyway to avoid tearing, is the same
+register.
+
+### Four builtins, mirroring `peek` and `poke`
+
+The shape is identical to §10's: a numeric target the compiler cannot check, one
+read and one write, unsafe and visibly so at every use. So the spelling is the
+same and for the same reasons — four names rather than a `_port` array, since a
+`_portw` would scale its index and a port number is not scaled.
+
+- **`in8`/`in16` are expressions, `out8`/`out16` are statements.** §6 keeps effects
+  out of expressions, and a port write is an effect. Reading a port is *also* an
+  effect on some hardware — `0x3DA` resets the flip-flop by being read — but it
+  produces a value, so it stays an expression; §6's rule is about expressions
+  having no effect on Momo's own state, which this does not.
+- **The port is `u16`.** Signed is rejected as it is for an address.
+- **The value follows the fit rule** a declared `u8` or `u16` would.
+- **`out16` is not just symmetry.** `out dx, ax` writes an index and its data in
+  one instruction, which is the standard EGA idiom and halves the cost of every
+  register poke.
+
+Codegen is the same shape as `poke`: the port into DX, the value into AL or AX,
+then the instruction.
+
+```nasm
+        mov     dx, 0x3C4
+        mov     ax, 0x0F02
+        out     dx, ax
+```
+
+**The `imm8` port form is deliberately skipped.** `out 0x21, al` exists and is
+shorter, but every port above is greater than 0xFF, so it would never fire on the
+code this feature is for.
+
+### What it costs
+
+**Two mnemonics — §1 goes from 37 to 39**, which is the largest single addition to
+the subset since it was written down, and the reason this needs a section rather
+than a bullet. Nothing else moves: no new register pressure beyond DX, which §9
+already documents as scratch and never live; no segment involvement; and §12's
+static memory analysis is untouched, because ports are not memory and nothing here
+allocates.
+
+### On danger, stated once and accurately
+
+This is the first construct in Momo that can affect something outside the
+program's own state, and the documentation should neither overstate it nor bury
+it.
+
+**The stdlib is the right mitigation, but for correctness rather than safety.**
+What goes wrong in practice is a *sequence*: the attribute flip-flop, the
+index-then-data pairing, the write of `0x20` to `0x3C0` that re-enables video and
+without which the screen simply stays black in a way that reads as a hang. Those
+belong in `lib/std` written carefully once, so that most programs never spell a
+raw `out8` at all.
+
+**But the registers that can actually damage anything are the ones no wrapper
+would ever touch.** The destructive group is CRTC `0x00`–`0x07` — horizontal
+total, sync start and end, vertical total — where out-of-spec values could drive a
+fixed-frequency CRT outside its range. A scrolling library writes start address
+and pixel panning, which are harmless by construction. So the danger lives
+precisely in the paths a library does not cover, and a program that writes them is
+doing so deliberately. Under DOSBox, 86Box, or any modern display the realistic
+failure is a black screen or a hang, not hardware.
+
+That is the whole warning. It is the `unsafe { }` bargain §20 already made for
+`peek`/`poke`, one step further out.
+
+### Testing has three tiers here, and only the first is automatic
+
+Worth writing down, because it is otherwise easy to over-read a passing e2e run:
+
+| | asserts |
+|---|---|
+| tier 2, under DOSBox | we emitted the right `out` |
+| 86Box | the hardware model agrees |
+| a real 486 | the timing is real |
+
+Tier 2 can write a register and read it back where the register is genuinely
+readable — the sequencer and graphics controller indices are — and that is worth
+having, but it tests DOSBox's emulation as much as Momo's codegen, and readback is
+not reliable on real hardware even where DOSBox permits it. A scrolling demo
+cannot be checked from stdout at all, so it joins the three existing demos as
+golden-tier only. **The honest claim for an automated test here is "the right port
+instruction was emitted", not "the hardware agreed"** — and any test added should
+say so in its own comment rather than implying otherwise.
+
+### Deliberately out of scope
+
+- **A graphics library.** §20 already separates "access to the hardware" from "a
+  library over it"; this section is the first, and mode setting, sprites, clipping
+  and the scroll bookkeeping are the second.
+- **`rep outsb` and the string port instructions.** More mnemonics, and nothing in
+  a tile blitter wants them.
+- **Interrupt control.** `cli`/`sti` would be needed to retime the PIT or install a
+  handler; both are separate features with their own reasons, and neither is
+  needed to scroll.

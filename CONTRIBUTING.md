@@ -5,8 +5,8 @@ A small imperative language that transpiles to **commented NASM** for a strict
 predecessor [Yuki](https://github.com/nrkn/yuki-js), whose Pong for a fantasy
 console is kept as `_reference/yuki.txt`.
 
-- **`DESIGN.md`** — the language, and *why* every decision was made. 21 sections:
-  built features (§1–§18), one designed-but-deferred (§19), open questions
+- **`DESIGN.md`** — the language, and *why* every decision was made. 22 sections:
+  built features (§1–§18), two designed-but-deferred (§19, §22), open questions
   (§20), and long-term directions (§21). Read the relevant section before
   changing anything; the rationale matters more than the rules.
 - **`STYLE.md`** — TypeScript and Momo conventions.
@@ -148,10 +148,17 @@ does not list. `_cf` added `pushf` and the table said 36 for a while. Everything
 else points at §1 rather than restating the number, so §1 is the only edit.
 
 The table is worth *checking* rather than eyeballing, in both directions: scan the
-committed `.asm` for a mnemonic §1 does not list, and §1 for one no program emits.
-Both currently come back empty. Doing it by eye instead is how this was nearly
-missed — a hand-typed list of the subset came out with `xchg` and `imul` in it and
-`cwd` left off.
+committed `.asm` for a mnemonic §1's table does not list, and the table for one no
+program emits. Two traps, both hit while writing this down:
+
+- **Take the table rows, not the section.** The prose around the table is full of
+  backticked words, and a range slice picks up `cmptest` as a mnemonic.
+- **`jz`/`jnz` are expected extras.** The table holds 37; those two are the same
+  instructions under a second spelling and are documented beneath it, so the
+  reconciliation is 37 emitted-and-listed plus those.
+
+Doing it by eye instead of by script is worse still — a hand-typed copy of the
+subset came out with `xchg` and `imul` in it and `cwd` left off.
 
 **Prefer deleting a special case to adding a feature.** `include` retired the
 stdlib-as-prologue idea; `view` (§17) retired the emitter's byte-alias arithmetic

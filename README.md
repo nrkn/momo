@@ -129,7 +129,7 @@ errors in the Problems panel.
 
 | | |
 |---|---|
-| **`DESIGN.md`** | The language and the reasoning behind every decision — including the one designed-but-unbuilt feature and the long-term directions |
+| **`DESIGN.md`** | The language and the reasoning behind every decision — including the two designed-but-unbuilt features and the long-term directions |
 | **`STYLE.md`** | Code conventions |
 | **`CONTRIBUTING.md`** | Orientation: layout, scripts, the tooling traps, and the practices that keep this honest |
 | **`CLAUDE.md`** | The handful of things that differ when the contributor is an agent |
