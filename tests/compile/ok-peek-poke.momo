@@ -1,0 +1,45 @@
+// Every peek and poke shape that must work.
+
+include "std/str.momo"
+
+u8[8]  bytes
+u16[4] words
+u8     one
+u16    at
+u16    i
+u8     b
+u16    w
+bool   flag
+
+u16 addressOf() => addr( bytes )
+
+// A constant address folds like any other expression, and a computed one is the
+// whole point of these four existing.
+at = addr( bytes )
+
+poke8( at, 1 )                    // constant value: an immediate in the store
+poke8( at + i, b )                // both sides computed
+poke8( addressOf(), 2 )           // a fn call in the address
+poke8( at, u8( w ) )
+poke16( at, 1000 )
+poke16( at + i * 2, w )
+poke8( at, peek8( at + 1 ) )      // the memcpy shape: byte in, byte out
+poke16( at, peek16( at + 2 ) )
+
+b = peek8( at )
+w = peek16( at + i )
+w = peek8( at ) + peek8( at + 1 ) // arithmetic over peeks widens as usual
+b = u8( peek16( at ) )
+flag = peek8( at ) != 0           // a comparison, so the bool rule is satisfied
+
+// In a condition, where the truthiness path skips the widening.
+if ( peek8( at ) ) one = 1
+while ( peek8( at ) == '$' ) i++
+
+// A byte compare against a constant, which is the no-widening compare path.
+if ( peek8( at ) == 65 ) one = 2
+
+// Addresses of every kind of storage.
+poke8( addr( one ), 3 )
+poke16( addr( words ) + 2, 4 )
+poke8( addr( _heap ), 5 )

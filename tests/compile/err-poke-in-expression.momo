@@ -1,0 +1,5 @@
+// EXPECT-ERROR: poke8 stores a value rather than producing one
+u16 at
+u16 x
+at = 0x100
+x = poke8( at, 1 )

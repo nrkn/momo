@@ -201,6 +201,22 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     if (widening) widen(symbol.type)
   }
 
+  // The address goes through BX because that is the only register the 8086 will
+  // index memory through here - no `lea`, and no choice of base register. Nothing
+  // else in the expression can be live in BX at this point: the accumulator model
+  // (§9) keeps values in AX and treats BX as the index scratch.
+  const emitPeek = (node: Expression, widening = true) => {
+    if (node.type !== 'PeekExpression') return
+    emitExpression(node.address)
+    ins('mov', 'bx, ax')
+    if (node.width === 2) {
+      ins('mov', 'ax, [bx]', 'peek16 - unchecked, by design')
+      return
+    }
+    ins('mov', 'al, [bx]', 'peek8 - unchecked, by design')
+    if (widening) widen('u8')
+  }
+
   const emitIndexLoad = (node: IndexExpression, widening = true) => {
     const symbol = symbolFor(node.array.label)
 
@@ -278,6 +294,10 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
         : null
     }
 
+    // peek8 is a bare byte load like any other, which is what makes
+    // `poke8( to, peek8( from ) )` - the memcpy inner loop - cost no widening.
+    if (node.type === 'PeekExpression') return node.width === 1 ? 'u8' : null
+
     return null
   }
 
@@ -290,6 +310,7 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
 
     if (node.type === 'Identifier') loadVariable(symbolFor(node.label), false)
     else if (node.type === 'IndexExpression') emitIndexLoad(node, false)
+    else if (node.type === 'PeekExpression') emitPeek(node, false)
     return type
   }
 
@@ -588,6 +609,11 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
 
     if (node.type === 'AddrExpression') {
       ins('mov', `ax, ${symbolFor(node.target.label).label}`, 'link-time constant')
+      return
+    }
+
+    if (node.type === 'PeekExpression') {
+      emitPeek(node, true)
       return
     }
 
@@ -1149,6 +1175,40 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
       quoteSource(node.file, node.line, node.endLine)
       interrupts.add(node.interrupt)
       ins('call', intHelperName(node.interrupt))
+      return
+    }
+
+    if (node.type === 'PokeStatement') {
+      quoteSource(node.file, node.line, node.endLine)
+
+      const size = node.width === 2 ? 'word' : 'byte'
+      const fixed = constOf(node.value)
+
+      // A constant value is an immediate in the store itself, so the address can
+      // have BX to itself and the save disappears - peephole 9, through a runtime
+      // address this time.
+      if (fixed !== null) {
+        emitExpression(node.address)
+        ins('mov', 'bx, ax')
+        ins('mov', `${size} [bx], ${fixed & (node.width === 2 ? 0xffff : 0xff)}`)
+        return
+      }
+
+      // Address first: §7 evaluates arguments left to right, and either side may
+      // call a fn. It is pushed rather than parked in BX because evaluating the
+      // value needs BX itself for any indexing it does.
+      emitExpression(node.address)
+      ins('push', 'ax', 'save the address while the value is computed')
+
+      // poke8 keeps only AL, so widening a byte source would be computed and then
+      // thrown away - the same rule as a byte-to-byte assignment. This is what
+      // makes `poke8( to, peek8( from ) )` two instructions of actual work.
+      if (node.width === 2 || !emitByteLoad(node.value)) {
+        emitExpression(node.value)
+      }
+
+      ins('pop', 'bx')
+      ins('mov', node.width === 2 ? '[bx], ax' : '[bx], al')
       return
     }
 

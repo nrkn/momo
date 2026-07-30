@@ -1,0 +1,4 @@
+// EXPECT-ERROR: poke8 needs a u16 address - this is i16
+i16 offset
+offset = 100
+poke8( offset, 1 )

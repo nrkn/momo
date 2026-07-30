@@ -29,6 +29,7 @@ import { raise, type Location } from './diagnostics.js'
 import {
   combineRanges,
   fits,
+  isSigned,
   naturalType,
   promote,
   rangeOf,
@@ -628,6 +629,11 @@ export const resolve = (program: Program): ResolveResult => {
       node.array.label = symbol.label
       checkIndex(symbol, node.index)
       return annotate(node, { type: symbol.elementType, value: null })
+    }
+
+    if (node.type === 'PeekExpression') {
+      checkAddress(node.address, node.width === 1 ? 'peek8' : 'peek16')
+      return annotate(node, { type: node.width === 1 ? 'u8' : 'u16', value: null })
     }
 
     if (node.type === 'AddrExpression') {
@@ -1323,6 +1329,28 @@ export const resolve = (program: Program): ResolveResult => {
 
   // ---- statements -----------------------------------------------------------
 
+  // An address is a u16 offset in our own segment. Signed types are rejected
+  // outright rather than allowed to widen: a negative offset is never meaningful,
+  // and §4's rule is that u16 does not mix with signed, so an i16 address would
+  // have to be cast somewhere anyway - better at the call than silently here.
+  const checkAddress = (node: Expression, what: string) => {
+    const resolved = resolveExpression(node)
+
+    if (resolved.type === 'bool') {
+      raise(node, `${what} needs an address - a bool is not one`)
+    }
+    if (isSigned(resolved.type)) {
+      raise(
+        node,
+        `${what} needs a u16 address - this is ${resolved.type}, so write u16(...)` +
+          ' if the value really is an offset',
+      )
+    }
+    if (resolved.type === 'untyped' && resolved.value !== null && !fits(resolved.value, 'u16')) {
+      raise(node, `address ${resolved.value} does not fit in 16 bits`)
+    }
+  }
+
   const checkAssignable = (
     value: Resolved,
     target: ValueType,
@@ -1576,6 +1604,17 @@ export const resolve = (program: Program): ResolveResult => {
 
       const value = resolveExpression(node.argument)
       checkAssignable(value, currentFn.returnType, node.argument)
+      return
+    }
+
+    if (node.type === 'PokeStatement') {
+      const what = node.width === 1 ? 'poke8' : 'poke16'
+      checkAddress(node.address, what)
+      const value = resolveExpression(node.value)
+      // The store keeps one byte or two, so the value follows the same fit rule a
+      // declared u8 or u16 would apply - including the bool rule, since a raw
+      // byte store is exactly what makes that one matter.
+      checkAssignable(value, node.width === 1 ? 'u8' : 'u16', node.value)
       return
     }
 

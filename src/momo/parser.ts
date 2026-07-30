@@ -283,6 +283,33 @@ export const parse = (tokens: Token[]): Program => {
           col: token.col,
         }
       }
+
+      // peek8(at) / peek16(at). Unlike addr and len the argument IS an
+      // expression - a computed address is the entire point.
+      if (token.text === 'peek8' || token.text === 'peek16') {
+        advance()
+        expect('op', '(')
+        const address = parseExpression()
+        expect('op', ')')
+        return {
+          type: 'PeekExpression',
+          width: token.text === 'peek8' ? 1 : 2,
+          address,
+          file: token.file,
+          line: token.line,
+          col: token.col,
+        }
+      }
+
+      // poke is a statement. Meeting one here means it was written where a value
+      // was wanted, and "unexpected" would not explain why.
+      if (token.text === 'poke8' || token.text === 'poke16') {
+        raise(
+          token,
+          `${token.text} stores a value rather than producing one - it is a statement,` +
+            ` so it cannot appear inside an expression`,
+        )
+      }
     }
 
     if (token.kind === 'ident') {
@@ -1096,6 +1123,38 @@ export const parse = (tokens: Token[]): Program => {
         return {
           type: 'ReturnStatement',
           argument,
+          file: token.file,
+          line: token.line,
+          col: token.col,
+          endLine,
+        }
+      }
+
+      // A statement cannot begin with a peek, so this is almost always someone
+      // reaching for the store: `peek8(at) = 5`. Assignment targets are names and
+      // indices only (§6), so say what to write instead of "unexpected".
+      if (token.text === 'peek8' || token.text === 'peek16') {
+        raise(
+          token,
+          `${token.text} reads a value rather than storing one - to write through an` +
+            ` address use ${token.text === 'peek8' ? 'poke8' : 'poke16'}( at, value )`,
+        )
+      }
+
+      if (token.text === 'poke8' || token.text === 'poke16') {
+        advance()
+        expect('op', '(')
+        const address = parseExpression()
+        expect('op', ',')
+        const value = parseExpression()
+        expect('op', ')')
+        const endLine = previous().line
+        expectTerminator()
+        return {
+          type: 'PokeStatement',
+          width: token.text === 'poke8' ? 1 : 2,
+          address,
+          value,
           file: token.file,
           line: token.line,
           col: token.col,

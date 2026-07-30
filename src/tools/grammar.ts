@@ -24,7 +24,10 @@ const alternation = (words: string[]): string => words.map(escapeRegex).join('|'
 // `keywords` falls through to keyword.control, so a new one is never unstyled.
 const declarationKeywords = ['sub', 'const']
 const literalKeywords = ['true', 'false']
-const builtinKeywords = ['addr']
+// Builtin functions rather than control flow. `len` belonged here from the start
+// and was falling through to keyword.control; peek and poke joining it is what
+// made the inconsistency visible.
+const builtinKeywords = ['addr', 'len', 'peek8', 'peek16', 'poke8', 'poke16']
 const importKeywords = ['include']
 
 const controlKeywords = keywords.filter(

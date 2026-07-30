@@ -1,0 +1,108 @@
+// std/str.momo - strings and blocks at runtime addresses.
+//
+// This is the library that could not be written before peek8/poke8 existed.
+// Routines take scalars, so a buffer cannot be passed - but its ADDRESS can, and
+// addr() is where one comes from:
+//
+//   const u8[] greeting = "hello$"
+//   n = strLen( addr( greeting ) )
+//
+// Nothing here is bounds-checked, and nothing can be: an address is a runtime
+// value, so there is no length to check it against. That is the trade peek and
+// poke exist to make, and it is why they are spelled visibly at every use.
+//
+// Strings are '$'-terminated, matching putStr and DOS int 21h AH=09 rather than
+// inventing a second convention. The cost is that a string cannot contain '$'.
+
+const strEnd = '$'
+
+// Length not counting the terminator.
+u16 strLen( u16 at ) {
+  u16 n
+  n = 0
+
+  while ( peek8( at + n ) != strEnd ) {
+    n++
+  }
+
+  return n
+}
+
+// Copies up to and including the terminator, so the destination is a string
+// afterwards. The destination must have room for strLen(from) + 1 bytes; nothing
+// here can check that.
+sub strCopy( u16 to, u16 from ) {
+  u16 i
+  u8  ch
+
+  i = 0
+
+  for ( ;; ) {
+    ch = peek8( from + i )
+    poke8( to + i, ch )
+    if ( ch == strEnd ) break
+    i++
+  }
+}
+
+// Negative, zero or positive on the first differing byte, like C's strcmp. i16
+// because the difference of two bytes is signed - and because returning it,
+// rather than -1/0/1, lets a caller sort as well as test.
+i16 strCmp( u16 a, u16 b ) {
+  u16 i
+  u8  ca
+  u8  cb
+
+  i = 0
+
+  for ( ;; ) {
+    ca = peek8( a + i )
+    cb = peek8( b + i )
+
+    if ( ca != cb ) return i16( ca ) - i16( cb )
+    if ( ca == strEnd ) return 0
+
+    i++
+  }
+}
+
+// The ADDRESS of the first `ch`, or 0 when there is none. Zero is a safe sentinel
+// rather than a magic number: a .COM is loaded at 0x100, so no byte a Momo
+// program can name lives at offset 0.
+//
+// Searching for '$' finds the terminator, which is the useful answer - it is the
+// same address strLen would have you compute.
+u16 strFind( u16 at, u8 ch ) {
+  u16 i
+  u8  c
+
+  i = 0
+
+  for ( ;; ) {
+    c = peek8( at + i )
+
+    if ( c == ch ) return at + i
+    if ( c == strEnd ) return 0
+
+    i++
+  }
+}
+
+// Forward copy, so it is memcpy rather than memmove: overlapping regions where
+// `to` is above `from` will copy bytes over themselves. Deliberate - the reverse
+// loop that fixes it costs every caller that does not need it.
+sub memCopy( u16 to, u16 from, u16 count ) {
+  u16 i
+
+  for ( i = 0; i < count; i++ ) {
+    poke8( to + i, peek8( from + i ) )
+  }
+}
+
+sub memFill( u16 at, u16 count, u8 value ) {
+  u16 i
+
+  for ( i = 0; i < count; i++ ) {
+    poke8( at + i, value )
+  }
+}

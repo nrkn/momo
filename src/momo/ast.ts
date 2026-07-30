@@ -146,6 +146,27 @@ export type LenExpression = Located & {
   target: Identifier
 }
 
+// `peek8(at)` and `peek16(at)` - a read from a RUNTIME address in our segment.
+//
+// The one construct in Momo that cannot be checked: `far` and `view` both know
+// where they point at compile time, and this does not. So it is deliberately
+// visible at every use site rather than being dressed up as an array, which is
+// the `unsafe { *ptr }` distinction §20 draws.
+export type PeekExpression = Located & {
+  type: 'PeekExpression'
+  width: 1 | 2
+  address: Expression
+}
+
+// `poke8(at, value)`, `poke16(at, value)`. A statement, not an expression, because
+// it has an effect and §6 keeps effects out of expressions.
+export type PokeStatement = Spanned & {
+  type: 'PokeStatement'
+  width: 1 | 2
+  address: Expression
+  value: Expression
+}
+
 // One field of a group. Scalars only - an array field would need arrays of
 // arrays, which is a separate problem (§18).
 export type GroupField = Located & {
@@ -225,6 +246,7 @@ export type Expression =
   | CastExpression
   | AddrExpression
   | LenExpression
+  | PeekExpression
 
 // Only these can appear on the left of an assignment.
 export type LValue = Identifier | IndexExpression
@@ -372,6 +394,7 @@ export type Statement =
   | ContinueStatement
   | ReturnStatement
   | IntStatement
+  | PokeStatement
   | AssignmentStatement
   | UpdateStatement
   | CallStatement

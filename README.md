@@ -42,9 +42,9 @@ code it produced, and each instruction choice is annotated with the reason:
 Three reasons.
 
 **Primarily, to write small games and tools.** Momo is meant to be used rather
-than admired. There is a roguelike, the standard library is a text-mode screen
-and a keyboard, and the bar it is held to (`DESIGN.md` §15) is a list of programs
-that work, not of features that exist.
+than admired. There is a roguelike, the standard library is a text-mode screen, a
+keyboard and strings, and the bar it is held to (`DESIGN.md` §15) is a list of
+programs that work, not of features that exist.
 
 **Secondarily, to show that x86 assembly is not overwhelming if you start with
 a small subset and work up.** Not by hiding the assembly — by shrinking it

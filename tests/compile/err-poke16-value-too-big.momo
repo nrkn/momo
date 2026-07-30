@@ -1,0 +1,7 @@
+// EXPECT-ERROR: value -1 does not fit in u16
+// poke16 stores two raw bytes, so the value follows the same fit rule a declared
+// u16 would. A literal above 65535 never reaches this check - the lexer rejects
+// it as not fitting in 16 bits at all - so a negative is what tests it.
+u16 at
+at = 0x100
+poke16( at, -1 )

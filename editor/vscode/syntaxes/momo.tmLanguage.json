@@ -147,7 +147,7 @@
         },
         {
           "name": "support.function.builtin.momo",
-          "match": "\\b(addr)\\b"
+          "match": "\\b(addr|len|peek8|peek16|poke8|poke16)\\b"
         },
         {
           "name": "keyword.declaration.momo",
@@ -155,7 +155,7 @@
         },
         {
           "name": "keyword.control.momo",
-          "match": "\\b(group|far|view|fn|if|else|for|while|do|break|continue|return|int|len)\\b"
+          "match": "\\b(group|far|view|fn|if|else|for|while|do|break|continue|return|int)\\b"
         }
       ]
     },

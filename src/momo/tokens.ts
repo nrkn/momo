@@ -45,6 +45,13 @@ export const keywords = [
   'int',
   'addr',
   'len',
+  // The only route to a runtime address, and deliberately four names rather than
+  // a `_mem` array: a `_memw` would scale its index by two, which is wrong when
+  // the index is a byte address. See DESIGN §20.
+  'peek8',
+  'peek16',
+  'poke8',
+  'poke16',
   'true',
   'false',
 ]

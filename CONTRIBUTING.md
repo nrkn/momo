@@ -173,5 +173,5 @@ the display back, so none can have a `.expected` — tier 2 cannot run something
 that blocks. The golden tier still covers them, which is the regression coverage
 that matters for a compiler.
 
-162 tier-1 assertions (117 compile tests, 20 golden `.asm`, 25 type), 16 e2e
+173 tier-1 assertions (126 compile tests, 22 golden `.asm`, 25 type), 18 e2e
 programs, all green.

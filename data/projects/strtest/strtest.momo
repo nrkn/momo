@@ -1,0 +1,84 @@
+// strtest.momo - std/str.momo, the library peek8 and poke8 unlocked.
+//
+// Every routine here takes an address rather than an array, which is the whole
+// point: before peek8 there was no way to write one that a second caller could
+// reuse. So each case calls the library twice, on different buffers, and prints
+// what it got - the same routine, no second copy of the loop.
+
+include "std/io.momo"
+include "std/str.momo"
+
+const u8[] hello = "hello$"
+const u8[] world = "world!$"
+const u8[] empty = "$"
+const u8[] path  = "hp 10/10$"
+
+u8[16] buffer
+u8[16] other
+
+u16 found
+
+// ---- entry ----
+
+// strLen, on three different strings and one empty one.
+putNumber( strLen( addr( hello ) ) )        // 5
+newline()
+putNumber( strLen( addr( world ) ) )        // 6
+newline()
+putNumber( strLen( addr( empty ) ) )        // 0
+newline()
+
+// strCopy carries the terminator, so the copy is a string too - strLen of it
+// agreeing is the check that it did.
+strCopy( addr( buffer ), addr( world ) )
+putNumber( strLen( addr( buffer ) ) )       // 6
+newline()
+putStr( addr( buffer ) )                    // world!
+newline()
+
+// A copy compares equal to its source; two different strings do not, and the
+// sign says which way round. 'h' is 104 and 'w' is 119, so hello - world is -15.
+putNumber( u16( strCmp( addr( buffer ), addr( world ) ) ) )   // 0
+newline()
+putNumber( u16( strCmp( addr( hello ), addr( world ) ) ) )    // -15 = 65521
+newline()
+putNumber( u16( strCmp( addr( world ), addr( hello ) ) ) )    // 15
+newline()
+
+// A prefix sorts before the longer string: "hello" against "hello$" plus more.
+strCopy( addr( other ), addr( hello ) )
+poke8( addr( other ) + 5, '!' )
+poke8( addr( other ) + 6, '$' )
+putNumber( u16( strCmp( addr( hello ), addr( other ) ) ) )    // '$' - '!' = 3
+newline()
+
+// strFind returns an address, so the useful thing to print is the offset.
+found = strFind( addr( path ), '/' )
+putNumber( found - addr( path ) )           // 5
+newline()
+
+// Absent gives 0, which no real address can be.
+putNumber( strFind( addr( path ), 'z' ) )   // 0
+newline()
+
+// Searching for the terminator finds it, at the length.
+found = strFind( addr( path ), '$' )
+putNumber( found - addr( path ) )           // 8
+newline()
+
+// memFill then memCopy, so the fill is visible in what the copy did not touch.
+memFill( addr( buffer ), len( buffer ), '.' )
+memCopy( addr( buffer ), addr( world ), 3 )
+poke8( addr( buffer ) + 8, '$' )
+putStr( addr( buffer ) )                    // wor.....
+newline()
+
+// memFill with a number rather than a character, read back through the array it
+// filled - the two names for those bytes must agree.
+memFill( addr( other ), 4, 7 )
+putNumber( other[0] )                       // 7
+newline()
+putNumber( other[3] )                       // 7
+newline()
+putNumber( other[4] )                       // 111, left over from "hello" above
+newline()

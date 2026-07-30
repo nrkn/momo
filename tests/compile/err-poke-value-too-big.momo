@@ -1,0 +1,4 @@
+// EXPECT-ERROR: value 300 does not fit in u8
+u16 at
+at = 0x100
+poke8( at, 300 )

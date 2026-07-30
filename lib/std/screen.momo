@@ -6,6 +6,7 @@
 
 include "std/io.momo"
 include "std/math.momo"
+include "std/str.momo"
 
 const screenCols = 80
 const screenRows = 25
@@ -100,21 +101,32 @@ sub showCursor() {
   int 0x10
 }
 
-// Writes a '$'-terminated string at a position. This goes out through DOS, so it
-// uses whatever attribute is already in each cell rather than one you choose.
+// Two ways to put a string on the screen, and the prefix says which:
 //
-// For coloured text, loop over the string where it is declared - indexing an
-// array in scope is ordinary:
+//   put* goes out through DOS, and inherits whatever attribute each cell has.
+//   write* writes cells through the BIOS with an attribute you choose.
 //
-//   for ( i = 0; msg[i] != '$'; i++ ) {
-//     writeAt( col + i, row, msg[i], attr )
-//   }
-//
-// Only factoring that into a routine here needs an address parameter, and so
-// peek8 - see DESIGN.md open questions.
-sub writeStrAt(u8 col, u8 row, u16 at) {
+// That is the same split as putChar against writeAt, one character at a time.
+sub putStrAt(u8 col, u8 row, u16 at) {
   moveTo(col, row)
   putStr(at)
+}
+
+// Coloured text, which needed an address parameter and therefore peek8 (§20). It
+// is one BIOS call per cell, so a long string is not cheap - but it is now a
+// routine rather than a loop copied into every caller.
+sub writeStrAt(u8 col, u8 row, u16 at, u8 attr) {
+  u16 i
+  u8  ch
+
+  i = 0
+
+  for ( ;; ) {
+    ch = peek8( at + i )
+    if ( ch == strEnd ) break
+    writeAt( u8( col + i ), row, ch, attr )
+    i++
+  }
 }
 
 sub writeNumberAt(u8 col, u8 row, u16 n) {

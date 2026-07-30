@@ -1,0 +1,105 @@
+// peektest.momo - peek and poke: the only route to a runtime address.
+//
+// Everything else in Momo knows where it points at compile time. These four do
+// not, so each case here writes through a computed address and reads it back
+// through a declared name, or the reverse - the two must agree about which byte
+// they mean. Addresses come from addr(), which is the only way to get one.
+
+include "std/io.momo"
+
+u8[8]  bytes
+u16[4] words
+u8     scratch
+
+u16 at
+u16 i
+u16 total
+u16 seq
+
+// §7 evaluates arguments left to right, and a poke has two. Nothing about the
+// emitted code shows which order it chose, so these record it: each appends its
+// own digit, and the address is the left argument.
+u16 whereTo() {
+  seq = seq * 10 + 1
+  return addr( bytes )
+}
+
+u8 whatValue() {
+  seq = seq * 10 + 2
+  return 55
+}
+
+// ---- entry ----
+
+// A byte written through a runtime address, read back as an ordinary array.
+at = addr( bytes )
+poke8( at + 3, 42 )
+putNumber( bytes[3] )                 // 42
+newline()
+
+// And the reverse: written as an array, read through the address.
+bytes[5] = 99
+putNumber( peek8( at + 5 ) )          // 99
+newline()
+
+// A word, so the low and high halves land where the machine puts them. 1000 is
+// 0x03E8, little-endian, so byte 0 is 0xE8 and byte 1 is 0x03.
+at = addr( words )
+poke16( at, 1000 )
+putNumber( words[0] )                 // 1000
+newline()
+putNumber( peek8( at ) )              // 232
+newline()
+putNumber( peek8( at + 1 ) )          // 3
+newline()
+
+// A word at an ODD address, which the 8086 permits at a few cycles' cost. The
+// two halves of 0x1234 straddle bytes 1 and 2 of `bytes`.
+at = addr( bytes )
+poke16( at + 1, 0x1234 )
+putNumber( bytes[1] )                 // 0x34 = 52
+newline()
+putNumber( bytes[2] )                 // 0x12 = 18
+newline()
+putNumber( peek16( at + 1 ) )         // 0x1234 = 4660, read back unaligned
+newline()
+
+// A scalar has an address like anything else.
+at = addr( scratch )
+poke8( at, 77 )
+putNumber( scratch )                  // 77
+newline()
+
+// A runtime value rather than a constant, so the address and the value both
+// have to be computed and one of them saved.
+at = addr( bytes )
+for ( i = 0; i < 8; i++ ) {
+  poke8( at + i, u8( i * 2 + 1 ) )
+}
+
+total = 0
+for ( i = 0; i < 8; i++ ) {
+  total += peek8( at + i )
+}
+putNumber( total )                    // 1+3+5+7+9+11+13+15 = 64
+newline()
+
+// The memcpy inner loop: a peek straight into a poke, byte to byte, which is
+// what the no-widening path exists for.
+for ( i = 0; i < 4; i++ ) {
+  poke8( addr( words ) + i, peek8( addr( bytes ) + i ) )
+}
+putNumber( peek8( addr( words ) ) )   // 1
+newline()
+putNumber( peek8( addr( words ) + 3 ) ) // 7
+newline()
+
+// A fn call on both sides of a poke, so the temporary holding the address is
+// live across the second call - and the order is visible.
+seq = 0
+poke8( whereTo(), whatValue() )
+putNumber( seq )                      // 12, address first
+newline()
+putNumber( bytes[0] )                 // 55
+newline()
+

@@ -1,0 +1,4 @@
+// EXPECT-ERROR: peek16 needs an address - a bool is not one
+bool flag
+u16 w
+w = peek16( flag )

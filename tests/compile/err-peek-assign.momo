@@ -1,0 +1,4 @@
+// EXPECT-ERROR: peek8 reads a value rather than storing one
+u16 at
+at = 0x100
+peek8( at ) = 5

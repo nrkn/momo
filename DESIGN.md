@@ -807,6 +807,56 @@ programs, `smoke` emits two helpers and runs under tier 2.
 link-time constant, so it compiles to `mov ax, msg` — an immediate. `lea` stays
 dead. Needed because DOS string calls take `DS:DX`.
 
+### `peek` and `poke` — the runtime address
+
+**Built.** `addr` produces an address; these four consume one. They are the only
+construct in Momo that reaches memory the compiler cannot name, which is what
+makes `lib/std/str.momo` possible at all — see §20 for why they exist and why they
+are four names rather than a `_mem` array.
+
+```momo
+b = peek8( at )               peek16( at )
+poke8( at, value )            poke16( at, value )
+```
+
+- **`peek` is an expression, `poke` is a statement.** §6 keeps effects out of
+  expressions, and a store is an effect. `peek8(at) = 5` is rejected with a
+  message naming `poke8`, since that is what it was reaching for.
+- **The address is a `u16` offset in our own segment.** Signed types are rejected
+  rather than widened: a negative offset means nothing, and §4 already refuses to
+  mix `u16` with signed, so an `i16` address would need a cast somewhere — better
+  at the call than silently. Another segment is `far`'s job (§16).
+- **The value follows the same fit rule a declared `u8` or `u16` would**, bool rule
+  included, because a raw byte store is exactly the case that rule exists for.
+- **Nothing is bounds-checked, and nothing can be.** There is no length to check a
+  runtime address against. That is the whole trade, and it is why these are spelled
+  visibly at every use site instead of being dressed up as an array.
+
+Codegen is what §20 predicted, two instructions plus the address:
+
+```nasm
+        mov     ax, [at_]
+        mov     bx, ax
+        mov     al, [bx]                    ; peek8 - unchecked, by design
+```
+
+BX because it is the only register the 8086 will index through in this addressing
+mode — there is no choice to make and no `lea` to avoid. Two refinements fell out
+of shapes that already existed:
+
+- **A constant value skips the save** — `poke8( at, 42 )` puts the value in the
+  store as an immediate, so the push that would protect it does not happen. That is
+  peephole 9 of §9, through a runtime address this time.
+- **`poke8( to, peek8( from ) )` emits no widening.** The store keeps only AL, so
+  a byte source is a bare byte load exactly as a variable or array element is —
+  the same rule as a byte-to-byte assignment. It matters because that line *is*
+  the inner loop of `memCopy`.
+
+**The address is evaluated first**, which §7 requires of arguments generally and
+which nothing in the emitted code reveals. `data/projects/peektest` therefore calls
+a fn on both sides and prints the order it observed — the one case in that program
+that the golden tier structurally cannot check.
+
 Prelude sketch:
 
 ```
@@ -1136,15 +1186,20 @@ Where that stands:
 | Sieve of Eratosthenes | `data/projects/sieve`, and `data/projects/bitsiev` bit-packed on the heap |
 | Recursive algorithms | `data/projects/qsort` (quicksort) and `data/projects/hanoi` — explicit stacks on the heap |
 | Text-mode screen library | `lib/std/screen.momo`, verified by `data/projects/scrtest` |
+| String library | `lib/std/str.momo`, verified by `data/projects/strtest` |
 | Text adventure | not yet attempted |
 
-Still unwritten: a string library beyond `putStr`. Graphics is no longer blocked —
-§16 is built, so the text buffer and mode 13h are both addressable as memory.
+**Only the text adventure is left**, and nothing in the language blocks it. The
+string library was the last item with a missing feature behind it: routines take
+scalars, so it needed a runtime address, which is what `peek`/`poke` (§10) are.
+Graphics is not blocked either — §16 is built, so the text buffer and mode 13h are
+both addressable as memory.
 
 Two things have since joined the list that were never on the original bar:
 `data/projects/grptest` for entity pools (§18), and `data/projects/cftest`,
 which opens a file and notices when that fails — the first Momo program that
-could find out the machine said no. `data/projects/viewtest` (§17) makes three.
+could find out the machine said no. `data/projects/viewtest` (§17) and
+`data/projects/peektest` (§10) make four.
 
 **Dynamic allocation has an answer that is not an allocator.** `view` partitions
 the heap into named regions at compile time, so `heaptest`'s bump allocator is now
@@ -1930,9 +1985,9 @@ up, so where both fit, this is the more Momo-shaped answer.
 - **`bool _cf`** — **built; see §10.** DOS and BIOS report failure in carry, and
   nothing in Momo could see it. Read-only, and captured only when something
   reads it, so a program that ignores carry pays nothing.
-- **`peek8`/`poke8`/`peek16`/`poke16`** — the only route to a **runtime**
-  address. `far` (§16) and `view` (§17) are both compile-time addressing, so
-  neither overlaps with this:
+- **`peek8`/`poke8`/`peek16`/`poke16`** — **built; see §10.** The only route to a
+  **runtime** address. `far` (§16) and `view` (§17) are both compile-time
+  addressing, so neither overlaps with this:
 
   | | Address known | Segment |
   |---|---|---|
@@ -1940,8 +1995,10 @@ up, so where both fit, this is the more Momo-shaped answer.
   | `view` | compile time | ours |
   | `peek`/`poke` | **runtime** | ours |
 
-  What they unlock is **library routines that take a buffer** — a general
-  `memcpy`, a reusable `drawString`, following an offset stored in the heap.
+  What they unlocked is **library routines that take a buffer** — `lib/std/str.momo`
+  is now `strLen`, `strCopy`, `strCmp`, `strFind`, `memCopy` and `memFill`, and
+  `screen.momo` finally has a coloured `writeStrAt`, which the note below spent a
+  long time explaining the absence of.
   §19 solves the same problem by a different route, and the two are complements
   rather than rivals: compile-time parameters emit one copy per distinct
   argument (fast, larger), `peek`/`poke` emit one copy total (smaller, indirect).
@@ -1965,7 +2022,9 @@ up, so where both fit, this is the more Momo-shaped answer.
   }
   ```
 
-  Inline works; only *factoring it into a library* needs an address parameter.
+  Inline works; only *factoring it into a library* needs an address parameter —
+  which it now has, so `screen.momo` carries the routine and no program needs the
+  loop above.
 
   **On the tension with rejecting runtime views (§17):** a runtime view would be
   a declared, typed, tracked construct — it would bless pointers as a first-class
@@ -1979,7 +2038,8 @@ up, so where both fit, this is the more Momo-shaped answer.
   reads nicely for bytes, but a `_memw` would scale its index by two, which is
   wrong when the index is a byte address — and that inconsistency sinks it.
 
-  Codegen is trivial: roughly `mov bx, ax` / `mov al, [bx]`.
+  Codegen is trivial: roughly `mov bx, ax` / `mov al, [bx]`. It was — that is
+  exactly what it emits.
 - **`asm { }` passthrough** for hand-written NASM. Probably not needed for a long time.
 - **Strength reduction for powers of two** — **built; see §21.** `i * 4`
   emitted a `mul` (~120 cycles on an 8086) where two `shl` do, and `x / 8` a
@@ -2127,6 +2187,75 @@ Two consequences fall out for free:
 - **The e2e suite becomes an optimiser test.** Every program must produce
   byte-identical output with and without `-o`. That is a strong correctness
   property, and it costs nothing beyond running the suite twice.
+
+### Word copies and data alignment: two optimisations, measured
+
+Prompted by an obvious question about `tilefill` — if the tiles are word aligned,
+could a `u16` view copy two pixels at a time and halve the loop? The answer turned
+out to be two separate optimisations of very different value, and the alignment
+half is worth less than it looks.
+
+The premise was also false. `tiles` sits at **0x2F7, which is odd**. Nothing in
+Momo aligns user data; only `_heap` gets `align 2`. A `.COM` puts data at
+`0x100 + code size`, so the parity of the whole data section is an accident of how
+much code precedes it, and one extra instruction anywhere above flips it. It does
+not affect correctness — the 8086 permits unaligned word access, which §17's rules
+already say — only speed.
+
+**The inner loop, counted.** `pixels[dest + col] = tiles[src + col]` plus its test
+and increment is **19 instructions**, of which **two** touch pixel data. Everything
+else recomputes both addresses and reloads ES. It performs **7 misaligned word
+accesses** per pixel: the loop test reads `col`, the body reads `src`, `col`,
+`dest`, `col`, and `inc word [col]` both reads and writes.
+
+Applying the documented 8086 table (accumulator forms at 10, `8 + EA` otherwise,
+`jcc` taken at 16, `inc word [mem]` at 21, a segment override at 2) gives ~182
+cycles per pixel, and the misalignment adds 7 × 4 = 28.
+
+| per tile (64 pixels) | 8086 | 8088 |
+|---|---|---|
+| as built | ~13,400 | ~13,900 |
+| word views, 32 iterations | ~7,000 (−48%) | ~7,200 (−48%) |
+| aligned scalars only | ~11,600 (−13%) | no change |
+| both | ~6,100 (−55%) | ~7,200 (−48%) |
+
+**The word-view half is the prize, and it needs no compiler work at all.** §17
+already expresses it: `view u16[64] tileWords = tiles[0]` over the `u8[128]` set,
+`view u16[32000] pixelWords = pixels[0]` over the far region. It needs no division
+either — halve the constants instead, 320 → 160 and 8 → 4, and pass the tile
+offset in words. The destination stays even for free, since both terms of
+`(ty * 8 + row) * 160 + tx * 4` are. The saving is not two bytes per `mov`; it is
+paying that 19-instruction preamble 32 times instead of 64, which is why it holds
+up on an 8088 too.
+
+**The alignment half is smaller and target-dependent.** An 8088's external bus is
+8 bits, so a word access is two bus cycles whether aligned or not — the penalty
+this would remove does not exist there. It is a true-8086 optimisation, and most
+of these machines were 8088s. §21's CPU target levels are about the *instruction
+set*; bus width is a second axis, and nothing in Momo currently has a place to say
+which one it is tuning for.
+
+**And reordering alone cannot deliver alignment.** Sorting the scalars words-first
+is free and deterministic in itself, but it only makes every word share the parity
+of the block start — and that parity comes from the code size, which the compiler
+never learns, because it emits NASM source rather than bytes. Sorted, a program
+whose data base lands odd has *all* its words misaligned instead of some. So the
+package is `align 2` once at the data base plus the sort, not the sort alone.
+
+The `align 2` costs at most one byte for the entire program, which settles the
+question of whether a byte-sized scalar could be tucked into the padding slot to
+make it free: it could not, since only NASM knows whether a slot is needed, and it
+would be saving one byte. The cost worth weighing is not the byte. It is that
+sorting by width scatters each routine's locals between the word group and the
+byte group, and the data section currently shows a routine's whole frame in one
+place. That is a readability trade against a 13%-on-one-chip gain, and readable
+output is the product (§9).
+
+Verdict: **the word views are worth doing in a program that cares, today, with no
+compiler change. The alignment work waits for a reason to prefer the 8086 over the
+8088** — and if it ever comes, it arrives as `align 2` plus a width sort, with the
+locals-locality cost paid deliberately. `tilefill` itself stays as it is: it is the
+straightforward version on purpose, and §14 wants it readable more than fast.
 
 ### Higher-order and generic routines
 
