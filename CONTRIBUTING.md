@@ -171,6 +171,28 @@ they could, and it was half wrong. A feature that subsumes a special case is wor
 having whether or not the special case can be re-spelled in it, but the two are
 different claims and only one of them survived contact.
 
+**AI-assisted work is welcome; unexamined work is not.** A good deal of this repo
+was written that way — `CLAUDE.md` exists and the commit log is explicit about it
+— so this is a note from experience rather than a precaution.
+
+None of the practices above are waived, because none of them are about who typed
+the change. `CLAUDE.md` already puts the agent's half plainly: *adopting whatever
+the tool printed proves only that it printed it.* The contributor's half is the
+same sentence.
+
+What is genuinely new is that a change nobody has understood is now cheap to
+produce. So:
+
+- **Be able to say what your change does and why, without the assistant in the
+  room.** If you cannot, learn it until you can. That is the same bar you would
+  clear by writing the code yourself, not a higher one.
+- **Work by dialogue.** Proposing, measuring, being told the measurement
+  disagrees, and changing the plan is the mode that has produced the good commits
+  here. A single prompt and a pull request is not, and it tends to produce changes
+  whose reasoning nobody can reconstruct — including whoever submitted them.
+
+A review can catch a bug. It cannot supply an understanding that was never formed.
+
 ## Current state
 
 `data/projects/simplerl` is a roguelike at the "move `@` around a hard-coded
