@@ -2315,10 +2315,11 @@ whole reason they are tractable: Momo's abstract machine does not change. Still
 resolver* carry over untouched — only the emitter and a shim layer differ.
 
 Not a new direction for the lineage, either. Momo's predecessor Yuki compiled to
-a bytecode interpreter, so it reached down from JS toward a machine. Momo starts
-at a real machine and would reach back up. The same territory approached from the
-opposite end — and the return trip should be the more faithful one, because the
-machine is explicit rather than invented.
+**JavaScript** — vaguely VM-shaped, but a JS program rather than a bytecode
+interpreter — so it reached toward a machine from inside the host. Momo starts at
+a real machine and would reach back up. The same territory approached from the
+opposite end, and the return trip should be the more faithful one: the machine
+here is documented hardware rather than one the language implied for itself.
 
 **The subset mindset is what makes this feasible at all.** A general DOS backend
 is DOSBox — a multi-year project. Momo can only *express* a handful of things:
