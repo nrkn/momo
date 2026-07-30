@@ -27,10 +27,10 @@ __entry:
         jb      .L4                         ; unsigned <
         jmp     .L3
 .L4:
-; ---- cells[i] = nextRandom() >> 1
+; ---- cells[i] = nextRandom() & 0x7FFF
         call    nextRandom
         mov     ax, [nextRandom__ret]
-        shr     ax, 1                       ; unsigned >>
+        and     ax, 32767
         push    ax                          ; save value while computing the index
         mov     ax, [i]
         shl     ax, 1                       ; word elements
@@ -105,11 +105,35 @@ readKey:
 ; ============================================== u16 nextRandom ====
 
 nextRandom:
-; ---- randomSeed = randomSeed * 25173 + 13849
+; ---- randomSeed = randomSeed ^ (randomSeed << 7)
         mov     ax, [randomSeed]
-        mov     bx, 25173
-        mul     bx                          ; low 16 bits are sign-agnostic
-        add     ax, 13849
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [randomSeed]
+        mov     cl, 7                       ; 8086 has no shift-by-immediate
+        shl     ax, cl
+        mov     bx, ax
+        pop     ax
+        xor     ax, bx
+        mov     [randomSeed], ax
+; ---- randomSeed = randomSeed ^ (randomSeed >> 9)
+        mov     ax, [randomSeed]
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [randomSeed]
+        mov     cl, 9                       ; 8086 has no shift-by-immediate
+        shr     ax, cl                      ; unsigned >>
+        mov     bx, ax
+        pop     ax
+        xor     ax, bx
+        mov     [randomSeed], ax
+; ---- randomSeed = randomSeed ^ (randomSeed << 8)
+        mov     ax, [randomSeed]
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [randomSeed]
+        mov     cl, 8                       ; 8086 has no shift-by-immediate
+        shl     ax, cl
+        mov     bx, ax
+        pop     ax
+        xor     ax, bx
         mov     [randomSeed], ax
 ; ---- return randomSeed
         mov     ax, [randomSeed]
@@ -203,7 +227,7 @@ i               dw      0        ; u16
 ; No storage is emitted - a .COM owns everything past its image, so
 ; these are addresses and NASM does the arithmetic.
 
-_hstack         equ     260        ; 4 worst-case + 256 interrupt reserve
+_hstack         equ     262        ; 6 worst-case + 256 interrupt reserve
 _htop           equ     0FFFEh - _hstack
 
 _hsize          dw      _htop - _heap        ; NASM computes this

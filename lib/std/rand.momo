@@ -1,19 +1,55 @@
-// std/rand.momo - a 16-bit linear congruential generator.
+// std/rand.momo - a 16-bit xorshift generator.
 //
-// Good enough for a game, not for anything else.
+// Good enough for a game, not for anything else. Period 65535, and - unlike the
+// LCG this replaced - **every bit is as good as every other**, so callers do not
+// have to know which ones to take.
+//
+// That is the whole reason for the change. A power-of-two-modulus LCG has
+// short-period low bits: bit k repeats every 2^(k+1) calls. The consequences
+// were neither obvious nor small:
+//
+//   randomBelow(2)            period 4     - a coin flip that cycles H H T T
+//   randomBelow(16)           period 32
+//   u8(nextRandom())          period 256
+//   u8(nextRandom() >> 1)     period 512   - a visible band every 1.6 scanlines
+//
+// Non-power-of-two arguments were fine, which is why nothing noticed. All of the
+// above are 65535 now. Statistically the two generators are a wash at this state
+// width; it is the absence of weak bits that is worth having.
+//
+// **It is about twice the cost** - roughly 400 cycles against 207 on an 8086 -
+// and that is worth paying for a routine a game calls a few times a frame, but
+// worth knowing before calling it in a loop. Two thirds of the difference is
+// codegen rather than algorithm: `x ^ (x << 7)` reloads `x` and takes the
+// push/pop path because the right side is not a leaf, and `shl ax, cl` costs
+// 8 + 4n where seven separate `shl ax, 1` would cost 14. §21's unroll would
+// bring it to about 1.5x. A 64000-pixel fill notices; nothing else will.
+//
+// A wider state is the only way to do materially better: 16 bits caps
+// consecutive-pair coverage at about half of the 65536 possible. Fine for dice,
+// loot and combat. Procedural noise wants something else entirely - a positional
+// hash, a pure function of coordinates rather than a stream - which is a
+// different primitive, not a better version of this one.
 
 u16 randomSeed = 42
 
-sub seedRandom(u16 s) => randomSeed = s
+// Zero is a fixed point: xorshift would return it forever. Mapped rather than
+// rejected, so seeding can never silently kill the generator.
+sub seedRandom(u16 s) => randomSeed = s == 0 ? 1 : s
 
+// Shifts of 7, 9, 8 give the full 65535-state cycle. Arithmetic is 16-bit
+// throughout, so the left shifts truncate exactly as the algorithm wants.
 u16 nextRandom() {
-  randomSeed = randomSeed * 25173 + 13849
+  randomSeed = randomSeed ^ (randomSeed << 7)
+  randomSeed = randomSeed ^ (randomSeed >> 9)
+  randomSeed = randomSeed ^ (randomSeed << 8)
   return randomSeed
 }
 
-// The low bit of an LCG alternates every call, so it is dropped before the
-// modulo. `n` must not be zero - an 8086 divide by zero raises INT 0.
-u16 randomBelow(u16 n) => (nextRandom() >> 1) % n
+// No bit-picking needed any more - the low bits carry the full period, so the
+// modulo takes the value as it comes. `n` must not be zero: an 8086 divide by
+// zero raises INT 0.
+u16 randomBelow(u16 n) => nextRandom() % n
 
 // Inclusive on both ends.
 u16 randomBetween(u16 low, u16 high) => low + randomBelow(high - low + 1)

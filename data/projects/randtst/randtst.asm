@@ -174,19 +174,52 @@ putNumber:
 ; ============================================== sub seedRandom ====
 
 seedRandom:
-; ---- sub seedRandom(u16 s) => randomSeed = s
+; ---- sub seedRandom(u16 s) => randomSeed = s == 0 ? 1 : s
         mov     ax, [seedRandom__s]
+        cmp     ax, 0
+        je      .L22                        ; unsigned ==
+        jmp     .L20
+.L22:
+        mov     ax, 1
+        jmp     .L21
+.L20:
+        mov     ax, [seedRandom__s]
+.L21:
         mov     [randomSeed], ax
         ret
 
 ; ============================================== u16 nextRandom ====
 
 nextRandom:
-; ---- randomSeed = randomSeed * 25173 + 13849
+; ---- randomSeed = randomSeed ^ (randomSeed << 7)
         mov     ax, [randomSeed]
-        mov     bx, 25173
-        mul     bx                          ; low 16 bits are sign-agnostic
-        add     ax, 13849
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [randomSeed]
+        mov     cl, 7                       ; 8086 has no shift-by-immediate
+        shl     ax, cl
+        mov     bx, ax
+        pop     ax
+        xor     ax, bx
+        mov     [randomSeed], ax
+; ---- randomSeed = randomSeed ^ (randomSeed >> 9)
+        mov     ax, [randomSeed]
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [randomSeed]
+        mov     cl, 9                       ; 8086 has no shift-by-immediate
+        shr     ax, cl                      ; unsigned >>
+        mov     bx, ax
+        pop     ax
+        xor     ax, bx
+        mov     [randomSeed], ax
+; ---- randomSeed = randomSeed ^ (randomSeed << 8)
+        mov     ax, [randomSeed]
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [randomSeed]
+        mov     cl, 8                       ; 8086 has no shift-by-immediate
+        shl     ax, cl
+        mov     bx, ax
+        pop     ax
+        xor     ax, bx
         mov     [randomSeed], ax
 ; ---- return randomSeed
         mov     ax, [randomSeed]
@@ -196,10 +229,9 @@ nextRandom:
 ; ============================================== u16 randomBelow ====
 
 randomBelow:
-; ---- u16 randomBelow(u16 n) => (nextRandom() >> 1) % n
+; ---- u16 randomBelow(u16 n) => nextRandom() % n
         call    nextRandom
         mov     ax, [nextRandom__ret]
-        shr     ax, 1                       ; unsigned >>
         mov     bx, [randomBelow__n]
         xor     dx, dx                      ; clear high half for div
         div     bx
@@ -285,7 +317,7 @@ putNumber__digits times 5 db 0        ; u8[5]
 ; No storage is emitted - a .COM owns everything past its image, so
 ; these are addresses and NASM does the arithmetic.
 
-_hstack         equ     264        ; 8 worst-case + 256 interrupt reserve
+_hstack         equ     266        ; 10 worst-case + 256 interrupt reserve
 _htop           equ     0FFFEh - _hstack
 
 _hsize          dw      _htop - _heap        ; NASM computes this

@@ -26,9 +26,11 @@ _ax = 0x0013
 int 0x10
 
 for( i = 0; i < len( pixels ); i++ ){
-  // Shifted for the same reason as in rndtext: an LCG alternates its low bit
-  // every call, which here would stripe the image.
-  pixels[i] = u8( nextRandom() >> 1 )
+  // Any byte of the generator will do - std/rand.momo is xorshift, so the low
+  // bits are as good as the high ones. An earlier version of this took bits 1..8
+  // of an LCG, which repeat every 512 calls and banded the image every 1.6
+  // scanlines.
+  pixels[i] = u8( nextRandom() )
 }
 
 readKey()

@@ -29,12 +29,14 @@ hideCursor()
 
 for( i = 0; i < len( cells ); i++ ){
   // A random word is already a random character in a random colour, so no
-  // arithmetic is needed. The shift does two jobs: it drops the low bit, which
-  // an LCG alternates on every call, and it vacates bit 15 - which is bit 7 of
-  // the attribute, the blink bit on default hardware. A screen of blinking
-  // cells is unreadable, and clearing it also holds the background to the
-  // first eight colours.
-  cells[i] = nextRandom() >> 1
+  // arithmetic is needed beyond one mask. Bit 15 is bit 7 of the attribute -
+  // the blink bit on default hardware - and a screen of blinking cells is
+  // unreadable. Clearing it also holds the background to the first eight
+  // colours, which is what makes the foreground readable against it.
+  //
+  // Every bit of the generator is usable, so the mask is the only requirement;
+  // with the old LCG the character byte also repeated every 512 cells.
+  cells[i] = nextRandom() & 0x7FFF
 }
 
 readKey()
