@@ -5,11 +5,11 @@ A small imperative language that transpiles to **commented NASM** for a strict
 predecessor [Yuki](https://github.com/nrkn/yuki-js), whose Pong for a fantasy
 console is kept as `_reference/yuki.txt`.
 
-- **`DESIGN.md`** — the language, and *why* every decision was made. 22 sections:
-  built features (§1–§18), two designed-but-deferred (§19, §22), open questions
+- **`DESIGN.md`** - the language, and *why* every decision was made. 22 sections:
+  built features (§1-§18), two designed-but-deferred (§19, §22), open questions
   (§20), and long-term directions (§21). Read the relevant section before
   changing anything; the rationale matters more than the rules.
-- **`STYLE.md`** — TypeScript and Momo conventions.
+- **`STYLE.md`** - TypeScript and Momo conventions.
 
 ## Layout
 
@@ -29,7 +29,7 @@ source -> lexer -> parser -> resolver -> emitter -> NASM -> DOSBox
 ```
 
 Four pure stages, each a single file. `src/momo/compile.ts` runs the whole chain
-and every tool goes through it — add a stage there, not in the tools.
+and every tool goes through it - add a stage there, not in the tools.
 
 ## Getting set up
 
@@ -65,7 +65,7 @@ npm run editor:install        # copy the extension to ~/.vscode/extensions
 `lex:nl`, `parse:json` and `momoc:all` exist as separate scripts.
 
 **TypeScript `never`-narrowing needs the annotation on the const.** Annotating the
-arrow's return type is not enough — see the comment on `raise` in
+arrow's return type is not enough - see the comment on `raise` in
 `src/momo/diagnostics.ts`. Without it, every `raise()` at the end of a function
 reads as a missing return.
 
@@ -77,14 +77,14 @@ marker file written from the generated batch. Assembler errors are captured with
 NASM's `-Z`, an option that exists precisely because DOS cannot redirect stderr.
 
 **To check what a program prints**, run the `.com` with `> out.txt` inside a
-generated batch and read the file afterwards — see `src/tools/e2e.ts`. Do not
+generated batch and read the file afterwards - see `src/tools/e2e.ts`. Do not
 rely on watching the DOSBox window.
 
 **8.3 filenames** for anything DOSBox touches: project directories and entry
-files are 1–8 characters. Tier 1 tests never touch DOS and can be named freely.
+files are 1-8 characters. Tier 1 tests never touch DOS and can be named freely.
 
 **`git stash pop` does not rebuild `dist/`.** Reverting a change to check the
-suite has teeth runs `tsc` as part of `npm test` — so the build left behind is
+suite has teeth runs `tsc` as part of `npm test` - so the build left behind is
 the *reverted* one. Any tool invoked directly afterwards (`node dist/tools/...`)
 is still running the reverted compiler, and reports a clean pass that means
 nothing. Run `npx tsc` after restoring. This produced one false all-clear.
@@ -97,7 +97,7 @@ silent portability bug.
 means it adjusts its own budget against host load, so wall-clock time measures
 the host. Pinned to a fixed count it becomes repeatable, but its normal core
 charges roughly per *instruction* rather than modelling `mul` at 118 cycles
-against `shl` at 2 — so it would rank optimisations wrongly. Count instructions
+against `shl` at 2 - so it would rank optimisations wrongly. Count instructions
 in the emitted `.asm` and apply documented 8086 timings instead; that is exact,
 and it is what the tables in DESIGN §16 and §21 are built from. Run under DOSBox
 to check correctness, not speed.
@@ -120,7 +120,7 @@ about the source does not.
 **Check the suite has teeth.** After adding tests, deliberately break the thing
 they cover and confirm they fail. A suite that has never failed has not been
 tested. Three separate tests here turned out unable to fail for the reason they
-existed — output comparison only catches a bug when the wrong computation yields
+existed - output comparison only catches a bug when the wrong computation yields
 a *different* number, and small operands collide easily.
 
 **The docs are load-bearing, and have drifted.** DESIGN.md described two
@@ -131,18 +131,18 @@ as a hypothesis until the compiler agrees with it.
 **Generated `.asm` must stay byte-identical** across any change that is not meant
 to alter behaviour. `npm test` enforces this for every project rather than
 leaving it to whoever remembers to read `git status`. When a change *is* meant
-to alter output, adopt it with `npm run momoc:all` and read the diff — that
+to alter output, adopt it with `npm run momoc:all` and read the diff - that
 reading is the point of the tier, not a formality.
 
 **Regenerate the grammar** (`npm run grammar`) after touching `tokens.ts` *or
-the builtin globals in `resolver.ts`* — the grammar is generated from both, and
+the builtin globals in `resolver.ts`* - the grammar is generated from both, and
 `far` and `_cf` both reached main with the committed extension stale because
-this rule used to name only the first. Verify the emitted regexes compile — a
+this rule used to name only the first. Verify the emitted regexes compile - a
 TypeScript template literal will turn `\b` into a backspace character if it is
 not doubled.
 
 **A new mnemonic means editing DESIGN §1**, and `npm test` now insists. The
-instruction table and its count are the only record of the subset — `cpu 8086`
+instruction table and its count are the only record of the subset - `cpu 8086`
 stops NASM assembling a 186+ instruction, but says nothing about an 8086 one the
 doc does not list. `_cf` added `pushf` and the table said 36 for a while.
 Everything else points at §1 rather than restating the number, so §1 is the only
@@ -155,7 +155,7 @@ can produce but no committed program exercises is a codegen path no test has eve
 run.
 
 This was a manual instruction here for one commit, and got done wrong three times
-in a row — once by hand-typing the subset (`xchg` and `imul` in, `cwd` out), twice
+in a row - once by hand-typing the subset (`xchg` and `imul` in, `cwd` out), twice
 by a slice that swallowed the prose around the table and read `cmptest` as a
 mnemonic. Which is the argument for a test rather than a practice: the check is
 fiddlier than it looks, and being careful is not a method.
@@ -166,14 +166,14 @@ and its hardcoded `_heapw equ _heap`. Features that remove compiler special case
 while adding expressiveness have consistently been the right ones.
 
 Read what got retired carefully, though: `view` absorbed those two as *mechanism*,
-not as source. `_heapw` and `_al` still cannot be written as views — DESIGN said
+not as source. `_heapw` and `_al` still cannot be written as views - DESIGN said
 they could, and it was half wrong. A feature that subsumes a special case is worth
 having whether or not the special case can be re-spelled in it, but the two are
 different claims and only one of them survived contact.
 
 **AI-assisted work is welcome; unexamined work is not.** A good deal of this repo
-was written that way — `CLAUDE.md` exists and the commit log is explicit about it
-— so this is a note from experience rather than a precaution.
+was written that way - `CLAUDE.md` exists and the commit log is explicit about
+it - so this is a note from experience rather than a precaution.
 
 None of the practices above are waived, because none of them are about who typed
 the change. `CLAUDE.md` already puts the agent's half plainly: *adopting whatever
@@ -189,14 +189,14 @@ produce. So:
 - **Work by dialogue.** Proposing, measuring, being told the measurement
   disagrees, and changing the plan is the mode that has produced the good commits
   here. A single prompt and a pull request is not, and it tends to produce changes
-  whose reasoning nobody can reconstruct — including whoever submitted them.
+  whose reasoning nobody can reconstruct - including whoever submitted them.
 
 A review can catch a bug. It cannot supply an understanding that was never formed.
 
 ## Current state
 
 `data/projects/simplerl` is a roguelike at the "move `@` around a hard-coded
-map" stage, using dirty-tile redraw, and is **deliberately finished** — it is
+map" stage, using dirty-tile redraw, and is **deliberately finished** - it is
 kept as the smallest thing that is recognisably a game, so anything further
 belongs in its own project. The name `rl` is reserved for a fuller one.
 
@@ -204,14 +204,14 @@ Most of what else is under `data/projects/` is a test fixture or a demonstration
 of one language feature. Three are **demos**: `rndtext` fills the text buffer with
 random characters, `rndpix` fills a mode 13h frame with random pixels, and
 `tilefill` checkerboards two 8x8 tiles over one. All three wait for a key and put
-the display back, so none can have a `.expected` — tier 2 cannot run something
+the display back, so none can have a `.expected` - tier 2 cannot run something
 that blocks. The golden tier still covers them, which is the regression coverage
 that matters for a compiler.
 
 **`README.md` is provisional**, and knowing that is more useful than the file
 itself. It was written quickly to have something in place, in the register most
-language READMEs are written in — bolded claims, a feature list, a certain amount
-of selling — which is not the voice of the three documents it links to. `STYLE.md`
+language READMEs are written in - bolded claims, a feature list, a certain amount
+of selling - which is not the voice of the three documents it links to. `STYLE.md`
 describes the voice it should have.
 
 Rewriting it waits on two things. **Programs worth showing**, first: `simplerl` is

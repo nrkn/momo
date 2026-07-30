@@ -1,9 +1,9 @@
-# Momo — notes for Claude
+# Momo - notes for Claude
 
 **Read `CONTRIBUTING.md` first.** Layout, pipeline, scripts, the traps that have
 cost real time, and the working practices this project holds to all live there,
 and all of them apply here. This file is only what differs when the contributor
-is an agent rather than a person at an editor — which is very little.
+is an agent rather than a person at an editor - which is very little.
 
 ## Writing files
 
@@ -22,7 +22,7 @@ else would have. The stash-and-rebuild trap in that file is worth reading before
 the first time you revert something to prove a test has teeth.
 
 **Write throwaway probes out in full.** The temptation is to derive one from an
-existing program with `sed` or a regex — drop the `readKey`, add a `putNumber` —
+existing program with `sed` or a regex - drop the `readKey`, add a `putNumber` -
 and it has failed every time it has been tried here: once relocating only the
 first of four reads so a pixel was sampled after the screen was cleared, once
 truncating a file mid-loop. Both produced plausible-looking wrong output, which is
@@ -31,7 +31,7 @@ either. The same instinct as the heredoc rule above: for anything fiddly, use
 Write.
 
 **Predict before adopting.** Where an expected output or a measurement is about
-to be committed, work out what it should be first and then check — every time
+to be committed, work out what it should be first and then check - every time
 that has been done here the prediction was either confirmed, which is real
 evidence, or wrong in a way that found something. Adopting whatever the tool
 printed proves only that it printed it.

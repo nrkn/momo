@@ -1,6 +1,6 @@
 # Style guide
 
-Living document — we iterate on this as we go.
+Living document - we iterate on this as we go.
 
 ## TypeScript
 
@@ -21,7 +21,7 @@ abstraction. This is a hobby compiler, not a framework.
 ## Structure
 
 - Constants and paths at the top of the module, derived once.
-- Small named helpers over long inline blocks — but only when the helper has a
+- Small named helpers over long inline blocks - but only when the helper has a
   name worth reading. Don't extract for its own sake.
 - Fail fast and loudly: validate inputs up front, exit with a clear message
   rather than throwing a stack trace at the user.
@@ -33,7 +33,7 @@ abstraction. This is a hobby compiler, not a framework.
   compiler stage means a bug in *the compiler*, not in the user's program.
 - **Tools** (`src/tools/`) catch `MomoError`, print it via `formatError` (source
   line plus caret), and exit 1. `fail(message): never` is for tool-level
-  problems only — missing files, bad arguments, no DOSBox.
+  problems only - missing files, bad arguments, no DOSBox.
 
 ## Errors
 
@@ -51,7 +51,7 @@ Hand-written `.asm` under `data/projects/` should read like transpiler output,
 so it doubles as a check on the codegen design:
 
 - `cpu 8086` at the top of every file. This makes NASM mechanically enforce the
-  strict-8086 decision from `DESIGN.md` — a 186+ instruction becomes an error.
+  strict-8086 decision from `DESIGN.md` - a 186+ instruction becomes an error.
 - `org 100h`, no sections.
 - Source-level intent as a `; ---- ... ----` section header, not echoed per
   instruction.
@@ -62,7 +62,7 @@ so it doubles as a check on the codegen design:
 ## Momo
 
 - **`=>` when the body is one thing.** It desugars to `{ return expr }` or
-  `{ statement }` in the parser, so there is no cost either way — it is purely
+  `{ statement }` in the parser, so there is no cost either way - it is purely
   about reading:
 
   ```momo
@@ -71,7 +71,7 @@ so it doubles as a check on the codegen design:
   ```
 
   It reads best when the body is an expression or a call. With an assignment the
-  two `=`-family tokens end up close together — `sub seed( u16 s ) => seed_ = s`
+  two `=`-family tokens end up close together - `sub seed( u16 s ) => seed_ = s`
   is legal and fine, but braces are also defensible there.
 
 - Reach for braces when the body is multi-statement, when a comment belongs
@@ -95,12 +95,42 @@ load-bearing or it is cut.
   on the fourth pass, when the reader is looking something up rather than
   browsing.
 
-`README.md` does not currently follow any of this — see `CONTRIBUTING.md`.
+`README.md` does not currently follow any of this - see `CONTRIBUTING.md`.
+
+## Typography
+
+**ASCII in documents, comments and commit messages, with one exception.**
+Anything a contributor cannot type at full speed on an ordinary keyboard costs
+every writer something to save a reader almost nothing.
+
+| for | use | not |
+|---|---|---|
+| an aside | ` - ` | `—` |
+| a range | `1-8`, `§1-§18` | `1–8` |
+| "becomes" | `->` | `→` |
+| dimensions | `320x200` | `320×200` |
+
+Curly quotes and `…` have never appeared here. Keep it that way.
+
+**`§` is the exception**, and earns it on the same test: it carries a real
+cross-reference rather than decoration, it is unambiguous, it greps cleanly, and
+it is typed only when citing a section rather than in every third sentence. High
+value, low frequency - which is exactly what an em dash is not.
+
+This makes the documents consistent with the code rather than introducing a new
+rule: the source comments have used ` - ` from the beginning, 265 asides against
+a single em dash, and nobody has ever minded.
+
+There is a small loss, and it is worth naming. In prose full of `-o` and
+`u8 -> u16`, a hyphen aside is a shade more ambiguous than an em dash would be.
+The comments have absorbed exactly that ambiguity for as long as they have
+existed, so the cost is real and small, and it is paid once by a reader rather
+than every time by a writer.
 
 ## Naming
 
 - Files: `kebab-case.ts`.
 - Functions and variables: `camelCase`.
 - Types: `PascalCase`.
-- DOS-visible filenames must be **8.3** — project directories and entry files
+- DOS-visible filenames must be **8.3** - project directories and entry files
   are limited to 8 characters, letters/digits/underscore, starting with a letter.

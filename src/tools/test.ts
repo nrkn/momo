@@ -228,7 +228,7 @@ const subsetTests = (): number => {
 
   const heading = design.match(/### Instruction subset[^\n]*?(\d+) mnemonics/)
   if (!heading) {
-    check('§1 heading is readable', false, 'no "### Instruction subset — N mnemonics" heading')
+    check('§1 heading is readable', false, 'no "### Instruction subset - N mnemonics" heading')
     return failures.length + passed - before
   }
 
