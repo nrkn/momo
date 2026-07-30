@@ -70,11 +70,11 @@ the z-spelling after a `test`, where "zero" is the honest reading, and the
 e-spelling after a `cmp`. Spellings, not additions: the count stays 37.
 
 **All 39 spellings are emitted by some committed program, and nothing outside
-them is emitted by any.** That is checkable in both directions against this table,
-and it did not hold until `cmptest` was written: `jle`, `jg` and `jz` had no
-program behind them, because nothing did a signed `<=` or `>`. Worth re-running
-after adding a mnemonic, since the count here is the only record of the subset and
-nothing enforces it automatically.
+them is emitted by any** — and `npm test` asserts it, reading this table rather
+than a copy (§14). It did not hold until `cmptest` was written: `jle`, `jg` and
+`jz` had no program behind them, because nothing did a signed `<=` or `>`. The
+count in the heading is checked against the table too, which is the mistake
+`pushf` made once already.
 
 Deliberately absent:
 
@@ -1161,6 +1161,18 @@ a code sample in a document can promise.
 **Unit tests, only for `types.ts`.** `combineRanges`, `truncate` and
 `naturalType` encode facts about 16-bit integers rather than design choices, so
 their contract will not move. Everything else is tested end to end.
+
+**Three assertions test the documentation.** §1's instruction table is the only
+record of the subset and `cpu 8086` cannot enforce it, so tier 1 parses that table
+out of `DESIGN.md` and checks the heading's count against it, that no committed
+`.asm` emits anything outside it, and that nothing in it goes unemitted. The last
+is a coverage claim rather than a correctness one: a mnemonic the emitter can
+produce that no program exercises is a codegen path nothing has ever run.
+
+This is the only place a test reads the prose, and it is worth the oddity. The
+alternative was a practice in `CONTRIBUTING.md`, which lasted one commit and was
+performed wrongly three times — the check is fiddlier than it looks, and the
+failure mode is a silent pass.
 
 ### Why not unit tests elsewhere
 

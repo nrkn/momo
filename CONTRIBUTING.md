@@ -141,24 +141,24 @@ this rule used to name only the first. Verify the emitted regexes compile — a
 TypeScript template literal will turn `\b` into a backspace character if it is
 not doubled.
 
-**A new mnemonic means editing DESIGN §1.** The instruction table and its count
-are the only record of the subset, and nothing checks them — `cpu 8086` stops
-NASM assembling a 186+ instruction, but says nothing about an 8086 one the doc
-does not list. `_cf` added `pushf` and the table said 36 for a while. Everything
-else points at §1 rather than restating the number, so §1 is the only edit.
+**A new mnemonic means editing DESIGN §1**, and `npm test` now insists. The
+instruction table and its count are the only record of the subset — `cpu 8086`
+stops NASM assembling a 186+ instruction, but says nothing about an 8086 one the
+doc does not list. `_cf` added `pushf` and the table said 36 for a while.
+Everything else points at §1 rather than restating the number, so §1 is the only
+edit.
 
-The table is worth *checking* rather than eyeballing, in both directions: scan the
-committed `.asm` for a mnemonic §1's table does not list, and the table for one no
-program emits. Two traps, both hit while writing this down:
+Three tier-1 assertions read `DESIGN.md` itself and check that the heading's count
+matches the table, that nothing outside the table is emitted, and that nothing in
+the table goes unemitted. The third is a coverage claim: a mnemonic the emitter
+can produce but no committed program exercises is a codegen path no test has ever
+run.
 
-- **Take the table rows, not the section.** The prose around the table is full of
-  backticked words, and a range slice picks up `cmptest` as a mnemonic.
-- **`jz`/`jnz` are expected extras.** The table holds 37; those two are the same
-  instructions under a second spelling and are documented beneath it, so the
-  reconciliation is 37 emitted-and-listed plus those.
-
-Doing it by eye instead of by script is worse still — a hand-typed copy of the
-subset came out with `xchg` and `imul` in it and `cwd` left off.
+This was a manual instruction here for one commit, and got done wrong three times
+in a row — once by hand-typing the subset (`xchg` and `imul` in, `cwd` out), twice
+by a slice that swallowed the prose around the table and read `cmptest` as a
+mnemonic. Which is the argument for a test rather than a practice: the check is
+fiddlier than it looks, and being careful is not a method.
 
 **Prefer deleting a special case to adding a feature.** `include` retired the
 stdlib-as-prologue idea; `view` (§17) retired the emitter's byte-alias arithmetic
@@ -186,5 +186,5 @@ the display back, so none can have a `.expected` — tier 2 cannot run something
 that blocks. The golden tier still covers them, which is the regression coverage
 that matters for a compiler.
 
-174 tier-1 assertions (126 compile tests, 23 golden `.asm`, 25 type), 19 e2e
-programs, all green.
+177 tier-1 assertions (126 compile tests, 23 golden `.asm`, 25 type, 3 subset),
+19 e2e programs, all green.

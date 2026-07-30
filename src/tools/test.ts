@@ -199,17 +199,106 @@ const goldenTests = (): number => {
   return projects.length
 }
 
+// ---- instruction subset ------------------------------------------------------
+//
+// DESIGN §1's table is the only record of the 8086 subset, and `cpu 8086` does
+// not enforce it: NASM rejects a 186+ instruction but says nothing about an 8086
+// one the table omits. `pushf` arrived and the count read 36 for a while, and
+// CONTRIBUTING has asked ever since for a check that was manual - which was got
+// wrong three times running, once by hand-typing the list (`xchg` and `imul` in,
+// `cwd` out) and twice by a slice that swallowed the prose around the table.
+//
+// So it is asserted against DESIGN.md itself rather than against a copy here.
+
+const designPath = join(root, 'DESIGN.md')
+
+// Directives share the instruction column, because the emitter writes `cpu`,
+// `org` and `align` through the same helper that writes instructions. Named
+// rather than guessed at, so a real mnemonic can never be mistaken for one.
+const asmDirectives = new Set(['cpu', 'org', 'align', 'db', 'dw', 'times', 'equ'])
+
+// Documented directly beneath the table as a second spelling of `je`/`jne`
+// rather than as additions, which is why they are legal output and deliberately
+// not counted. A third spelling appearing should fail here and be a decision.
+const alternateSpellings = new Set(['jz', 'jnz'])
+
+const subsetTests = (): number => {
+  const design = readFileSync(designPath, 'utf8')
+  const before = failures.length + passed
+
+  const heading = design.match(/### Instruction subset[^\n]*?(\d+) mnemonics/)
+  if (!heading) {
+    check('§1 heading is readable', false, 'no "### Instruction subset — N mnemonics" heading')
+    return failures.length + passed - before
+  }
+
+  // Table ROWS only. The prose on either side is full of backticked words, and
+  // taking the whole section reads `cmptest` as a mnemonic.
+  const table = design.slice(design.indexOf(heading[0]), design.indexOf('Deliberately absent'))
+  const documented = new Set(
+    table
+      .split('\n')
+      .filter((line) => line.startsWith('| ') && !line.startsWith('| Group') )
+      .flatMap((line) => [...line.matchAll(/`([a-z]+)`/g)].map((m) => m[1])),
+  )
+
+  check(
+    `§1 lists ${heading[1]} mnemonics`,
+    documented.size === Number(heading[1]),
+    `the heading says ${heading[1]}, the table holds ${documented.size}` +
+      ' - a new mnemonic means editing both',
+  )
+
+  // Every committed .asm, including the hand-written ones: STYLE holds those to
+  // the same subset, and they are part of what ships. The golden tier has just
+  // checked that the generated ones match what the compiler emits today.
+  const emitted = new Map<string, string>()
+  for (const project of readdirSync(projectsDir)) {
+    const file = join(projectsDir, project, `${project}.asm`)
+    if (!existsSync(file)) continue
+    for (const line of readFileSync(file, 'utf8').split(/\r?\n/)) {
+      const match = line.match(/^ {8}([a-z]+)/)
+      if (!match || asmDirectives.has(match[1])) continue
+      if (!emitted.has(match[1])) emitted.set(match[1], project)
+    }
+  }
+
+  const undocumented = [...emitted.keys()].filter(
+    (mnemonic) => !documented.has(mnemonic) && !alternateSpellings.has(mnemonic),
+  )
+  check(
+    'nothing outside §1 is emitted',
+    undocumented.length === 0,
+    undocumented.map((m) => `"${m}" (in ${emitted.get(m)}.asm) is not in §1's table`).join('\n    '),
+  )
+
+  // A coverage claim, and the one that found `jle`, `jg` and `jz` had no program
+  // behind them at all. A mnemonic the emitter can produce but nothing exercises
+  // is a codegen path no test has ever run.
+  const unused = [...documented].filter((mnemonic) => !emitted.has(mnemonic))
+  check(
+    'every mnemonic in §1 is emitted by some program',
+    unused.length === 0,
+    `${unused.join(', ')} - listed in §1 and emitted by no committed program,` +
+      ' so nothing exercises that path',
+  )
+
+  return failures.length + passed - before
+}
+
 typeAssertions()
 const typeCount = passed + failures.length
 const compileCount = compileTests()
 const goldenCount = goldenTests()
+const subsetCount = subsetTests()
 
 for (const failure of failures) console.error(`  FAIL  ${failure}`)
 
 const total = passed + failures.length
 console.log(
   `\n${passed}/${total} passed` +
-    `  (${compileCount} compile tests, ${goldenCount} golden, ${typeCount} type assertions)`,
+    `  (${compileCount} compile tests, ${goldenCount} golden, ${typeCount} type` +
+    `, ${subsetCount} subset)`,
 )
 
 if (failures.some((failure) => failure.includes('first difference'))) {
