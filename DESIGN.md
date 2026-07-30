@@ -1268,20 +1268,51 @@ that use it — and it makes "ES is never disturbed by anything you call" an
 invariant rather than a discipline. That in turn is what makes the hoisting
 below simple.
 
-**Redundant ES loads — a performance question.** Naively, every far access emits
-`mov ax, seg` / `mov es, ax` first. On an 8086 that is ~6 cycles against ~16 for
-the store itself (`9` + EA `5` + override `2`), so roughly a third again.
+**Redundant ES loads — a performance question, and a smaller one than this
+section first claimed.** Every far access emits `mov dx, seg` / `mov es, dx`
+first: ~6 cycles against ~16 for the store itself (`9` + EA `5` + override `2`),
+so a third again *on the store in isolation*.
 
-That is worth having but is not fatal, and the size of the problem depends
-entirely on the access pattern:
+**That isolation was the error.** Measured against what Momo actually emits
+around the store, in a constant fill of mode 13h — the best case, no generator
+involved:
 
-| Pattern | Impact |
+| | cycles | share |
+|---|---|---|
+| Loop machinery — memory counter, expanded branch, `jmp` back | 85 | 55% |
+| `push`/`pop` saving AX while the index is computed | 27 | 18% |
+| The store itself | 16 | 10% |
+| **The ES load** | **6** | **4%** |
+
+So the ES load is the smallest item in the loop, and the loop machinery is
+fourteen times larger. `rndpix` is worse still: its generator costs ~421 of ~588
+cycles per pixel, leaving the ES load at **1%**.
+
+**And hoisting is not free, because it requires ES to be callee-saved.**
+`push es`/`pop es` is 18 cycles per call to any routine that touches ES, so:
+
+| Shape | Verdict |
 |---|---|
-| Scattered writes (a few cells per turn) | Unnoticeable |
-| Tight loop over many pixels | Real — a full mode 13h clear goes from ~1.0M cycles to ~1.4M, about 5 fps down to 3.4 |
+| `plot( x, y, colour )` — one far write | saves 6, costs 18 — **net loss** |
+| A blitter — 64 writes per tile | saves 384, costs 18 — clear win |
+| `__entry` — nothing calls it, so no preservation | pure win, and ~1% |
 
-Note also that a plot usually computes `y * 320 + x` first, and `mul` alone is
-~120 cycles on an 8086 — so the reload is small beside the addressing arithmetic.
+Break-even is three accesses, or a loop of three-plus iterations inside the
+routine. It rewards a routine that does a block of work and penalises the
+per-pixel one, which is the shape most people reach for first.
+
+Worth building when something has the blitter shape. Not worth building for a
+demo, and the honest priority in a pixel loop is the 55%, not the 4% — that is
+§21's territory: a register-held loop counter and short jumps when the body is
+provably in range, which would speed up every loop rather than only far ones.
+
+> **Benchmarking note.** DOSBox cannot measure this. `cycles = auto` makes it
+> adjust its budget against host load, so wall-clock time measures the host; and
+> pinned to a fixed count, its normal core charges roughly per *instruction*
+> rather than modelling `mul` at 118 cycles against `shl` at 2. The numbers above
+> are counted from the emitted code against documented 8086 timings, which is
+> both exact and closer to real hardware. Run it under DOSBox to check
+> correctness, not speed.
 
 **The larger mitigation needs no compiler work.** Put the loop *inside* a routine
 that sets ES once, exactly as `repeatCell` amortises one interrupt over a whole
@@ -1332,7 +1363,29 @@ separate decision costing two more instructions and a different mental model.
 and the whole segment is 65536; `simplerl` currently has a little under 64,000
 free, so a back buffer in `_heap` would leave under 1.5KB for the image. It needs
 a second segment, and therefore the runtime form — but not `AH=48h`: the memory
-past ours is already the program's (§13). Out of scope until something wants it.
+past ours is already the program's (§13).
+
+**One primitive is missing, and it is not the one this section expected.** A
+`.COM` cannot learn its own segment. DOS does not report it — the program knows
+it only because CS=DS=ES=SS at entry — and the PSP holds the *parent's* PSP and
+the environment segment, neither of which is ours. So both routes are blocked by
+the same thing: memory past our segment needs our segment number, and `AH=48h`
+needs `AH=4Ah` first, which wants ES set to our own PSP.
+
+A read-only `_ds` whose read emits `mov ax, ds` closes it. Two bytes, no storage,
+no startup code, and `mov` already gained a segment-register operand class here,
+so no new mnemonic. Everything else already exists:
+
+```momo
+u16 ourSeg
+far u16[1] memTop = ourSeg:2        // PSP:0002 - the end of what DOS granted
+far u8[64000] backBuffer = bufSeg
+
+ourSeg = _ds
+```
+
+Worth doing after something can put pixels in a buffer — a back buffer with no
+blitter is memory with nothing to write into it.
 
 Worth separating from "unlocks graphics", which the constant form does on its
 own. What the runtime form buys is **space**, not addressing.
