@@ -67,6 +67,13 @@ with no `far` declaration emits no segment register at all.
 the z-spelling after a `test`, where "zero" is the honest reading, and the
 e-spelling after a `cmp`. Spellings, not additions: the count stays 37.
 
+**All 39 spellings are emitted by some committed program, and nothing outside
+them is emitted by any.** That is checkable in both directions against this table,
+and it did not hold until `cmptest` was written: `jle`, `jg` and `jz` had no
+program behind them, because nothing did a signed `<=` or `>`. Worth re-running
+after adding a mnemonic, since the count here is the only record of the subset and
+nothing enforces it automatically.
+
 Deliberately absent:
 
 - **`lea`** — no pointers, and `[disp16 + bx]` covers array indexing in one instruction.
@@ -1126,6 +1133,15 @@ two rows and a tile at a non-zero position to catch stride arithmetic.
 
 What it cannot cover is anything that waits for a key — tier 2 has no way to
 press one — so the three demos are golden-tier only.
+
+**Comparison had eight jump mnemonics and no coverage.** `cmptest` fixes that, and
+its shape is worth copying: `-1` is `0xFFFF`, so every comparison in it answers the
+opposite way signed and unsigned *on identical bits*, and each is compiled twice —
+once as a jump, once as a materialised bool, which are opposite spellings of the
+same test. The two halves catch different mistakes, which was verified by making
+both: signed `<` using `jb` moves only the `-1`-against-`1` lines, and `<=` using
+`jl` moves only the equal-operand lines. Either half alone would have passed the
+other bug.
 
 **A tier 2 program is the worked example for its feature**, and the two written
 this way — `fartest` and `viewtest` — are worth reading as much as running. The

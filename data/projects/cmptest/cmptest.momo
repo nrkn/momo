@@ -1,0 +1,100 @@
+// cmptest.momo - every comparison spelling, signed and unsigned, in both
+// contexts.
+//
+// §4 says only four operations care about signedness, and comparison is the one
+// with eight jump mnemonics behind it. Nothing committed exercised a signed `<=`
+// or `>`, so `jle` and `jg` were emitted by no program at all - which is exactly
+// where a `jb` written for a `jl` would hide.
+//
+// -1 as bits is 0xFFFF, which read as u16 is 65535. So every comparison here
+// gives the OPPOSITE answer signed and unsigned, on identical bits: a wrong jump
+// prints a different digit rather than the same one by luck.
+//
+// A comparison compiles two ways - as a jump when it is a condition, and as a
+// materialised bool when it is a value - and the two use opposite spellings of
+// the same test, so both are checked.
+
+include "std/io.momo"
+
+i16 a
+i16 b
+u16 x
+u16 y
+u8  zero
+u8  one
+
+sub bit( bool v ) {
+  if ( v ) {
+    putChar( '1' )
+  } else {
+    putChar( '0' )
+  }
+}
+
+// ---- entry ----
+
+a = -1
+b = 1
+
+// Value context: the comparison becomes a bool.
+bit( a <  b )                                                     // 1
+bit( a <= b )                                                     // 1
+bit( a >  b )                                                     // 0
+bit( a >= b )                                                     // 0
+newline()
+
+// Control-flow context: the same four as jumps.
+if ( a <  b ) { putChar( '1' ) } else { putChar( '0' ) }
+if ( a <= b ) { putChar( '1' ) } else { putChar( '0' ) }
+if ( a >  b ) { putChar( '1' ) } else { putChar( '0' ) }
+if ( a >= b ) { putChar( '1' ) } else { putChar( '0' ) }
+newline()
+
+// The same bits as u16. Every digit is the inverse of the signed answer.
+x = 0xFFFF
+y = 1
+
+bit( x <  y )                                                     // 0
+bit( x <= y )                                                     // 0
+bit( x >  y )                                                     // 1
+bit( x >= y )                                                     // 1
+newline()
+
+if ( x <  y ) { putChar( '1' ) } else { putChar( '0' ) }
+if ( x <= y ) { putChar( '1' ) } else { putChar( '0' ) }
+if ( x >  y ) { putChar( '1' ) } else { putChar( '0' ) }
+if ( x >= y ) { putChar( '1' ) } else { putChar( '0' ) }
+newline()
+
+// Equal operands - the only place a `<`-for-`<=` slip shows, since every other
+// case agrees when the two differ.
+a = -5
+b = -5
+
+bit( a <  b )                                                     // 0
+bit( a <= b )                                                     // 1
+bit( a >  b )                                                     // 0
+bit( a >= b )                                                     // 1
+bit( a == b )                                                     // 1
+bit( a != b )                                                     // 0
+newline()
+
+if ( a <= b ) { putChar( '1' ) } else { putChar( '0' ) }
+if ( a >= b ) { putChar( '1' ) } else { putChar( '0' ) }
+newline()
+
+// Unequal, so == and != are checked both ways round.
+b = -4
+
+bit( a == b )                                                     // 0
+bit( a != b )                                                     // 1
+newline()
+
+// A bare scalar rather than a comparison, which is where the zero test lands.
+zero = 0
+one  = 1
+
+bit( zero || one )                                                // 1
+bit( zero && one )                                                // 0
+if ( zero || one ) { putChar( '1' ) } else { putChar( '0' ) }
+newline()

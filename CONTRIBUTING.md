@@ -147,6 +147,12 @@ NASM assembling a 186+ instruction, but says nothing about an 8086 one the doc
 does not list. `_cf` added `pushf` and the table said 36 for a while. Everything
 else points at §1 rather than restating the number, so §1 is the only edit.
 
+The table is worth *checking* rather than eyeballing, in both directions: scan the
+committed `.asm` for a mnemonic §1 does not list, and §1 for one no program emits.
+Both currently come back empty. Doing it by eye instead is how this was nearly
+missed — a hand-typed list of the subset came out with `xchg` and `imul` in it and
+`cwd` left off.
+
 **Prefer deleting a special case to adding a feature.** `include` retired the
 stdlib-as-prologue idea; `view` (§17) retired the emitter's byte-alias arithmetic
 and its hardcoded `_heapw equ _heap`. Features that remove compiler special cases
@@ -173,5 +179,5 @@ the display back, so none can have a `.expected` — tier 2 cannot run something
 that blocks. The golden tier still covers them, which is the regression coverage
 that matters for a compiler.
 
-173 tier-1 assertions (126 compile tests, 22 golden `.asm`, 25 type), 18 e2e
+174 tier-1 assertions (126 compile tests, 23 golden `.asm`, 25 type), 19 e2e
 programs, all green.
