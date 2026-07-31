@@ -50,6 +50,7 @@ npm run lex:nl -- <project>   # statement terminators only
 npm run parse -- <project>    # AST
 npm run check -- <project>    # symbol table
 npm run memory -- <project>   # exact static footprint
+npm run desugar -- <project>  # the program with its surface sugar lowered
 
 npm test                      # tier 1: compile tests, golden .asm, types, ~1s
 npm run test:e2e              # tier 2: run in DOSBox, compare output
@@ -225,5 +226,5 @@ The cost of waiting is that the first thing a visitor reads is the weakest
 document in the repo. That trade is made deliberately, and preferred to shipping a
 second draft in the same voice as the first.
 
-177 tier-1 assertions (126 compile tests, 23 golden `.asm`, 25 type, 3 subset),
-19 e2e programs, all green.
+228 tier-1 assertions (127 compile tests, 23 golden `.asm`, 25 type, 50 round
+trip, 3 subset), 19 e2e programs, all green.

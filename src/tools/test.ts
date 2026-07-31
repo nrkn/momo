@@ -14,12 +14,14 @@
 // their keep: `combineRanges` and `truncate` encode facts about 16-bit integers,
 // not design choices we might revisit.
 
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { compile } from '../momo/compile.js'
 import { formatError, isMomoError } from '../momo/diagnostics.js'
-import { libRootFor } from '../momo/loader.js'
+import { libRootFor, load } from '../momo/loader.js'
+import { printProgram } from '../momo/printer.js'
 import { combineRanges, naturalType, rangeOf, truncate } from '../momo/types.js'
 
 const root = process.cwd()
@@ -199,6 +201,69 @@ const goldenTests = (): number => {
   return projects.length
 }
 
+// ---- desugar round trip ------------------------------------------------------
+//
+// Print each program back as Momo, compile the printed copy, and require the
+// same code out of both. This is the only test of the parser, and it is the one
+// shape that does not have the churn problem §14 objects to: it asserts nothing
+// about how the AST is arranged, only that printing and parsing are inverse, so
+// it survives every refactor that keeps the meaning.
+//
+// It cannot compare the assembly byte for byte. The emitter quotes the source
+// line above the code it produced, and the printed source is by construction
+// different text - no comments, different wrapping, sugar lowered. So the
+// `; ---- ` lines come out and everything else has to match: every instruction,
+// every label, every inline comment about a widening or a jump choice.
+
+const roundTripRoot = mkdtempSync(join(tmpdir(), 'momo-roundtrip-'))
+
+const codeOnly = (assembly: string): string[] =>
+  asLines(assembly).filter((line) => !line.startsWith('; ---- '))
+
+const roundTripTests = (): number => {
+  const cases: { name: string; file: string }[] = []
+
+  for (const project of readdirSync(projectsDir).sort()) {
+    const file = join(projectsDir, project, `${project}.momo`)
+    if (existsSync(file)) cases.push({ name: project, file })
+  }
+
+  // The ok- files carry syntax no project happens to use - every `far` shape,
+  // every `view` shape - so they are where the printer's coverage comes from.
+  for (const name of readdirSync(compileDir).sort()) {
+    if (name.startsWith('ok-') && name.endsWith('.momo')) {
+      cases.push({ name, file: join(compileDir, name) })
+    }
+  }
+
+  for (const { name, file } of cases) {
+    const sources = new Map<string, string>()
+
+    try {
+      const original = compile(file, libRootFor(root), sources).assembly
+      const printed = printProgram(load(file, libRootFor(root), new Map()).program)
+
+      // Written out rather than compiled from memory, so the round trip goes
+      // through the same lexer and loader entry point everything else does.
+      const copy = join(roundTripRoot, `${name.replace(/\.momo$/, '')}.momo`)
+      writeFileSync(copy, printed, 'utf8')
+
+      const again = compile(copy, libRootFor(root), new Map()).assembly
+
+      const difference = firstDifference(
+        codeOnly(again).join('\n'),
+        codeOnly(original).join('\n'),
+      )
+      check(`round trip ${name}`, difference === null, difference ?? '')
+    } catch (error) {
+      if (!isMomoError(error)) throw error
+      check(`round trip ${name}`, false, formatError(sources, error))
+    }
+  }
+
+  return cases.length
+}
+
 // ---- instruction subset ------------------------------------------------------
 //
 // DESIGN §1's table is the only record of the 8086 subset, and `cpu 8086` does
@@ -290,6 +355,7 @@ typeAssertions()
 const typeCount = passed + failures.length
 const compileCount = compileTests()
 const goldenCount = goldenTests()
+const roundTripCount = roundTripTests()
 const subsetCount = subsetTests()
 
 for (const failure of failures) console.error(`  FAIL  ${failure}`)
@@ -298,7 +364,7 @@ const total = passed + failures.length
 console.log(
   `\n${passed}/${total} passed` +
     `  (${compileCount} compile tests, ${goldenCount} golden, ${typeCount} type` +
-    `, ${subsetCount} subset)`,
+    `, ${roundTripCount} round trip, ${subsetCount} subset)`,
 )
 
 if (failures.some((failure) => failure.includes('first difference'))) {

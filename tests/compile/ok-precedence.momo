@@ -1,0 +1,83 @@
+// Expressions whose meaning depends on how they are bracketed.
+//
+// This exists for the desugar round trip. Printing an AST back as source has to
+// put brackets exactly where dropping them would reparse differently, and a
+// program only catches that mistake if it contains a shape where it matters -
+// of the whole corpus, two did. Each pair below is the same operators grouped
+// two ways, so a printer that brackets too little, or too much in the wrong
+// place, produces different code for one of them.
+//
+// DESIGN §6 is what is being pinned: bitwise binds tighter than comparison, and
+// shifts bind with the multiplicatives.
+
+u16 a
+u16 b
+u16 c
+u16 r
+i16 s
+i16 t
+bool p
+bool q
+
+a = 30
+b = 5
+c = 3
+s = -4
+t = 2
+p = true
+q = false
+
+// ---- additive against multiplicative ----
+r = ( a + b ) * c
+r = a + b * c
+r = ( a - b ) % c
+r = a - b % c
+
+// ---- left associativity, which brackets can undo ----
+r = a - b - c
+r = a - ( b - c )
+r = a / b / c
+r = a / ( b / c )
+r = a << 1 << 2
+r = a << ( 1 << 2 )
+
+// ---- shifts bind with the multiplicatives, not below them ----
+r = 1 << 2 + 3
+r = 1 << ( 2 + 3 )
+r = a * 2 << 1
+r = a * ( 2 << 1 )
+
+// ---- the bitwise ladder: & tighter than ^ tighter than | ----
+r = a | b & c
+r = ( a | b ) & c
+r = a ^ b & c
+r = ( a ^ b ) & c
+r = a | b ^ c
+r = ( a | b ) ^ c
+
+// ---- bitwise binds tighter than comparison ----
+p = a & 1 == 0
+p = ( a & 1 ) == 0
+
+// ---- unary against everything ----
+r = ~a & b
+r = ~( a & b )
+s = -s + t
+s = -( s + t )
+p = !p && q
+p = !( p && q )
+
+// ---- && tighter than || ----
+p = p || q && p
+p = ( p || q ) && p
+
+// ---- the conditional is loosest, so using one as an operand needs brackets ----
+r = ( a > b ? 1 : 2 ) + 1
+r = a > b ? 1 : 2 + 1
+r = a > b ? 1 : c > b ? 2 : 3
+r = ( a > b ? 1 : c > b ) ? 2 : 3
+
+// ---- and a few nested deeply enough to need more than one level ----
+r = ( ( a + b ) * ( c + 1 ) ) % ( b + 1 )
+r = a + b * c - a / b
+r = ( a + b ) * ( c - 1 ) / ( b + 1 )

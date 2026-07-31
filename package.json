@@ -16,7 +16,8 @@
     "test:e2e": "tsc && node dist/tools/e2e.js",
     "momoc:all": "tsc && node dist/tools/momoc.js --all",
     "grammar": "tsc && node dist/tools/grammar.js",
-    "editor:install": "tsc && node dist/tools/editor.js"
+    "editor:install": "tsc && node dist/tools/editor.js",
+    "desugar": "tsc && node dist/tools/desugar.js"
   },
   "devDependencies": {
     "@types/node": "^26.1.1"

@@ -1162,6 +1162,29 @@ a code sample in a document can promise.
 `naturalType` encode facts about 16-bit integers rather than design choices, so
 their contract will not move. Everything else is tested end to end.
 
+**The desugar round trip is the only test of the parser.** `npm run desugar`
+prints a program back as Momo from its AST, by which point the parser has already
+lowered `=>`, `else if`, prefix and postfix `++` and adjacent string literals, and
+the loader has spliced every `include`. Tier 1 prints all 50 programs and compile
+tests, compiles the printed copy, and requires the same code from both.
+
+It asserts nothing about how the AST is arranged - only that printing and parsing
+are inverse - so it survives every refactor that keeps the meaning, which is the
+churn objection below answered rather than excepted.
+
+**It cannot compare the assembly byte for byte**, because the emitter quotes the
+source line above the code it produced and the printed source is different text
+by construction: no comments, different wrapping, sugar lowered. So the `; ---- `
+lines come out and everything else has to match - every instruction, every label,
+every inline comment about a widening or a jump choice.
+
+`tests/compile/ok-precedence.momo` exists for it. Bracketing is where a printer
+goes wrong, and a program only catches that if it contains an expression whose
+meaning depends on brackets: of the whole corpus, **two did**. That file pairs
+each grouping against the other one, and it found a real bug immediately - a
+conditional used as the *test* of another conditional was printed unbracketed,
+where the parser can only produce one in the alternate.
+
 **Three assertions test the documentation.** §1's instruction table is the only
 record of the subset and `cpu 8086` cannot enforce it, so tier 1 parses that table
 out of `DESIGN.md` and checks the heading's count against it, that no committed
