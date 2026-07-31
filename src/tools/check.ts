@@ -3,21 +3,10 @@
 //   npm run check -- smoke
 
 import { existsSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
 
-import { formatError, isMomoError } from '../momo/diagnostics.js'
+import { entryFor, fail, failWith, libRoot } from './cli.js'
 import { compile } from '../momo/compile.js'
-import { libRootFor } from '../momo/loader.js'
 import type { MomoSymbol } from '../momo/resolver.js'
-
-const root = process.cwd()
-const projectsDir = join(root, 'data', 'projects')
-
-const fail = (message: string): never => {
-  console.error(`error: ${message}`)
-  process.exit(1)
-}
 
 const at = (alias: { parent: string; byteOffset: number }): string =>
   alias.byteOffset === 0 ? alias.parent : `${alias.parent} + ${alias.byteOffset}`
@@ -75,13 +64,13 @@ const main = async () => {
   const project = process.argv.slice(2).find((arg) => !arg.startsWith('-')) ?? ''
   if (!project) fail('usage: npm run check -- <project>')
 
-  const file = join(projectsDir, project, `${project}.momo`)
+  const file = entryFor(project)
   if (!existsSync(file)) fail(`source not found: "${file}"`)
 
   const sources = new Map<string, string>()
 
   try {
-    const { symbols } = compile(file, libRootFor(root), sources)
+    const { symbols } = compile(file, libRoot, sources)
 
     const shown = symbols.filter((symbol) => !(symbol.kind === 'var' && symbol.builtin))
     const width = Math.max(...shown.map((symbol) => symbol.label.length))
@@ -114,9 +103,7 @@ const main = async () => {
         (views.length ? `, ${views.length} views (no storage)` : ''),
     )
   } catch (error) {
-    if (!isMomoError(error)) throw error
-    console.error(formatError(sources, error))
-    process.exit(1)
+    failWith(sources, error)
   }
 }
 

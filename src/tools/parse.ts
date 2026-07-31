@@ -7,22 +7,12 @@
 // unrecognised --flags from the user as config.)
 
 import { existsSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
 
+import { entryFor, fail, failWith, libRoot } from './cli.js'
 import type { Node } from '../momo/ast.js'
-import { formatError, isMomoError } from '../momo/diagnostics.js'
-import { libRootFor, load } from '../momo/loader.js'
-
-const root = process.cwd()
-const projectsDir = join(root, 'data', 'projects')
+import { load } from '../momo/loader.js'
 
 const usage = 'usage: npm run parse -- <project>'
-
-const fail = (message: string): never => {
-  console.error(`error: ${message}`)
-  process.exit(1)
-}
 
 // A one-line label for a node: enough to read the shape of the tree without
 // drowning in the full JSON.
@@ -98,13 +88,13 @@ const main = async () => {
 
   if (!project) fail(`no project given\n${usage}`)
 
-  const file = join(projectsDir, project, `${project}.momo`)
+  const file = entryFor(project)
   if (!existsSync(file)) fail(`source not found: "${file}"`)
 
   const sources = new Map<string, string>()
 
   try {
-    const { program } = load(file, libRootFor(root), sources)
+    const { program } = load(file, libRoot, sources)
     if (asJson) {
       console.log(JSON.stringify(program, null, 2))
       return
@@ -113,9 +103,7 @@ const main = async () => {
     printTree(program, 0)
     console.log(`\n${countNodes(program)} nodes, ${program.body.length} top-level statements`)
   } catch (error) {
-    if (!isMomoError(error)) throw error
-    console.error(formatError(sources, error))
-    process.exit(1)
+    failWith(sources, error)
   }
 }
 

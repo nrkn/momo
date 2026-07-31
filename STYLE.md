@@ -20,7 +20,10 @@ abstraction. This is a hobby compiler, not a framework.
 
 ## Structure
 
-- Constants and paths at the top of the module, derived once.
+- Constants and paths at the top of the module, derived once - and where more
+  than one module needs the same one, derived in `src/tools/cli.ts` instead.
+  Eight tools worked out `data/projects` from `process.cwd()` separately, which
+  made moving it an edit to eight files and a hope.
 - Small named helpers over long inline blocks - but only when the helper has a
   name worth reading. Don't extract for its own sake.
 - Fail fast and loudly: validate inputs up front, exit with a clear message

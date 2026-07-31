@@ -15,21 +15,22 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
+import {
+  asmFor,
+  buildRoot,
+  confPath,
+  entryFor,
+  expectedFor,
+  fail,
+  libRoot,
+  nasmDir,
+  projectDir,
+  projectsDir,
+  root,
+} from './cli.js'
 import { compile } from '../momo/compile.js'
 import { formatError, isMomoError } from '../momo/diagnostics.js'
-import { libRootFor } from '../momo/loader.js'
 import { loadToolchain } from './toolchain.js'
-
-const root = process.cwd()
-const projectsDir = join(root, 'data', 'projects')
-const nasmDir = join(root, 'data', 'dos-nasm')
-const confPath = join(root, 'data', 'dosbox.conf')
-const buildRoot = join(root, 'build')
-
-const fail = (message: string): never => {
-  console.error(`error: ${message}`)
-  process.exit(1)
-}
 
 const runDosbox = (exe: string, args: string[]): Promise<void> =>
   new Promise((resolveRun) => {
@@ -44,12 +45,12 @@ const runDosbox = (exe: string, args: string[]): Promise<void> =>
 // Assemble and run in one DOSBox session, with the program's stdout redirected
 // to a file we can read back - so no human has to watch the window.
 const buildAndRun = async (exe: string, project: string): Promise<string> => {
-  const projectDir = join(projectsDir, project)
+  const sourceDir = projectDir(project)
   const buildDir = join(buildRoot, project)
 
   await rm(buildDir, { recursive: true, force: true })
   await mkdir(buildDir, { recursive: true })
-  await cp(projectDir, buildDir, { recursive: true })
+  await cp(sourceDir, buildDir, { recursive: true })
 
   const script = [
     '@echo off',
@@ -91,7 +92,7 @@ const main = async () => {
 
   const projects = readdirSync(projectsDir).filter((name) => {
     if (only && name !== only) return false
-    return existsSync(join(projectsDir, name, `${name}.expected`))
+    return existsSync(expectedFor(name))
   })
 
   if (projects.length === 0) fail('no projects with a .expected file')
@@ -100,14 +101,14 @@ const main = async () => {
   const failures: string[] = []
 
   for (const project of projects) {
-    const entry = join(projectsDir, project, `${project}.momo`)
+    const entry = entryFor(project)
     const sources = new Map<string, string>()
 
     // Momo projects are compiled first; hand-written .asm ones are not.
     if (existsSync(entry)) {
       try {
-        const { assembly } = compile(entry, libRootFor(root), sources)
-        await writeFile(join(projectsDir, project, `${project}.asm`), assembly, 'ascii')
+        const { assembly } = compile(entry, libRoot, sources)
+        await writeFile(asmFor(project), assembly, 'ascii')
       } catch (error) {
         if (!isMomoError(error)) throw error
         failures.push(`${project}\n${formatError(sources, error)}`)
@@ -116,7 +117,7 @@ const main = async () => {
     }
 
     const actual = await buildAndRun(exe, project)
-    const expected = await readFile(join(projectsDir, project, `${project}.expected`), 'utf8')
+    const expected = await readFile(expectedFor(project), 'utf8')
 
     // Normalise line endings only - everything else must match exactly.
     const clean = (text: string) => text.replace(/\r\n/g, '\n').trimEnd()

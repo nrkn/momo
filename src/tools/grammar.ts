@@ -10,11 +10,11 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+import { editorDir } from './cli.js'
 import { builtinGlobalNames } from '../momo/resolver.js'
 import { keywords, operators, typeNames } from '../momo/tokens.js'
 
-const root = process.cwd()
-const outDir = join(root, 'editor', 'vscode', 'syntaxes')
+const outDir = join(editorDir, 'syntaxes')
 
 const escapeRegex = (text: string): string => text.replace(/[.*+?^${}()|[\]\\/-]/g, '\\$&')
 

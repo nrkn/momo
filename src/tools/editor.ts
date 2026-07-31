@@ -11,14 +11,10 @@ import { cp, mkdir, rm } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
-const root = process.cwd()
-const source = join(root, 'editor', 'vscode')
-const target = join(homedir(), '.vscode', 'extensions', 'momo')
+import { editorDir, fail } from './cli.js'
 
-const fail = (message: string): never => {
-  console.error(`error: ${message}`)
-  process.exit(1)
-}
+const source = editorDir
+const target = join(homedir(), '.vscode', 'extensions', 'momo')
 
 const main = async () => {
   if (!existsSync(source)) fail(`extension not found at "${source}"`)

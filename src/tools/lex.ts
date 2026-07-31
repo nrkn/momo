@@ -12,21 +12,12 @@
 
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
 
-import { formatError, isMomoError } from '../momo/diagnostics.js'
+import { entryFor, fail, failWith } from './cli.js'
 import { tokenize } from '../momo/lexer.js'
 import type { Token } from '../momo/tokens.js'
 
-const root = process.cwd()
-const projectsDir = join(root, 'data', 'projects')
-
 const usage = 'usage: npm run lex -- <project> [--newlines]'
-
-const fail = (message: string): never => {
-  console.error(`error: ${message}`)
-  process.exit(1)
-}
 
 const display = (token: Token): string => {
   if (token.kind === 'newline') return '\\n'
@@ -44,7 +35,7 @@ const main = async () => {
 
   if (!project) fail(`no project given\n${usage}`)
 
-  const file = join(projectsDir, project, `${project}.momo`)
+  const file = entryFor(project)
   if (!existsSync(file)) fail(`source not found: "${file}"`)
 
   const source = await readFile(file, 'utf8')
@@ -54,9 +45,9 @@ const main = async () => {
   try {
     tokens = tokenize(source, file)
   } catch (error) {
-    if (!isMomoError(error)) throw error
-    console.error(formatError(new Map([[file, source]]), error))
-    process.exit(1)
+    // The lexer runs before any include is resolved, so this file is the only
+    // source there could be.
+    failWith(new Map([[file, source]]), error)
   }
 
   if (newlinesOnly) {

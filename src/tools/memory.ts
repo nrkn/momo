@@ -10,27 +10,17 @@
 // is reported only when a build exists.
 
 import { existsSync, statSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
+import { buildRoot, entryFor, fail, failWith, libRoot } from './cli.js'
 import { entryName, interruptReserve, stackBytes } from '../momo/analysis.js'
-import { formatError, isMomoError } from '../momo/diagnostics.js'
 import { compile } from '../momo/compile.js'
-import { libRootFor } from '../momo/loader.js'
 import { widthOf } from '../momo/types.js'
-
-const root = process.cwd()
-const projectsDir = join(root, 'data', 'projects')
 
 // A .COM is loaded at offset 0x100, after the 256-byte PSP, and DOS points SP
 // at the top of the same 64K segment.
 const pspSize = 0x100
 const segmentEnd = 0xfffe
-
-const fail = (message: string): never => {
-  console.error(`error: ${message}`)
-  process.exit(1)
-}
 
 const row = (name: string, value: string, indent = 0) =>
   console.log(`  ${' '.repeat(indent)}${name.padEnd(24 - indent)}${value.padStart(12)}`)
@@ -39,13 +29,13 @@ const main = async () => {
   const project = process.argv.slice(2).find((arg) => !arg.startsWith('-')) ?? ''
   if (!project) fail('usage: npm run memory -- <project>')
 
-  const file = join(projectsDir, project, `${project}.momo`)
+  const file = entryFor(project)
   if (!existsSync(file)) fail(`source not found: "${file}"`)
 
   const sources = new Map<string, string>()
 
   try {
-    const resolved = compile(file, libRootFor(root), sources)
+    const resolved = compile(file, libRoot, sources)
     const { temporaries } = resolved
 
     let reserved = 0
@@ -91,7 +81,7 @@ const main = async () => {
 
     console.log(`\n${project}.momo\n`)
 
-    const binary = join(root, 'build', project, `${project}.com`)
+    const binary = join(buildRoot, project, `${project}.com`)
     const imageSize = existsSync(binary) ? statSync(binary).size : null
 
     if (imageSize !== null) row('code', `${imageSize - data} bytes`)
@@ -132,9 +122,7 @@ const main = async () => {
 
     console.log()
   } catch (error) {
-    if (!isMomoError(error)) throw error
-    console.error(formatError(sources, error))
-    process.exit(1)
+    failWith(sources, error)
   }
 }
 

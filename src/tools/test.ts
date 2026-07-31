@@ -18,15 +18,19 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } fro
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import {
+  asmFor,
+  compileTestsDir as compileDir,
+  designPath,
+  entryFor,
+  libRoot,
+  projectsDir,
+} from './cli.js'
 import { compile } from '../momo/compile.js'
 import { formatError, isMomoError } from '../momo/diagnostics.js'
-import { libRootFor, load } from '../momo/loader.js'
+import { load } from '../momo/loader.js'
 import { printProgram } from '../momo/printer.js'
 import { combineRanges, naturalType, rangeOf, truncate } from '../momo/types.js'
-
-const root = process.cwd()
-const compileDir = join(root, 'tests', 'compile')
-const projectsDir = join(root, 'data', 'projects')
 
 let passed = 0
 const failures: string[] = []
@@ -99,7 +103,7 @@ const compileTests = () => {
 
     let error: unknown = null
     try {
-      compile(file, libRootFor(root), sources)
+      compile(file, libRoot, sources)
     } catch (caught) {
       error = caught
     }
@@ -172,11 +176,11 @@ const goldenTests = (): number => {
   // Projects with no .momo are hand-written assembly, and have nothing to
   // compare against.
   const projects = readdirSync(projectsDir)
-    .filter((name) => existsSync(join(projectsDir, name, `${name}.momo`)))
+    .filter((name) => existsSync(entryFor(name)))
     .sort()
 
   for (const project of projects) {
-    const goldenPath = join(projectsDir, project, `${project}.asm`)
+    const goldenPath = asmFor(project)
     const sources = new Map<string, string>()
 
     if (!existsSync(goldenPath)) {
@@ -186,8 +190,7 @@ const goldenTests = (): number => {
 
     let assembly: string
     try {
-      assembly = compile(join(projectsDir, project, `${project}.momo`), libRootFor(root), sources)
-        .assembly
+      assembly = compile(entryFor(project), libRoot, sources).assembly
     } catch (error) {
       if (!isMomoError(error)) throw error
       check(project, false, formatError(sources, error))
@@ -224,7 +227,7 @@ const roundTripTests = (): number => {
   const cases: { name: string; file: string }[] = []
 
   for (const project of readdirSync(projectsDir).sort()) {
-    const file = join(projectsDir, project, `${project}.momo`)
+    const file = entryFor(project)
     if (existsSync(file)) cases.push({ name: project, file })
   }
 
@@ -240,15 +243,15 @@ const roundTripTests = (): number => {
     const sources = new Map<string, string>()
 
     try {
-      const original = compile(file, libRootFor(root), sources).assembly
-      const printed = printProgram(load(file, libRootFor(root), new Map()).program)
+      const original = compile(file, libRoot, sources).assembly
+      const printed = printProgram(load(file, libRoot, new Map()).program)
 
       // Written out rather than compiled from memory, so the round trip goes
       // through the same lexer and loader entry point everything else does.
       const copy = join(roundTripRoot, `${name.replace(/\.momo$/, '')}.momo`)
       writeFileSync(copy, printed, 'utf8')
 
-      const again = compile(copy, libRootFor(root), new Map()).assembly
+      const again = compile(copy, libRoot, new Map()).assembly
 
       const difference = firstDifference(
         codeOnly(again).join('\n'),
@@ -274,8 +277,6 @@ const roundTripTests = (): number => {
 // `cwd` out) and twice by a slice that swallowed the prose around the table.
 //
 // So it is asserted against DESIGN.md itself rather than against a copy here.
-
-const designPath = join(root, 'DESIGN.md')
 
 // Directives share the instruction column, because the emitter writes `cpu`,
 // `org` and `align` through the same helper that writes instructions. Named
@@ -319,7 +320,7 @@ const subsetTests = (): number => {
   // checked that the generated ones match what the compiler emits today.
   const emitted = new Map<string, string>()
   for (const project of readdirSync(projectsDir)) {
-    const file = join(projectsDir, project, `${project}.asm`)
+    const file = asmFor(project)
     if (!existsSync(file)) continue
     for (const line of readFileSync(file, 'utf8').split(/\r?\n/)) {
       const match = line.match(/^ {8}([a-z]+)/)

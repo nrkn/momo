@@ -7,34 +7,26 @@
 
 import { existsSync, readdirSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
 
+import { asmFor, entryFor, fail, libRoot, projectsDir } from './cli.js'
 import { compile } from '../momo/compile.js'
 import { formatError, isMomoError } from '../momo/diagnostics.js'
-import { libRootFor } from '../momo/loader.js'
-
-const root = process.cwd()
-const projectsDir = join(root, 'data', 'projects')
-
-const fail = (message: string): never => {
-  console.error(`error: ${message}`)
-  process.exit(1)
-}
 
 // Returns true on success. Errors are printed rather than thrown, so `--all`
-// reports every failing project instead of stopping at the first.
+// reports every failing project instead of stopping at the first - which is why
+// this does not use `failWith`, the only tool that does not.
 const compileProject = async (project: string): Promise<boolean> => {
-  const file = join(projectsDir, project, `${project}.momo`)
+  const file = entryFor(project)
   if (!existsSync(file)) {
     console.error(`error: source not found: "${file}"`)
     return false
   }
 
-  const output = join(projectsDir, project, `${project}.asm`)
+  const output = asmFor(project)
   const sources = new Map<string, string>()
 
   try {
-    const { assembly } = compile(file, libRootFor(root), sources)
+    const { assembly } = compile(file, libRoot, sources)
     await writeFile(output, assembly, 'ascii')
     console.log(`ok: ${output}  (${assembly.split('\r\n').length} lines)`)
     return true
@@ -53,9 +45,7 @@ const main = async () => {
   if (!all && !project) fail('usage: npm run momoc -- <project>   (or npm run momoc:all)')
 
   const projects = all
-    ? readdirSync(projectsDir).filter((name) =>
-        existsSync(join(projectsDir, name, `${name}.momo`)),
-      )
+    ? readdirSync(projectsDir).filter((name) => existsSync(entryFor(name)))
     : [project]
 
   let failed = 0

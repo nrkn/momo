@@ -15,7 +15,7 @@ console is kept as `_reference/yuki.txt`.
 
 ```
 src/momo/       the compiler
-src/tools/      CLI entry points
+src/tools/      CLI entry points, over cli.ts (paths, fail) and toolchain.ts
 lib/std/        standard library, written in Momo
 data/projects/  programs, as <name>/<name>.momo
 tests/compile/  tier 1 tests

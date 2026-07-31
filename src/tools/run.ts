@@ -13,6 +13,7 @@ import { existsSync } from 'node:fs'
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
+import { asmFor, buildRoot, confPath, fail, nasmDir, projectDir, root } from './cli.js'
 import { loadToolchain } from './toolchain.js'
 
 type Mode = 'run' | 'build'
@@ -23,21 +24,10 @@ type Options = {
   winpos: string | null
 }
 
-const root = process.cwd()
-const confPath = join(root, 'data', 'dosbox.conf')
-const nasmDir = join(root, 'data', 'dos-nasm')
-const projectsDir = join(root, 'data', 'projects')
-const buildRoot = join(root, 'build')
-
 const usage = [
   'usage: npm start <project> [--winpos X,Y]',
   '       npm run build -- <project> [--winpos X,Y]',
 ].join('\n')
-
-const fail = (message: string): never => {
-  console.error(`error: ${message}`)
-  process.exit(1)
-}
 
 const parseArgs = (argv: string[]): Options => {
   let project = ''
@@ -129,8 +119,8 @@ const main = async () => {
   const dosbox = toolchain.dosbox
   const winpos = options.winpos ?? toolchain.winpos
 
-  const projectDir = join(projectsDir, options.project)
-  const entryPath = join(projectDir, `${options.project}.asm`)
+  const sourceDir = projectDir(options.project)
+  const entryPath = asmFor(options.project)
   const buildDir = join(buildRoot, options.project)
 
   if (!existsSync(confPath)) fail(`dosbox config not found at "${confPath}"`)
@@ -141,7 +131,7 @@ const main = async () => {
   // earlier successful build after a failed one.
   await rm(buildDir, { recursive: true, force: true })
   await mkdir(buildDir, { recursive: true })
-  await cp(projectDir, buildDir, { recursive: true })
+  await cp(sourceDir, buildDir, { recursive: true })
   await writeFile(join(buildDir, 'build.bat'), buildBat(options.project, options.mode), 'ascii')
 
   const args = [
