@@ -3,7 +3,8 @@
 // Not a stage and not a compiler concern - `src/momo/` stays the four pure
 // stages plus what they need. This is the layer above, and it exists because
 // ten tools had derived the same paths from `process.cwd()` independently, so
-// moving `data/projects` meant editing eight files and hoping.
+// moving the projects directory meant editing eight files and hoping. It was
+// moved out of `data/` one commit later, and the edit was this one line.
 //
 // `fail` is the tool half of the two error layers in STYLE.md: a tool-level
 // problem (missing file, bad argument, no DOSBox) exits with a message, where a
@@ -16,7 +17,7 @@ import { libRootFor } from '../momo/loader.js'
 
 export const root = process.cwd()
 
-export const projectsDir = join(root, 'data', 'projects')
+export const projectsDir = join(root, 'projects')
 export const buildRoot = join(root, 'build')
 export const nasmDir = join(root, 'data', 'dos-nasm')
 export const confPath = join(root, 'data', 'dosbox.conf')

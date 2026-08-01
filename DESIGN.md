@@ -808,12 +808,12 @@ Three decisions:
 
 **It is the carry from the most recent `int`, not from the one you care about.**
 Anything that prints goes through `int 21h` and replaces it, so read it out
-immediately - `data/projects/cftest` demonstrates both the reading and the trap.
+immediately - `projects/cftest` demonstrates both the reading and the trap.
 
 **Emit one helper sub per distinct INT number**, not the sync inline at every
 call site. The literal is baked into the helper, so `int 0x21` becomes
 `call int21` - 3 bytes instead of ~40. The shape was proven by hand in
-`data/projects/keytest` before the transpiler depended on it; among compiled
+`projects/keytest` before the transpiler depended on it; among compiled
 programs, `smoke` emits two helpers and runs under tier 2.
 
 **`addr(x)` builtin** returns a global's `u16` offset. In a `.COM` this is a
@@ -866,7 +866,7 @@ of shapes that already existed:
   the inner loop of `memCopy`.
 
 **The address is evaluated first**, which §7 requires of arguments generally and
-which nothing in the emitted code reveals. `data/projects/peektest` therefore calls
+which nothing in the emitted code reveals. `projects/peektest` therefore calls
 a fn on both sides and prints the order it observed - the one case in that program
 that the golden tier structurally cannot check.
 
@@ -1013,7 +1013,7 @@ This makes the call graph load-bearing twice over - it decides what survives as
 well as what is legal - so anything that hides an edge from it deletes code the
 emitter still calls. Parameterised consts are the subtle case; see §7.
 
-`data/projects/heaptest` includes `std/io.momo` and uses three of its five subs;
+`projects/heaptest` includes `std/io.momo` and uses three of its five subs;
 `putStr` and `space` do not appear in the output at all, and neither does
 `putStr`'s parameter slot `putStr__at`, which lives or dies with it.
 
@@ -1095,7 +1095,7 @@ does rather than as a line of NASM the emitter knew to write. It is still a
 builtin: the language spells a view's parent as an array with a length, and the
 heap has neither.
 
-Momo provides no allocator. `data/projects/heaptest` is a bump allocator written
+Momo provides no allocator. `projects/heaptest` is a bump allocator written
 in Momo, which is the intended shape: the language supplies the memory, the
 programmer supplies the policy. **`view` (§17) is often the better answer** -
 `view u8[16] mapData = _heap[0]` partitions the heap into named, bounds-checked
@@ -1166,7 +1166,7 @@ Keeping the expectation inside the file means test and assertion cannot drift
 apart, and there is no manifest to forget.
 
 **Tier 1.5 - the committed `.asm` is the expectation.** Every project under
-`data/projects/` is compiled and compared against the assembly committed beside
+`projects/` is compiled and compared against the assembly committed beside
 it. Nothing is written: a deliberate change is adopted by running
 `npm run momoc:all` and committing the diff, so **every codegen change has to be
 looked at by someone.**
@@ -1300,16 +1300,16 @@ Where that stands:
 
 | | |
 |---|---|
-| Hello world | `data/projects/hello` - hand-written asm, and trivial in Momo |
-| Fizzbuzz | inside `data/projects/smoke`, verified end to end |
+| Hello world | `projects/hello` - hand-written asm, and trivial in Momo |
+| Fizzbuzz | inside `projects/smoke`, verified end to end |
 | Arithmetic, arrays, loops, branches | `smoke` - every construct in one program |
 | A standard library | `lib/std/io.momo` |
-| Dynamic allocation | `data/projects/heaptest` - a bump allocator in Momo |
-| Compile-time tables | `data/projects/consttst` |
-| Sieve of Eratosthenes | `data/projects/sieve`, and `data/projects/bitsiev` bit-packed on the heap |
-| Recursive algorithms | `data/projects/qsort` (quicksort) and `data/projects/hanoi` - explicit stacks on the heap |
-| Text-mode screen library | `lib/std/screen.momo`, verified by `data/projects/scrtest` |
-| String library | `lib/std/str.momo`, verified by `data/projects/strtest` |
+| Dynamic allocation | `projects/heaptest` - a bump allocator in Momo |
+| Compile-time tables | `projects/consttst` |
+| Sieve of Eratosthenes | `projects/sieve`, and `projects/bitsiev` bit-packed on the heap |
+| Recursive algorithms | `projects/qsort` (quicksort) and `projects/hanoi` - explicit stacks on the heap |
+| Text-mode screen library | `lib/std/screen.momo`, verified by `projects/scrtest` |
+| String library | `lib/std/str.momo`, verified by `projects/strtest` |
 | Text adventure | not yet attempted |
 
 **Only the text adventure is left**, and nothing in the language blocks it. The
@@ -1319,10 +1319,10 @@ Graphics is not blocked either - §16 is built, so the text buffer and mode 13h 
 both addressable as memory.
 
 Two things have since joined the list that were never on the original bar:
-`data/projects/grptest` for entity pools (§18), and `data/projects/cftest`,
+`projects/grptest` for entity pools (§18), and `projects/cftest`,
 which opens a file and notices when that fails - the first Momo program that
-could find out the machine said no. `data/projects/viewtest` (§17) and
-`data/projects/peektest` (§10) make four.
+could find out the machine said no. `projects/viewtest` (§17) and
+`projects/peektest` (§10) make four.
 
 **Dynamic allocation has an answer that is not an allocator.** `view` partitions
 the heap into named regions at compile time, so `heaptest`'s bump allocator is now
@@ -1352,7 +1352,7 @@ for.
 
 ## 16. `far` regions and ES
 
-**Built, except the hoisting below.** Every access reloads ES; `data/projects/fartest`
+**Built, except the hoisting below.** Every access reloads ES; `projects/fartest`
 exercises it against the real text buffer, and is the worked example for this
 section (§14) - read it alongside the rules below.
 
@@ -1558,7 +1558,7 @@ Break-even is three accesses, or a loop of three-plus iterations inside the
 routine. It rewards a routine that does a block of work and penalises the
 per-pixel one, which is the shape most people reach for first.
 
-**And the blitter shape does not rescue it.** `data/projects/tilefill` is that
+**And the blitter shape does not rescue it.** `projects/tilefill` is that
 shape - 64 far writes per call, one segment - and measured over a full screen of
 1000 tiles at ~19.7M cycles:
 
@@ -1679,7 +1679,7 @@ peephole in the emitter, and `push es`/`pop es` in the int helpers.
 
 ## 17. `view`
 
-**Built.** `data/projects/viewtest` exercises every shape, and one deliberately
+**Built.** `projects/viewtest` exercises every shape, and one deliberately
 unused view, because pruning one is part of the feature. It is the worked example
 for this section (§14) and reads in the same order - every case below appears
 there, writing through one name and reading back through another. The one block
@@ -1847,7 +1847,7 @@ Static views stay sugar. That is the whole appeal.
 
 **Built.** Sugar over the **structure-of-arrays** pattern - an entity pool is the
 shape almost every game reaches for, which is why this was the first of §16-§19
-to be wanted. `data/projects/grptest` exercises it.
+to be wanted. `projects/grptest` exercises it.
 
 ```momo
 const mobCount = 64
@@ -2272,7 +2272,7 @@ Three tiers, with the cutoff between the first two:
   below asks for. Signed `*` **is** reduced - `shl` is bit-identical to a
   multiply in the low 16 bits, so the sign never enters into it.
 
-  Measured on `data/projects/tilefill`, which has two `* 8` per row: 8.5% off a
+  Measured on `projects/tilefill`, which has two `* 8` per row: 8.5% off a
   full screen, ~4.13s to ~3.78s at 4.77MHz. The estimate beforehand was 9.7%,
   and the shortfall is entirely the first trap below - it assumed a shift of
   three cost ~6 cycles, where through CL it costs 20. Unrolling would recover
@@ -2657,7 +2657,7 @@ Almost nothing new, and less than when this was written. **`group` (§18), `len`
 (§5) and `_cf` (§10) are now built** - structure-of-arrays is how a token table
 or an AST wants to be held on this machine, and `_cf` means a failed read can be
 noticed. With `int 0x21` and `addr()` already working, file access is writable
-today; `data/projects/cftest` opens one.
+today; `projects/cftest` opens one.
 
 What is still missing is §19's array parameters, for routines that take a buffer
 without one copy per call site.

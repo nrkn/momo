@@ -17,7 +17,7 @@ console is kept as `_reference/yuki.txt`.
 src/momo/       the compiler
 src/tools/      CLI entry points, over cli.ts (paths, fail) and toolchain.ts
 lib/std/        standard library, written in Momo
-data/projects/  programs, as <name>/<name>.momo
+projects/  programs, as <name>/<name>.momo
 tests/compile/  tier 1 tests
 editor/vscode/  generated syntax highlighting
 ```
@@ -196,12 +196,12 @@ A review can catch a bug. It cannot supply an understanding that was never forme
 
 ## Current state
 
-`data/projects/simplerl` is a roguelike at the "move `@` around a hard-coded
+`projects/simplerl` is a roguelike at the "move `@` around a hard-coded
 map" stage, using dirty-tile redraw, and is **deliberately finished** - it is
 kept as the smallest thing that is recognisably a game, so anything further
 belongs in its own project. The name `rl` is reserved for a fuller one.
 
-Most of what else is under `data/projects/` is a test fixture or a demonstration
+Most of what else is under `projects/` is a test fixture or a demonstration
 of one language feature. Three are **demos**: `rndtext` fills the text buffer with
 random characters, `rndpix` fills a mode 13h frame with random pixels, and
 `tilefill` checkerboards two 8x8 tiles over one. All three wait for a key and put
@@ -217,7 +217,7 @@ describes the voice it should have.
 
 Rewriting it waits on two things. **Programs worth showing**, first: `simplerl` is
 deliberately the smallest thing that counts as a game, the three demos cannot be
-tier-2 tested, and everything else under `data/projects/` is a fixture. A README
+tier-2 tested, and everything else under `projects/` is a fixture. A README
 that shows off wants something to show, and the text adventure (§15) or a scroller
 once §22 is built are the candidates. And second, a draft **written rather than
 generated**, which is the other half of why it is waiting.

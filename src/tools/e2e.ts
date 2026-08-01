@@ -7,7 +7,7 @@
 // bugs unit tests structurally cannot: the ones that live at the NASM boundary,
 // or that only show up when real 8086 code executes.
 //
-// Projects are found under data/projects/<name>/, so a test is just a Momo
+// Projects are found under projects/<name>/, so a test is just a Momo
 // program. DOS is 8.3, so names are limited to 8 characters.
 
 import { spawn } from 'node:child_process'

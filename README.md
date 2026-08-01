@@ -105,7 +105,7 @@ since the path is yours rather than the project's.
 npm start smoke                 # compile, assemble and run in DOSBox
 ```
 
-Write a program at `data/projects/<name>/<name>.momo` - the name must be 1-8
+Write a program at `projects/<name>/<name>.momo` - the name must be 1-8
 characters, since DOS is 8.3 - then:
 
 ```bash
@@ -134,7 +134,7 @@ errors in the Problems panel.
 | **`CONTRIBUTING.md`** | Orientation: layout, scripts, the tooling traps, and the practices that keep this honest |
 | **`CLAUDE.md`** | The handful of things that differ when the contributor is an agent |
 
-**For worked examples, read the programs.** `data/projects/*` are real programs
+**For worked examples, read the programs.** `projects/*` are real programs
 that the test suite compiles and runs, so none of them can drift out of step with
 the compiler. `viewtest` and `fartest` are written to be read - each writes
 through one name and reads back through another, so every line says why it is

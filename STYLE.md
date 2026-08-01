@@ -22,8 +22,9 @@ abstraction. This is a hobby compiler, not a framework.
 
 - Constants and paths at the top of the module, derived once - and where more
   than one module needs the same one, derived in `src/tools/cli.ts` instead.
-  Eight tools worked out `data/projects` from `process.cwd()` separately, which
-  made moving it an edit to eight files and a hope.
+  Eight tools worked out the projects directory from `process.cwd()` separately,
+  which made moving it an edit to eight files and a hope. It moved one commit
+  after they were consolidated, and the edit was one line.
 - Small named helpers over long inline blocks - but only when the helper has a
   name worth reading. Don't extract for its own sake.
 - Fail fast and loudly: validate inputs up front, exit with a clear message
@@ -50,7 +51,7 @@ Not `Error: validation failed`.
 
 ## Assembly (hand-written test programs)
 
-Hand-written `.asm` under `data/projects/` should read like transpiler output,
+Hand-written `.asm` under `projects/` should read like transpiler output,
 so it doubles as a check on the codegen design:
 
 - `cpu 8086` at the top of every file. This makes NASM mechanically enforce the
