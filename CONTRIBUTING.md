@@ -116,6 +116,29 @@ The emitter writes CRLF, `core.autocrlf` is `input`, so the working tree and the
 stored blob differ in line endings while comparing identical after normalisation.
 `git diff --stat` is the honest check after regenerating; `git status` is not.
 
+## Branches
+
+**Work happens on `main`.** Everything built so far went straight there - `far`,
+`view`, `group`, `local`, `peek`/`poke` and the whole peephole set - and none of
+them made anyone want a branch. Small and mid-sized changes are the normal case,
+and this is the whole of the rule for them.
+
+Two things are worth branching for, and neither has come up yet:
+
+- **A feature large enough that a half-finished `main` would cost more than the
+  merge does.** Where that line falls is deliberately not written down. Nothing
+  has reached it, so a number now would be a guess rather than a record - and
+  the honest test in the meantime is whether you would mind leaving `main` in
+  the state your change reaches by the end of a session.
+- **Work that may not survive.** Subsetting the language down to something
+  smaller to find out what can still usefully be built in it, say. An experiment
+  whose answer might be "no" wants to be able to end without leaving anything
+  behind, which is a different reason from size and the more likely of the two
+  to be needed first.
+
+`fix-const-expansion-call-graph` predates this note and is the one branch that
+does not follow it.
+
 ## Working practices
 
 **Verify by running, not by reading.** Almost every real bug here was invisible
