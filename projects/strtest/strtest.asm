@@ -122,8 +122,7 @@ __entry:
 ; ---- found = strFind( addr( path ), '/' )
         mov     ax, path                    ; link-time constant
         mov     [strFind__at], ax
-        mov     ax, 47
-        mov     [strFind__ch], al           ; narrowed to u8
+        mov     byte [strFind__ch], 47
         call    strFind
         mov     ax, [strFind__ret]
         mov     [found], ax
@@ -141,8 +140,7 @@ __entry:
 ; ---- putNumber( strFind( addr( path ), 'z' ) )   // 0
         mov     ax, path                    ; link-time constant
         mov     [strFind__at], ax
-        mov     ax, 122
-        mov     [strFind__ch], al           ; narrowed to u8
+        mov     byte [strFind__ch], 122
         call    strFind
         mov     ax, [strFind__ret]
         mov     [putNumber__n], ax
@@ -152,8 +150,7 @@ __entry:
 ; ---- found = strFind( addr( path ), '$' )
         mov     ax, path                    ; link-time constant
         mov     [strFind__at], ax
-        mov     ax, 36
-        mov     [strFind__ch], al           ; narrowed to u8
+        mov     byte [strFind__ch], 36
         call    strFind
         mov     ax, [strFind__ret]
         mov     [found], ax
@@ -171,18 +168,15 @@ __entry:
 ; ---- memFill( addr( buffer ), len( buffer ), '.' )
         mov     ax, buffer                  ; link-time constant
         mov     [memFill__at], ax
-        mov     ax, 16
-        mov     [memFill__count], ax
-        mov     ax, 46
-        mov     [memFill__value], al        ; narrowed to u8
+        mov     word [memFill__count], 16
+        mov     byte [memFill__value], 46
         call    memFill
 ; ---- memCopy( addr( buffer ), addr( world ), 3 )
         mov     ax, buffer                  ; link-time constant
         mov     [memCopy__to], ax
         mov     ax, world                   ; link-time constant
         mov     [memCopy__from], ax
-        mov     ax, 3
-        mov     [memCopy__count], ax
+        mov     word [memCopy__count], 3
         call    memCopy
 ; ---- poke8( addr( buffer ) + 8, '$' )
         mov     ax, buffer                  ; link-time constant
@@ -198,10 +192,8 @@ __entry:
 ; ---- memFill( addr( other ), 4, 7 )
         mov     ax, other                   ; link-time constant
         mov     [memFill__at], ax
-        mov     ax, 4
-        mov     [memFill__count], ax
-        mov     ax, 7
-        mov     [memFill__value], al        ; narrowed to u8
+        mov     word [memFill__count], 4
+        mov     byte [memFill__value], 7
         call    memFill
 ; ---- putNumber( other[0] )                       // 7
         mov     al, [other]
@@ -257,12 +249,10 @@ putStr:
 
 newline:
 ; ---- putChar(13)
-        mov     ax, 13
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 13
         call    putChar
 ; ---- putChar(10)
-        mov     ax, 10
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 10
         call    putChar
         ret
 
@@ -276,8 +266,7 @@ putNumber:
         jmp     .L1
 .L3:
 ; ---- putChar(ioZeroChar)
-        mov     ax, 48
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 48
         call    putChar
 ; ---- return
         ret
@@ -327,8 +316,7 @@ putNumber:
         dec     ax
         mov     bx, ax
         mov     al, [putNumber__digits + bx]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     [putChar__c], al            ; u8 -> u8, no widening
         call    putChar
 .L9:
         dec     byte [putNumber__i]
@@ -443,8 +431,7 @@ strCmp:
         je      .L30                        ; unsigned ==
         jmp     .L28
 .L30:
-        xor     ax, ax                      ; 0
-        mov     [strCmp__ret], ax
+        mov     word [strCmp__ret], 0
         ret
 .L28:
 ; ---- i++
@@ -486,8 +473,7 @@ strFind:
         je      .L39                        ; unsigned ==
         jmp     .L37
 .L39:
-        xor     ax, ax                      ; 0
-        mov     [strFind__ret], ax
+        mov     word [strFind__ret], 0
         ret
 .L37:
 ; ---- i++

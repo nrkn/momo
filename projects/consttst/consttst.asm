@@ -12,8 +12,7 @@ packed          equ     48879
 
 __entry:
 ; ---- putNumber(sqr(7))
-        mov     ax, 49
-        mov     [putNumber__n], ax
+        mov     word [putNumber__n], 49
         call    putNumber
 ; ---- newline()
         call    newline
@@ -33,8 +32,7 @@ __entry:
 ; ---- newline()
         call    newline
 ; ---- putNumber(min(sqr(4), sqr(3)))
-        mov     ax, 9
-        mov     [putNumber__n], ax
+        mov     word [putNumber__n], 9
         call    putNumber
 ; ---- newline()
         call    newline
@@ -54,8 +52,7 @@ __entry:
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- putChar(' ')
-        mov     ax, 32
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 32
         call    putChar
 .L2:
         inc     word [i]
@@ -64,44 +61,36 @@ __entry:
 ; ---- newline()
         call    newline
 ; ---- putNumber(hi(packed))
-        mov     ax, 190
-        mov     [putNumber__n], ax
+        mov     word [putNumber__n], 190
         call    putNumber
 ; ---- putChar(' ')
-        mov     ax, 32
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 32
         call    putChar
 ; ---- putNumber(lo(packed))
-        mov     ax, 239
-        mov     [putNumber__n], ax
+        mov     word [putNumber__n], 239
         call    putNumber
 ; ---- newline()
         call    newline
 ; ---- putNumber(isDigit('7'))
-        mov     ax, 1
-        mov     [putNumber__n], ax
+        mov     word [putNumber__n], 1
         call    putNumber
 ; ---- putNumber(isDigit('x'))
-        xor     ax, ax                      ; 0
-        mov     [putNumber__n], ax
+        mov     word [putNumber__n], 0
         call    putNumber
 ; ---- newline()
         call    newline
 ; ---- putNumber(plusOne(20))
-        mov     ax, 20
-        mov     [double__n], al             ; narrowed to u8
+        mov     byte [double__n], 20
         call    double
         mov     ax, [double__ret]
         inc     ax
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- putChar(' ')
-        mov     ax, 32
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 32
         call    putChar
 ; ---- putNumber(plusOne(u8(double(3))))
-        mov     ax, 3
-        mov     [double__n], al             ; narrowed to u8
+        mov     byte [double__n], 3
         call    double
         mov     ax, [double__ret]
         xor     ah, ah                      ; cast to u8
@@ -134,12 +123,10 @@ putChar:
 
 newline:
 ; ---- putChar(13)
-        mov     ax, 13
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 13
         call    putChar
 ; ---- putChar(10)
-        mov     ax, 10
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 10
         call    putChar
         ret
 
@@ -153,8 +140,7 @@ putNumber:
         jmp     .L5
 .L7:
 ; ---- putChar(ioZeroChar)
-        mov     ax, 48
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 48
         call    putChar
 ; ---- return
         ret
@@ -204,8 +190,7 @@ putNumber:
         dec     ax
         mov     bx, ax
         mov     al, [putNumber__digits + bx]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     [putChar__c], al            ; u8 -> u8, no widening
         call    putChar
 .L13:
         dec     byte [putNumber__i]

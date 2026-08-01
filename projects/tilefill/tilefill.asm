@@ -56,26 +56,20 @@ __entry:
         jmp     .L9
 .L11:
 ; ---- blit( 0, tx, ty )
-        xor     ax, ax                      ; 0
-        mov     [blit__from], ax
+        mov     word [blit__from], 0
         mov     al, [tx]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [blit__tx], al              ; narrowed to u8
+        mov     [blit__tx], al              ; u8 -> u8, no widening
         mov     al, [ty]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [blit__ty], al              ; narrowed to u8
+        mov     [blit__ty], al              ; u8 -> u8, no widening
         call    blit
         jmp     .L10
 .L9:
 ; ---- blit( tileBytes, tx, ty )
-        mov     ax, 64
-        mov     [blit__from], ax
+        mov     word [blit__from], 64
         mov     al, [tx]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [blit__tx], al              ; narrowed to u8
+        mov     [blit__tx], al              ; u8 -> u8, no widening
         mov     al, [ty]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [blit__ty], al              ; narrowed to u8
+        mov     [blit__ty], al              ; u8 -> u8, no widening
         call    blit
 .L10:
 .L6:

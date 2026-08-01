@@ -23,6 +23,23 @@ u16 wrap(u16 a, u16 b) {
   return add(a, b) + 1
 }
 
+// A byte return slot, written from a bare byte load. `return` stores through
+// the same path a call argument does, and until this was added nothing
+// committed returned a byte variable at all.
+//
+// What it adds is golden coverage: those two instructions are now an
+// expectation somewhere, so a change to them has to be read. It adds nothing to
+// what tier 2 proves, and the honest reason is worth recording - a store that
+// reads the wrong byte was tried, and every line of this program came out
+// corrupt, because putChar and putNumber pass their bytes through slots as
+// well. The output here could never have failed for this routine alone.
+u8 smaller(u8 a, u8 b) {
+  if (a < b) {
+    return a
+  }
+  return b
+}
+
 u16 acc
 u16 i
 
@@ -61,4 +78,8 @@ for (i = 1; i <= 5; i++) {
   acc = add(acc, i * i)
 }
 putNumber(acc)
+newline()
+
+// byte arguments and a byte return, all through slots
+putNumber(smaller(9, 4))
 newline()

@@ -11,10 +11,8 @@ ioZeroChar      equ     48
 
 __entry:
 ; ---- putNumber(add(3, 4))
-        mov     ax, 3
-        mov     [add__a], ax
-        mov     ax, 4
-        mov     [add__b], ax
+        mov     word [add__a], 3
+        mov     word [add__b], 4
         call    add
         mov     ax, [add__ret]
         mov     [putNumber__n], ax
@@ -22,17 +20,13 @@ __entry:
 ; ---- newline()
         call    newline
 ; ---- putNumber(add(add(1, 2), add(30, 40)))
-        mov     ax, 1
-        mov     [add__a], ax
-        mov     ax, 2
-        mov     [add__b], ax
+        mov     word [add__a], 1
+        mov     word [add__b], 2
         call    add
         mov     ax, [add__ret]
         push    ax                          ; argument evaluated before any is stored
-        mov     ax, 30
-        mov     [add__a], ax
-        mov     ax, 40
-        mov     [add__b], ax
+        mov     word [add__a], 30
+        mov     word [add__b], 40
         call    add
         mov     ax, [add__ret]
         push    ax                          ; argument evaluated before any is stored
@@ -47,10 +41,8 @@ __entry:
 ; ---- newline()
         call    newline
 ; ---- putNumber(wrap(10, 20))
-        mov     ax, 10
-        mov     [wrap__a], ax
-        mov     ax, 20
-        mov     [wrap__b], ax
+        mov     word [wrap__a], 10
+        mov     word [wrap__b], 20
         call    wrap
         mov     ax, [wrap__ret]
         mov     [putNumber__n], ax
@@ -58,8 +50,7 @@ __entry:
 ; ---- newline()
         call    newline
 ; ---- putNumber(u16(absolute(-1234)))
-        mov     ax, -1234
-        mov     [absolute___v], ax
+        mov     word [absolute___v], 64302
         call    absolute_
         mov     ax, [absolute___ret]
         mov     [putNumber__n], ax
@@ -67,12 +58,10 @@ __entry:
 ; ---- newline()
         call    newline
 ; ---- emit('o')
-        mov     ax, 111
-        mov     [emit__c], al               ; narrowed to u8
+        mov     byte [emit__c], 111
         call    emit
 ; ---- emit('k')
-        mov     ax, 107
-        mov     [emit__c], al               ; narrowed to u8
+        mov     byte [emit__c], 107
         call    emit
 ; ---- newline()
         call    newline
@@ -106,6 +95,16 @@ __entry:
         call    putNumber
 ; ---- newline()
         call    newline
+; ---- putNumber(smaller(9, 4))
+        mov     byte [smaller__a], 9
+        mov     byte [smaller__b], 4
+        call    smaller
+        mov     al, [smaller__ret]
+        xor     ah, ah                      ; u8 -> u16
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- newline()
+        call    newline
 
 ; ---- implicit exit ----
         mov     word [_ax], 0x4C00          ; DOS terminate, exit code 0
@@ -127,12 +126,10 @@ putChar:
 
 newline:
 ; ---- putChar(13)
-        mov     ax, 13
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 13
         call    putChar
 ; ---- putChar(10)
-        mov     ax, 10
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 10
         call    putChar
         ret
 
@@ -146,8 +143,7 @@ putNumber:
         jmp     .L5
 .L7:
 ; ---- putChar(ioZeroChar)
-        mov     ax, 48
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 48
         call    putChar
 ; ---- return
         ret
@@ -197,8 +193,7 @@ putNumber:
         dec     ax
         mov     bx, ax
         mov     al, [putNumber__digits + bx]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     [putChar__c], al            ; u8 -> u8, no widening
         call    putChar
 .L13:
         dec     byte [putNumber__i]
@@ -241,8 +236,7 @@ absolute_:
 emit:
 ; ---- putChar(c)
         mov     al, [emit__c]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     [putChar__c], al            ; u8 -> u8, no widening
         call    putChar
         ret
 
@@ -258,6 +252,25 @@ wrap:
         mov     ax, [add__ret]
         inc     ax
         mov     [wrap__ret], ax
+        ret
+
+; ============================================== u8 smaller ====
+
+smaller:
+; ---- if (a < b) {
+        mov     al, [smaller__a]
+        cmp     al, [smaller__b]            ; byte operands, no widening
+        jb      .L21                        ; unsigned <
+        jmp     .L19
+.L21:
+; ---- return a
+        mov     al, [smaller__a]
+        mov     [smaller__ret], al          ; u8 -> u8, no widening
+        ret
+.L19:
+; ---- return b
+        mov     al, [smaller__b]
+        mov     [smaller__ret], al          ; u8 -> u8, no widening
         ret
 
 ; ==================================================== int helpers ====
@@ -310,6 +323,9 @@ emit__c         db      0        ; u8
 wrap__a         dw      0        ; u16
 wrap__b         dw      0        ; u16
 wrap__ret       dw      0        ; u16
+smaller__a      db      0        ; u8
+smaller__b      db      0        ; u8
+smaller__ret    db      0        ; u8
 acc             dw      0        ; u16
 i               dw      0        ; u16
 putNumber__i    db      0        ; u8

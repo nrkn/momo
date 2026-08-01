@@ -47,12 +47,10 @@ putChar:
 
 newline:
 ; ---- putChar(13)
-        mov     ax, 13
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 13
         call    putChar
 ; ---- putChar(10)
-        mov     ax, 10
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 10
         call    putChar
         ret
 
@@ -66,8 +64,7 @@ putNumber:
         jmp     .L1
 .L3:
 ; ---- putChar(ioZeroChar)
-        mov     ax, 48
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 48
         call    putChar
 ; ---- return
         ret
@@ -117,8 +114,7 @@ putNumber:
         dec     ax
         mov     bx, ax
         mov     al, [putNumber__digits + bx]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     [putChar__c], al            ; u8 -> u8, no widening
         call    putChar
 .L9:
         dec     byte [putNumber__i]
@@ -178,34 +174,29 @@ pushFrame:
 ; ---- frameSet(sp, fN, n)
         mov     ax, [sp_]
         mov     [frameSet__frame], ax
-        xor     ax, ax                      ; 0
-        mov     [frameSet__field], ax
+        mov     word [frameSet__field], 0
         mov     ax, [pushFrame__n]
         mov     [frameSet__value], ax
         call    frameSet
 ; ---- frameSet(sp, fFrom, from)
         mov     ax, [sp_]
         mov     [frameSet__frame], ax
-        mov     ax, 1
-        mov     [frameSet__field], ax
+        mov     word [frameSet__field], 1
         mov     ax, [pushFrame__from]
         mov     [frameSet__value], ax
         call    frameSet
 ; ---- frameSet(sp, fTo, to)
         mov     ax, [sp_]
         mov     [frameSet__frame], ax
-        mov     ax, 2
-        mov     [frameSet__field], ax
+        mov     word [frameSet__field], 2
         mov     ax, [pushFrame__to]
         mov     [frameSet__value], ax
         call    frameSet
 ; ---- frameSet(sp, fStage, 0)
         mov     ax, [sp_]
         mov     [frameSet__frame], ax
-        mov     ax, 3
-        mov     [frameSet__field], ax
-        xor     ax, ax                      ; 0
-        mov     [frameSet__value], ax
+        mov     word [frameSet__field], 3
+        mov     word [frameSet__value], 0
         call    frameSet
 ; ---- sp++
         inc     word [sp_]
@@ -219,16 +210,14 @@ reportMove:
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- putChar('>')
-        mov     ax, 62
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 62
         call    putChar
 ; ---- putNumber(to)
         mov     ax, [reportMove__to]
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- putChar(' ')
-        mov     ax, 32
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 32
         call    putChar
 ; ---- moves++
         inc     word [moves]
@@ -242,12 +231,9 @@ solve:
 ; ---- moves = 0
         mov     word [moves], 0
 ; ---- pushFrame(discs, 1, 3)
-        mov     ax, 4
-        mov     [pushFrame__n], ax
-        mov     ax, 1
-        mov     [pushFrame__from], ax
-        mov     ax, 3
-        mov     [pushFrame__to], ax
+        mov     word [pushFrame__n], 4
+        mov     word [pushFrame__from], 1
+        mov     word [pushFrame__to], 3
         call    pushFrame
 ; ---- while (sp > 0) {
 .L12:
@@ -263,32 +249,28 @@ solve:
 ; ---- n = frameGet(top, fN)
         mov     ax, [solve__top]
         mov     [frameGet__frame], ax
-        xor     ax, ax                      ; 0
-        mov     [frameGet__field], ax
+        mov     word [frameGet__field], 0
         call    frameGet
         mov     ax, [frameGet__ret]
         mov     [solve__n], ax
 ; ---- from = frameGet(top, fFrom)
         mov     ax, [solve__top]
         mov     [frameGet__frame], ax
-        mov     ax, 1
-        mov     [frameGet__field], ax
+        mov     word [frameGet__field], 1
         call    frameGet
         mov     ax, [frameGet__ret]
         mov     [solve__from], ax
 ; ---- to = frameGet(top, fTo)
         mov     ax, [solve__top]
         mov     [frameGet__frame], ax
-        mov     ax, 2
-        mov     [frameGet__field], ax
+        mov     word [frameGet__field], 2
         call    frameGet
         mov     ax, [frameGet__ret]
         mov     [solve__to], ax
 ; ---- stage = frameGet(top, fStage)
         mov     ax, [solve__top]
         mov     [frameGet__frame], ax
-        mov     ax, 3
-        mov     [frameGet__field], ax
+        mov     word [frameGet__field], 3
         call    frameGet
         mov     ax, [frameGet__ret]
         mov     [solve__stage], ax
@@ -318,10 +300,8 @@ solve:
 ; ---- frameSet(top, fStage, 1)
         mov     ax, [solve__top]
         mov     [frameSet__frame], ax
-        mov     ax, 3
-        mov     [frameSet__field], ax
-        mov     ax, 1
-        mov     [frameSet__value], ax
+        mov     word [frameSet__field], 3
+        mov     word [frameSet__value], 1
         call    frameSet
 ; ---- pushFrame(n - 1, from, spare(from, to))
         mov     ax, [solve__n]
@@ -354,10 +334,8 @@ solve:
 ; ---- frameSet(top, fStage, 2)
         mov     ax, [solve__top]
         mov     [frameSet__frame], ax
-        mov     ax, 3
-        mov     [frameSet__field], ax
-        mov     ax, 2
-        mov     [frameSet__value], ax
+        mov     word [frameSet__field], 3
+        mov     word [frameSet__value], 2
         call    frameSet
 ; ---- pushFrame(n - 1, spare(from, to), to)
         mov     ax, [solve__n]

@@ -54,10 +54,8 @@ __entry:
         mov     ax, [es:10]
         mov     [viaOffset], ax
 ; ---- moveTo( 0, 2 )
-        xor     ax, ax                      ; 0
-        mov     [moveTo__col], al           ; narrowed to u8
-        mov     ax, 2
-        mov     [moveTo__row], al           ; narrowed to u8
+        mov     byte [moveTo__col], 0
+        mov     byte [moveTo__row], 2
         call    moveTo
 ; ---- putNumber( word1 )                // 0x0742 = 1858
         mov     ax, [word1]
@@ -117,12 +115,10 @@ putChar:
 
 newline:
 ; ---- putChar(13)
-        mov     ax, 13
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 13
         call    putChar
 ; ---- putChar(10)
-        mov     ax, 10
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 10
         call    putChar
         ret
 
@@ -136,8 +132,7 @@ putNumber:
         jmp     .L1
 .L3:
 ; ---- putChar(ioZeroChar)
-        mov     ax, 48
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 48
         call    putChar
 ; ---- return
         ret
@@ -187,8 +182,7 @@ putNumber:
         dec     ax
         mov     bx, ax
         mov     al, [putNumber__digits + bx]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     [putChar__c], al            ; u8 -> u8, no widening
         call    putChar
 .L9:
         dec     byte [putNumber__i]

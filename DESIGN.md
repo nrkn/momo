@@ -695,6 +695,26 @@ exceed 128 bytes under this codegen.
     costing one instruction in fourteen in exactly the shape a blitter has: a
     VRAM-to-VRAM copy, which under EGA write mode 1 moves four planes at once.
 
+13. **A parameter or return slot takes the store peepholes too** - 2 and 4 apply
+    to `f( x )` and `return x` exactly as they do to `x = y`. A slot is a label
+    and a type like any other destination, but it was written by its own
+    two-line helper that had neither shortcut, so `f( 7 )` loaded 7 into AX to
+    store AL, and `f( byteVar )` widened a byte on its way into a byte. 226
+    instructions across the committed programs, and 176 bytes off the twenty
+    tier 2 builds.
+
+    **One shape costs a byte**, and it is worth naming rather than netting off:
+    a *word* slot given zero was `xor ax, ax` plus a store, which is 5 bytes,
+    and is now a 6-byte immediate store. Seven sites. The instruction and its
+    ~4 cycles still go, and taking the exception would mean the assignment path
+    and this one disagreeing about `x = 0`, which is worse than a byte.
+
+    **A bare load reached through a parameterised const is still widened.** The
+    expansion of `tileAt( x, y )` *is* `map[ y * mapW + x ]`, but `byteTypeOf`
+    sees a `CallExpression` and stops, so `maptest` and `simplerl` each keep a
+    dead `xor ah, ah`. That gap is older than this peephole and sits in 4 as
+    much as here - `ch = tileAt( x, y )` pays it too.
+
 4 and 5 were listed here as built, for a long time, and were not. That is the
 argument for the golden `.asm` tier (§14): a claim about generated output that
 nothing compares against is a claim about nothing. Building them took 84 bytes
@@ -702,6 +722,13 @@ off the fourteen committed programs and added no instruction anywhere. 7-11
 landed together in one later sweep, adopted by reading the golden diff case by
 case - every hunk in it is one of those five shapes. 12 came later still, and
 only because a probe was written to see what a VRAM-to-VRAM copy emitted.
+
+13 is a different failure from 4 and 5, and a quieter one: both were genuinely
+built, and neither could be reached from the path a call argument takes, because
+that path stored through a helper of its own. Nothing in the golden tier could
+have caught it - the output was stable and had simply always been this. It took
+reading `simplerl`'s entry sequence and asking why an argument was widened where
+an assignment beside it was not.
 
 **Comment style:** source line as a section header, *not* echoed per
 instruction. Inline comments reserved for width conversions, why `jbe` and not

@@ -31,15 +31,11 @@ __entry:
         call    draw
 ; ---- writeAt( playerX, playerY, '@', playerAttr )
         mov     al, [playerX]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [writeAt__col], al          ; narrowed to u8
+        mov     [writeAt__col], al          ; u8 -> u8, no widening
         mov     al, [playerY]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [writeAt__row], al          ; narrowed to u8
-        mov     ax, 64
-        mov     [writeAt__ch], al           ; narrowed to u8
-        mov     ax, 14
-        mov     [writeAt__attr], al         ; narrowed to u8
+        mov     [writeAt__row], al          ; u8 -> u8, no widening
+        mov     byte [writeAt__ch], 64
+        mov     byte [writeAt__attr], 14
         call    writeAt
 ; ---- while( true ){
 .L1:
@@ -63,8 +59,7 @@ __entry:
         mov     al, [playerY]
         mov     [oldPy], al                 ; u8 -> u8, no widening
 ; ---- if( isMove( keyUp ) && playerY > 0 ){
-        mov     ax, 72
-        mov     [isMove__key], al           ; narrowed to u8
+        mov     byte [isMove__key], 72
         call    isMove
         mov     al, [isMove__ret]
         xor     ah, ah                      ; bool -> u16
@@ -82,8 +77,7 @@ __entry:
         jmp     .L8
 .L7:
 ; ---- } else if( isMove( keyDown ) && playerY < mapH - 1 ){
-        mov     ax, 80
-        mov     [isMove__key], al           ; narrowed to u8
+        mov     byte [isMove__key], 80
         call    isMove
         mov     al, [isMove__ret]
         xor     ah, ah                      ; bool -> u16
@@ -101,8 +95,7 @@ __entry:
         jmp     .L12
 .L11:
 ; ---- } else if( isMove( keyLeft ) && playerX > 0 ){
-        mov     ax, 75
-        mov     [isMove__key], al           ; narrowed to u8
+        mov     byte [isMove__key], 75
         call    isMove
         mov     al, [isMove__ret]
         xor     ah, ah                      ; bool -> u16
@@ -120,8 +113,7 @@ __entry:
         jmp     .L16
 .L15:
 ; ---- } else if( isMove( keyRight ) && playerX < mapW - 1 ){
-        mov     ax, 77
-        mov     [isMove__key], al           ; narrowed to u8
+        mov     byte [isMove__key], 77
         call    isMove
         mov     al, [isMove__ret]
         xor     ah, ah                      ; bool -> u16
@@ -165,11 +157,9 @@ __entry:
 .L23:
 ; ---- writeAt( oldPx, oldPy, tileAt( oldPx, oldPy ), defAttr )
         mov     al, [oldPx]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [writeAt__col], al          ; narrowed to u8
+        mov     [writeAt__col], al          ; u8 -> u8, no widening
         mov     al, [oldPy]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [writeAt__row], al          ; narrowed to u8
+        mov     [writeAt__row], al          ; u8 -> u8, no widening
         mov     al, [oldPy]
         xor     ah, ah                      ; u8 -> u16
         mov     bx, 20
@@ -181,30 +171,23 @@ __entry:
         mov     al, [map + bx]
         xor     ah, ah                      ; u8 -> u16
         mov     [writeAt__ch], al           ; narrowed to u8
-        mov     ax, 7
-        mov     [writeAt__attr], al         ; narrowed to u8
+        mov     byte [writeAt__attr], 7
         call    writeAt
 ; ---- writeAt( playerX, playerY, '@', playerAttr )
         mov     al, [playerX]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [writeAt__col], al          ; narrowed to u8
+        mov     [writeAt__col], al          ; u8 -> u8, no widening
         mov     al, [playerY]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [writeAt__row], al          ; narrowed to u8
-        mov     ax, 64
-        mov     [writeAt__ch], al           ; narrowed to u8
-        mov     ax, 14
-        mov     [writeAt__attr], al         ; narrowed to u8
+        mov     [writeAt__row], al          ; u8 -> u8, no widening
+        mov     byte [writeAt__ch], 64
+        mov     byte [writeAt__attr], 14
         call    writeAt
 .L24:
 .L2:
         jmp     .L1
 .L3:
 ; ---- moveTo( 0, 0 )
-        xor     ax, ax                      ; 0
-        mov     [moveTo__col], al           ; narrowed to u8
-        xor     ax, ax                      ; 0
-        mov     [moveTo__row], al           ; narrowed to u8
+        mov     byte [moveTo__col], 0
+        mov     byte [moveTo__row], 0
         call    moveTo
 ; ---- showCursor()
         call    showCursor
@@ -283,19 +266,15 @@ putCell:
 writeAt:
 ; ---- moveTo(col, row)
         mov     al, [writeAt__col]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [moveTo__col], al           ; narrowed to u8
+        mov     [moveTo__col], al           ; u8 -> u8, no widening
         mov     al, [writeAt__row]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [moveTo__row], al           ; narrowed to u8
+        mov     [moveTo__row], al           ; u8 -> u8, no widening
         call    moveTo
 ; ---- putCell(ch, attr)
         mov     al, [writeAt__ch]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [putCell__ch], al           ; narrowed to u8
+        mov     [putCell__ch], al           ; u8 -> u8, no widening
         mov     al, [writeAt__attr]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [putCell__attr], al         ; narrowed to u8
+        mov     [putCell__attr], al         ; u8 -> u8, no widening
         call    putCell
         ret
 
@@ -337,8 +316,7 @@ readKey:
 
 cls:
 ; ---- sub cls => clearScreen( defAttr )
-        mov     ax, 7
-        mov     [clearScreen__attr], al     ; narrowed to u8
+        mov     byte [clearScreen__attr], 7
         call    clearScreen
         ret
 
@@ -411,16 +389,12 @@ draw:
 .L38:
 ; ---- writeAt( x, y, ch, defAttr )
         mov     al, [x]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [writeAt__col], al          ; narrowed to u8
+        mov     [writeAt__col], al          ; u8 -> u8, no widening
         mov     al, [y]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [writeAt__row], al          ; narrowed to u8
+        mov     [writeAt__row], al          ; u8 -> u8, no widening
         mov     al, [ch_]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [writeAt__ch], al           ; narrowed to u8
-        mov     ax, 7
-        mov     [writeAt__attr], al         ; narrowed to u8
+        mov     [writeAt__ch], al           ; u8 -> u8, no widening
+        mov     byte [writeAt__attr], 7
         call    writeAt
 .L35:
         inc     byte [x]

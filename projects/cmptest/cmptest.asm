@@ -75,13 +75,11 @@ __entry:
         jl      .L15                        ; signed <
         jmp     .L13
 .L15:
-        mov     ax, 49
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 49
         call    putChar
         jmp     .L14
 .L13:
-        mov     ax, 48
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 48
         call    putChar
 .L14:
 ; ---- if ( a <= b ) { putChar( '1' ) } else { putChar( '0' ) }
@@ -91,13 +89,11 @@ __entry:
         jle     .L18                        ; signed <=
         jmp     .L16
 .L18:
-        mov     ax, 49
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 49
         call    putChar
         jmp     .L17
 .L16:
-        mov     ax, 48
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 48
         call    putChar
 .L17:
 ; ---- if ( a >  b ) { putChar( '1' ) } else { putChar( '0' ) }
@@ -107,13 +103,11 @@ __entry:
         jg      .L21                        ; signed >
         jmp     .L19
 .L21:
-        mov     ax, 49
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 49
         call    putChar
         jmp     .L20
 .L19:
-        mov     ax, 48
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 48
         call    putChar
 .L20:
 ; ---- if ( a >= b ) { putChar( '1' ) } else { putChar( '0' ) }
@@ -123,13 +117,11 @@ __entry:
         jge     .L24                        ; signed >=
         jmp     .L22
 .L24:
-        mov     ax, 49
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 49
         call    putChar
         jmp     .L23
 .L22:
-        mov     ax, 48
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 48
         call    putChar
 .L23:
 ; ---- newline()
@@ -203,13 +195,11 @@ __entry:
         jb      .L39                        ; unsigned <
         jmp     .L37
 .L39:
-        mov     ax, 49
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 49
         call    putChar
         jmp     .L38
 .L37:
-        mov     ax, 48
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 48
         call    putChar
 .L38:
 ; ---- if ( x <= y ) { putChar( '1' ) } else { putChar( '0' ) }
@@ -219,13 +209,11 @@ __entry:
         jbe     .L42                        ; unsigned <=
         jmp     .L40
 .L42:
-        mov     ax, 49
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 49
         call    putChar
         jmp     .L41
 .L40:
-        mov     ax, 48
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 48
         call    putChar
 .L41:
 ; ---- if ( x >  y ) { putChar( '1' ) } else { putChar( '0' ) }
@@ -235,13 +223,11 @@ __entry:
         ja      .L45                        ; unsigned >
         jmp     .L43
 .L45:
-        mov     ax, 49
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 49
         call    putChar
         jmp     .L44
 .L43:
-        mov     ax, 48
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 48
         call    putChar
 .L44:
 ; ---- if ( x >= y ) { putChar( '1' ) } else { putChar( '0' ) }
@@ -251,13 +237,11 @@ __entry:
         jae     .L48                        ; unsigned >=
         jmp     .L46
 .L48:
-        mov     ax, 49
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 49
         call    putChar
         jmp     .L47
 .L46:
-        mov     ax, 48
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 48
         call    putChar
 .L47:
 ; ---- newline()
@@ -359,13 +343,11 @@ __entry:
         jle     .L69                        ; signed <=
         jmp     .L67
 .L69:
-        mov     ax, 49
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 49
         call    putChar
         jmp     .L68
 .L67:
-        mov     ax, 48
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 48
         call    putChar
 .L68:
 ; ---- if ( a >= b ) { putChar( '1' ) } else { putChar( '0' ) }
@@ -375,13 +357,11 @@ __entry:
         jge     .L72                        ; signed >=
         jmp     .L70
 .L72:
-        mov     ax, 49
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 49
         call    putChar
         jmp     .L71
 .L70:
-        mov     ax, 48
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 48
         call    putChar
 .L71:
 ; ---- newline()
@@ -471,13 +451,11 @@ __entry:
         jmp     .L88
 .L92:
 .L90:
-        mov     ax, 49
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 49
         call    putChar
         jmp     .L89
 .L88:
-        mov     ax, 48
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 48
         call    putChar
 .L89:
 ; ---- newline()
@@ -503,12 +481,10 @@ putChar:
 
 newline:
 ; ---- putChar(13)
-        mov     ax, 13
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 13
         call    putChar
 ; ---- putChar(10)
-        mov     ax, 10
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 10
         call    putChar
         ret
 
@@ -522,14 +498,12 @@ bit:
         jmp     .L93
 .L95:
 ; ---- putChar( '1' )
-        mov     ax, 49
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 49
         call    putChar
         jmp     .L94
 .L93:
 ; ---- putChar( '0' )
-        mov     ax, 48
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 48
         call    putChar
 .L94:
         ret

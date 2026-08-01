@@ -261,12 +261,10 @@ putChar:
 
 newline:
 ; ---- putChar(13)
-        mov     ax, 13
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 13
         call    putChar
 ; ---- putChar(10)
-        mov     ax, 10
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 10
         call    putChar
         ret
 
@@ -280,8 +278,7 @@ putNumber:
         jmp     .L13
 .L15:
 ; ---- putChar(ioZeroChar)
-        mov     ax, 48
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 48
         call    putChar
 ; ---- return
         ret
@@ -331,8 +328,7 @@ putNumber:
         dec     ax
         mov     bx, ax
         mov     al, [putNumber__digits + bx]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     [putChar__c], al            ; u8 -> u8, no widening
         call    putChar
 .L21:
         dec     byte [putNumber__i]
@@ -364,8 +360,7 @@ whatValue:
         add     ax, 2
         mov     [seq], ax
 ; ---- return 55
-        mov     ax, 55
-        mov     [whatValue__ret], al        ; narrowed to u8
+        mov     byte [whatValue__ret], 55
         ret
 
 ; ==================================================== int helpers ====

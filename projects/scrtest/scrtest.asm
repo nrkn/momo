@@ -20,36 +20,24 @@ __entry:
 ; ---- setTextMode()
         call    setTextMode
 ; ---- clearScreen(color(lightGray, black))
-        mov     ax, 7
-        mov     [clearScreen__attr], al     ; narrowed to u8
+        mov     byte [clearScreen__attr], 7
         call    clearScreen
 ; ---- writeAt(5, 3, 'X', color(yellow, blue))
-        mov     ax, 5
-        mov     [writeAt__col], al          ; narrowed to u8
-        mov     ax, 3
-        mov     [writeAt__row], al          ; narrowed to u8
-        mov     ax, 88
-        mov     [writeAt__ch], al           ; narrowed to u8
-        mov     ax, 30
-        mov     [writeAt__attr], al         ; narrowed to u8
+        mov     byte [writeAt__col], 5
+        mov     byte [writeAt__row], 3
+        mov     byte [writeAt__ch], 88
+        mov     byte [writeAt__attr], 30
         call    writeAt
 ; ---- fillRow(10, 7, '#', color(lightGreen, black), 4)
-        mov     ax, 10
-        mov     [fillRow__col], al          ; narrowed to u8
-        mov     ax, 7
-        mov     [fillRow__row], al          ; narrowed to u8
-        mov     ax, 35
-        mov     [fillRow__ch], al           ; narrowed to u8
-        mov     ax, 10
-        mov     [fillRow__attr], al         ; narrowed to u8
-        mov     ax, 4
-        mov     [fillRow__count], ax
+        mov     byte [fillRow__col], 10
+        mov     byte [fillRow__row], 7
+        mov     byte [fillRow__ch], 35
+        mov     byte [fillRow__attr], 10
+        mov     word [fillRow__count], 4
         call    fillRow
 ; ---- cell = readCellAt(5, 3)
-        mov     ax, 5
-        mov     [readCellAt__col], al       ; narrowed to u8
-        mov     ax, 3
-        mov     [readCellAt__row], al       ; narrowed to u8
+        mov     byte [readCellAt__col], 5
+        mov     byte [readCellAt__row], 3
         call    readCellAt
         mov     ax, [readCellAt__ret]
         mov     [cell], ax
@@ -59,8 +47,7 @@ __entry:
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- putChar(' ')
-        mov     ax, 32
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 32
         call    putChar
 ; ---- putNumber(hi(cell))             // 30 = yellow on blue
         mov     ax, [cell]
@@ -72,10 +59,8 @@ __entry:
 ; ---- newline()
         call    newline
 ; ---- cell = readCellAt(12, 7)        // inside the filled run
-        mov     ax, 12
-        mov     [readCellAt__col], al       ; narrowed to u8
-        mov     ax, 7
-        mov     [readCellAt__row], al       ; narrowed to u8
+        mov     byte [readCellAt__col], 12
+        mov     byte [readCellAt__row], 7
         call    readCellAt
         mov     ax, [readCellAt__ret]
         mov     [cell], ax
@@ -85,8 +70,7 @@ __entry:
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- putChar(' ')
-        mov     ax, 32
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 32
         call    putChar
 ; ---- putNumber(hi(cell))             // 10 = lightGreen on black
         mov     ax, [cell]
@@ -98,10 +82,8 @@ __entry:
 ; ---- newline()
         call    newline
 ; ---- cell = readCellAt(20, 20)       // untouched, so the clear attribute
-        mov     ax, 20
-        mov     [readCellAt__col], al       ; narrowed to u8
-        mov     ax, 20
-        mov     [readCellAt__row], al       ; narrowed to u8
+        mov     byte [readCellAt__col], 20
+        mov     byte [readCellAt__row], 20
         call    readCellAt
         mov     ax, [readCellAt__ret]
         mov     [cell], ax
@@ -111,8 +93,7 @@ __entry:
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- putChar(' ')
-        mov     ax, 32
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 32
         call    putChar
 ; ---- putNumber(hi(cell))             // 7 = lightGray on black
         mov     ax, [cell]
@@ -144,12 +125,10 @@ putChar:
 
 newline:
 ; ---- putChar(13)
-        mov     ax, 13
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 13
         call    putChar
 ; ---- putChar(10)
-        mov     ax, 10
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 10
         call    putChar
         ret
 
@@ -163,8 +142,7 @@ putNumber:
         jmp     .L1
 .L3:
 ; ---- putChar(ioZeroChar)
-        mov     ax, 48
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 48
         call    putChar
 ; ---- return
         ret
@@ -214,8 +192,7 @@ putNumber:
         dec     ax
         mov     bx, ax
         mov     al, [putNumber__digits + bx]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     [putChar__c], al            ; u8 -> u8, no widening
         call    putChar
 .L9:
         dec     byte [putNumber__i]
@@ -311,19 +288,15 @@ repeatCell:
 writeAt:
 ; ---- moveTo(col, row)
         mov     al, [writeAt__col]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [moveTo__col], al           ; narrowed to u8
+        mov     [moveTo__col], al           ; u8 -> u8, no widening
         mov     al, [writeAt__row]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [moveTo__row], al           ; narrowed to u8
+        mov     [moveTo__row], al           ; u8 -> u8, no widening
         call    moveTo
 ; ---- putCell(ch, attr)
         mov     al, [writeAt__ch]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [putCell__ch], al           ; narrowed to u8
+        mov     [putCell__ch], al           ; u8 -> u8, no widening
         mov     al, [writeAt__attr]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [putCell__attr], al         ; narrowed to u8
+        mov     [putCell__attr], al         ; u8 -> u8, no widening
         call    putCell
         ret
 
@@ -332,19 +305,15 @@ writeAt:
 fillRow:
 ; ---- moveTo(col, row)
         mov     al, [fillRow__col]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [moveTo__col], al           ; narrowed to u8
+        mov     [moveTo__col], al           ; u8 -> u8, no widening
         mov     al, [fillRow__row]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [moveTo__row], al           ; narrowed to u8
+        mov     [moveTo__row], al           ; u8 -> u8, no widening
         call    moveTo
 ; ---- repeatCell(ch, attr, count)
         mov     al, [fillRow__ch]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [repeatCell__ch], al        ; narrowed to u8
+        mov     [repeatCell__ch], al        ; u8 -> u8, no widening
         mov     al, [fillRow__attr]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [repeatCell__attr], al      ; narrowed to u8
+        mov     [repeatCell__attr], al      ; u8 -> u8, no widening
         mov     ax, [fillRow__count]
         mov     [repeatCell__count], ax
         call    repeatCell
@@ -355,11 +324,9 @@ fillRow:
 readCellAt:
 ; ---- moveTo(col, row)
         mov     al, [readCellAt__col]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [moveTo__col], al           ; narrowed to u8
+        mov     [moveTo__col], al           ; u8 -> u8, no widening
         mov     al, [readCellAt__row]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [moveTo__row], al           ; narrowed to u8
+        mov     [moveTo__row], al           ; u8 -> u8, no widening
         call    moveTo
 ; ---- _ah = 0x08                    // read character and attribute at cursor
         mov     byte [_ah], 8

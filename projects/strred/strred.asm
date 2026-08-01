@@ -19,8 +19,7 @@ __entry:
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- putChar( ' ' )
-        mov     ax, 32
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 32
         call    putChar
 ; ---- u = 65535
         mov     word [u], 65535
@@ -40,8 +39,7 @@ __entry:
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- putChar( ' ' )
-        mov     ax, 32
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 32
         call    putChar
 ; ---- putNumber( u % 8 )            // 5
         mov     ax, [u]
@@ -59,8 +57,7 @@ __entry:
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- putChar( ' ' )
-        mov     ax, 32
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 32
         call    putChar
 ; ---- putNumber( u / 10 )           // 100
         mov     ax, [u]
@@ -70,8 +67,7 @@ __entry:
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- putChar( ' ' )
-        mov     ax, 32
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 32
         call    putChar
 ; ---- putNumber( u % 10 )           // 5
         mov     ax, [u]
@@ -92,8 +88,7 @@ __entry:
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- putChar( ' ' )
-        mov     ax, 32
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 32
         call    putChar
 ; ---- s = -1000
         mov     word [s], 64536
@@ -115,8 +110,7 @@ __entry:
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- putChar( ' ' )
-        mov     ax, 32
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 32
         call    putChar
 ; ---- putNumber( u16( s % 2 ) )     // -1 = 65535
         mov     ax, [s]
@@ -149,12 +143,10 @@ putChar:
 
 newline:
 ; ---- putChar(13)
-        mov     ax, 13
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 13
         call    putChar
 ; ---- putChar(10)
-        mov     ax, 10
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 10
         call    putChar
         ret
 
@@ -168,8 +160,7 @@ putNumber:
         jmp     .L1
 .L3:
 ; ---- putChar(ioZeroChar)
-        mov     ax, 48
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 48
         call    putChar
 ; ---- return
         ret
@@ -219,8 +210,7 @@ putNumber:
         dec     ax
         mov     bx, ax
         mov     al, [putNumber__digits + bx]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     [putChar__c], al            ; u8 -> u8, no widening
         call    putChar
 .L9:
         dec     byte [putNumber__i]

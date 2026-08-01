@@ -420,8 +420,7 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
       }
     } else {
       for (let i = 0; i < args.length; i++) {
-        emitExpression(args[i])
-        storeToLabel(symbol.params[i].label, symbol.params[i].type)
+        emitValueToLabel(symbol.params[i].label, symbol.params[i].type, args[i])
       }
     }
 
@@ -445,9 +444,48 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     return false
   }
 
+  // A constant straight into memory, with no round trip through AX. Shared with
+  // storeConstant below so the assignment path and the slots here cannot drift
+  // into two spellings of one store.
+  const storeImmediateTo = (label: string, type: ValueType, value: number) => {
+    const width = widthOf(type)
+    const mask = width === 2 ? 0xffff : 0xff
+    ins('mov', `${width === 2 ? 'word' : 'byte'} [${label}], ${value & mask}`)
+  }
+
   const storeToLabel = (label: string, type: ValueType) => {
     if (widthOf(type) === 2) ins('mov', `[${label}], ax`)
     else ins('mov', `[${label}], al`, `narrowed to ${type}`)
+  }
+
+  // Evaluate a value into a manufactured slot - a parameter, or a return slot.
+  //
+  // The two shortcuts are the ones emitAssignment already applies to an ordinary
+  // lvalue, and this path had neither for as long as both existed: a constant
+  // goes straight to memory, and a byte load into a byte slot keeps only AL, so
+  // any widening between them is computed and then thrown away. There is nothing
+  // special about a slot - it is a label and a type, exactly like a variable.
+  //
+  // The via-stack path in emitCall cannot use this: by the time an argument is
+  // popped it is already in AX and there is nothing left to look at. That is what
+  // storeToLabel is still for.
+  const emitValueToLabel = (label: string, type: ValueType, value: Expression) => {
+    const fixed = constOf(value)
+    if (fixed !== null) {
+      storeImmediateTo(label, type, fixed)
+      return
+    }
+
+    if (widthOf(type) === 1) {
+      const loaded = emitByteLoad(value)
+      if (loaded) {
+        ins('mov', `[${label}], al`, `${loaded} -> ${type}, no widening`)
+        return
+      }
+    }
+
+    emitExpression(value)
+    storeToLabel(label, type)
   }
 
   // ---- expressions ----------------------------------------------------------
@@ -938,9 +976,7 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     if (target.type === 'Identifier') {
       const symbol = symbolFor(target.label)
       if (symbol.kind !== 'var') return false
-      const width = widthOf(symbol.type)
-      const mask = width === 2 ? 0xffff : 0xff
-      ins('mov', `${width === 2 ? 'word' : 'byte'} [${symbol.label}], ${value & mask}`)
+      storeImmediateTo(symbol.label, symbol.type, value)
       return true
     }
 
@@ -1256,8 +1292,7 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     if (node.type === 'ReturnStatement') {
       quoteSource(node.file, node.line, node.endLine)
       if (node.argument && currentRet) {
-        emitExpression(node.argument)
-        storeToLabel(currentRet.label, currentRet.type)
+        emitValueToLabel(currentRet.label, currentRet.type, node.argument)
       }
       ins('ret')
     }

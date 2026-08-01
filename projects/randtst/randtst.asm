@@ -11,8 +11,7 @@ ioZeroChar      equ     48
 
 __entry:
 ; ---- seedRandom(1234)
-        mov     ax, 1234
-        mov     [seedRandom__s], ax
+        mov     word [seedRandom__s], 1234
         call    seedRandom
 ; ---- for (i = 0; i < 6; i++) {
         mov     word [i], 0
@@ -23,15 +22,13 @@ __entry:
         jmp     .L3
 .L4:
 ; ---- putNumber(randomBelow(100))
-        mov     ax, 100
-        mov     [randomBelow__n], ax
+        mov     word [randomBelow__n], 100
         call    randomBelow
         mov     ax, [randomBelow__ret]
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- putChar(' ')
-        mov     ax, 32
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 32
         call    putChar
 .L2:
         inc     word [i]
@@ -40,8 +37,7 @@ __entry:
 ; ---- newline()
         call    newline
 ; ---- seedRandom(1234)
-        mov     ax, 1234
-        mov     [seedRandom__s], ax
+        mov     word [seedRandom__s], 1234
         call    seedRandom
 ; ---- for (i = 0; i < 6; i++) {
         mov     word [i], 0
@@ -52,17 +48,14 @@ __entry:
         jmp     .L7
 .L8:
 ; ---- putNumber(randomBetween(10, 19))
-        mov     ax, 10
-        mov     [randomBetween__low], ax
-        mov     ax, 19
-        mov     [randomBetween__high], ax
+        mov     word [randomBetween__low], 10
+        mov     word [randomBetween__high], 19
         call    randomBetween
         mov     ax, [randomBetween__ret]
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- putChar(' ')
-        mov     ax, 32
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 32
         call    putChar
 .L6:
         inc     word [i]
@@ -91,12 +84,10 @@ putChar:
 
 newline:
 ; ---- putChar(13)
-        mov     ax, 13
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 13
         call    putChar
 ; ---- putChar(10)
-        mov     ax, 10
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 10
         call    putChar
         ret
 
@@ -110,8 +101,7 @@ putNumber:
         jmp     .L9
 .L11:
 ; ---- putChar(ioZeroChar)
-        mov     ax, 48
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     byte [putChar__c], 48
         call    putChar
 ; ---- return
         ret
@@ -161,8 +151,7 @@ putNumber:
         dec     ax
         mov     bx, ax
         mov     al, [putNumber__digits + bx]
-        xor     ah, ah                      ; u8 -> u16
-        mov     [putChar__c], al            ; narrowed to u8
+        mov     [putChar__c], al            ; u8 -> u8, no widening
         call    putChar
 .L17:
         dec     byte [putNumber__i]
