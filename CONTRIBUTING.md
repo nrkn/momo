@@ -136,9 +136,6 @@ Two things are worth branching for, and neither has come up yet:
   behind, which is a different reason from size and the more likely of the two
   to be needed first.
 
-`fix-const-expansion-call-graph` predates this note and is the one branch that
-does not follow it.
-
 ## Working practices
 
 **Verify by running, not by reading.** Almost every real bug here was invisible
