@@ -25,13 +25,13 @@ paper even when nothing needs it yet. Momo is where they finally have to compile
 and §16 and §17 both did, close enough to what was written down that the sections
 needed correcting rather than rewriting.
 
-**Status.** §1-§18 describe what is built. §19 and §22 are designed and not yet
-built, and say so in their headings. §20 collects open questions, §21 longer-term
-directions. Section numbers are stable - `group` was built where it sits rather
-than renumbered into the built range, because the numbers are referenced from
-source comments and from each other, and §22 is appended past the open-ended
-sections for the same reason rather than filed next to §19 where it belongs by
-kind.
+**Status.** §1-§18 describe what is built. §19, §22 and §23 are designed and not
+yet built, and say so in their headings. §20 collects open questions, §21
+longer-term directions. Section numbers are stable - `group` was built where it
+sits rather than renumbered into the built range, because the numbers are
+referenced from source comments and from each other, and the planned sections are
+appended past the open-ended ones for the same reason rather than filed beside
+§19 where they belong by kind.
 
 ---
 
@@ -983,6 +983,12 @@ sub seedRandom(u16 s) => randomSeed = s == 0 ? 1 : s
   name would be ambiguous in the file that owns both.
 - **`local` inside a sub is an error.** Storage there is already private, and
   accepting the word would give it two meanings depending on where it sat.
+
+**The file is the only owner it can name today**, which leaves one gap: nothing
+includes the entry file, so `local` is inert there and a single-file program gets
+nothing from it. §23 designs the second owner - a named block of declarations
+inside a file - and it is deliberately the same marker and the same three-level
+lookup rather than a mechanism of its own.
 
 It also displaced most of the prefix convention. `ioBase`, `screenCols` and
 `strEnd` were a file boundary written out by hand, one identifier at a time -
@@ -2883,3 +2889,134 @@ say so in its own comment rather than implying otherwise.
 - **Interrupt control.** `cli`/`sti` would be needed to retime the PIT or install a
   handler; both are separate features with their own reasons, and neither is
   needed to scroll.
+
+---
+
+## 23. Planned: `scope`
+
+Designed and not yet built. `local` (§11) gave a declaration an owner, and the
+owner it can name today is the file that writes it. `scope` is the same idea with
+a second thing that can own: a named block of declarations, at the top level of a
+file, whose privates belong to it rather than to the file.
+
+```momo
+const mobCount = 64
+
+group mob[mobCount] {
+  u8   x
+  u8   y
+  u16  hp
+  bool alive
+}
+
+scope mobIds {
+  local u8 nextId = 0
+
+  u8 newId() {
+    nextId++
+
+    return nextId - 1
+  }
+
+  u8 lastId() => nextId - 1
+}
+```
+
+### The gap, stated exactly
+
+**`local` is inert in the entry file.** Nothing includes `simplerl.momo`, so a
+declaration marked private there is hidden from nobody. Which means a program
+written in one file - which is how most of them start, and how the small ones end
+- has exactly the encapsulation Momo had before §11: sub-locals, and then nothing
+until global.
+
+`mobIds` above is the shape that falls in the gap. `nextId` is shared by two
+routines, so it cannot be a sub-local, and it should be reachable from nothing
+else, so it should not be a global. The invariant is "ids only ever move forward,
+through `newId`", and today any line in the program can write `nextId = 0` and
+collide every future id with a live entity. That is the same guard-with-a-hole
+that `randomSeed` had, one level in.
+
+**The argument for a construct rather than a file is proportion**, not cohesion.
+`mobIds` would work perfectly as `lib/mobids.momo`. It is eight lines, one
+variable and two routines, and making a file for that is ceremony. Nothing else
+about it needs a boundary the file system can see.
+
+### Rules
+
+- **Top level only, and no nesting.** A scope holds declarations; a scope inside a
+  scope has nothing to mean.
+- **Declarations only, no statements.** That is what keeps §5's initialiser rule
+  honest inside one: `local u8 nextId = 0` is a load-time value exactly as it is
+  at the top level, because nothing about a scope is reached by control flow.
+  Allowing statements would make it a control-flow construct and the ban would
+  come back with it.
+- **`local` is the only marker.** Inside a scope it means private to the scope,
+  outside it means private to the file - one rule, "private to the nearest
+  owner". Unmarked means visible to the program, which is what it already means.
+  No `export`, and therefore none of the naming argument that word invites.
+- **The scope name is not a name.** There is no `mobIds.newId()`; an unmarked
+  member lands in the ordinary global namespace unqualified. The name exists to
+  own the privates and to prefix their labels, `mobIds__nextId`.
+
+### Owners are flat, which is the decision that keeps this small
+
+A scope **replaces** the file as owner rather than nesting inside it. So lookup
+stays at the three levels §11 already has - a sub's own storage, then its owner,
+then the program - and an owner is either a file or a scope.
+
+The alternative, a scope nested in its file, reads more naturally and costs more
+than it is worth: lookup becomes a chain rather than a level, `local scope x { }`
+starts meaning something and has to be defined, and label prefixing grows a second
+axis.
+
+**What flat owners give up is nearly free.** A scope cannot see its own file's
+`local` declarations. In the entry file there are none to see, because `local` is
+inert there - which is exactly the case this feature is for. It bites only in a
+library file that uses both, and a library file that wants two private groups can
+be two files without anyone calling that unwieldy.
+
+Ordinary globals stay visible, which matters more than it sounds: `newId` above
+should be checking `mobCount`, and `mobCount` is an ordinary const. A scope is a
+privacy boundary, not an isolation boundary.
+
+### Implementation
+
+**Flatten scope bodies into the top-level body between load and resolve**, tagging
+each member with its owner. That is what `include` already does one level up, and
+it is what makes this cheap: six places assume a routine is a direct child of the
+program body - `buildCallGraph`, both emitter loops, both resolver passes, and
+`prune`'s filter - and a scope that stayed nested would be invisible to every one
+of them. A routine nobody puts in the call graph is a routine pruned as
+unreachable and never emitted, silently.
+
+**Between load and resolve, not inside the loader**, for one reason: `desugar`
+only loads, so it would still see the scope and print it. `scope` is expressible
+in a single file, so unlike file-level `local` it survives the round trip (§14)
+and stays covered by that assertion.
+
+The labels, the third lookup level, the owner-per-declaration and the
+label-keyed call graph all exist already. This is the smaller half of §11.
+
+### The open question is frequency, not feasibility
+
+Nothing here is unresolved. What is unknown is how often the shape comes up, and
+the evidence so far is thin in both directions.
+
+Against: `simplerl` is the only non-trivial single-file program here, and its
+file-level state divides into scratch that wants to be **sub-locals** - `x`, `y`
+and `ch` are used only inside `draw` - and state genuinely shared with the entry
+sequence, which has nobody to hide from. It wants no scope at all. And the
+adjacent entity-pool pattern needs none either: with `bool alive` in the group,
+allocation is usually a scan for the first dead slot, which is a routine over the
+pool holding no private state.
+
+For: the text adventure (§15) is the remaining acceptance item, it is by nature a
+larger single-file program, and a parser with scratch state, an inventory and room
+flags is where clusters of this shape would appear if they appear anywhere.
+
+So this waits on a program the way `far` waited for `tilefill` and `peek`/`poke`
+waited for the string library. If two or three `mobIds`-shaped clusters turn up in
+one file, that is the answer; if the candidates all turn out to be sub-locals or
+genuinely program-wide state, the intuition was about tidiness, which is a real
+thing and a different feature.

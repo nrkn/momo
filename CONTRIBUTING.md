@@ -5,10 +5,10 @@ A small imperative language that transpiles to **commented NASM** for a strict
 predecessor [Yuki](https://github.com/nrkn/yuki-js), whose Pong for a fantasy
 console is kept as `_reference/yuki.txt`.
 
-- **`DESIGN.md`** - the language, and *why* every decision was made. 22 sections:
-  built features (§1-§18), two designed-but-deferred (§19, §22), open questions
-  (§20), and long-term directions (§21). Read the relevant section before
-  changing anything; the rationale matters more than the rules.
+- **`DESIGN.md`** - the language, and *why* every decision was made. 23 sections:
+  built features (§1-§18), three designed-but-deferred (§19, §22, §23), open
+  questions (§20), and long-term directions (§21). Read the relevant section
+  before changing anything; the rationale matters more than the rules.
 - **`STYLE.md`** - TypeScript and Momo conventions.
 
 ## Layout
