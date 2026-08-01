@@ -303,6 +303,9 @@ u8[playfieldWidth] row                  // const-folded size
 view u8[4] head  = buf[0]               // a window into storage that exists (§17)
 view u8    first = buf[0]               // no [n]: a scalar alias for one element
 
+local u16 seed = 42                     // private to this file (§11)
+local sub reseed { }                    // any declaration takes the modifier
+
 sub clearScreen {                       // no arguments, no return
   for (y = 0; ; y++) {
     if (y == yMax) break
@@ -686,12 +689,19 @@ exceed 128 bytes under this codegen.
     used to pay `mov ax, 1` / `test ax, ax` / `jnz` every iteration to discover
     that 1 is true.
 
+12. **An element of a `far` region is a bare byte load too** - so 4 and 5 apply
+    to it, and `pixels[d] = pixels[s]` no longer computes a widening it throws
+    away. It was excluded by an `array`-only check for as long as `far` existed,
+    costing one instruction in fourteen in exactly the shape a blitter has: a
+    VRAM-to-VRAM copy, which under EGA write mode 1 moves four planes at once.
+
 4 and 5 were listed here as built, for a long time, and were not. That is the
 argument for the golden `.asm` tier (§14): a claim about generated output that
 nothing compares against is a claim about nothing. Building them took 84 bytes
 off the fourteen committed programs and added no instruction anywhere. 7-11
 landed together in one later sweep, adopted by reading the golden diff case by
-case - every hunk in it is one of those five shapes.
+case - every hunk in it is one of those five shapes. 12 came later still, and
+only because a probe was written to see what a VRAM-to-VRAM copy emitted.
 
 **Comment style:** source line as a section header, *not* echoed per
 instruction. Inline comments reserved for width conversions, why `jbe` and not
