@@ -44,6 +44,7 @@ npm run momoc -- <project>    # .momo -> .asm
 npm run momoc:all             # every project; drives the VS Code build task
 npm run build -- <project>    # assemble in DOSBox
 npm start <project>           # assemble and run
+npm run image                 # build/*.COM -> build/momo.ima, for 86Box
 
 npm run lex -- <project>      # token dump
 npm run lex:nl -- <project>   # statement terminators only
@@ -102,6 +103,13 @@ against `shl` at 2 - so it would rank optimisations wrongly. Count instructions
 in the emitted `.asm` and apply documented 8086 timings instead; that is exact,
 and it is what the tables in DESIGN §16 and §21 are built from. Run under DOSBox
 to check correctness, not speed.
+
+**`build/` keeps the output of everything ever built here**, including projects
+that have since been renamed or deleted - `rl` and `probe` were both still there
+long after they stopped existing. Nothing prunes it, so anything reading `build/`
+should ignore a directory with no project behind it, as `npm run image` does.
+That staleness is the whole reason the disk image is generated rather than made
+by hand.
 
 **`git status` can show a generated `.asm` as modified when `git diff` is empty.**
 The emitter writes CRLF, `core.autocrlf` is `input`, so the working tree and the
