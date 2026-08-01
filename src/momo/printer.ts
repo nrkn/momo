@@ -180,7 +180,9 @@ const printClause = (statement: Statement | null): string =>
   statement === null ? '' : printStatement(statement, 0).trim()
 
 export const printStatement = (node: Statement, depth = 0): string => {
-  const pad = indent(depth)
+  // `local` is a modifier the parser folds onto the declaration, so it prints
+  // from the flag rather than from a node of its own.
+  const pad = indent(depth) + ('local' in node && node.local ? 'local ' : '')
 
   switch (node.type) {
     case 'ConstDeclaration': {
@@ -201,12 +203,14 @@ export const printStatement = (node: Statement, depth = 0): string => {
       return `${pad}${printType(node.typeNode)} ${node.name}${init}`
     }
 
+    // The closing brace takes plain indentation, not `pad` - `pad` carries the
+    // `local` modifier, and a second copy of it would land on the `}`.
     case 'GroupDeclaration': {
       const count = node.count ? `[${printExpression(node.count)}]` : ''
       const fields = node.fields
         .map((field) => `${indent(depth + 1)}${printType(field.typeNode)} ${field.name}`)
         .join('\n')
-      return `${pad}group ${node.name}${count} {\n${fields}\n${pad}}`
+      return `${pad}group ${node.name}${count} {\n${fields}\n${indent(depth)}}`
     }
 
     case 'FarDeclaration': {

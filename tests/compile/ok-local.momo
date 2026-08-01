@@ -1,0 +1,35 @@
+// Every `local` shape, and the visibility that comes with it.
+include "inc/privates.momo"
+
+// Same names as the included file's privates. These are different declarations,
+// and the file that owns each one is what tells them apart.
+local u16 hidden = 1
+local const hiddenLimit = 2
+local u16 hiddenHelper() => hidden
+
+// A local may shadow a global: `visible` here would be an error, but a name
+// that only exists as someone else's private is free.
+u16 shared = 5
+local u16 alsoShared = 6
+
+local u8[4] buf
+local const u8[] tag = "hi$"
+local group pool[4] {
+  u8 x
+  u8 y
+}
+local far u8[] screen = 0xB800
+local view u8[2] half = buf[0]
+local const view u8[2] frozen = buf[2]
+
+local sub touch {
+  buf[0] = 1
+  pool[0].x = 2
+  screen[0] = 3
+  half[1] = 4
+}
+
+u16 total
+
+total = visible() + hiddenHelper() + shared + alsoShared + hiddenLimit + frozen[0] + tag[0]
+touch()

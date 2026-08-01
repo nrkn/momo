@@ -184,44 +184,44 @@ seedRandom:
 .L20:
         mov     ax, [seedRandom__s]
 .L21:
-        mov     [randomSeed], ax
+        mov     [rand__randomSeed], ax
         ret
 
 ; ============================================== u16 nextRandom ====
 
 nextRandom:
 ; ---- randomSeed = randomSeed ^ (randomSeed << 7)
-        mov     ax, [randomSeed]
+        mov     ax, [rand__randomSeed]
         push    ax                          ; save lhs: rhs is not a leaf
-        mov     ax, [randomSeed]
+        mov     ax, [rand__randomSeed]
         mov     cl, 7                       ; 8086 has no shift-by-immediate
         shl     ax, cl
         mov     bx, ax
         pop     ax
         xor     ax, bx
-        mov     [randomSeed], ax
+        mov     [rand__randomSeed], ax
 ; ---- randomSeed = randomSeed ^ (randomSeed >> 9)
-        mov     ax, [randomSeed]
+        mov     ax, [rand__randomSeed]
         push    ax                          ; save lhs: rhs is not a leaf
-        mov     ax, [randomSeed]
+        mov     ax, [rand__randomSeed]
         mov     cl, 9                       ; 8086 has no shift-by-immediate
         shr     ax, cl                      ; unsigned >>
         mov     bx, ax
         pop     ax
         xor     ax, bx
-        mov     [randomSeed], ax
+        mov     [rand__randomSeed], ax
 ; ---- randomSeed = randomSeed ^ (randomSeed << 8)
-        mov     ax, [randomSeed]
+        mov     ax, [rand__randomSeed]
         push    ax                          ; save lhs: rhs is not a leaf
-        mov     ax, [randomSeed]
+        mov     ax, [rand__randomSeed]
         mov     cl, 8                       ; 8086 has no shift-by-immediate
         shl     ax, cl
         mov     bx, ax
         pop     ax
         xor     ax, bx
-        mov     [randomSeed], ax
+        mov     [rand__randomSeed], ax
 ; ---- return randomSeed
-        mov     ax, [randomSeed]
+        mov     ax, [rand__randomSeed]
         mov     [nextRandom__ret], ax
         ret
 
@@ -298,7 +298,7 @@ _di             dw      0
 ; ---- variables ----
 putChar__c      db      0        ; u8
 putNumber__n    dw      0        ; u16
-randomSeed      dw      42        ; u16 = 42
+rand__randomSeed dw      42        ; u16 = 42
 seedRandom__s   dw      0        ; u16
 nextRandom__ret dw      0        ; u16
 randomBelow__n  dw      0        ; u16

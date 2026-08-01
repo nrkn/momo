@@ -194,6 +194,7 @@ export type FarDeclaration = Spanned & {
   segment: FarAddress
   offset: FarAddress | null
   label?: string // set by the resolver
+  local?: boolean
 }
 
 // `view u8[50] top = bar[0]`, `const view u8 first = bar[0]`.
@@ -214,6 +215,7 @@ export type ViewDeclaration = Spanned & {
   parent: Identifier
   offset: Expression // in the PARENT's elements, folded by the resolver
   label?: string // set by the resolver
+  local?: boolean
 }
 
 // `group mob[64] { ... }` many, `group player { ... }` one. The presence of a
@@ -229,6 +231,7 @@ export type GroupDeclaration = Spanned & {
   name: string
   count: Expression | null
   fields: GroupField[]
+  local?: boolean
 }
 
 export type Expression =
@@ -262,12 +265,17 @@ export type Parameter = Located & {
 // `const sqr(u8 n) = n * n` - a parameterised const. Single expression, always
 // substituted, never called. Folds completely when its arguments are constant,
 // which is what makes compile-time tables work.
+// `local` on any top-level declaration means private to the file it is written
+// in: visible to its siblings there, and to nothing else. The marker rides on
+// the declaration rather than being a construct of its own, because the boundary
+// it names - the file - is one the loader already keeps.
 export type ConstFunctionDeclaration = Spanned & {
   type: 'ConstFunctionDeclaration'
   name: string
   params: Parameter[]
   returnType: TypeName | null // null means infer from the body
   body: Expression
+  local?: boolean
 }
 
 export type ConstDeclaration = Spanned & {
@@ -275,6 +283,7 @@ export type ConstDeclaration = Spanned & {
   name: string
   typeNode: TypeNode | null // `const u8[] banner` has one, `const limit = 20` does not
   init: Expression
+  local?: boolean
 }
 
 export type VariableDeclaration = Spanned & {
@@ -283,6 +292,7 @@ export type VariableDeclaration = Spanned & {
   typeNode: TypeNode
   init: Expression | null
   label?: string // set by the resolver: scoped storage label for this slot
+  local?: boolean
 }
 
 // One node for both forms. A `sub` is simply a routine with no return type:
@@ -300,6 +310,8 @@ export type RoutineDeclaration = Spanned & {
   params: Parameter[]
   returnType: TypeName | null
   body: BlockStatement
+  label?: string // set by the resolver; the call graph and emitter key on it
+  local?: boolean
 }
 
 export type BlockStatement = Spanned & {

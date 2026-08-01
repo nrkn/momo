@@ -24,6 +24,8 @@ import type {
   TypeNode,
   ViewDeclaration,
 } from './ast.js'
+import { basename } from 'node:path'
+
 import { alwaysReturns, buildCallGraph, fallsThrough, type CallGraph } from './analysis.js'
 import { raise, type Location } from './diagnostics.js'
 import {
@@ -235,6 +237,30 @@ export const resolve = (program: Program): ResolveResult => {
   const globals = new Map<string, MomoSymbol>()
 
   let locals: Map<string, MomoSymbol> | null = null
+  // The file whose `local` declarations are in scope. The loader splices every
+  // include into one flat body but keeps each node's own file, so this is read
+  // off the statement rather than tracked through any nesting.
+  let currentFile: string | null = null
+  const privates = new Map<string, Map<string, MomoSymbol>>()
+
+  const privatesFor = (file: string | null): Map<string, MomoSymbol> => {
+    const key = file ?? ''
+    const existing = privates.get(key)
+    if (existing) return existing
+    const created = new Map<string, MomoSymbol>()
+    privates.set(key, created)
+    return created
+  }
+
+  // `lib/std/rand.momo` gives `rand`, so a private reads as `rand__randomSeed` -
+  // the same shape as `mob__x` and `add__a`, which a reader of the assembly
+  // already knows. Two files with one base name would collide here, and
+  // claimLabel says so rather than emitting the label twice.
+  const fileTag = (file: string | null): string =>
+    safeLabel(basename(file ?? '', '.momo').replace(/[^A-Za-z0-9_]/g, '_'))
+
+  // Set to the routine's LABEL, not its name: two files may each declare
+  // `local sub helper`, and their sub-locals must not both be `helper__i`.
   let subName: string | null = null
   let loopDepth = 0
   const expanding = new Set<string>()
@@ -277,21 +303,39 @@ export const resolve = (program: Program): ResolveResult => {
     symbols.push(symbol)
   }
 
+  // Three levels, each derived from where the name is written rather than from
+  // any nesting the source shows: the sub owns its own storage, then the file
+  // owns its locals, then the program owns the rest. A `local` can therefore
+  // hide a global, and can never be reached from outside its file at all.
   const lookup = (name: string): MomoSymbol | null => {
     if (locals) {
       const local = locals.get(name)
       if (local) return local
     }
+    if (currentFile) {
+      const private_ = privates.get(currentFile)?.get(name)
+      if (private_) return private_
+    }
     return globals.get(name) ?? null
   }
 
-  const declare = (symbol: MomoSymbol, at: Location) => {
-    const scope = locals ?? globals
+  const declare = (symbol: MomoSymbol, at: Location, local = false) => {
+    const scope = locals ?? (local ? privatesFor(currentFile) : globals)
     if (scope.has(symbol.name)) {
       raise(at, `"${symbol.name}" is already declared in this scope`)
     }
-    if (!locals && globals.has(symbol.name)) {
-      raise(at, `"${symbol.name}" is already declared`)
+    // A local may shadow a global - it must, or a library's private name could
+    // be broken by a global added later in the program that includes it. The
+    // reverse is not allowed: two declarations both visible here, one of them
+    // local, would make the name ambiguous in its own file.
+    if (!locals && !local && privatesFor(currentFile).has(symbol.name)) {
+      raise(at, `"${symbol.name}" is already declared as a local in this file`)
+    }
+    if (!locals && local && globals.has(symbol.name)) {
+      const shadowed = globals.get(symbol.name)
+      if (shadowed && shadowed.label === symbol.label) {
+        raise(at, `"${symbol.name}" is already declared`)
+      }
     }
     // Groups are claimed too. One emits no storage, but it still occupies the
     // emitter's label->symbol map, so `group a__b` alongside `group a { u8 b }`
@@ -301,8 +345,12 @@ export const resolve = (program: Program): ResolveResult => {
     symbols.push(symbol)
   }
 
-  const labelFor = (name: string): string =>
-    subName ? `${subName}__${name}` : safeLabel(name)
+  // Inside a sub, the sub owns the name. At the top level a `local` is owned by
+  // its file, and everything else is owned by the program.
+  const labelFor = (name: string, local = false): string => {
+    if (subName) return `${subName}__${name}`
+    return local ? `${fileTag(currentFile)}__${name}` : safeLabel(name)
+  }
 
   // ---- expressions ----------------------------------------------------------
 
@@ -878,6 +926,7 @@ export const resolve = (program: Program): ResolveResult => {
     init: Expression | null,
     readonly: boolean,
     at: Location,
+    local = false,
   ) => {
     const elementType = typeNode.name
     const values = arrayValuesFrom(init, elementType)
@@ -898,10 +947,11 @@ export const resolve = (program: Program): ResolveResult => {
 
     declare(
       {
-        kind: 'array', name, label: labelFor(name), elementType,
+        kind: 'array', name, label: labelFor(name, local), elementType,
         length, readonly, values, dynamic: false,
       },
       at,
+      local,
     )
   }
 
@@ -928,8 +978,8 @@ export const resolve = (program: Program): ResolveResult => {
     }
 
     if (node.typeNode.array) {
-      node.label = labelFor(node.name)
-      declareArray(node.name, node.typeNode, node.init, false, node)
+      node.label = labelFor(node.name, node.local)
+      declareArray(node.name, node.typeNode, node.init, false, node, node.local)
       return
     }
 
@@ -942,7 +992,7 @@ export const resolve = (program: Program): ResolveResult => {
       if (value.value !== null) init = truncate(value.value, node.typeNode.name)
     }
 
-    node.label = labelFor(node.name)
+    node.label = labelFor(node.name, node.local)
     declare(
       {
         kind: 'var',
@@ -953,6 +1003,7 @@ export const resolve = (program: Program): ResolveResult => {
         init,
       },
       node,
+      node.local,
     )
   }
 
@@ -1005,7 +1056,7 @@ export const resolve = (program: Program): ResolveResult => {
       if (length <= 0) raise(node.typeNode.size, 'far region size must be positive')
     }
 
-    node.label = safeLabel(node.name)
+    node.label = labelFor(node.name, node.local)
 
     declare(
       {
@@ -1019,6 +1070,7 @@ export const resolve = (program: Program): ResolveResult => {
         offset,
       },
       node,
+      node.local,
     )
   }
 
@@ -1175,6 +1227,7 @@ export const resolve = (program: Program): ResolveResult => {
         alias,
       },
       node,
+      node.local,
     )
   }
 
@@ -1198,7 +1251,7 @@ export const resolve = (program: Program): ResolveResult => {
       }
       seen.add(field.name)
 
-      const label = `${safeLabel(node.name)}__${field.name}`
+      const label = `${labelFor(node.name, node.local)}__${field.name}`
       claimLabel(label, field, `field "${field.name}" of group "${node.name}"`)
 
       const symbol: MomoSymbol =
@@ -1221,8 +1274,9 @@ export const resolve = (program: Program): ResolveResult => {
     }
 
     declare(
-      { kind: 'group', name: node.name, label: safeLabel(node.name), count, fields },
+      { kind: 'group', name: node.name, label: labelFor(node.name, node.local), count, fields },
       node,
+      node.local,
     )
   }
 
@@ -1272,7 +1326,7 @@ export const resolve = (program: Program): ResolveResult => {
       {
         kind: 'constfn',
         name: node.name,
-        label: labelFor(node.name),
+        label: labelFor(node.name, node.local),
         params: node.params.map((parameter) => ({
           name: parameter.name,
           type: parameter.typeNode.name,
@@ -1281,6 +1335,7 @@ export const resolve = (program: Program): ResolveResult => {
         body: node.body,
       },
       node,
+      node.local,
     )
   }
 
@@ -1291,7 +1346,7 @@ export const resolve = (program: Program): ResolveResult => {
 
     if (node.typeNode?.array || isArrayInit) {
       if (node.typeNode?.array) {
-        declareArray(node.name, node.typeNode, node.init, true, node)
+        declareArray(node.name, node.typeNode, node.init, true, node, node.local)
         return
       }
 
@@ -1301,7 +1356,7 @@ export const resolve = (program: Program): ResolveResult => {
         {
           kind: 'array',
           name: node.name,
-          label: labelFor(node.name),
+          label: labelFor(node.name, node.local),
           elementType,
           length: values.length,
           readonly: true,
@@ -1309,6 +1364,7 @@ export const resolve = (program: Program): ResolveResult => {
           dynamic: false,
         },
         node,
+        node.local,
       )
       return
     }
@@ -1322,8 +1378,9 @@ export const resolve = (program: Program): ResolveResult => {
     }
 
     declare(
-      { kind: 'const', name: node.name, label: labelFor(node.name), type: declaredType, value },
+      { kind: 'const', name: node.name, label: labelFor(node.name, node.local), type: declaredType, value },
       node,
+      node.local,
     )
   }
 
@@ -1462,6 +1519,20 @@ export const resolve = (program: Program): ResolveResult => {
   const resolveStatement = (node: Statement) => {
     // Everything reaching resolveStatement is nested: a routine body, or a block
     // inside one - or inside a top-level loop, which is the original case.
+    //
+    // So `local` cannot mean anything here, and this has to come first: the
+    // declaration cases below return immediately, and a check after them would
+    // let `local u16 x` inside a sub through in silence. Storage in a sub is
+    // already private to it, and accepting the word would give it two meanings
+    // depending on where it was written.
+    if ('local' in node && node.local) {
+      raise(
+        node,
+        "local names a file as the owner, and this is inside a sub -" +
+          ' a declaration here is already private to it',
+      )
+    }
+
     if (node.type === 'VariableDeclaration') return resolveVariableDeclaration(node, false)
     // The loader splices includes at the top level of each file, so one nested
     // in a block reaches the resolver unspliced - and silently including
@@ -1599,7 +1670,7 @@ export const resolve = (program: Program): ResolveResult => {
       // `return` outside one is already rejected above - so the only way here
       // is a sub, which by definition has no return type.
       if (!currentFn || !currentFn.returnType) {
-        raise(node, `"${subName}" is a sub - "return" is an early exit and carries no value`)
+        raise(node, `"${currentFn?.name ?? subName}" is a sub - "return" is an early exit and carries no value`)
       }
 
       const value = resolveExpression(node.argument)
@@ -1675,28 +1746,36 @@ export const resolve = (program: Program): ResolveResult => {
     const seen = new Set<string>()
     const params: { name: string; label: string; type: ValueType }[] = []
 
+    // Everything below hangs off the label rather than the name, because a
+    // `local sub` may share its name with one in another file. `owner` too: the
+    // call graph and pruning are keyed on labels now, so a name there would
+    // point at the wrong routine or at nothing.
+    const routineLabel = labelFor(node.name, node.local)
+    node.label = routineLabel
+
     for (const parameter of node.params) {
       if (seen.has(parameter.name)) raise(parameter, `duplicate parameter "${parameter.name}"`)
       seen.add(parameter.name)
       params.push({
         name: parameter.name,
-        label: `${safeLabel(node.name)}__${parameter.name}`,
+        label: `${routineLabel}__${parameter.name}`,
         type: parameter.typeNode.name,
       })
     }
 
-    const retLabel = node.returnType ? `${safeLabel(node.name)}__ret` : null
+    const retLabel = node.returnType ? `${routineLabel}__ret` : null
 
     declare(
       {
         kind: 'routine',
         name: node.name,
-        label: safeLabel(node.name),
+        label: routineLabel,
         params,
         returnType: node.returnType,
         retLabel,
       },
       node,
+      node.local,
     )
 
     for (const parameter of params) {
@@ -1708,7 +1787,7 @@ export const resolve = (program: Program): ResolveResult => {
         type: parameter.type,
         builtin: false,
         init: 0,
-        owner: node.name,
+        owner: routineLabel,
       })
     }
 
@@ -1721,16 +1800,19 @@ export const resolve = (program: Program): ResolveResult => {
         type: node.returnType,
         builtin: false,
         init: 0,
-        owner: node.name,
+        owner: routineLabel,
       })
     }
   }
 
   const resolveRoutine = (node: RoutineDeclaration) => {
-    const symbol = globals.get(node.name)
+    // Through `lookup`, not `globals`: a `local sub` lives in its file's
+    // privates. `currentFile` is set by the caller and `locals` is still null,
+    // so this finds exactly what the call sites in that file will find.
+    const symbol = lookup(node.name)
     if (!symbol || symbol.kind !== 'routine') raise(node, 'internal: routine not declared')
 
-    subName = node.name
+    subName = symbol.label
     locals = new Map()
     loopDepth = 0
     currentFn = symbol
@@ -1770,8 +1852,14 @@ export const resolve = (program: Program): ResolveResult => {
   }
 
   // ---- pass 1: top-level declarations ---------------------------------------
+  //
+  // `currentFile` is read off each statement rather than tracked, because the
+  // loader has already flattened every include into this one body and each node
+  // kept the file it was written in.
 
   for (const statement of program.body) {
+    currentFile = statement.file
+
     if (statement.type === 'RoutineDeclaration') {
       declareRoutine(statement)
       continue
@@ -1805,6 +1893,8 @@ export const resolve = (program: Program): ResolveResult => {
   // ---- pass 2: bodies and top-level statements ------------------------------
 
   for (const statement of program.body) {
+    currentFile = statement.file
+
     if (statement.type === 'RoutineDeclaration') {
       resolveRoutine(statement)
       continue

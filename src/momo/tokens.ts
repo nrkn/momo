@@ -32,6 +32,7 @@ export const keywords = [
   'group',
   'far',
   'view',
+  'local',
   'sub',
   'fn',
   'if',

@@ -1087,6 +1087,30 @@ export const parse = (tokens: Token[]): Program => {
           endLine,
         }
       }
+      // `local` is a modifier on a declaration, not a construct of its own, so
+      // it parses the declaration that follows and marks it. Which declarations
+      // may carry it is checked here; whether the position allows one is the
+      // resolver's job, as it is for `far`, `view` and `group`.
+      if (token.text === 'local') {
+        advance()
+        const declaration = parseStatement()
+
+        if (
+          declaration.type !== 'ConstDeclaration' &&
+          declaration.type !== 'ConstFunctionDeclaration' &&
+          declaration.type !== 'VariableDeclaration' &&
+          declaration.type !== 'GroupDeclaration' &&
+          declaration.type !== 'FarDeclaration' &&
+          declaration.type !== 'ViewDeclaration' &&
+          declaration.type !== 'RoutineDeclaration'
+        ) {
+          raise(token, 'local marks a declaration - there is nothing here for it to hide')
+        }
+
+        declaration.local = true
+        return declaration
+      }
+
       if (token.text === 'const') return parseConstDeclaration()
       if (token.text === 'group') return parseGroupDeclaration()
       if (token.text === 'far') return parseFarDeclaration(false, token)

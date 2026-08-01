@@ -1,0 +1,12 @@
+// Deliberately the same private names as tickets.momo. Nothing here can see
+// that file's `issued` or `bump`, and neither can reach these - the file each
+// is written in is what tells them apart.
+
+local u16 issued = 7
+
+local u16 bump() {
+  issued += 10
+  return issued
+}
+
+u16 nextScore() => bump()

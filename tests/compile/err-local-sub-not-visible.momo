@@ -1,0 +1,4 @@
+// EXPECT-ERROR: "hiddenHelper" is not declared
+include "inc/privates.momo"
+u16 v
+v = hiddenHelper()

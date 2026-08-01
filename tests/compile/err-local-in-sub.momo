@@ -1,0 +1,6 @@
+// EXPECT-ERROR: local names a file as the owner, and this is inside a sub
+sub f {
+  local u16 x
+  x = 1
+}
+f()

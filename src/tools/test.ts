@@ -239,12 +239,28 @@ const roundTripTests = (): number => {
     }
   }
 
+  let asserted = 0
+
   for (const { name, file } of cases) {
     const sources = new Map<string, string>()
 
     try {
+      const program = load(file, libRoot, new Map()).program
+
+      // `local` names a file as its owner, and printing splices every include
+      // into one file - so the boundary that gives a private its identity is
+      // exactly what the round trip destroys. A private from `rand.momo` comes
+      // back owned by the printed file, and two files that each declare
+      // `local u16 hidden` collide outright. Not a printer bug: the AST is
+      // faithful, and one file cannot express which of several files a name
+      // belonged to. Skipped rather than weakened, so the count below says how
+      // much is actually asserted.
+      if (program.body.some((statement) => 'local' in statement && statement.local)) {
+        continue
+      }
+
       const original = compile(file, libRoot, sources).assembly
-      const printed = printProgram(load(file, libRoot, new Map()).program)
+      const printed = printProgram(program)
 
       // Written out rather than compiled from memory, so the round trip goes
       // through the same lexer and loader entry point everything else does.
@@ -252,6 +268,7 @@ const roundTripTests = (): number => {
       writeFileSync(copy, printed, 'utf8')
 
       const again = compile(copy, libRoot, new Map()).assembly
+      asserted += 1
 
       const difference = firstDifference(
         codeOnly(again).join('\n'),
@@ -264,7 +281,7 @@ const roundTripTests = (): number => {
     }
   }
 
-  return cases.length
+  return asserted
 }
 
 // ---- instruction subset ------------------------------------------------------

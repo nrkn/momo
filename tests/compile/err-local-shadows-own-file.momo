@@ -1,0 +1,4 @@
+// EXPECT-ERROR: "x" is already declared as a local in this file
+// A local and a global of one name in one file would be ambiguous there.
+local u16 x
+u16 x

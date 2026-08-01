@@ -125,11 +125,6 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     }
   }
 
-  // Declarations know their Momo name; the symbol table is keyed by label.
-  const byName = new Map<string, string>()
-  for (const symbol of result.symbols) byName.set(symbol.name, symbol.label)
-  const safeName = (name: string): string => byName.get(name) ?? name
-
   const symbolFor = (name: string | undefined): MomoSymbol => {
     const symbol = name === undefined ? undefined : byLabel.get(name)
     if (!symbol) throw new Error(`internal: unresolved symbol "${name}"`)
@@ -1478,7 +1473,9 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     blank()
     note(`============================================== ${kind} ${statement.name} ====`)
     blank()
-    const symbol = symbolFor(safeName(statement.name))
+    // By label, not by name: `local` lets two files each declare `sub helper`,
+    // and a name lookup would emit one of them twice under the other's label.
+    const symbol = symbolFor(statement.label)
     label(symbol.label)
     currentRet =
       symbol.kind === 'routine' && symbol.retLabel && symbol.returnType

@@ -5,3 +5,5 @@ build/
 
 # Your DOSBox path - start from toolchain.example.json
 toolchain.json
+
+temp

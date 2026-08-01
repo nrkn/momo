@@ -1,0 +1,29 @@
+// loctest.momo - `local`: a declaration private to the file that writes it.
+//
+// Two included files each declare `issued` and `bump`, and this file declares a
+// global `issued` as well. Three things of one name, and every routine reaches
+// the one it was written beside. Values are chosen so that reaching the wrong
+// one prints a different number rather than a coincidentally equal one.
+
+include "std/io.momo"
+include "tickets.momo"
+include "scores.momo"
+
+u16 issued = 1
+
+putNumber( nextTicket() )       // 101
+newline()
+putNumber( nextTicket() )       // 102
+newline()
+putNumber( nextScore() )        // 17
+newline()
+putNumber( nextScore() )        // 27
+newline()
+
+// Untouched by either file's private of the same name.
+putNumber( issued )             // 1
+newline()
+
+issued = issued + nextTicket()  // 1 + 103
+putNumber( issued )             // 104
+newline()

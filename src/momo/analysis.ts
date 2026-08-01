@@ -71,7 +71,7 @@ export const stackBytes = (graph: CallGraph, temporaries: Map<string, number>): 
 
     let deepest = 0
     for (const call of graph.edges.get(name) ?? []) {
-      const candidate = cost(call.name)
+      const candidate = cost(call.label)
       if (candidate > deepest) deepest = candidate
     }
 
@@ -82,7 +82,7 @@ export const stackBytes = (graph: CallGraph, temporaries: Map<string, number>): 
 
   let deepest = 0
   for (const call of graph.edges.get(entryName) ?? []) {
-    const candidate = cost(call.name)
+    const candidate = cost(call.label)
     if (candidate > deepest) deepest = candidate
   }
 
@@ -167,7 +167,12 @@ export const alwaysReturns = (statement: Statement): boolean => {
   return false
 }
 
-export type CallSite = { name: string; file: string; line: number; col: number }
+// Keyed on the emitted label rather than the written name, because `local`
+// makes names ambiguous across files: two of them may each declare `sub helper`
+// and mean different routines. Merging those into one vertex would give wrong
+// reachability - pruning a live routine, or keeping a dead one - and invent
+// cycles between routines that never call each other.
+export type CallSite = { label: string; file: string; line: number; col: number }
 
 export type CallGraph = {
   // Caller -> the subs it calls, in source order. Top-level statements are
@@ -205,9 +210,9 @@ const collectFromExpression = (value: unknown, into: CallSite[]) => {
   }
 
   if (node.type === 'CallExpression') {
-    const callee = node.callee as { name: string }
+    const callee = node.callee as { label: string }
     into.push({
-      name: callee.name,
+      label: callee.label as string,
       file: node.file as string,
       line: node.line as number,
       col: node.col as number,
@@ -235,7 +240,7 @@ const collectCalls = (statements: Statement[], into: CallSite[]) => {
     )
 
     if (statement.type === 'CallStatement') {
-      into.push({ name: statement.callee.name, file: statement.file, line: statement.line, col: statement.col })
+      into.push({ label: statement.callee.label as string, file: statement.file, line: statement.line, col: statement.col })
       continue
     }
     if (statement.type === 'BlockStatement') {
@@ -273,15 +278,15 @@ export const prune = <S extends PrunableSymbol>(result: {
     const name = queue.pop()
     if (name === undefined) break
     for (const call of result.callGraph.edges.get(name) ?? []) {
-      if (reachable.has(call.name)) continue
-      reachable.add(call.name)
-      queue.push(call.name)
+      if (reachable.has(call.label)) continue
+      reachable.add(call.label)
+      queue.push(call.label)
     }
   }
 
   const body = result.program.body.filter((statement) => {
     if (statement.type !== 'RoutineDeclaration') return true
-    return reachable.has(statement.name)
+    return reachable.has(statement.label as string)
   })
 
   // Collect every label the retained code actually mentions. Walking generically
@@ -335,7 +340,7 @@ export const prune = <S extends PrunableSymbol>(result: {
   }
 
   const symbols = result.symbols.filter((symbol) => {
-    if (symbol.kind === 'routine') return reachable.has(symbol.name)
+    if (symbol.kind === 'routine') return reachable.has(symbol.label)
     // A fn's parameter and return slots live or die with the fn: the call site
     // writes them even when the body never reads them.
     if (symbol.kind === 'var' && symbol.owner) return reachable.has(symbol.owner)
@@ -374,7 +379,7 @@ export const buildCallGraph = (program: Program): CallGraph => {
     if (!isCallable(statement)) continue
     const calls: CallSite[] = []
     collectCalls(statement.body.body, calls)
-    edges.set(statement.name, calls)
+    edges.set(statement.label as string, calls)
   }
 
   // Depth-first cycle detection. `active` is the current path, so a call back
@@ -394,7 +399,7 @@ export const buildCallGraph = (program: Program): CallGraph => {
     if (finished.has(name)) return
 
     active.push(name)
-    for (const call of edges.get(name) ?? []) visit(call.name, call)
+    for (const call of edges.get(name) ?? []) visit(call.label, call)
     active.pop()
     finished.add(name)
   }
@@ -417,10 +422,10 @@ export const buildCallGraph = (program: Program): CallGraph => {
     let bestChild = ''
 
     for (const call of edges.get(name) ?? []) {
-      const candidate = depthOf(call.name)
+      const candidate = depthOf(call.label)
       if (candidate + 1 > best) {
         best = candidate + 1
-        bestChild = call.name
+        bestChild = call.label
       }
     }
 

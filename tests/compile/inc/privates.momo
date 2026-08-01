@@ -1,0 +1,8 @@
+// Included by ok-local.momo and err-local-*.momo. Lives in a subdirectory so
+// the tier-1 glob, which is not recursive, does not treat it as a test.
+
+local u16 hidden = 7
+local const hiddenLimit = 99
+local u16 hiddenHelper() => hidden + hiddenLimit
+
+u16 visible() => hiddenHelper()

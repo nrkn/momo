@@ -1,0 +1,5 @@
+// EXPECT-ERROR: "hidden" is not declared
+// A private is invisible outside the file that owns it - not merely renamed.
+include "inc/privates.momo"
+u16 v
+v = hidden

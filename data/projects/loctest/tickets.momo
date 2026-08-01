@@ -1,0 +1,11 @@
+// A counter with its state sealed off: `issued` and `bump` belong to this file,
+// and `nextTicket` is the only way in.
+
+local u16 issued = 100
+
+local u16 bump() {
+  issued++
+  return issued
+}
+
+u16 nextTicket() => bump()

@@ -31,7 +31,11 @@
 // hash, a pure function of coordinates rather than a stream - which is a
 // different primitive, not a better version of this one.
 
-u16 randomSeed = 42
+// `local`, so the state is reachable only from this file. It was public until
+// there was a way to say otherwise, which left the guard below with a hole in
+// it: a program could write `randomSeed = 0` directly and walk past the one
+// check that keeps the generator alive.
+local u16 randomSeed = 42
 
 // Zero is a fixed point: xorshift would return it forever. Mapped rather than
 // rejected, so seeding can never silently kill the generator.

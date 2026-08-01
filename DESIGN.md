@@ -933,17 +933,68 @@ Each file is parsed separately and its statements spliced in, so every node keep
 its own file's line numbers. An error inside an included file reports against
 that file, with its own source line and caret.
 
-### Why not named imports
+### Why not named imports, and what `local` is instead
 
-A module system exists to control visibility. But a Momo sub's "parameters" are
-globals - `putChar` reads `char` - so importing `putChar` without `char` gives
-you something unusable, and every import list degenerates to the whole module.
+A module system exists to control visibility, and the argument here used to be
+that there was nothing left to control. That argument has since expired, and it
+is worth recording why rather than quietly replacing it.
 
-More decisively: **Momo already has the encapsulation that matters.** Sub-locals
-are private and mangled today, so a library's internal scratch is already hidden.
-What remains - the parameter globals - *must* be public or the library does not
-work. There is nothing left for a module system to hide. Collision avoidance is
-handled by a prefix convention, as C managed for fifty years.
+It ran: a sub's "parameters" are globals - `putChar` reads `char` - so importing
+`putChar` without `char` gives something unusable, every import list degenerates
+to the whole module, and the parameter globals *must* be public or the library
+does not work. **Real parameters (§7) made that false.** A parameter is mangled
+*and* absent from scope: `add__a` is not a name any other file can write. So
+"there is nothing left to hide" stopped being true the day routines gained
+parameters, and nobody noticed because the conclusion still felt right.
+
+What was left to hide is **state shared by several routines and private to
+them**. A sub-local is persistent but belongs to one routine; a global is shared
+but belongs to everything; there was nothing in between. `lib/std/rand.momo` was
+the standing example, and not a hypothetical one: it maps a zero seed to 1
+because zero is a fixed point that would return zero forever - and then left
+`randomSeed` writable, so any program could assign 0 directly and walk past the
+guard.
+
+**`local` is the answer, and it is not a module system.** A declaration marked
+`local` is private to the file that writes it: visible to its siblings there,
+invisible everywhere else.
+
+```momo
+local u16 randomSeed = 42
+
+sub seedRandom(u16 s) => randomSeed = s == 0 ? 1 : s
+```
+
+- **The file is the boundary**, because the file is already a unit here -
+  includes are once-only and identified by `realpathSync.native()`, and every
+  node keeps the file it was written in. No container, no nesting, nothing to
+  name.
+- **Labels are mangled by the file's base name**, so `randomSeed` becomes
+  `rand__randomSeed` - the same shape as `mob__x` and `add__a`, which a reader of
+  the output already knows. Two files with one base name collide there, and
+  `claimLabel` says so rather than emitting it twice.
+- **Lookup has three levels**: a sub's own storage, then its file's privates,
+  then the program. Each is read off where the name is *written* rather than
+  from any nesting the source shows.
+- **A local may shadow a global**, and must: otherwise adding a global to your
+  program could break a library you included. It is the one-way case - a local
+  can hide a global, and can never be reached from outside its file at all. The
+  reverse, a local and a global of one name in *one* file, is an error, since the
+  name would be ambiguous in the file that owns both.
+- **`local` inside a sub is an error.** Storage there is already private, and
+  accepting the word would give it two meanings depending on where it sat.
+
+It also displaced most of the prefix convention. `ioBase`, `screenCols` and
+`strEnd` were a file boundary written out by hand, one identifier at a time -
+which is what §11 meant by "as C managed for fifty years", C's `static` being the
+same idea under a worse keyword.
+
+**What it cost elsewhere.** The call graph and pruning were keyed on a routine's
+*source name*, which `local` makes ambiguous: two files may each declare
+`sub helper` and mean different routines. Merged into one vertex that gives wrong
+reachability and invents cycles between routines that never call each other. Both
+are keyed on labels now, and the emitter is too - it had a name-to-label map that
+would have emitted one routine's body under another's label.
 
 ### Dead code elimination
 
@@ -1177,6 +1228,15 @@ source line above the code it produced and the printed source is different text
 by construction: no comments, different wrapping, sugar lowered. So the `; ---- `
 lines come out and everything else has to match - every instruction, every label,
 every inline comment about a widening or a jump choice.
+
+**`local` is the one thing it cannot round-trip**, and the test skips those five
+cases rather than weakening what it asserts for the other 45. Printing splices
+every include into one file, and `local` names a file as its owner - so the
+boundary that gives a private its identity is exactly what printing destroys. A
+private from `rand.momo` comes back owned by the printed file, and two files that
+each declare `local u16 hidden` collide outright. Not a printer bug: the AST is
+faithful, and one file has no way to say which of several files a name belonged
+to.
 
 `tests/compile/ok-precedence.momo` exists for it. Bracketing is where a printer
 goes wrong, and a program only catches that if it contains an expression whose

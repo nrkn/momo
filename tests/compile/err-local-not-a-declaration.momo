@@ -1,0 +1,3 @@
+// EXPECT-ERROR: local marks a declaration - there is nothing here for it to hide
+u16 x
+local x = 1
