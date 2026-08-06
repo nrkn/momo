@@ -1,0 +1,48 @@
+// timetest.momo - std/time.momo.
+//
+// Two halves, and only the first is deterministic. tickDelta is arithmetic and
+// can be checked exactly, wrap included. The clock cannot be: its value is the
+// time, and an exact-output tier has nothing to compare that against. What the
+// second half asserts is that the count moves and that a wait ends - and it
+// asserts those by running at all, since a counter that never advanced would
+// leave waitTicks spinning and nothing would be printed.
+
+include "std/io.momo"
+include "std/time.momo"
+
+u16 start
+u16 later
+u16 earlier
+
+// ---- the wrap arithmetic, which needs no clock
+
+putNumber( tickDelta( 11, 5 ) )
+newline()
+
+// Through variables, so the subtraction happens at runtime rather than in the
+// resolver - that is the path the clock actually takes.
+later = 5
+earlier = 65530
+
+putNumber( tickDelta( later, earlier ) )
+newline()
+
+putNumber( tickDelta( 7, 7 ) )
+newline()
+
+// ---- the clock
+
+start = ticks()
+waitTicks( 3 )
+putNumber( ticksSince( start ) >= 3 ? 1 : 0 )
+newline()
+
+// Must not wait for a tick that has already been counted.
+waitTicks( 0 )
+putNumber( 1 )
+newline()
+
+// The non-blocking form, asked immediately: nothing like 60000 ticks has passed.
+start = ticks()
+putNumber( ticksElapsed( start, 60000 ) ? 1 : 0 )
+newline()

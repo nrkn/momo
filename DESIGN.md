@@ -1259,7 +1259,7 @@ their contract will not move. Everything else is tested end to end.
 **The desugar round trip is the only test of the parser.** `npm run desugar`
 prints a program back as Momo from its AST, by which point the parser has already
 lowered `=>`, `else if`, prefix and postfix `++` and adjacent string literals, and
-the loader has spliced every `include`. Tier 1 prints all 50 programs and compile
+the loader has spliced every `include`. Tier 1 prints all 51 programs and compile
 tests, compiles the printed copy, and requires the same code from both.
 
 It asserts nothing about how the AST is arranged - only that printing and parsing
@@ -1272,7 +1272,7 @@ by construction: no comments, different wrapping, sugar lowered. So the `; ---- 
 lines come out and everything else has to match - every instruction, every label,
 every inline comment about a widening or a jump choice.
 
-**`local` is the one thing it cannot round-trip**, and the test skips those five
+**`local` is the one thing it cannot round-trip**, and the test skips those six
 cases rather than weakening what it asserts for the other 45. Printing splices
 every include into one file, and `local` names a file as its owner - so the
 boundary that gives a private its identity is exactly what printing destroys. A
@@ -2791,6 +2791,13 @@ Designed and not yet built, like §19 - and for the reason §20 gave: this was o
 of scope until a program wanted it, and **Carmack-style scrolling is the program
 that does.** Coarse scroll plus fine scroll plus adaptive tile refresh, which is
 how Commander Keen moved an EGA screen smoothly on hardware with no blitter.
+
+**A second thing wants it now, for an unrelated reason.** `lib/std/time.momo`
+reads the BIOS tick counter at 0040:006C, which the timer interrupt advances
+18.2065 times a second - so the finest wait Momo can express is 55ms. That paces
+a roguelike and cannot pace an animation, and no library can improve on it: the
+rate is the PIT's divisor, and changing that is `out` and nothing else. Timing is
+therefore the second argument for this section, and the one a game meets first.
 
 ```momo
 out8( 0x3C4, 0x02 )              // sequencer index: map mask

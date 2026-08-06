@@ -1,0 +1,59 @@
+// std/time.momo - the BIOS tick counter, and waiting on it.
+//
+// The BIOS maintains a 32-bit tick count at 0040:006C, incremented by the timer
+// interrupt 18.2065 times a second - the PIT's 1193182 Hz divided by 65536. That
+// is the only clock a program has here until port I/O exists (DESIGN.md 22),
+// since reprogramming the PIT for a finer one needs `out`.
+//
+// **The resolution is 55ms.** Enough to pace a turn-based game, a roguelike, or
+// anything that moves a few times a second. Not enough for smooth animation, and
+// no amount of care here changes that - it is the hardware's rate, not ours.
+//
+// Only the low word is read. That costs nothing in practice and gains the wrap:
+// an unsigned subtraction of two low words is the true elapsed count whenever
+// fewer than 65536 ticks have passed, which is an hour. The 32-bit counter's
+// own midnight reset arrives as just another wrap, so it needs no case either.
+//
+// The read is a single instruction, and the 8086 takes interrupts only between
+// instructions - so the timer cannot land in the middle of one and hand back
+// half of an old count and half of a new one.
+
+// The BIOS data area, and the tick count 0x6C bytes into it. Both are private:
+// a program that wants the clock wants these routines, not a window onto the
+// BIOS's own variables.
+local far u16[128] bda = 0x0040
+
+local view u16[1] tickLow = bda[54]          // 0x6C / 2, in u16 elements
+
+// 18.2065 Hz, so both of these are approximations and the minute is the better
+// one - 18 ticks is 0.989 seconds, and 1092 is 59.98.
+const ticksPerSecond = 18
+const ticksPerMinute = 1092
+
+// The low word of the tick count. Monotonic apart from wrapping, which is what
+// tickDelta is for - compare two of these with that rather than with `<`.
+u16 ticks() => tickLow[0]
+
+// Ticks from `earlier` to `later`, correct across a wrap because u16 subtraction
+// wraps the same way the counter does. Wrong, unavoidably, if more than 65535
+// ticks have passed - there is nothing in a 16-bit value that could tell.
+const u16 tickDelta(u16 later, u16 earlier) = later - earlier
+
+// How long since a tick count you kept.
+const u16 ticksSince(u16 start) = tickDelta(ticks(), start)
+
+// The shape a game loop wants: keep a start, do work, and ask. Nothing blocks,
+// so input still gets polled while the frame waits.
+const bool ticksElapsed(u16 start, u16 n) = ticksSince(start) >= n
+
+// Busy-waits. That is what it looks like and what it costs: the loop spins the
+// CPU until the count moves, which is what DOS games did and is the honest thing
+// on a machine with nothing else to run. `waitTicks(0)` returns immediately.
+sub waitTicks(u16 n) {
+  u16 start
+
+  start = ticks()
+
+  while ( ticksSince(start) < n ) {
+  }
+}
