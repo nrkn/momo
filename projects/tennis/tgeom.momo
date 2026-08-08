@@ -1,0 +1,29 @@
+// pixel units
+const viewW = 160
+const viewH = 100
+
+const playLeft = 40
+const playRight = 118
+const playTop = 9
+const playBottom = 80
+const playW = playRight - playLeft + 1
+const playH = playBottom - playTop + 1
+const centerX = ( playLeft + playRight ) / 2
+const scoreTop = 84
+
+const paddleW = 1
+const paddleH = 9
+
+const ballW = 3
+const ballH = 3
+
+const digitW = 5
+const digitH = 5
+
+const subgridScale = 4
+
+// subgrid units
+
+const paddleYMax = ( playH - paddleH  - 2 ) * subgridScale
+const ballXMax = ( playW - ballW - 2 ) * subgridScale
+const ballYMax = ( playH - ballH - 2 ) * subgridScale

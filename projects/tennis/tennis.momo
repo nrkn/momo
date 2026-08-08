@@ -1,0 +1,143 @@
+// tennis.momo - based on the Fairchild Channel F pong clone "Tennis"
+
+include "std/key.momo"
+include "std/rand.momo"
+include "tgeom.momo"
+include "tpal.momo"
+include "tscr.momo"
+include "tsprites.momo"
+
+// -- state
+
+// game state - otherwise, in play
+bool isWinScreen
+
+// player scores
+u8 score1
+u8 score2
+
+// paddles
+i16 p1Y
+i16 p2Y
+i16 oP1Y // old paddle 1 y
+i16 oP2Y // old paddle 2 y
+u8 p1Speed
+u8 p2Speed
+
+// ball
+i16 ballX
+i16 ballY
+i16 oBallX // old ball x
+i16 oBallY // old ball y
+
+i16 ballSpeedX
+i16 ballSpeedY
+
+u8 ballPlayer
+u8 volleyCount
+
+// -- start
+
+saveMode()
+mode13()
+initPal()
+
+// -- main
+
+u8 dy
+
+// draw once at start
+sub drawBackground {
+  // can be replaced with just filling the first part of the buffer, then the
+  // second - do it word at a time too
+  
+  for( dy = 0; dy < scoreTop; dy++ ){
+    drawLineHorizontal( dy, 0, viewW - 1, lightGreen )
+  }
+  for( dy = scoreTop; dy < viewH; dy++ ){
+    drawLineHorizontal( dy, 0, viewW - 1, black )
+  }
+}
+
+u8 net
+u8 netY1
+u8 netY2
+
+// draw once at start (actually, ball can probably erase net - consider)
+sub drawPlayfield {
+  drawLineHorizontal( playTop, playLeft, playRight, green )
+  drawLineHorizontal( playBottom, playLeft, playRight, green )
+  drawNet()
+}
+
+sub drawNet {
+  // we should precompute this, it doesn't change, but this is fine for now
+  for( net = 0; net < 5; net++ ){
+    netY1 = playTop + 3 + net * 14
+    netY2 = netY1 + 8
+
+    drawLineVertical( centerX, netY1, netY2, green )
+  }
+}
+
+// clear at old, draw at new
+sub drawPaddles {}
+sub clearPaddles {}
+
+// clear at old, draw at new
+sub drawBall {}
+sub clearBall {}
+
+// overdraws existing, no clear needed
+sub drawScore {}
+
+// timer based tick
+sub tick {
+  // todo: check inputs, exit on ESC, else recalculate state
+
+  // testing if they moved or not is probably cheaper but this keeps tick time
+  // consistent
+  clearPaddles()
+  clearBall()
+
+  // not super efficient to draw net every frame, but means clearing ball is
+  // simple (no test for net cross) and tick time is consistent
+  drawNet()
+
+  drawPaddles()
+  drawBall()
+
+  // todo: actually, only if the score changes - it's moderately expensive
+  drawScore()
+}
+
+// show win screen, wait for input, then call start again
+sub win {}
+
+// first time or new game after a win
+sub start {  
+  isWinScreen = false
+  score1 = 0
+  score2 = 0
+  p1Speed = 0
+  p2Speed = 0
+  ballSpeedX = 0
+  ballSpeedY = 0
+  volleyCount = 0
+
+  drawBackground()
+  drawPlayfield()
+
+  // todo - random starting state, some initial positions
+}
+
+start()
+
+// todo - setup tick
+
+// -- end
+
+// once tick lands, this can go, just so we can see draw before restoring
+readKey()
+
+restoreMode()
