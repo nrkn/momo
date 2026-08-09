@@ -1,7 +1,9 @@
-// tennis.momo - based on the Fairchild Channel F pong clone "Tennis"
+// tennis.momo - *loosely* based on the Fairchild Channel F pong clone "Tennis"
 
 include "std/key.momo"
+include "std/math.momo"
 include "std/rand.momo"
+include "std/time.momo"
 include "tgeom.momo"
 include "tpal.momo"
 include "tscr.momo"
@@ -11,6 +13,8 @@ include "tsprites.momo"
 
 // game state - otherwise, in play
 bool isWinScreen
+// back to DOS when false
+bool isRunning = true
 
 // player scores
 u8 score1
@@ -34,7 +38,13 @@ i16 ballSpeedX
 i16 ballSpeedY
 
 u8 ballPlayer
+u8 ballColor 
 u8 volleyCount
+
+// subgrid to pixels
+// playfield offset, eg playRight, playLeft, playTop etc 
+// object offset, eg ballX, ballY, p1Y etc
+const subgridToPx( i16 play, i16 obj ) = play + 1 + (obj >> 2)
 
 // -- start
 
@@ -60,10 +70,9 @@ sub drawBackground {
 }
 
 u8 net
-u8 netY1
-u8 netY2
+u8 netY
 
-// draw once at start (actually, ball can probably erase net - consider)
+// draw once at start
 sub drawPlayfield {
   drawLineHorizontal( playTop, playLeft, playRight, green )
   drawLineHorizontal( playBottom, playLeft, playRight, green )
@@ -73,71 +82,184 @@ sub drawPlayfield {
 sub drawNet {
   // we should precompute this, it doesn't change, but this is fine for now
   for( net = 0; net < 5; net++ ){
-    netY1 = playTop + 3 + net * 14
-    netY2 = netY1 + 8
+    netY = playTop + 3 + net * 14
 
-    drawLineVertical( centerX, netY1, netY2, green )
+    drawLineVertical( centerX, netY, netY + 8, green )
   }
 }
 
-// clear at old, draw at new
-sub drawPaddles {}
-sub clearPaddles {}
+i16 subPxX
+i16 subPxY
+i16 subPxY2
 
 // clear at old, draw at new
-sub drawBall {}
-sub clearBall {}
+// note - it flickers quite badly - that was somewhat expected with no buffer;
+// but wait until optimised blitting lands and see if we can live with it
+// otherwise, we might need better dirty tracking
+// eg maybe a buffer of 27 elements to track 9x2 paddle pixels, 9 ball px, and a
+// scalar for how many are currently dirty
+// BUT wait and see how it plays out before prematurely adding this lol
+// todo: neither draw/clearPaddles nor draw/clearBall need to call 
+// drawLineVertical - they can be unrolled to just 9 direct 
+// pixels[n] assignments
+
+
+sub drawPaddles {
+  subPxY = subgridToPx( playTop, p1Y )
+  subPxY2 = subPxY + paddleH - 1
+
+  drawLineVertical( playLeft, subPxY, subPxY2, red )
+
+  subPxY = subgridToPx( playTop, p2Y )
+  subPxY2 = subPxY + paddleH - 1
+
+  drawLineVertical( playRight, subPxY, subPxY2, blue )
+}
+
+sub clearPaddles {
+  subPxY = subgridToPx( playTop, p1Y )
+  subPxY2 = subPxY + paddleH - 1
+
+  drawLineVertical( playLeft, subPxY, subPxY2, lightGreen )
+
+  subPxY = subgridToPx( playTop, p2Y )
+  subPxY2 = subPxY + paddleH - 1
+
+  drawLineVertical( playRight, subPxY, subPxY2, lightGreen )
+}
+
+// clear at old, draw at new
+
+sub drawBall {  
+  subPxX = subgridToPx( playLeft, ballX )
+  subPxY = subgridToPx( playTop, ballY )
+  subPxY2 = subPxY + ballH - 1
+
+  drawLineVertical( subPxX, subPxY, subPxY2, ballColor )
+  drawLineVertical( subPxX + 1, subPxY, subPxY2, ballColor )
+  drawLineVertical( subPxX + 2, subPxY, subPxY2, ballColor )
+}
+
+sub clearBall {
+  subPxX = subgridToPx( playLeft, oBallX )
+  subPxY = subgridToPx( playTop, oBallY )
+  subPxY2 = subPxY + ballH - 1
+
+  drawLineVertical( subPxX, subPxY, subPxY2, lightGreen )
+  drawLineVertical( subPxX + 1, subPxY, subPxY2, lightGreen )
+  drawLineVertical( subPxX + 2, subPxY, subPxY2, lightGreen )
+}
 
 // overdraws existing, no clear needed
 sub drawScore {}
 
-// timer based tick
-sub tick {
-  // todo: check inputs, exit on ESC, else recalculate state
+u16 key
+// player movements, ESC to exit
+sub input {
+  // currently the only thing in tick that branches - can't be helped
+  if( keyWaiting() ){
+    key = readKey()
 
+    isRunning = lo( key ) != keyEsc
+  }
+}
+
+// recalculate state
+sub update {
+
+  // todo: if scored check - no point drawing 100px otherwise - that's why it's
+  // here and not render, and the branch to check doesn't affect frame rate,
+  // as we're in between serves anyway so ball not in play
+  //
+  // if scored...
+  drawScore()
+}
+
+// probably worth extracting to std/time later
+sub waitMicros( u16 high, u16 low ) {
+  _ah = 0x86
+  _cx = high
+  _dx = low
+  int 0x15
+}
+
+const frameMicros = 33333
+
+// wait is reserved by nasm - add it to our list to mangle, in mean time, use a 
+// different name - we should probably do some research and handle *all* 
+// reserved words rather than finding them one at a time when compile fails 😂
+sub doWait => waitMicros( 0, frameMicros )
+
+sub render {
   // testing if they moved or not is probably cheaper but this keeps tick time
   // consistent
-  clearPaddles()
   clearBall()
+  clearPaddles()
 
   // not super efficient to draw net every frame, but means clearing ball is
   // simple (no test for net cross) and tick time is consistent
   drawNet()
 
-  drawPaddles()
   drawBall()
+  drawPaddles()
+}
 
-  // todo: actually, only if the score changes - it's moderately expensive
-  drawScore()
+// timer based tick
+sub tick {  
+  input()
+  update()
+  render()
+  doWait()
 }
 
 // show win screen, wait for input, then call start again
 sub win {}
 
+sub serve(){
+  ballSpeedY = 0
+  volleyCount = 0
+
+  if( ballPlayer ){
+    ballX = 4
+    ballY = p1Y + 12
+    ballSpeedX = 3    
+    ballColor = red
+  } else {
+    ballX = ballXMax - 4
+    ballY = p2Y + 12
+    ballSpeedX = -3
+    ballColor = blue
+  }
+}
+
 // first time or new game after a win
 sub start {  
+  seedRandom( ticks() )
+
   isWinScreen = false
   score1 = 0
   score2 = 0
   p1Speed = 0
   p2Speed = 0
-  ballSpeedX = 0
-  ballSpeedY = 0
-  volleyCount = 0
+  p1Y = paddleYHome
+  p2Y = paddleYHome
+  oP1Y = p1Y
+  oP2Y = p2Y
+  ballPlayer = randomBelow( 2 )
 
   drawBackground()
   drawPlayfield()
 
-  // todo - random starting state, some initial positions
+  serve()
+
+  oBallX = ballX
+  oBallY = ballY
 }
 
 start()
 
-// todo - setup tick
+while( isRunning ) tick()
 
 // -- end
-
-// once tick lands, this can go, just so we can see draw before restoring
-readKey()
 
 restoreMode()

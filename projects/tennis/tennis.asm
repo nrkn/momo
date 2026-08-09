@@ -4,6 +4,7 @@
         org     100h
 
 ; ---- constants: no storage, folded at assembly time ----
+keyEsc          equ     27
 viewW           equ     160
 viewH           equ     100
 playLeft        equ     40
@@ -18,10 +19,16 @@ paddleH         equ     9
 ballW           equ     3
 ballH           equ     3
 subgridScale    equ     4
+paddleYMax      equ     244
+ballXMax        equ     296
+paddleYHome     equ     122
 tpal__palSize   equ     8
 lightGreen      equ     1
 black           equ     3
+red             equ     4
 green           equ     5
+blue            equ     6
+frameMicros     equ     33333
 
 ; =========================================================== entry ====
 
@@ -34,8 +41,17 @@ __entry:
         call    initPal
 ; ---- start()
         call    start
-; ---- readKey()
-        call    readKey
+; ---- while( isRunning ) tick()
+.L1:
+        mov     al, [isRunning]
+        test    al, al
+        jnz     .L4
+        jmp     .L3
+.L4:
+        call    tick
+.L2:
+        jmp     .L1
+.L3:
 ; ---- restoreMode()
         call    restoreMode
 
@@ -53,6 +69,105 @@ readKey:
 ; ---- return _ax
         mov     ax, [_ax]
         mov     [readKey__ret], ax
+        ret
+
+; ============================================== bool keyWaiting ====
+
+keyWaiting:
+; ---- _ah = 0x0B
+        mov     byte [_ah], 11
+; ---- int 0x21
+        call    int21
+; ---- return _al != 0
+        mov     al, [_al]
+        test    al, al
+        jne     .L7                         ; unsigned !=
+        jmp     .L5
+.L7:
+        mov     ax, 1
+        jmp     .L6
+.L5:
+        xor     ax, ax
+.L6:
+        mov     [keyWaiting__ret], al       ; narrowed to bool
+        ret
+
+; ============================================== sub seedRandom ====
+
+seedRandom:
+; ---- sub seedRandom(u16 s) => randomSeed = s == 0 ? 1 : s
+        mov     ax, [seedRandom__s]
+        test    ax, ax
+        je      .L10                        ; unsigned ==
+        jmp     .L8
+.L10:
+        mov     ax, 1
+        jmp     .L9
+.L8:
+        mov     ax, [seedRandom__s]
+.L9:
+        mov     [rand__randomSeed], ax
+        ret
+
+; ============================================== u16 nextRandom ====
+
+nextRandom:
+; ---- randomSeed = randomSeed ^ (randomSeed << 7)
+        mov     ax, [rand__randomSeed]
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [rand__randomSeed]
+        mov     cl, 7                       ; 8086 has no shift-by-immediate
+        shl     ax, cl
+        mov     bx, ax
+        pop     ax
+        xor     ax, bx
+        mov     [rand__randomSeed], ax
+; ---- randomSeed = randomSeed ^ (randomSeed >> 9)
+        mov     ax, [rand__randomSeed]
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [rand__randomSeed]
+        mov     cl, 9                       ; 8086 has no shift-by-immediate
+        shr     ax, cl                      ; unsigned >>
+        mov     bx, ax
+        pop     ax
+        xor     ax, bx
+        mov     [rand__randomSeed], ax
+; ---- randomSeed = randomSeed ^ (randomSeed << 8)
+        mov     ax, [rand__randomSeed]
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [rand__randomSeed]
+        mov     cl, 8                       ; 8086 has no shift-by-immediate
+        shl     ax, cl
+        mov     bx, ax
+        pop     ax
+        xor     ax, bx
+        mov     [rand__randomSeed], ax
+; ---- return randomSeed
+        mov     ax, [rand__randomSeed]
+        mov     [nextRandom__ret], ax
+        ret
+
+; ============================================== u16 randomBelow ====
+
+randomBelow:
+; ---- u16 randomBelow(u16 n) => nextRandom() % n
+        call    nextRandom
+        mov     ax, [nextRandom__ret]
+        mov     bx, [randomBelow__n]
+        xor     dx, dx                      ; clear high half for div
+        div     bx
+        mov     ax, dx                      ; remainder
+        mov     [randomBelow__ret], ax
+        ret
+
+; ============================================== u16 ticks ====
+
+ticks:
+; ---- u16 ticks() => tickLow[0]
+        mov     dx, 0x40                    ; segment of tickLow
+        mov     es, dx
+        mov     ax, [es:108]
+        mov     [ticks__ret], ax
         ret
 
 ; ============================================== sub setPaletteColor ====
@@ -94,12 +209,12 @@ tpal__setPaletteColor:
 initPal:
 ; ---- for( i = 0; i < palSize; i++ ){
         mov     byte [tpal__i], 0
-.L1:
+.L11:
         mov     al, [tpal__i]
         cmp     al, 8                       ; byte operands, no widening
-        jb      .L4                         ; unsigned <
-        jmp     .L3
-.L4:
+        jb      .L14                        ; unsigned <
+        jmp     .L13
+.L14:
 ; ---- pIndex = i * 3
         mov     al, [tpal__i]
         xor     ah, ah                      ; u8 -> u16
@@ -129,10 +244,10 @@ initPal:
         mov     al, [tpal__palette + bx]
         mov     [tpal__setPaletteColor__b], al; u8 -> u8, no widening
         call    tpal__setPaletteColor
-.L2:
+.L12:
         inc     byte [tpal__i]
-        jmp     .L1
-.L3:
+        jmp     .L11
+.L13:
         ret
 
 ; ============================================== sub saveMode ====
@@ -233,14 +348,14 @@ drawLineHorizontal:
         mov     al, [drawLineHorizontal__x1]
         xor     ah, ah                      ; u8 -> u16
         mov     [tscr__x], ax
-.L5:
+.L15:
         mov     ax, [tscr__x]
         mov     bl, [drawLineHorizontal__x2]
         xor     bh, bh                      ; u8 -> u16
         cmp     ax, bx
-        jbe     .L8                         ; unsigned <=
-        jmp     .L7
-.L8:
+        jbe     .L18                        ; unsigned <=
+        jmp     .L17
+.L18:
 ; ---- setPixel( x, y, color )
         mov     ax, [tscr__x]
         mov     [setPixel__x], ax
@@ -250,10 +365,10 @@ drawLineHorizontal:
         mov     al, [drawLineHorizontal__color]
         mov     [setPixel__color], al       ; u8 -> u8, no widening
         call    setPixel
-.L6:
+.L16:
         inc     word [tscr__x]
-        jmp     .L5
-.L7:
+        jmp     .L15
+.L17:
         ret
 
 ; ============================================== sub drawLineVertical ====
@@ -263,14 +378,14 @@ drawLineVertical:
         mov     al, [drawLineVertical__y1]
         xor     ah, ah                      ; u8 -> u16
         mov     [tscr__y], ax
-.L9:
+.L19:
         mov     ax, [tscr__y]
         mov     bl, [drawLineVertical__y2]
         xor     bh, bh                      ; u8 -> u16
         cmp     ax, bx
-        jbe     .L12                        ; unsigned <=
-        jmp     .L11
-.L12:
+        jbe     .L22                        ; unsigned <=
+        jmp     .L21
+.L22:
 ; ---- setPixel( x, y, color )
         mov     al, [drawLineVertical__x]
         xor     ah, ah                      ; u8 -> u16
@@ -280,10 +395,10 @@ drawLineVertical:
         mov     al, [drawLineVertical__color]
         mov     [setPixel__color], al       ; u8 -> u8, no widening
         call    setPixel
-.L10:
+.L20:
         inc     word [tscr__y]
-        jmp     .L9
-.L11:
+        jmp     .L19
+.L21:
         ret
 
 ; ============================================== sub drawBackground ====
@@ -291,12 +406,12 @@ drawLineVertical:
 drawBackground:
 ; ---- for( dy = 0; dy < scoreTop; dy++ ){
         mov     byte [dy_], 0
-.L13:
+.L23:
         mov     al, [dy_]
         cmp     al, 84                      ; byte operands, no widening
-        jb      .L16                        ; unsigned <
-        jmp     .L15
-.L16:
+        jb      .L26                        ; unsigned <
+        jmp     .L25
+.L26:
 ; ---- drawLineHorizontal( dy, 0, viewW - 1, lightGreen )
         mov     al, [dy_]
         mov     [drawLineHorizontal__y], al ; u8 -> u8, no widening
@@ -304,18 +419,18 @@ drawBackground:
         mov     byte [drawLineHorizontal__x2], 159
         mov     byte [drawLineHorizontal__color], 1
         call    drawLineHorizontal
-.L14:
+.L24:
         inc     byte [dy_]
-        jmp     .L13
-.L15:
+        jmp     .L23
+.L25:
 ; ---- for( dy = scoreTop; dy < viewH; dy++ ){
         mov     byte [dy_], 84
-.L17:
+.L27:
         mov     al, [dy_]
         cmp     al, 100                     ; byte operands, no widening
-        jb      .L20                        ; unsigned <
-        jmp     .L19
-.L20:
+        jb      .L30                        ; unsigned <
+        jmp     .L29
+.L30:
 ; ---- drawLineHorizontal( dy, 0, viewW - 1, black )
         mov     al, [dy_]
         mov     [drawLineHorizontal__y], al ; u8 -> u8, no widening
@@ -323,10 +438,10 @@ drawBackground:
         mov     byte [drawLineHorizontal__x2], 159
         mov     byte [drawLineHorizontal__color], 3
         call    drawLineHorizontal
-.L18:
+.L28:
         inc     byte [dy_]
-        jmp     .L17
-.L19:
+        jmp     .L27
+.L29:
         ret
 
 ; ============================================== sub drawPlayfield ====
@@ -353,12 +468,12 @@ drawPlayfield:
 drawNet:
 ; ---- for( net = 0; net < 5; net++ ){
         mov     byte [net], 0
-.L21:
+.L31:
         mov     al, [net]
         cmp     al, 5                       ; byte operands, no widening
-        jb      .L24                        ; unsigned <
-        jmp     .L23
-.L24:
+        jb      .L34                        ; unsigned <
+        jmp     .L33
+.L34:
 ; ---- netY1 = playTop + 3 + net * 14
         mov     ax, 12
         push    ax                          ; save lhs: rhs is not a leaf
@@ -383,15 +498,376 @@ drawNet:
         mov     [drawLineVertical__y2], al  ; u8 -> u8, no widening
         mov     byte [drawLineVertical__color], 5
         call    drawLineVertical
-.L22:
+.L32:
         inc     byte [net]
-        jmp     .L21
-.L23:
+        jmp     .L31
+.L33:
+        ret
+
+; ============================================== sub drawPaddles ====
+
+drawPaddles:
+; ---- subPxY = subgridToPx( playTop, p1Y )
+        mov     ax, 10
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [p1Y]
+        sar     ax, 1                       ; signed >>
+        sar     ax, 1
+        mov     bx, ax
+        pop     ax
+        add     ax, bx
+        mov     [subPxY], ax
+; ---- subPxY2 = subPxY + paddleH - 1
+        mov     ax, [subPxY]
+        add     ax, 9
+        dec     ax
+        mov     [subPxY2], ax
+; ---- drawLineVertical( playLeft, subPxY, subPxY2, red )
+        mov     byte [drawLineVertical__x], 40
+        mov     ax, [subPxY]
+        mov     [drawLineVertical__y1], al  ; narrowed to u8
+        mov     ax, [subPxY2]
+        mov     [drawLineVertical__y2], al  ; narrowed to u8
+        mov     byte [drawLineVertical__color], 4
+        call    drawLineVertical
+; ---- subPxY = subgridToPx( playTop, p2Y )
+        mov     ax, 10
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [p2Y]
+        sar     ax, 1                       ; signed >>
+        sar     ax, 1
+        mov     bx, ax
+        pop     ax
+        add     ax, bx
+        mov     [subPxY], ax
+; ---- subPxY2 = subPxY + paddleH - 1
+        mov     ax, [subPxY]
+        add     ax, 9
+        dec     ax
+        mov     [subPxY2], ax
+; ---- drawLineVertical( playRight, subPxY, subPxY2, blue )
+        mov     byte [drawLineVertical__x], 118
+        mov     ax, [subPxY]
+        mov     [drawLineVertical__y1], al  ; narrowed to u8
+        mov     ax, [subPxY2]
+        mov     [drawLineVertical__y2], al  ; narrowed to u8
+        mov     byte [drawLineVertical__color], 6
+        call    drawLineVertical
+        ret
+
+; ============================================== sub clearPaddles ====
+
+clearPaddles:
+; ---- subPxY = subgridToPx( playTop, p1Y )
+        mov     ax, 10
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [p1Y]
+        sar     ax, 1                       ; signed >>
+        sar     ax, 1
+        mov     bx, ax
+        pop     ax
+        add     ax, bx
+        mov     [subPxY], ax
+; ---- subPxY2 = subPxY + paddleH - 1
+        mov     ax, [subPxY]
+        add     ax, 9
+        dec     ax
+        mov     [subPxY2], ax
+; ---- drawLineVertical( playLeft, subPxY, subPxY2, lightGreen )
+        mov     byte [drawLineVertical__x], 40
+        mov     ax, [subPxY]
+        mov     [drawLineVertical__y1], al  ; narrowed to u8
+        mov     ax, [subPxY2]
+        mov     [drawLineVertical__y2], al  ; narrowed to u8
+        mov     byte [drawLineVertical__color], 1
+        call    drawLineVertical
+; ---- subPxY = subgridToPx( playTop, p2Y )
+        mov     ax, 10
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [p2Y]
+        sar     ax, 1                       ; signed >>
+        sar     ax, 1
+        mov     bx, ax
+        pop     ax
+        add     ax, bx
+        mov     [subPxY], ax
+; ---- subPxY2 = subPxY + paddleH - 1
+        mov     ax, [subPxY]
+        add     ax, 9
+        dec     ax
+        mov     [subPxY2], ax
+; ---- drawLineVertical( playRight, subPxY, subPxY2, lightGreen )
+        mov     byte [drawLineVertical__x], 118
+        mov     ax, [subPxY]
+        mov     [drawLineVertical__y1], al  ; narrowed to u8
+        mov     ax, [subPxY2]
+        mov     [drawLineVertical__y2], al  ; narrowed to u8
+        mov     byte [drawLineVertical__color], 1
+        call    drawLineVertical
+        ret
+
+; ============================================== sub drawBall ====
+
+drawBall:
+; ---- subPxX = subgridToPx( playLeft, ballX )
+        mov     ax, 41
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [ballX]
+        sar     ax, 1                       ; signed >>
+        sar     ax, 1
+        mov     bx, ax
+        pop     ax
+        add     ax, bx
+        mov     [subPxX], ax
+; ---- subPxY = subgridToPx( playTop, ballY )
+        mov     ax, 10
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [ballY]
+        sar     ax, 1                       ; signed >>
+        sar     ax, 1
+        mov     bx, ax
+        pop     ax
+        add     ax, bx
+        mov     [subPxY], ax
+; ---- subPxY2 = subPxY + ballH - 1
+        mov     ax, [subPxY]
+        add     ax, 3
+        dec     ax
+        mov     [subPxY2], ax
+; ---- drawLineVertical( subPxX, subPxY, subPxY2, ballColor )
+        mov     ax, [subPxX]
+        mov     [drawLineVertical__x], al   ; narrowed to u8
+        mov     ax, [subPxY]
+        mov     [drawLineVertical__y1], al  ; narrowed to u8
+        mov     ax, [subPxY2]
+        mov     [drawLineVertical__y2], al  ; narrowed to u8
+        mov     al, [ballColor]
+        mov     [drawLineVertical__color], al; u8 -> u8, no widening
+        call    drawLineVertical
+; ---- drawLineVertical( subPxX + 1, subPxY, subPxY2, ballColor )
+        mov     ax, [subPxX]
+        inc     ax
+        mov     [drawLineVertical__x], al   ; narrowed to u8
+        mov     ax, [subPxY]
+        mov     [drawLineVertical__y1], al  ; narrowed to u8
+        mov     ax, [subPxY2]
+        mov     [drawLineVertical__y2], al  ; narrowed to u8
+        mov     al, [ballColor]
+        mov     [drawLineVertical__color], al; u8 -> u8, no widening
+        call    drawLineVertical
+; ---- drawLineVertical( subPxX + 2, subPxY, subPxY2, ballColor )
+        mov     ax, [subPxX]
+        add     ax, 2
+        mov     [drawLineVertical__x], al   ; narrowed to u8
+        mov     ax, [subPxY]
+        mov     [drawLineVertical__y1], al  ; narrowed to u8
+        mov     ax, [subPxY2]
+        mov     [drawLineVertical__y2], al  ; narrowed to u8
+        mov     al, [ballColor]
+        mov     [drawLineVertical__color], al; u8 -> u8, no widening
+        call    drawLineVertical
+        ret
+
+; ============================================== sub clearBall ====
+
+clearBall:
+; ---- subPxX = subgridToPx( playLeft, oBallX )
+        mov     ax, 41
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [oBallX]
+        sar     ax, 1                       ; signed >>
+        sar     ax, 1
+        mov     bx, ax
+        pop     ax
+        add     ax, bx
+        mov     [subPxX], ax
+; ---- subPxY = subgridToPx( playTop, oBallY )
+        mov     ax, 10
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [oBallY]
+        sar     ax, 1                       ; signed >>
+        sar     ax, 1
+        mov     bx, ax
+        pop     ax
+        add     ax, bx
+        mov     [subPxY], ax
+; ---- subPxY2 = subPxY + ballH - 1
+        mov     ax, [subPxY]
+        add     ax, 3
+        dec     ax
+        mov     [subPxY2], ax
+; ---- drawLineVertical( subPxX, subPxY, subPxY2, lightGreen )
+        mov     ax, [subPxX]
+        mov     [drawLineVertical__x], al   ; narrowed to u8
+        mov     ax, [subPxY]
+        mov     [drawLineVertical__y1], al  ; narrowed to u8
+        mov     ax, [subPxY2]
+        mov     [drawLineVertical__y2], al  ; narrowed to u8
+        mov     byte [drawLineVertical__color], 1
+        call    drawLineVertical
+; ---- drawLineVertical( subPxX + 1, subPxY, subPxY2, lightGreen )
+        mov     ax, [subPxX]
+        inc     ax
+        mov     [drawLineVertical__x], al   ; narrowed to u8
+        mov     ax, [subPxY]
+        mov     [drawLineVertical__y1], al  ; narrowed to u8
+        mov     ax, [subPxY2]
+        mov     [drawLineVertical__y2], al  ; narrowed to u8
+        mov     byte [drawLineVertical__color], 1
+        call    drawLineVertical
+; ---- drawLineVertical( subPxX + 2, subPxY, subPxY2, lightGreen )
+        mov     ax, [subPxX]
+        add     ax, 2
+        mov     [drawLineVertical__x], al   ; narrowed to u8
+        mov     ax, [subPxY]
+        mov     [drawLineVertical__y1], al  ; narrowed to u8
+        mov     ax, [subPxY2]
+        mov     [drawLineVertical__y2], al  ; narrowed to u8
+        mov     byte [drawLineVertical__color], 1
+        call    drawLineVertical
+        ret
+
+; ============================================== sub drawScore ====
+
+drawScore:
+        ret
+
+; ============================================== sub input ====
+
+input:
+; ---- if( keyWaiting() ){
+        call    keyWaiting
+        mov     al, [keyWaiting__ret]
+        xor     ah, ah                      ; bool -> u16
+        test    ax, ax
+        jnz     .L37
+        jmp     .L35
+.L37:
+; ---- key = readKey()
+        call    readKey
+        mov     ax, [readKey__ret]
+        mov     [key], ax
+; ---- isRunning = lo( key ) != keyEsc
+        mov     ax, [key]
+        xor     ah, ah                      ; cast to u8
+        cmp     ax, 27
+        jne     .L40                        ; unsigned !=
+        jmp     .L38
+.L40:
+        mov     ax, 1
+        jmp     .L39
+.L38:
+        xor     ax, ax
+.L39:
+        mov     [isRunning], al             ; narrowed to bool
+.L35:
+        ret
+
+; ============================================== sub update ====
+
+update:
+; ---- drawScore()
+        call    drawScore
+        ret
+
+; ============================================== sub waitMicros ====
+
+waitMicros:
+; ---- _ah = 0x86
+        mov     byte [_ah], 134
+; ---- _cx = high
+        mov     ax, [waitMicros__high]
+        mov     [_cx], ax
+; ---- _dx = low
+        mov     ax, [waitMicros__low]
+        mov     [_dx], ax
+; ---- int 0x15
+        call    int15
+        ret
+
+; ============================================== sub doWait ====
+
+doWait:
+; ---- sub doWait => waitMicros( 0, frameMicros )
+        mov     word [waitMicros__high], 0
+        mov     word [waitMicros__low], 33333
+        call    waitMicros
+        ret
+
+; ============================================== sub render ====
+
+render:
+; ---- clearBall()
+        call    clearBall
+; ---- clearPaddles()
+        call    clearPaddles
+; ---- drawNet()
+        call    drawNet
+; ---- drawBall()
+        call    drawBall
+; ---- drawPaddles()
+        call    drawPaddles
+        ret
+
+; ============================================== sub tick ====
+
+tick:
+; ---- input()
+        call    input
+; ---- update()
+        call    update
+; ---- render()
+        call    render
+; ---- doWait()
+        call    doWait
+        ret
+
+; ============================================== sub serve ====
+
+serve:
+; ---- ballSpeedY = 0
+        mov     word [ballSpeedY], 0
+; ---- volleyCount = 0
+        mov     byte [volleyCount], 0
+; ---- if( ballPlayer ){
+        mov     al, [ballPlayer]
+        test    al, al
+        jnz     .L43
+        jmp     .L41
+.L43:
+; ---- ballX = 4
+        mov     word [ballX], 4
+; ---- ballY = p1Y + 12
+        mov     ax, [p1Y]
+        add     ax, 12
+        mov     [ballY], ax
+; ---- ballSpeedX = 3
+        mov     word [ballSpeedX], 3
+; ---- ballColor = red
+        mov     byte [ballColor], 4
+        jmp     .L42
+.L41:
+; ---- ballX = ballXMax - 4
+        mov     word [ballX], 292
+; ---- ballY = p2Y + 12
+        mov     ax, [p2Y]
+        add     ax, 12
+        mov     [ballY], ax
+; ---- ballSpeedX = -3
+        mov     word [ballSpeedX], 65533
+; ---- ballColor = blue
+        mov     byte [ballColor], 6
+.L42:
         ret
 
 ; ============================================== sub start ====
 
 start:
+; ---- seedRandom( ticks() )
+        call    ticks
+        mov     ax, [ticks__ret]
+        mov     [seedRandom__s], ax
+        call    seedRandom
 ; ---- isWinScreen = false
         mov     byte [isWinScreen], 0
 ; ---- score1 = 0
@@ -402,16 +878,33 @@ start:
         mov     byte [p1Speed], 0
 ; ---- p2Speed = 0
         mov     byte [p2Speed], 0
-; ---- ballSpeedX = 0
-        mov     word [ballSpeedX], 0
-; ---- ballSpeedY = 0
-        mov     word [ballSpeedY], 0
-; ---- volleyCount = 0
-        mov     byte [volleyCount], 0
+; ---- p1Y = paddleYHome
+        mov     word [p1Y], 122
+; ---- p2Y = paddleYHome
+        mov     word [p2Y], 122
+; ---- oP1Y = p1Y
+        mov     ax, [p1Y]
+        mov     [oP1Y], ax
+; ---- oP2Y = p2Y
+        mov     ax, [p2Y]
+        mov     [oP2Y], ax
+; ---- ballPlayer = randomBelow( 2 )
+        mov     word [randomBelow__n], 2
+        call    randomBelow
+        mov     ax, [randomBelow__ret]
+        mov     [ballPlayer], al            ; narrowed to u8
 ; ---- drawBackground()
         call    drawBackground
 ; ---- drawPlayfield()
         call    drawPlayfield
+; ---- serve()
+        call    serve
+; ---- oBallX = ballX
+        mov     ax, [ballX]
+        mov     [oBallX], ax
+; ---- oBallY = ballY
+        mov     ax, [ballY]
+        mov     [oBallY], ax
         ret
 
 ; ==================================================== int helpers ====
@@ -427,6 +920,24 @@ int10:
         mov     si, [_si]
         mov     di, [_di]
         int     0x10
+        mov     [_ax], ax
+        mov     [_bx], bx
+        mov     [_cx], cx
+        mov     [_dx], dx
+        mov     [_si], si
+        mov     [_di], di
+        pop     es
+        ret
+
+int15:
+        push    es
+        mov     ax, [_ax]
+        mov     bx, [_bx]
+        mov     cx, [_cx]
+        mov     dx, [_dx]
+        mov     si, [_si]
+        mov     di, [_di]
+        int     0x15
         mov     [_ax], ax
         mov     [_bx], bx
         mov     [_cx], cx
@@ -492,6 +1003,13 @@ _di             dw      0
 
 ; ---- variables ----
 readKey__ret    dw      0        ; u16
+keyWaiting__ret db      0        ; bool
+rand__randomSeed dw      42        ; u16 = 42
+seedRandom__s   dw      0        ; u16
+nextRandom__ret dw      0        ; u16
+randomBelow__n  dw      0        ; u16
+randomBelow__ret dw      0        ; u16
+ticks__ret      dw      0        ; u16
 tpal__setPaletteColor__index db      0        ; u8
 tpal__setPaletteColor__r db      0        ; u8
 tpal__setPaletteColor__g db      0        ; u8
@@ -514,17 +1032,34 @@ drawLineVertical__y1 db      0        ; u8
 drawLineVertical__y2 db      0        ; u8
 drawLineVertical__color db      0        ; u8
 isWinScreen     db      0        ; bool
+isRunning       db      1        ; bool = 1
 score1          db      0        ; u8
 score2          db      0        ; u8
+p1Y             dw      0        ; i16
+p2Y             dw      0        ; i16
+oP1Y            dw      0        ; i16
+oP2Y            dw      0        ; i16
 p1Speed         db      0        ; u8
 p2Speed         db      0        ; u8
+ballX           dw      0        ; i16
+ballY           dw      0        ; i16
+oBallX          dw      0        ; i16
+oBallY          dw      0        ; i16
 ballSpeedX      dw      0        ; i16
 ballSpeedY      dw      0        ; i16
+ballPlayer      db      0        ; u8
+ballColor       db      0        ; u8
 volleyCount     db      0        ; u8
 dy_             db      0        ; u8
 net             db      0        ; u8
 netY1           db      0        ; u8
 netY2           db      0        ; u8
+subPxX          dw      0        ; i16
+subPxY          dw      0        ; i16
+subPxY2         dw      0        ; i16
+key             dw      0        ; u16
+waitMicros__high dw      0        ; u16
+waitMicros__low dw      0        ; u16
 
 ; ---- arrays ----
 tpal__palette   db      224, 224, 244, 145, 255, 166, 206, 208, 255, 16, 16, 16, 255, '1S', 2, 204, ']K?', 243, 252, 252, 252        ; u8[24] const

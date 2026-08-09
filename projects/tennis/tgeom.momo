@@ -10,6 +10,11 @@ const playW = playRight - playLeft + 1
 const playH = playBottom - playTop + 1
 const centerX = ( playLeft + playRight ) / 2
 const scoreTop = 84
+const scoreY = scoreTop + 1
+const scoreX0 = 44
+const scoreX1 = 51
+const scoreX2 = 101
+const scoreX3 = 108
 
 const paddleW = 1
 const paddleH = 9
@@ -27,3 +32,4 @@ const subgridScale = 4
 const paddleYMax = ( playH - paddleH  - 2 ) * subgridScale
 const ballXMax = ( playW - ballW - 2 ) * subgridScale
 const ballYMax = ( playH - ballH - 2 ) * subgridScale
+const paddleYHome = paddleYMax / 2
