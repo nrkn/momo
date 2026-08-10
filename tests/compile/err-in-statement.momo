@@ -1,0 +1,4 @@
+// EXPECT-ERROR: in8 reads a port rather than writing one
+u16 p
+p = 0x3DA
+in8( p )

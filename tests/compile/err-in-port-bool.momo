@@ -1,0 +1,4 @@
+// EXPECT-ERROR: in16 needs a port - a bool is not one
+bool flag
+u16 w
+w = in16( flag )

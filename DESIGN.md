@@ -25,8 +25,8 @@ paper even when nothing needs it yet. Momo is where they finally have to compile
 and §16 and §17 both did, close enough to what was written down that the sections
 needed correcting rather than rewriting.
 
-**Status.** §1-§18 describe what is built. §19, §22 and §23 are designed and not
-yet built, and say so in their headings. §20 collects open questions, §21
+**Status.** §1-§18 and §22 describe what is built. §19 and §23 are designed and
+not yet built, and say so in their headings. §20 collects open questions, §21
 longer-term directions. Section numbers are stable - `group` was built where it
 sits rather than renumbered into the built range, because the numbers are
 referenced from source comments and from each other, and the planned sections are
@@ -54,7 +54,7 @@ names memory outside our segment, so the emitter loads ES and prefixes the acces
 with `es:`. Nothing else touches it, the int helpers preserve it, and a program
 with no `far` declaration emits no segment register at all.
 
-### Instruction subset - 37 mnemonics
+### Instruction subset - 39 mnemonics
 
 | Group | Instructions |
 |---|---|
@@ -62,19 +62,23 @@ with no `far` declaration emits no segment register at all.
 | Arith | `add` `sub` `inc` `dec` `neg` `cmp` `mul` `div` `idiv` `cbw` `cwd` |
 | Logic | `and` `or` `xor` `not` `test` `shl` `shr` `sar` |
 | Control | `jmp` `je` `jne` `jl` `jle` `jg` `jge` `jb` `jbe` `ja` `jae` `call` `ret` |
-| System | `int` `pushf` |
+| System | `int` `pushf` `in` `out` |
 
 `jz`/`jnz` also appear in the output. They are the same instructions as
 `je`/`jne` - NASM assembles both spellings to one opcode - and the emitter uses
 the z-spelling after a `test`, where "zero" is the honest reading, and the
-e-spelling after a `cmp`. Spellings, not additions: the count stays 37.
+e-spelling after a `cmp`. Spellings, not additions: the count stays 39.
 
-**All 39 spellings are emitted by some committed program, and nothing outside
+**All 41 spellings are emitted by some committed program, and nothing outside
 them is emitted by any** - and `npm test` asserts it, reading this table rather
 than a copy (§14). It did not hold until `cmptest` was written: `jle`, `jg` and
 `jz` had no program behind them, because nothing did a signed `<=` or `>`. The
 count in the heading is checked against the table too, which is the mistake
 `pushf` made once already.
+
+`in` and `out` were the last additions and the largest single one since the
+table was written - 37 to 39. They arrived the way §22 said they would: only
+once a program wanted them, and `porttest` is that program.
 
 Deliberately absent:
 
@@ -84,10 +88,8 @@ Deliberately absent:
 - **`enter`/`leave`, `pusha`/`popa`, 3-operand `imul`, `push imm`, `shl r,imm8`** - all 186+.
 - **`setcc`** - 386+. This is why conditions compile in control-flow context (§9).
 - Segment ops, BCD/ASCII adjusts, `xlat`, far calls.
-- **`in`/`out`** - absent, but **designed rather than rejected; see §22.** They are
-  what EGA/VGA planar modes, the PIT and the speaker need, and building them takes
-  this table from 37 to 39. Everything else in this list is out on principle;
-  these two are out only until something wants them, and something now does.
+- **`rep` and the string instructions**, including the string port forms - more
+  mnemonics, and nothing has wanted them; §22 says why for `rep outsb`.
 - **Flag manipulation**, with one exception. `pushf` earns its place by being the
   only way to read carry without `setcc` (386+), and carry is how DOS and BIOS
   report failure - see `_cf` in §10. It appears once per int helper and nowhere
@@ -2140,9 +2142,10 @@ up, so where both fit, this is the more Momo-shaped answer.
   built, so the text buffer and mode 13h are ordinary memory, and `view` (§17)
   names a row or a tile inside either. What is still open is a *library* - mode
   setting, sprites, clipping - rather than any access to the hardware.
-- **Port I/O (`in`/`out`)** - **designed; see §22.** Two instructions, needed for
+- **Port I/O (`in`/`out`)** - **built; see §22.** Two instructions, needed for
   EGA/VGA planar modes, the PIT, and the speaker. It was out of scope until a
-  program wanted one of those, and smooth scrolling is the program that does.
+  program wanted one of those; by the time it was built three did, and the
+  scroll that first argued for it was still the one not yet written.
 - **`bool _cf`** - **built; see §10.** DOS and BIOS report failure in carry, and
   nothing in Momo could see it. Read-only, and captured only when something
   reads it, so a program that ignores carry pays nothing.
@@ -2785,19 +2788,45 @@ addressing scheme entirely, not just a different instruction.
 
 ---
 
-## 22. Planned: port I/O
+## 22. Port I/O
 
-Designed and not yet built, like §19 - and for the reason §20 gave: this was out
-of scope until a program wanted it, and **Carmack-style scrolling is the program
-that does.** Coarse scroll plus fine scroll plus adaptive tile refresh, which is
-how Commander Keen moved an EGA screen smoothly on hardware with no blitter.
+**Built.** `projects/porttest` exercises all four builtins and is the worked
+example for this section (§14) - read it alongside the rules below.
 
-**A second thing wants it now, for an unrelated reason.** `lib/std/time.momo`
-reads the BIOS tick counter at 0040:006C, which the timer interrupt advances
-18.2065 times a second - so the finest wait Momo can express is 55ms. That paces
-a roguelike and cannot pace an animation, and no library can improve on it: the
-rate is the PIT's divisor, and changing that is `out` and nothing else. Timing is
-therefore the second argument for this section, and the one a game meets first.
+It waited for the reason §20 gave: out of scope until a program wanted it, and
+**Carmack-style scrolling is the program that does.** Coarse scroll plus fine
+scroll plus adaptive tile refresh, which is how Commander Keen moved an EGA
+screen smoothly on hardware with no blitter.
+
+By the time it was built three things wanted it, and the scroll was the one
+still not written. The other two are below.
+
+**Timing was the second.** `lib/std/time.momo` reads the BIOS tick counter at
+0040:006C, which the timer interrupt advances 18.2065 times a second - so the
+finest wait that library can express is 55ms. That paces a roguelike and cannot
+pace an animation, and no library can improve on it: the rate is the PIT's
+divisor, and changing that is `out` and nothing else. It is also the argument a
+game meets first, before it ever wants to scroll.
+
+Retrace polling turns out to answer it without touching the PIT at all. Mode 13h
+refreshes at 70Hz, so waiting on bit 3 of 0x3DA is both a finer clock than the
+BIOS tick and the cure for tearing - one loop for two problems:
+
+```momo
+sub waitRetrace {
+  while ( in8( 0x3DA ) & 8 ) { }        // let a retrace in progress finish
+  while ( !( in8( 0x3DA ) & 8 ) ) { }   // then wait for the next to start
+}
+```
+
+**Two-player input was the third**, and it is the one this section does *not*
+finish. BIOS `int 16h` reports keystrokes rather than key state: no key-up, and
+no way to see two players holding keys at once. Reading scancodes needs port
+0x60, which needs these builtins - but polling it means masking IRQ1 at the PIC
+first, since the BIOS handler would otherwise consume every scancode before the
+program saw it. That is a keyboard module with a hazard of its own (a masked
+IRQ1 left behind is a dead keyboard), and it wants its own design pass rather
+than a paragraph here.
 
 ```momo
 out8( 0x3C4, 0x02 )              // sequencer index: map mask
@@ -2858,26 +2887,65 @@ same and for the same reasons - four names rather than a `_port` array, since a
   register poke.
 
 Codegen is the same shape as `poke`: the port into DX, the value into AL or AX,
-then the instruction.
+then the instruction. The order is the other way round from how it reads, though,
+and that is not arbitrary:
 
 ```nasm
-        mov     dx, 0x3C4
-        mov     ax, 0x0F02
+; ---- out16( 0x3C4, 0x0F02 )
+        mov     ax, 3842
+        mov     dx, 964
         out     dx, ax
 ```
+
+**A constant port is loaded last**, because `mov dx, imm` cannot disturb what the
+value left in AX, and doing it the other way would need the value computed around
+a live DX. **A computed port is pushed** rather than held in DX while the value is
+worked out:
+
+```nasm
+; ---- out8( port, u8( n * 3 ) )
+        mov     ax, [port]
+        push    ax                          ; save the port while the value is computed
+        mov     ax, [n]
+        mov     bx, 3
+        mul     bx
+        xor     ah, ah
+        pop     dx
+        out     dx, al
+```
+
+That is the same push §10 uses to protect a `poke` address, for the same reason
+one step removed - see the correction under "What it cost".
 
 **The `imm8` port form is deliberately skipped.** `out 0x21, al` exists and is
 shorter, but every port above is greater than 0xFF, so it would never fire on the
 code this feature is for.
 
-### What it costs
+### What it cost
 
-**Two mnemonics - §1 goes from 37 to 39**, which is the largest single addition to
+**Two mnemonics - §1 went from 37 to 39**, which is the largest single addition to
 the subset since it was written down, and the reason this needs a section rather
-than a bullet. Nothing else moves: no new register pressure beyond DX, which §9
-already documents as scratch and never live; no segment involvement; and §12's
-static memory analysis is untouched, because ports are not memory and nothing here
-allocates.
+than a bullet. No segment involvement, and §12's static memory analysis is
+untouched, because ports are not memory and nothing here allocates.
+
+Six files, all of them doing what `peek`/`poke` already did: `tokens`, `ast`,
+`parser`, `resolver`, `emitter`, `printer`. The lexer and the call graph needed
+nothing. Nine compile tests and one project.
+
+**The claim about DX was half right, and the half that was wrong is the whole of
+the codegen.** This section said "no new register pressure beyond DX, which §9
+already documents as scratch and never live". True of DX at rest - but a port has
+to *stay* in DX from the load until the `out`, and `mul` and `div` both write DX.
+So `out8( port, u8( n * 3 ) )` with the port parked in DX emits a multiply between
+the two and sends the value to whatever the multiply left there. A constant port
+sidesteps it by being loaded last; a computed one is pushed. "Scratch and never
+live" describes a register nothing keeps a value in, and this is the first
+construct that needs to.
+
+**The subset assertion did exactly its job.** The first full run after the emitter
+worked failed with `"out" (in porttest.asm) is not in §1's table` - the code was
+right and the documentation had not caught up, which is the direction §14 built
+that test to catch.
 
 ### On danger, stated once and accurately
 

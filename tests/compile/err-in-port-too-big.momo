@@ -1,0 +1,7 @@
+// EXPECT-ERROR: port 80000 does not fit in 16 bits
+//
+// Written as a sum rather than a literal on purpose: the lexer rejects an
+// out-of-range literal first, with its own message, so a bare 80000 would never
+// reach the port check at all.
+u8 b
+b = in8( 40000 + 40000 )

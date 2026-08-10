@@ -1,0 +1,93 @@
+// porttest.momo - in8, in16, out8 and out16 (DESIGN §22).
+//
+// The worked example for that section, in the same shape as fartest and
+// viewtest: every write is read back, and each block says why the number it
+// prints is the right one.
+//
+// **What this can honestly claim.** Under DOSBox it asserts that we emitted the
+// right port instruction and that DOSBox's VGA model agreed. It does not assert
+// that real hardware would - readback is not reliable on every real VGA even
+// where DOSBox permits it, and §22 says so. The registers used here are chosen
+// to be the safe ones: two pure index selectors, one data register that is
+// saved and restored, and one input-only status port.
+//
+// Nothing here sets a video mode. The sequencer and graphics controller exist in
+// text mode exactly as they do in mode 13h, so the test leaves the screen alone.
+
+include "std/io.momo"
+include "std/time.momo"
+
+u8  saved
+u16 start
+u16 retraces
+u8  nowIn
+bool wasIn
+
+// ---- the sequencer index, which is a pure selector ----
+//
+// Writing it chooses which register 0x3C5 refers to and has no other effect, so
+// it is the safest thing on the card to write. It reads back what was written.
+
+out8( 0x3C4, 2 )
+putNumber( in8( 0x3C4 ) )
+newline()
+
+// ---- the graphics controller index, the same idea on a different chip ----
+
+out8( 0x3CE, 5 )
+putNumber( in8( 0x3CE ) )
+newline()
+
+// ---- out16: index and data in one instruction ----
+//
+// This is the EGA idiom §22 exists for - `out dx, ax` writes the index in AL and
+// the data in AH, halving the cost of every register poke. The map mask is real
+// state, so it is saved first and put back at the end.
+
+out8( 0x3C4, 2 )
+saved = in8( 0x3C5 )
+
+out16( 0x3C4, 0x0F02 )
+
+// The low byte went to the index...
+putNumber( in8( 0x3C4 ) )
+newline()
+
+// ...and the high byte to the data register the index now selects.
+putNumber( in8( 0x3C5 ) )
+newline()
+
+out8( 0x3C4, 2 )
+out8( 0x3C5, saved )
+
+// ---- in8 on a port that is input only ----
+//
+// 0x3DA cannot be read back from a write, so this is the one block that tests
+// `in` against something the program did not put there. Bit 3 is vertical
+// retrace. Counted over exactly one BIOS tick - aligned to a tick boundary
+// first, or the window is a partial tick and the count means nothing.
+//
+// A tick is 54.9ms and the display refreshes at 70Hz, so the answer is 3 or 4.
+// Asserted as a range rather than a value, the way heaptest asserts _hsize: a
+// wrong bit mask reads 0 or counts every poll, and both fall outside it.
+
+start = ticks()
+while ( ticks() == start ) { }
+
+start = ticks()
+retraces = 0
+wasIn = false
+
+while ( ticks() == start ) {
+  nowIn = in8( 0x3DA ) & 8
+
+  if ( nowIn != 0 ) {
+    if ( !wasIn ) retraces++
+    wasIn = true
+  } else {
+    wasIn = false
+  }
+}
+
+putNumber( retraces >= 2 && retraces <= 6 ? 1 : 0 )
+newline()

@@ -254,5 +254,5 @@ The cost of waiting is that the first thing a visitor reads is the weakest
 document in the repo. That trade is made deliberately, and preferred to shipping a
 second draft in the same voice as the first.
 
-231 tier-1 assertions (133 compile tests, 25 golden `.asm`, 25 type, 45 round
-trip, 3 subset), 21 e2e programs, all green.
+242 tier-1 assertions (142 compile tests, 26 golden `.asm`, 25 type, 46 round
+trip, 3 subset), 22 e2e programs, all green.

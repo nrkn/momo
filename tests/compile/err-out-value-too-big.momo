@@ -1,0 +1,4 @@
+// EXPECT-ERROR: value 300 does not fit in u8
+u16 p
+p = 0x3C4
+out8( p, 300 )
