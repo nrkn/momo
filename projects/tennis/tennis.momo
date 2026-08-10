@@ -201,7 +201,11 @@ sub input {
     isRunning = lo( key ) != keyEsc
   }
 
-  // apply input to p1Y, p2Y, clamp
+  // apply input to p1Y, p2Y, clamp - no "keyup" without §22 so this is going
+  // to be a pain for paddle acceleration when key held down, both players' 
+  // keys etc - we might actually have to land §22 first - that would also give
+  // us frame sync which would help with flicker more than any amount of 
+  // optimisation does
 }
 
 // recalculate state
