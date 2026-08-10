@@ -25,8 +25,8 @@ paper even when nothing needs it yet. Momo is where they finally have to compile
 and §16 and §17 both did, close enough to what was written down that the sections
 needed correcting rather than rewriting.
 
-**Status.** §1-§18 and §22 describe what is built. §19 and §23 are designed and
-not yet built, and say so in their headings. §20 collects open questions, §21
+**Status.** §1-§18 and §22 describe what is built. §19, §23 and §24 are designed
+and not yet built, and say so in their headings. §20 collects open questions, §21
 longer-term directions. Section numbers are stable - `group` was built where it
 sits rather than renumbered into the built range, because the numbers are
 referenced from source comments and from each other, and the planned sections are
@@ -3132,3 +3132,267 @@ waited for the string library. If two or three `mobIds`-shaped clusters turn up 
 one file, that is the answer; if the candidates all turn out to be sub-locals or
 genuinely program-wide state, the intuition was about tidiness, which is a real
 thing and a different feature.
+
+---
+
+## 24. Planned: interrupt handlers
+
+Designed and not yet built. A handler is a routine the hardware calls: the timer
+every tick, the keyboard on every press and release. Momo cannot write one today,
+because a handler ends in `iret` rather than `ret` and there is no way to say so.
+
+**What actually wants it, in the order the feature set favours.**
+
+- **Music and sound.** A beep is fire-and-forget through §22's ports, but a tune
+  has to advance while the program is doing something else. Sequencing it from
+  the game loop couples the music to the frame rate - every frame that runs long
+  stretches the notes, which is why so many DOS games play faster on a faster
+  machine. This is the case polling genuinely cannot substitute for.
+- **The keyboard**, but only with chaining below. A handler that replaces the
+  BIOS one loses the buffer, the shift state and Ctrl-Alt-Del - the same damage
+  as masking IRQ1, arrived at differently.
+- **A crash-cleanup hook on `int 0`**, which is the least settled of the three;
+  see the open question at the end.
+
+Timing is deliberately absent from that list. Retrace polling (§22) is a finer
+clock than the BIOS tick, and latching PIT channel 0 through `in8` reads the
+count *within* the current tick at 838ns resolution without reprogramming
+anything. Both arrived with ports, and neither needs a handler.
+
+### The shape, and the prologue §2 says does not exist
+
+A handler differs from a `sub` in four ways: it saves every register it touches,
+it fixes up DS, it ends with `iret`, and for a hardware IRQ it acknowledges the
+interrupt controller.
+
+```nasm
+onTimer:
+        push    ax
+        push    bx
+        push    dx
+        push    ds
+        mov     ax, cs                      ; tiny model: our segment
+        mov     ds, ax
+; ---- ticks++
+        inc     word [ticks]
+; ---- out8( 0x20, 0x20 )
+        mov     al, 32
+        mov     dx, 32
+        out     dx, al
+        pop     ds
+        pop     dx
+        pop     bx
+        pop     ax
+        iret
+```
+
+The DS fixup is not optional. Interrupts fire while DOS is running, when DS is
+DOS's, and every `[label]` in the body is DS-relative - without it a handler
+reads and writes someone else's memory. **This is the first routine in Momo with
+a prologue and an epilogue**, and §2's "no prologue, no epilogue" needs
+qualifying rather than deleting: ordinary routines still have neither, and this
+one has them because it is entered by hardware rather than by a call.
+
+**The EOI is not emitted for you.** Whether a handler acknowledges, and whether
+it does so itself or leaves it to a handler it chains to, is policy - and §22
+already made `out8` visible at every use, so it costs nothing to keep this
+visible too.
+
+### What already exists and does most of the work
+
+**The recursion check is the reentrancy check.** §2 rejects call cycles because
+locals are statically allocated; an interrupt is an unplanned call into the
+middle of one. Nothing reachable from a handler may also be reachable from the
+entry point, and the resolver already builds a label-keyed call graph and walks
+it for precisely this shape. It is one more walk and an intersection, reported in
+the same terms:
+
+```
+error: putNumber is reachable from both the entry point and the handler
+onTimer - locals are statically allocated, so an interrupt during a call
+would overwrite that call's own variables
+```
+
+**Handlers cannot collide with each other**, which halves the check. The CPU
+clears IF when it services an interrupt, so a handler runs uninterruptible until
+its `iret`. Only handler-against-main matters, never handler-against-handler -
+and `sti` inside a handler is therefore an error rather than a hazard, at no
+cost, since nothing wants it.
+
+**`addr` is the liveness signal.** Installation is `_dx = addr( onTimer )`, so a
+handler whose address is never taken is provably never installed, and pruning
+drops it. That is what `addr` already does for an array (§5): taking one keeps
+otherwise unused storage alive. `addr()` rejecting routines is the single
+existing rule that has to relax.
+
+**The `int` ban falls out rather than being imposed.** A handler may not use
+`int`, for two reasons pointing the same way: DOS is not reentrant, and the
+reserved globals `_ax`..`_di` belong to whatever the main line was staging. For
+the same reason a handler may not assign to them.
+
+**Static locals are an advantage here.** A handler runs on whichever stack was
+current - DOS's, during an `int 21h` - so it has to be frugal, and a Momo handler
+needs no stack for locals at all. Only the register saves and expression
+temporaries, both of which §12 already counts. That sharpens something §12 calls
+out as its own weak point: the 256-byte interrupt reserve is "a documented
+allowance rather than a derived number", and with handlers your half of it
+becomes derived and checkable.
+
+**The register save set is computable.** §9's contract is AX accumulator, BX
+index, DX scratch, CL for shift counts, SI/DI/BP unused - and the emitter knows
+whether a given handler used CL, or touched a `far` region and so needs ES. The
+pushes can be the minimum that handler actually needs rather than a blanket save,
+which matters when the whole body is often three instructions.
+
+### The surface
+
+A modifier, the way `local` is - §11 already established that any declaration
+takes one:
+
+```momo
+interrupt sub onTimer {
+  ticks++
+  out8( 0x20, 0x20 )                  // EOI, because we are not chaining
+}
+```
+
+No parameters and no return type: it is called by hardware, so there is nothing
+to pass and nowhere to return a value. `return` remains a bare early exit, which
+lands on the epilogue rather than emitting a `ret`.
+
+Installation stays explicit, in the same register as `peek`/`poke` and `in`/`out`
+being visible at every use site:
+
+```momo
+far u16[1024] ivt = 0x0000            // the vector table, as words
+
+u16[2] oldTimer
+
+// save: int 8 lives at 0000:0020, so words 16 and 17
+oldTimer[0] = ivt[16]
+oldTimer[1] = ivt[17]
+
+// install: AH=25h takes DS:DX, and DS is already ours - CS is never named
+_ah = 0x25
+_al = 8
+_dx = addr( onTimer )
+int 0x21
+```
+
+That DS-implicit install is what lets a program point a vector at itself without
+any way to read CS. **Restoring cannot use the same route**, because the original
+vector points into the BIOS at F000 and AH=25h would need DS set to a segment
+Momo cannot name - so a restore writes the two IVT words directly. See the cost
+below.
+
+### Chaining, and the far-call carve-out
+
+A handler that replaces the previous one loses whatever that one did. Chaining
+calls it instead, and the mechanism is a **far indirect call**: `call far [mem]`
+reads four bytes - offset then segment - and calls that, pushing CS and IP where
+a near call pushes IP alone.
+
+One subtlety makes the idiom look strange the first time. The previous handler
+ends in `iret`, which pops IP, CS **and FLAGS** - three things, where the call
+pushed two. So the flags are faked first:
+
+```nasm
+        pushf                         ; the flags the interrupt would have pushed
+        call    far [oldTimer]        ; its iret pops all three, returning here
+```
+
+`pushf` already exists, earning its place in §1 for `_cf` (§10).
+
+```momo
+interrupt sub onTimer {
+  ticks++
+  chain( oldTimer )                   // pushf + call far [oldTimer]
+}
+```
+
+Four rules, each mirroring something that already exists:
+
+- **Only inside an `interrupt sub`**, so a call the compiler cannot see never
+  appears in ordinary code and the call graph stays complete everywhere else.
+- **The operand is a named `u16[2]` global**, not an expression - the same
+  restriction §16 puts on a far segment, and for the same reason: it becomes a
+  direct memory operand with nothing left to compute.
+- **The cost is charged to the interrupt reserve**, not to §12's worst-case
+  figure. A chained BIOS handler uses an unknowable amount of stack, which is
+  exactly the category that reserve was written for.
+- **No EOI is emitted around it.** The chained handler sends one, and a second
+  would be wrong.
+
+`jmp far` tail-chaining is deliberately excluded. It is cheaper and never
+returns, which collides with both the unreachable-code rule (§5) and the
+every-path-returns analysis (§2) for a saving nothing would notice.
+
+### What it costs
+
+**`iret` is unavoidable - 39 to 40.** The far call adds nothing: `call far [mem]`
+is the `call` mnemonic with a different operand form, and §1's table is a list of
+mnemonics. `retf` would be a genuine addition, and is not needed here - it is the
+other direction, a routine *called* far, which only a mouse event callback wants.
+
+**`cli`/`sti` take it to 42, and the reason is the restore path rather than the
+install.** Writing the two IVT words leaves a window where the vector is half
+ours and half the BIOS's, and either order is unsafe. The alternative is to
+accept a race that is vanishingly rare and catastrophic when it fires, which is
+the wrong shape for a feature whose whole job is cleaning up after itself. §22's
+own out-of-scope list named these two for exactly this.
+
+**Two claims in §1 get qualified.** "CS, DS and SS are never emitted, never
+overridden, never thought about" becomes true of ordinary code and false inside a
+handler, which needs the DS fixup and, if it chains, leaves the segment entirely.
+And "far calls" moves out of the deliberately-absent list into a carve-out. Both
+were stated as pleasant consequences of the tiny model rather than as invariants,
+and neither is load-bearing for anything else.
+
+**§12 keeps its exactness**, which is the claim worth protecting. Every figure it
+computes for your own code stays computed; what a chained handler costs lands in
+the reserve, where BIOS handlers already sat.
+
+### What this does not buy
+
+Not speed: a handler is not faster than the code that would have polled, it is
+only independent of it. Not timing - §22 settled that. Not general far calls,
+which buy nothing in a self-contained `.COM` and would cost the call graph
+everywhere.
+
+And not, on its own, a safe keyboard. The chaining carve-out is what turns an
+ISR keyboard from "the same damage as masking IRQ1, differently arranged" into
+one with no hazard at all. Handlers without chaining would leave the keyboard
+exactly where §22 left it.
+
+### The open question is how a fault handler exits
+
+`int 0` was the tidiest argument for this section - a divide by zero is
+effectively Momo's only crash, and a handler could unmask IRQ1 and restore
+vectors before dying, closing the one hole §22's keyboard design has to live
+with. Working it through, the exit is the problem.
+
+Terminating with `int 21h` breaks the no-`int` rule and is genuinely unsafe
+mid-fault. Setting a flag and `iret`-ing is clean, and depends on where the CPU
+pushed the return address: **8086 and 8088 push the address of the instruction
+after the `div`, while 286 and later push the faulting instruction itself.** So
+the same handler resumes cleanly on the target CPU and spins forever on the
+machine most people would run it on.
+
+That is resolvable - a flag and an `iret` is right for genuine 8086, and anything
+later needs the faulting instruction skipped, which means knowing its length. It
+is recorded here as unsettled rather than designed, because the other two cases
+do not depend on it and this one should not hold them up.
+
+### Testing
+
+A timer handler is testable under tier 2 the way §22's retrace count is: install
+it, let it run for a known number of BIOS ticks, print the count, and assert a
+range rather than a value. That catches a handler that never fires, one that
+fires at the wrong rate, and a missing EOI - which stops the interrupt line dead
+and shows up as a count of one.
+
+What tier 2 cannot check is the reentrancy rule, since a violation is a
+corruption rather than a crash. That belongs in tier 1, where the compile tests
+can assert the error fires for a routine shared between a handler and the entry
+point - and, more importantly, that it does *not* fire for one reachable from two
+handlers, which IF makes safe.
