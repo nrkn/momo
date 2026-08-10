@@ -41,11 +41,6 @@ u8 ballPlayer
 u8 ballColor 
 u8 volleyCount
 
-// subgrid to pixels
-// playfield offset, eg playRight, playLeft, playTop etc 
-// object offset, eg ballX, ballY, p1Y etc
-const subgridToPx( i16 play, i16 obj ) = play + 1 + (obj >> 2)
-
 // -- start
 
 saveMode()
@@ -54,18 +49,16 @@ initPal()
 
 // -- main
 
-u8 dy
+u16 dy
 
 // draw once at start
 sub drawBackground {
-  // can be replaced with just filling the first part of the buffer, then the
-  // second - do it word at a time too
-  
-  for( dy = 0; dy < scoreTop; dy++ ){
-    drawLineHorizontal( dy, 0, viewW - 1, lightGreen )
+  // demos the word blitting we will use extensively later
+  for( dy = 0; dy < scoreTopWord; dy++ ){
+    pxwords[ dy ] = lightGreenW
   }
-  for( dy = scoreTop; dy < viewH; dy++ ){
-    drawLineHorizontal( dy, 0, viewW - 1, black )
+  for( dy = scoreTopWord; dy < screenWord; dy++ ){
+    pxwords[ dy ] = blackW
   }
 }
 
@@ -88,6 +81,11 @@ sub drawNet {
   }
 }
 
+// subgrid to pixels
+// playfield offset, eg playRight, playLeft, playTop etc 
+// object offset, eg ballX, ballY, p1Y etc
+const subgridToPx( i16 play, i16 obj ) = play + 1 + (obj >> 2)
+
 i16 subPxX
 i16 subPxY
 i16 subPxY2
@@ -101,8 +99,8 @@ i16 subPxY2
 // BUT wait and see how it plays out before prematurely adding this lol
 // todo: neither draw/clearPaddles nor draw/clearBall need to call 
 // drawLineVertical - they can be unrolled to just 9 direct 
-// pixels[n] assignments
-
+// pixels[n] assignments - oh, but pixel doubling... can do 1 on x with a word
+// but still have to double rows!
 
 sub drawPaddles {
   subPxY = subgridToPx( playTop, p1Y )
@@ -117,12 +115,12 @@ sub drawPaddles {
 }
 
 sub clearPaddles {
-  subPxY = subgridToPx( playTop, p1Y )
+  subPxY = subgridToPx( playTop, oP1Y )
   subPxY2 = subPxY + paddleH - 1
 
   drawLineVertical( playLeft, subPxY, subPxY2, lightGreen )
 
-  subPxY = subgridToPx( playTop, p2Y )
+  subPxY = subgridToPx( playTop, oP2Y )
   subPxY2 = subPxY + paddleH - 1
 
   drawLineVertical( playRight, subPxY, subPxY2, lightGreen )
@@ -150,8 +148,48 @@ sub clearBall {
   drawLineVertical( subPxX + 2, subPxY, subPxY2, lightGreen )
 }
 
+u16 tile
+u8 i
+u8 j
+sub drawSprite( u8 index, u8 dx, u8 dy ){
+  tile = index * 25
+  
+  for( j = 0; j < 5; j++ ){
+    for( i = 0; i < 5; i++ ){
+      setPixel( i + dx, j + dy, textSprites[ tile ] )
+
+      tile++
+    }    
+  }
+}
+
 // overdraws existing, no clear needed
-sub drawScore {}
+u8 digit0
+u8 digit1
+u8 digit2
+u8 digit3
+sub drawScore {
+  if( score1 < 10 ){
+    digit0 = 0
+    digit1 = score1
+  } else {
+    digit0 = 1
+    digit1 = score1 - 10
+  }
+
+  if( score2 < 10 ){
+    digit2 = 0
+    digit3 = score2
+  } else {
+    digit2 = 1
+    digit3 = score2 - 10
+  }
+
+  drawSprite( digit0, scoreX0, scoreY )
+  drawSprite( digit1, scoreX1, scoreY )
+  drawSprite( digit2, scoreX2, scoreY )
+  drawSprite( digit3, scoreX3, scoreY )
+}
 
 u16 key
 // player movements, ESC to exit
@@ -162,17 +200,24 @@ sub input {
 
     isRunning = lo( key ) != keyEsc
   }
+
+  // apply input to p1Y, p2Y, clamp
 }
 
 // recalculate state
 sub update {
+  ballX += ballSpeedX
+  ballY += ballSpeedY
 
-  // todo: if scored check - no point drawing 100px otherwise - that's why it's
-  // here and not render, and the branch to check doesn't affect frame rate,
-  // as we're in between serves anyway so ball not in play
-  //
+  // bounce off top/bottom? reflect
+  // paddle column
+  //   if paddle volleyCount/speed and angle bounce 
+  //   else score change
+  // if score, drawScore, check win, if !win serve
+
   // if scored...
   drawScore()
+  // then serve()
 }
 
 // probably worth extracting to std/time later
@@ -202,6 +247,11 @@ sub render {
 
   drawBall()
   drawPaddles()
+
+  oP1Y = p1Y
+  oP2Y = p2Y
+  oBallX = ballX
+  oBallY = ballY
 }
 
 // timer based tick
@@ -220,12 +270,12 @@ sub serve(){
   volleyCount = 0
 
   if( ballPlayer ){
-    ballX = 4
+    ballX = 0
     ballY = p1Y + 12
     ballSpeedX = 3    
     ballColor = red
   } else {
-    ballX = ballXMax - 4
+    ballX = ballXMax
     ballY = p2Y + 12
     ballSpeedX = -3
     ballColor = blue

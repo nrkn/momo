@@ -5,8 +5,8 @@
 
 ; ---- constants: no storage, folded at assembly time ----
 keyEsc          equ     27
-viewW           equ     160
-viewH           equ     100
+screenW         equ     320
+screenH         equ     200
 playLeft        equ     40
 playRight       equ     118
 playTop         equ     9
@@ -15,6 +15,11 @@ playW           equ     79
 playH           equ     72
 centerX         equ     79
 scoreTop        equ     84
+scoreY          equ     85
+scoreX0         equ     44
+scoreX1         equ     51
+scoreX2         equ     101
+scoreX3         equ     108
 paddleH         equ     9
 ballW           equ     3
 ballH           equ     3
@@ -22,12 +27,19 @@ subgridScale    equ     4
 paddleYMax      equ     244
 ballXMax        equ     296
 paddleYHome     equ     122
+scoreTopWord    equ     26880
+screenWord      equ     32000
 tpal__palSize   equ     8
+lightGrey       equ     0
 lightGreen      equ     1
+lightBlue       equ     2
 black           equ     3
 red             equ     4
 green           equ     5
 blue            equ     6
+white           equ     7
+lightGreenW     equ     257
+blackW          equ     771
 frameMicros     equ     33333
 
 ; =========================================================== entry ====
@@ -404,42 +416,42 @@ drawLineVertical:
 ; ============================================== sub drawBackground ====
 
 drawBackground:
-; ---- for( dy = 0; dy < scoreTop; dy++ ){
-        mov     byte [dy_], 0
+; ---- for( dy = 0; dy < scoreTopWord; dy++ ){
+        mov     word [dy_], 0
 .L23:
-        mov     al, [dy_]
-        cmp     al, 84                      ; byte operands, no widening
+        mov     ax, [dy_]
+        cmp     ax, 26880
         jb      .L26                        ; unsigned <
         jmp     .L25
 .L26:
-; ---- drawLineHorizontal( dy, 0, viewW - 1, lightGreen )
-        mov     al, [dy_]
-        mov     [drawLineHorizontal__y], al ; u8 -> u8, no widening
-        mov     byte [drawLineHorizontal__x1], 0
-        mov     byte [drawLineHorizontal__x2], 159
-        mov     byte [drawLineHorizontal__color], 1
-        call    drawLineHorizontal
+; ---- pxwords[ dy ] = lightGreenW
+        mov     ax, [dy_]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     dx, 0xA000                  ; segment of pxwords
+        mov     es, dx
+        mov     word [es:bx], 257
 .L24:
-        inc     byte [dy_]
+        inc     word [dy_]
         jmp     .L23
 .L25:
-; ---- for( dy = scoreTop; dy < viewH; dy++ ){
-        mov     byte [dy_], 84
+; ---- for( dy = scoreTopWord; dy < screenWord; dy++ ){
+        mov     word [dy_], 26880
 .L27:
-        mov     al, [dy_]
-        cmp     al, 100                     ; byte operands, no widening
+        mov     ax, [dy_]
+        cmp     ax, 32000
         jb      .L30                        ; unsigned <
         jmp     .L29
 .L30:
-; ---- drawLineHorizontal( dy, 0, viewW - 1, black )
-        mov     al, [dy_]
-        mov     [drawLineHorizontal__y], al ; u8 -> u8, no widening
-        mov     byte [drawLineHorizontal__x1], 0
-        mov     byte [drawLineHorizontal__x2], 159
-        mov     byte [drawLineHorizontal__color], 3
-        call    drawLineHorizontal
+; ---- pxwords[ dy ] = blackW
+        mov     ax, [dy_]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     dx, 0xA000                  ; segment of pxwords
+        mov     es, dx
+        mov     word [es:bx], 771
 .L28:
-        inc     byte [dy_]
+        inc     word [dy_]
         jmp     .L27
 .L29:
         ret
@@ -474,7 +486,7 @@ drawNet:
         jb      .L34                        ; unsigned <
         jmp     .L33
 .L34:
-; ---- netY1 = playTop + 3 + net * 14
+; ---- netY = playTop + 3 + net * 14
         mov     ax, 12
         push    ax                          ; save lhs: rhs is not a leaf
         mov     al, [net]
@@ -484,18 +496,15 @@ drawNet:
         mov     bx, ax
         pop     ax
         add     ax, bx
-        mov     [netY1], al                 ; narrowed to u8
-; ---- netY2 = netY1 + 8
-        mov     al, [netY1]
+        mov     [netY], al                  ; narrowed to u8
+; ---- drawLineVertical( centerX, netY, netY + 8, green )
+        mov     byte [drawLineVertical__x], 79
+        mov     al, [netY]
+        mov     [drawLineVertical__y1], al  ; u8 -> u8, no widening
+        mov     al, [netY]
         xor     ah, ah                      ; u8 -> u16
         add     ax, 8
-        mov     [netY2], al                 ; narrowed to u8
-; ---- drawLineVertical( centerX, netY1, netY2, green )
-        mov     byte [drawLineVertical__x], 79
-        mov     al, [netY1]
-        mov     [drawLineVertical__y1], al  ; u8 -> u8, no widening
-        mov     al, [netY2]
-        mov     [drawLineVertical__y2], al  ; u8 -> u8, no widening
+        mov     [drawLineVertical__y2], al  ; narrowed to u8
         mov     byte [drawLineVertical__color], 5
         call    drawLineVertical
 .L32:
@@ -558,10 +567,10 @@ drawPaddles:
 ; ============================================== sub clearPaddles ====
 
 clearPaddles:
-; ---- subPxY = subgridToPx( playTop, p1Y )
+; ---- subPxY = subgridToPx( playTop, oP1Y )
         mov     ax, 10
         push    ax                          ; save lhs: rhs is not a leaf
-        mov     ax, [p1Y]
+        mov     ax, [oP1Y]
         sar     ax, 1                       ; signed >>
         sar     ax, 1
         mov     bx, ax
@@ -581,10 +590,10 @@ clearPaddles:
         mov     [drawLineVertical__y2], al  ; narrowed to u8
         mov     byte [drawLineVertical__color], 1
         call    drawLineVertical
-; ---- subPxY = subgridToPx( playTop, p2Y )
+; ---- subPxY = subgridToPx( playTop, oP2Y )
         mov     ax, 10
         push    ax                          ; save lhs: rhs is not a leaf
-        mov     ax, [p2Y]
+        mov     ax, [oP2Y]
         sar     ax, 1                       ; signed >>
         sar     ax, 1
         mov     bx, ax
@@ -727,9 +736,130 @@ clearBall:
         call    drawLineVertical
         ret
 
+; ============================================== sub drawSprite ====
+
+drawSprite:
+; ---- tile = index * 25
+        mov     al, [drawSprite__index]
+        xor     ah, ah                      ; u8 -> u16
+        mov     bx, 25
+        mul     bx                          ; low 16 bits are sign-agnostic
+        mov     [tile], ax
+; ---- for( j = 0; j < 5; j++ ){
+        mov     byte [j], 0
+.L35:
+        mov     al, [j]
+        cmp     al, 5                       ; byte operands, no widening
+        jb      .L38                        ; unsigned <
+        jmp     .L37
+.L38:
+; ---- for( i = 0; i < 5; i++ ){
+        mov     byte [i], 0
+.L39:
+        mov     al, [i]
+        cmp     al, 5                       ; byte operands, no widening
+        jb      .L42                        ; unsigned <
+        jmp     .L41
+.L42:
+; ---- setPixel( i + dx, j + dy, textSprites[ tile ] )
+        mov     al, [i]
+        xor     ah, ah                      ; u8 -> u16
+        mov     bl, [drawSprite__dx]
+        xor     bh, bh                      ; u8 -> u16
+        add     ax, bx
+        mov     [setPixel__x], ax
+        mov     al, [j]
+        xor     ah, ah                      ; u8 -> u16
+        mov     bl, [drawSprite__dy]
+        xor     bh, bh                      ; u8 -> u16
+        add     ax, bx
+        mov     [setPixel__y], ax
+        mov     ax, [tile]
+        mov     bx, ax
+        mov     al, [textSprites + bx]
+        mov     [setPixel__color], al       ; u8 -> u8, no widening
+        call    setPixel
+; ---- tile++
+        inc     word [tile]
+.L40:
+        inc     byte [i]
+        jmp     .L39
+.L41:
+.L36:
+        inc     byte [j]
+        jmp     .L35
+.L37:
+        ret
+
 ; ============================================== sub drawScore ====
 
 drawScore:
+; ---- if( score1 < 10 ){
+        mov     al, [score1]
+        cmp     al, 10                      ; byte operands, no widening
+        jb      .L45                        ; unsigned <
+        jmp     .L43
+.L45:
+; ---- digit0 = 0
+        mov     byte [digit0], 0
+; ---- digit1 = score1
+        mov     al, [score1]
+        mov     [digit1], al                ; u8 -> u8, no widening
+        jmp     .L44
+.L43:
+; ---- digit0 = 1
+        mov     byte [digit0], 1
+; ---- digit1 = score1 - 10
+        mov     al, [score1]
+        xor     ah, ah                      ; u8 -> u16
+        sub     ax, 10
+        mov     [digit1], al                ; narrowed to u8
+.L44:
+; ---- if( score2 < 10 ){
+        mov     al, [score2]
+        cmp     al, 10                      ; byte operands, no widening
+        jb      .L48                        ; unsigned <
+        jmp     .L46
+.L48:
+; ---- digit2 = 0
+        mov     byte [digit2], 0
+; ---- digit3 = score2
+        mov     al, [score2]
+        mov     [digit3], al                ; u8 -> u8, no widening
+        jmp     .L47
+.L46:
+; ---- digit2 = 1
+        mov     byte [digit2], 1
+; ---- digit3 = score2 - 10
+        mov     al, [score2]
+        xor     ah, ah                      ; u8 -> u16
+        sub     ax, 10
+        mov     [digit3], al                ; narrowed to u8
+.L47:
+; ---- drawSprite( digit0, scoreX0, scoreY )
+        mov     al, [digit0]
+        mov     [drawSprite__index], al     ; u8 -> u8, no widening
+        mov     byte [drawSprite__dx], 44
+        mov     byte [drawSprite__dy], 85
+        call    drawSprite
+; ---- drawSprite( digit1, scoreX1, scoreY )
+        mov     al, [digit1]
+        mov     [drawSprite__index], al     ; u8 -> u8, no widening
+        mov     byte [drawSprite__dx], 51
+        mov     byte [drawSprite__dy], 85
+        call    drawSprite
+; ---- drawSprite( digit2, scoreX2, scoreY )
+        mov     al, [digit2]
+        mov     [drawSprite__index], al     ; u8 -> u8, no widening
+        mov     byte [drawSprite__dx], 101
+        mov     byte [drawSprite__dy], 85
+        call    drawSprite
+; ---- drawSprite( digit3, scoreX3, scoreY )
+        mov     al, [digit3]
+        mov     [drawSprite__index], al     ; u8 -> u8, no widening
+        mov     byte [drawSprite__dx], 108
+        mov     byte [drawSprite__dy], 85
+        call    drawSprite
         ret
 
 ; ============================================== sub input ====
@@ -740,9 +870,9 @@ input:
         mov     al, [keyWaiting__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jnz     .L37
-        jmp     .L35
-.L37:
+        jnz     .L51
+        jmp     .L49
+.L51:
 ; ---- key = readKey()
         call    readKey
         mov     ax, [readKey__ret]
@@ -751,16 +881,16 @@ input:
         mov     ax, [key]
         xor     ah, ah                      ; cast to u8
         cmp     ax, 27
-        jne     .L40                        ; unsigned !=
-        jmp     .L38
-.L40:
+        jne     .L54                        ; unsigned !=
+        jmp     .L52
+.L54:
         mov     ax, 1
-        jmp     .L39
-.L38:
+        jmp     .L53
+.L52:
         xor     ax, ax
-.L39:
+.L53:
         mov     [isRunning], al             ; narrowed to bool
-.L35:
+.L49:
         ret
 
 ; ============================================== sub update ====
@@ -807,6 +937,18 @@ render:
         call    drawBall
 ; ---- drawPaddles()
         call    drawPaddles
+; ---- oP1Y = p1Y
+        mov     ax, [p1Y]
+        mov     [oP1Y], ax
+; ---- oP2Y = p2Y
+        mov     ax, [p2Y]
+        mov     [oP2Y], ax
+; ---- oBallX = ballX
+        mov     ax, [ballX]
+        mov     [oBallX], ax
+; ---- oBallY = ballY
+        mov     ax, [ballY]
+        mov     [oBallY], ax
         ret
 
 ; ============================================== sub tick ====
@@ -832,11 +974,11 @@ serve:
 ; ---- if( ballPlayer ){
         mov     al, [ballPlayer]
         test    al, al
-        jnz     .L43
-        jmp     .L41
-.L43:
-; ---- ballX = 4
-        mov     word [ballX], 4
+        jnz     .L57
+        jmp     .L55
+.L57:
+; ---- ballX = 0
+        mov     word [ballX], 0
 ; ---- ballY = p1Y + 12
         mov     ax, [p1Y]
         add     ax, 12
@@ -845,10 +987,10 @@ serve:
         mov     word [ballSpeedX], 3
 ; ---- ballColor = red
         mov     byte [ballColor], 4
-        jmp     .L42
-.L41:
-; ---- ballX = ballXMax - 4
-        mov     word [ballX], 292
+        jmp     .L56
+.L55:
+; ---- ballX = ballXMax
+        mov     word [ballX], 296
 ; ---- ballY = p2Y + 12
         mov     ax, [p2Y]
         add     ax, 12
@@ -857,7 +999,7 @@ serve:
         mov     word [ballSpeedX], 65533
 ; ---- ballColor = blue
         mov     byte [ballColor], 6
-.L42:
+.L56:
         ret
 
 ; ============================================== sub start ====
@@ -1050,19 +1192,29 @@ ballSpeedY      dw      0        ; i16
 ballPlayer      db      0        ; u8
 ballColor       db      0        ; u8
 volleyCount     db      0        ; u8
-dy_             db      0        ; u8
+dy_             dw      0        ; u16
 net             db      0        ; u8
-netY1           db      0        ; u8
-netY2           db      0        ; u8
+netY            db      0        ; u8
 subPxX          dw      0        ; i16
 subPxY          dw      0        ; i16
 subPxY2         dw      0        ; i16
+tile            dw      0        ; u16
+i               db      0        ; u8
+j               db      0        ; u8
+drawSprite__index db      0        ; u8
+drawSprite__dx  db      0        ; u8
+drawSprite__dy  db      0        ; u8
+digit0          db      0        ; u8
+digit1          db      0        ; u8
+digit2          db      0        ; u8
+digit3          db      0        ; u8
 key             dw      0        ; u16
 waitMicros__high dw      0        ; u16
 waitMicros__low dw      0        ; u16
 
 ; ---- arrays ----
 tpal__palette   db      224, 224, 244, 145, 255, 166, 206, 208, 255, 16, 16, 16, 255, '1S', 2, 204, ']K?', 243, 252, 252, 252        ; u8[24] const
+textSprites     db      7, 7, 7, 7, 7, 7, 3, 3, 3, 7, 7, 3, 3, 3, 7, 7, 3, 3, 3, 7, 7, 7, 7, 7, 7, 3, 3, 7, 3, 3, 3, 3, 7, 3, 3, 3, 3, 7, 3, 3, 3, 3, 7, 3, 3, 3, 3, 7, 3, 3, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 7, 7, 3, 3, 3, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 3, 3, 3, 3, 7, 3, 3, 3, 3, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7        ; u8[250] const
 
 ; ============================================================ heap ====
 ; No storage is emitted - a .COM owns everything past its image, so

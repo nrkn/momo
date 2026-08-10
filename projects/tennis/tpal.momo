@@ -37,6 +37,18 @@ const green = 5
 const blue = 6
 const white = 7
 
+// for copying two pixels at once of the same index
+const pxDouble( u8 color ) = color | color << 8
+
+const lightGreyW = pxDouble( lightGrey )
+const lightGreenW = pxDouble( lightGreen )
+const lightBlueW = pxDouble( lightBlue )
+const blackW = pxDouble( black )
+const redW = pxDouble( red )
+const greenW = pxDouble( green )
+const blueW = pxDouble( blue )
+const whiteW = pxDouble( white )
+
 local u8 i
 local u8 pIndex
 

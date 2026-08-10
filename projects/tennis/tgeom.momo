@@ -1,6 +1,8 @@
 // pixel units
-const viewW = 160
-const viewH = 100
+const screenW = 320
+const screenH = 200
+const viewW = screenW / 2
+const viewH = screenH / 2
 
 const playLeft = 40
 const playRight = 118
@@ -33,3 +35,10 @@ const paddleYMax = ( playH - paddleH  - 2 ) * subgridScale
 const ballXMax = ( playW - ballW - 2 ) * subgridScale
 const ballYMax = ( playH - ballH - 2 ) * subgridScale
 const paddleYHome = paddleYMax / 2
+
+// word blitting
+
+// halved for word, but scoreTop doubled for view doubling - cancels out
+const scoreTopWord = scoreTop * screenW 
+
+const screenWord = ( screenW * screenH ) >> 1
