@@ -310,6 +310,30 @@ export const parse = (tokens: Token[]): Program => {
             ` so it cannot appear inside an expression`,
         )
       }
+
+      // in8(port) / in16(port), the same shape as peek.
+      if (token.text === 'in8' || token.text === 'in16') {
+        advance()
+        expect('op', '(')
+        const port = parseExpression()
+        expect('op', ')')
+        return {
+          type: 'InExpression',
+          width: token.text === 'in8' ? 1 : 2,
+          port,
+          file: token.file,
+          line: token.line,
+          col: token.col,
+        }
+      }
+
+      if (token.text === 'out8' || token.text === 'out16') {
+        raise(
+          token,
+          `${token.text} writes a port rather than producing a value - it is a statement,` +
+            ` so it cannot appear inside an expression`,
+        )
+      }
     }
 
     if (token.kind === 'ident') {
@@ -1178,6 +1202,37 @@ export const parse = (tokens: Token[]): Program => {
           type: 'PokeStatement',
           width: token.text === 'poke8' ? 1 : 2,
           address,
+          value,
+          file: token.file,
+          line: token.line,
+          col: token.col,
+          endLine,
+        }
+      }
+
+      // As with peek above: a statement cannot begin with a port read, so this
+      // is someone reaching for the write.
+      if (token.text === 'in8' || token.text === 'in16') {
+        raise(
+          token,
+          `${token.text} reads a port rather than writing one - to write a port use` +
+            ` ${token.text === 'in8' ? 'out8' : 'out16'}( port, value )`,
+        )
+      }
+
+      if (token.text === 'out8' || token.text === 'out16') {
+        advance()
+        expect('op', '(')
+        const port = parseExpression()
+        expect('op', ',')
+        const value = parseExpression()
+        expect('op', ')')
+        const endLine = previous().line
+        expectTerminator()
+        return {
+          type: 'OutStatement',
+          width: token.text === 'out8' ? 1 : 2,
+          port,
           value,
           file: token.file,
           line: token.line,

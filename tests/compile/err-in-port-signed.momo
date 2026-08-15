@@ -1,0 +1,5 @@
+// EXPECT-ERROR: in8 needs a u16 port - this is i16
+i16 p
+u8 b
+p = 100
+b = in8( p )

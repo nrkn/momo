@@ -162,6 +162,9 @@ export const printExpression = (node: Expression): string => {
 
     case 'PeekExpression':
       return `peek${node.width === 1 ? '8' : '16'}( ${printExpression(node.address)} )`
+
+    case 'InExpression':
+      return `in${node.width === 1 ? '8' : '16'}( ${printExpression(node.port)} )`
   }
 }
 
@@ -299,6 +302,12 @@ export const printStatement = (node: Statement, depth = 0): string => {
       return (
         `${pad}poke${node.width === 1 ? '8' : '16'}` +
         `( ${printExpression(node.address)}, ${printExpression(node.value)} )`
+      )
+
+    case 'OutStatement':
+      return (
+        `${pad}out${node.width === 1 ? '8' : '16'}` +
+        `( ${printExpression(node.port)}, ${printExpression(node.value)} )`
       )
 
     case 'AssignmentStatement':

@@ -1,0 +1,42 @@
+// Every in and out shape that must work.
+
+u8   b
+u16  w
+u16  port
+u16  n
+bool flag
+
+u16 portOf() => 0x3C4
+
+// A constant port folds like any other expression; a computed one is why these
+// take an expression at all.
+
+out8( 0x3C4, 2 )                  // constant port, constant value
+out8( 0x3C4, b )                  // byte value: the no-widening path
+out8( port, b )                   // computed port
+out8( port + 1, b )
+out8( portOf(), 3 )               // a fn call in the port
+out8( port, u8( n * 3 ) )         // a multiply in the value, which clobbers DX
+
+out16( 0x3C4, 0x0F02 )            // index and data in one instruction
+out16( port, w )
+out16( port, n + 1 )
+
+b = in8( 0x3DA )                  // byte to byte, no widening
+w = in16( 0x3CC )
+w = in8( 0x3DA )                  // widens, since the target is a word
+b = in8( port )                   // computed port
+w = in8( 0x3DA ) + in8( 0x3C4 )   // arithmetic over reads widens as usual
+b = u8( in16( 0x3CC ) )
+flag = in8( 0x3DA ) != 0          // a comparison, so the bool rule is satisfied
+
+// In a condition, where the truthiness path skips the widening.
+if ( in8( 0x3DA ) ) n = 1
+while ( in8( 0x3DA ) == 9 ) n++
+
+// A byte compare against a constant, which is the no-widening compare path.
+if ( in8( 0x3DA ) == 8 ) n = 2
+
+// A read feeding a write, and a port read used as an address.
+out8( 0x3C5, in8( 0x3C5 ) )
+poke8( addr( b ), in8( 0x3DA ) )

@@ -212,6 +212,27 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     if (widening) widen('u8')
   }
 
+  // The port goes in DX, which is the only register `in` and `out` will take it
+  // in - the imm8 form reaches ports 0-255 only, and §22 skips it because every
+  // port a Momo program has wanted so far is above 0xFF.
+  const emitIn = (node: Expression, widening = true) => {
+    if (node.type !== 'InExpression') return
+
+    const fixed = constOf(node.port)
+    if (fixed !== null) ins('mov', `dx, ${fixed}`)
+    else {
+      emitExpression(node.port)
+      ins('mov', 'dx, ax')
+    }
+
+    if (node.width === 2) {
+      ins('in', 'ax, dx')
+      return
+    }
+    ins('in', 'al, dx')
+    if (widening) widen('u8')
+  }
+
   const emitIndexLoad = (node: IndexExpression, widening = true) => {
     const symbol = symbolFor(node.array.label)
 
@@ -295,6 +316,11 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     // `poke8( to, peek8( from ) )` - the memcpy inner loop - cost no widening.
     if (node.type === 'PeekExpression') return node.width === 1 ? 'u8' : null
 
+    // in8 lands in AL exactly as a byte load does. It is not a load and it can
+    // have an effect on the hardware, but neither matters here: this only ever
+    // decides whether the widening after it is emitted, and it is reached once.
+    if (node.type === 'InExpression') return node.width === 1 ? 'u8' : null
+
     return null
   }
 
@@ -308,6 +334,7 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     if (node.type === 'Identifier') loadVariable(symbolFor(node.label), false)
     else if (node.type === 'IndexExpression') emitIndexLoad(node, false)
     else if (node.type === 'PeekExpression') emitPeek(node, false)
+    else if (node.type === 'InExpression') emitIn(node, false)
     return type
   }
 
@@ -649,6 +676,11 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
 
     if (node.type === 'PeekExpression') {
       emitPeek(node, true)
+      return
+    }
+
+    if (node.type === 'InExpression') {
+      emitIn(node, true)
       return
     }
 
@@ -1242,6 +1274,34 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
 
       ins('pop', 'bx')
       ins('mov', node.width === 2 ? '[bx], ax' : '[bx], al')
+      return
+    }
+
+    if (node.type === 'OutStatement') {
+      quoteSource(node.file, node.line, node.endLine)
+
+      const operand = node.width === 2 ? 'dx, ax' : 'dx, al'
+      const fixed = constOf(node.port)
+
+      // A constant port is loaded AFTER the value, because `mov dx, imm` cannot
+      // disturb what the value left in AX. That is the common case - every port
+      // in §22's table is a literal.
+      if (fixed !== null) {
+        if (node.width === 2 || !emitByteLoad(node.value)) emitExpression(node.value)
+        ins('mov', `dx, ${fixed}`)
+        ins('out', operand)
+        return
+      }
+
+      // A computed port cannot simply sit in DX while the value is worked out:
+      // `mul` and `div` both clobber DX (§9), so a value containing either would
+      // destroy the port. Pushed instead, which is what poke does with BX and
+      // for the same reason.
+      emitExpression(node.port)
+      ins('push', 'ax', 'save the port while the value is computed')
+      if (node.width === 2 || !emitByteLoad(node.value)) emitExpression(node.value)
+      ins('pop', 'dx')
+      ins('out', operand)
       return
     }
 

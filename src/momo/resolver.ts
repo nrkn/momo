@@ -684,6 +684,11 @@ export const resolve = (program: Program): ResolveResult => {
       return annotate(node, { type: node.width === 1 ? 'u8' : 'u16', value: null })
     }
 
+    if (node.type === 'InExpression') {
+      checkPort(node.port, node.width === 1 ? 'in8' : 'in16')
+      return annotate(node, { type: node.width === 1 ? 'u8' : 'u16', value: null })
+    }
+
     if (node.type === 'AddrExpression') {
       const symbol = lookup(node.target.name)
       if (!symbol) raise(node, `"${node.target.name}" is not declared`)
@@ -1408,6 +1413,28 @@ export const resolve = (program: Program): ResolveResult => {
     }
   }
 
+  // A port number follows exactly the rule above, for the same reason: signed is
+  // rejected rather than widened, since a negative port is never meaningful and
+  // §4 would demand a cast somewhere anyway. Kept separate only so the messages
+  // say "port" - the two nouns are the whole difference.
+  const checkPort = (node: Expression, what: string) => {
+    const resolved = resolveExpression(node)
+
+    if (resolved.type === 'bool') {
+      raise(node, `${what} needs a port - a bool is not one`)
+    }
+    if (isSigned(resolved.type)) {
+      raise(
+        node,
+        `${what} needs a u16 port - this is ${resolved.type}, so write u16(...)` +
+          ' if the value really is a port number',
+      )
+    }
+    if (resolved.type === 'untyped' && resolved.value !== null && !fits(resolved.value, 'u16')) {
+      raise(node, `port ${resolved.value} does not fit in 16 bits`)
+    }
+  }
+
   const checkAssignable = (
     value: Resolved,
     target: ValueType,
@@ -1685,6 +1712,16 @@ export const resolve = (program: Program): ResolveResult => {
       // The store keeps one byte or two, so the value follows the same fit rule a
       // declared u8 or u16 would apply - including the bool rule, since a raw
       // byte store is exactly what makes that one matter.
+      checkAssignable(value, node.width === 1 ? 'u8' : 'u16', node.value)
+      return
+    }
+
+    if (node.type === 'OutStatement') {
+      const what = node.width === 1 ? 'out8' : 'out16'
+      checkPort(node.port, what)
+      const value = resolveExpression(node.value)
+      // One byte or two leaves the port, so the value follows the same fit rule
+      // a declared u8 or u16 would - exactly as poke's does.
       checkAssignable(value, node.width === 1 ? 'u8' : 'u16', node.value)
       return
     }

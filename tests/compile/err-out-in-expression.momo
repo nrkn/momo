@@ -1,0 +1,5 @@
+// EXPECT-ERROR: out8 writes a port rather than producing a value
+u16 p
+u16 x
+p = 0x3C4
+x = out8( p, 1 )

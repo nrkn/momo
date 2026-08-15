@@ -53,6 +53,13 @@ export const keywords = [
   'peek16',
   'poke8',
   'poke16',
+  // Ports, spelled exactly as peek and poke are and for the same reasons: a
+  // numeric target the compiler cannot check, one read and one write, unsafe
+  // and visibly so at every use. See DESIGN §22.
+  'in8',
+  'in16',
+  'out8',
+  'out16',
   'true',
   'false',
 ]

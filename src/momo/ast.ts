@@ -167,6 +167,25 @@ export type PokeStatement = Spanned & {
   value: Expression
 }
 
+// `in8(port)`, `in16(port)`. An expression, even though reading a port can have
+// an effect on the hardware - 0x3DA resets the attribute flip-flop by being
+// read. §6's rule is about expressions having no effect on Momo's own state,
+// which this does not, and it produces a value, so it stays an expression.
+export type InExpression = Located & {
+  type: 'InExpression'
+  width: 1 | 2
+  port: Expression
+}
+
+// `out8(port, value)`, `out16(port, value)`. A statement, like poke, because a
+// port write is an effect and produces nothing.
+export type OutStatement = Spanned & {
+  type: 'OutStatement'
+  width: 1 | 2
+  port: Expression
+  value: Expression
+}
+
 // One field of a group. Scalars only - an array field would need arrays of
 // arrays, which is a separate problem (§18).
 export type GroupField = Located & {
@@ -250,6 +269,7 @@ export type Expression =
   | AddrExpression
   | LenExpression
   | PeekExpression
+  | InExpression
 
 // Only these can appear on the left of an assignment.
 export type LValue = Identifier | IndexExpression
@@ -407,6 +427,7 @@ export type Statement =
   | ReturnStatement
   | IntStatement
   | PokeStatement
+  | OutStatement
   | AssignmentStatement
   | UpdateStatement
   | CallStatement

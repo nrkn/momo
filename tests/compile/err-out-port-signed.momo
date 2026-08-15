@@ -1,0 +1,4 @@
+// EXPECT-ERROR: out8 needs a u16 port - this is i16
+i16 p
+p = 100
+out8( p, 1 )
