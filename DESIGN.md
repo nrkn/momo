@@ -2723,6 +2723,55 @@ has whole-program analysis baked in (the call graph for recursion and pruning,
 image size for `_hsize`), while a memory-constrained compiler wants to stream.
 Momo-0 simply does not owe those guarantees.
 
+#### The folder is wider than the language, and nobody decided that
+
+Constant folding runs on the host's numbers. In the TypeScript compiler those are
+JavaScript doubles, exact to 2^53 - so intermediates are evaluated at a precision
+Momo itself cannot express:
+
+```momo
+const wide     = 40000 + 40000     // 80000 - too wide to store
+const back     = wide - 20000      // 60000 - and this compiles
+
+const prod     = 30000 * 30000     // 900000000
+const narrowed = prod / 30000      // 30000
+```
+
+Both results land in a `u16` and both are right. Measured rather than assumed:
+those emit `mov word [a], 60000` and `mov word [b], 30000`.
+
+Only two things are checked. **Literals** must fit in 16 bits - the resolver
+rejects `1193182` outright, which is why the PIT's input frequency cannot be
+written down and a note table has to be generated elsewhere. And **results** must
+fit wherever they land. Between those two points the folder is effectively
+unbounded, and integer division folds the way runtime `/` does, so nothing
+disagrees.
+
+That is defensible and probably right: fold exactly, reject what does not fit.
+But it is an accident of the host rather than a decision, and **a Momo compiler
+written in Momo could not reproduce it.** Its own arithmetic is 16 bits, so it
+would fold `30000 * 30000` to whatever the low word holds and quietly disagree
+with the compiler that bootstrapped it - on a program both accept.
+
+Three ways out, none chosen:
+
+- **Narrow the promise.** Declare that folding happens in 16 bits and reject a
+  wide intermediate where it occurs rather than where it lands. Costs the
+  `40000 + 40000` shape, which nothing in the corpus uses, and makes the two
+  compilers agree by construction.
+- **Keep the promise and pay for it.** Momo-0 carries software 32-bit arithmetic
+  for the folder alone - `u16[2]` and a few routines, which §19's array
+  parameters would make readable. A real cost in a compiler already fighting for
+  64KB, for a case most programs never reach.
+- **Let them differ.** The bootstrap folds narrow, the self-hosted compiler folds
+  wide. Two compilers disagreeing about a legal program is the worst of the
+  three, and is listed only because it is what happens if nobody decides.
+
+The first is cheapest, the second is the more honest to what the language does
+today. What matters is that this is a **language** decision wearing an
+implementation's clothes, and it wants settling before a bootstrap exists rather
+than discovering it afterwards from a program that compiles differently.
+
 #### If the model has to give: a profile, not a dialect
 
 Should far data prove insufficient, the escape hatch is `.EXE` and a laxer
