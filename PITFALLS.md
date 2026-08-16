@@ -166,7 +166,11 @@ to 285 at C8.
 
 ---
 
-## Some names compile and then fail to assemble
+## Some names compiled and then failed to assemble - fixed
+
+**Fixed.** The first entry here to be retired, and kept because the preamble says
+it should be: it explains a rule that still applies, and the symptom is what
+someone on an older build would have.
 
 **Symptom.** The Momo compiler is happy and NASM rejects the output:
 
@@ -174,13 +178,18 @@ to 285 at C8.
 error: instruction expected, found `:'
 ```
 
-Momo mangles NASM's directives, size keywords and register names, but not its
-**prefixes** - so `sub wait`, `sub rep` and `sub lock` emit labels NASM reads as
-the start of an instruction. Ordinary mnemonics are fine and deliberately not
-mangled: `add:`, `ret:`, `nop:` and `cbw:` all assemble, which is why the rule is
-narrower than "avoid instruction names".
+Momo mangled NASM's directives, size keywords and register names, but not its
+**prefixes** - so `sub wait`, `sub rep` and `sub lock` emitted labels NASM reads
+as the start of an instruction. The rule is narrower than "avoid instruction
+names", and that is why the gap survived: ordinary mnemonics are fine and
+deliberately unmangled, so `add:`, `ret:`, `nop:` and `cbw:` all assemble.
 
-**What to do.** Rename, for now. The fix belongs in the compiler's reserved-word
-set, and the missing group is small and enumerable: `wait`, `lock`, `rep`,
-`repe`, `repz`, `repne`, `repnz`, plus `a16`/`a32`/`o16`/`o32`, `xacquire`,
-`xrelease` and `bnd`.
+Fifteen names were affected - `wait`, `lock`, `rep`, `repe`, `repz`, `repne`,
+`repnz`, `a16`, `a32`, `o16`, `o32`, `xacquire`, `xrelease`, `bnd`, `nobnd` -
+established by assembling one sub per candidate rather than by reading a list,
+since assuming the category is what caused the bug in the first place. All are
+in the mangled set now, and `projects/prefixes` keeps them there.
+
+**Worth knowing anyway**, because it is the shape of the next one: nothing in
+tier 1 could have caught this. The program compiled, and only the assembler
+objected.
