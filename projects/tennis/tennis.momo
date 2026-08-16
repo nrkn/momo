@@ -4,11 +4,11 @@ include "std/key.momo"
 include "std/math.momo"
 include "std/rand.momo"
 include "std/time.momo"
-include "tgeom.momo"
-include "tkbd.momo"
-include "tpal.momo"
-include "tscr.momo"
-include "tsprites.momo"
+include "t_cfg.momo"
+include "t_kbd.momo"
+include "t_pal.momo"
+include "t_scr.momo"
+include "t_spr.momo"
 
 // -- state
 
@@ -17,24 +17,25 @@ bool isWinScreen
 // back to DOS when false
 bool isRunning = true
 
-// player scores
-u8 score1
-u8 score2
-
 // paddles - player 0 is on the left, player 1 on the right
 const playerCount = 2
 
+const leftPlayer = 0
+const rightPlayer = 1
+
 group player[playerCount] {
-  i16 y      // subgrid
-  i16 oldY   // what is currently on screen
-  u8 speed   // acceleration counter, 0 when the keys are up
+  i16 y      
+  i16 oldY   
+  u8 score
+  u8 speed 
 }
 
 // per-player consts
 const u8[] paddleX = [ playLeft, playRight ]
 const u8[] paddleColor = [ red, blue ]
+const u16[] winColor = [ redW, blueW ]
 const u16[] serveX = [ 0, ballXMax ]
-const i16[] serveSpeedX = [ 3, -3 ]
+const i16[] serveSpeedX = [ serveSpeed, -serveSpeed ]
 
 // ball
 i16 ballX
@@ -60,11 +61,10 @@ keyboardBegin()
 
 u16 dy
 
-// draw once at start
-sub drawBackground {
+sub drawBackground( u16 color ) {
   // demos the word blitting we will use extensively later
   for( dy = 0; dy < scoreTopWord; dy++ ){
-    pxwords[ dy ] = lightGreenW
+    pxwords[ dy ] = color
   }
   
   for( dy = scoreTopWord; dy < screenWord; dy++ ){
@@ -106,6 +106,8 @@ i16 subPxY2
 // otherwise, we might need better dirty tracking
 // eg maybe a buffer of 27 elements to track 9x2 paddle pixels, 9 ball px, and a
 // scalar for how many are currently dirty
+// or just the movement offset for each so we know exactly how many px to redraw
+// from one frame to another
 // BUT wait and see how it plays out before prematurely adding this lol
 // todo: neither draw/clearPaddles nor draw/clearBall need to call 
 // drawLineVertical - they can be unrolled to just 9 direct 
@@ -152,10 +154,10 @@ u16 tile
 u8 i
 u8 j
 sub drawSprite( u8 index, u8 dx, u8 dy ){
-  tile = index * 25
+  tile = index * spriteSize
   
-  for( j = 0; j < 5; j++ ){
-    for( i = 0; i < 5; i++ ){
+  for( j = 0; j < spriteH; j++ ){
+    for( i = 0; i < spriteW; i++ ){
       setPixel( i + dx, j + dy, textSprites[ tile ] )
 
       tile++
@@ -164,31 +166,19 @@ sub drawSprite( u8 index, u8 dx, u8 dy ){
 }
 
 // overdraws existing, no clear needed
-u8 digit0
-u8 digit1
-u8 digit2
-u8 digit3
-sub drawScore {
-  if( score1 < 10 ){
-    digit0 = 0
-    digit1 = score1
+u8 digitTens
+u8 digitOnes
+sub drawScore( u8 pi ) {
+  if( player[ pi ].score < 10 ){
+    digitTens = 0
+    digitOnes = player[ pi ].score
   } else {
-    digit0 = 1
-    digit1 = score1 - 10
+    digitTens = 1
+    digitOnes = player[ pi ].score - 10
   }
 
-  if( score2 < 10 ){
-    digit2 = 0
-    digit3 = score2
-  } else {
-    digit2 = 1
-    digit3 = score2 - 10
-  }
-
-  drawSprite( digit0, scoreX0, scoreY )
-  drawSprite( digit1, scoreX1, scoreY )
-  drawSprite( digit2, scoreX2, scoreY )
-  drawSprite( digit3, scoreX3, scoreY )
+  drawSprite( digitTens, scoreXTens[ pi ], scoreY )
+  drawSprite( digitOnes, scoreXOnes[ pi ], scoreY )
 }
 
 sub movePaddle( u8 pi, bool up, bool down ) {
@@ -217,16 +207,83 @@ sub input {
     return
   } 
 
+  if( isWinScreen ){
+    if( isLeft1 || isLeft2 || isRight1 || isRight2 ){
+      start()
+    }
+
+    return
+  }
+
+
   movePaddle( 0, isUp1, isDown1 )
   movePaddle( 1, isUp2, isDown2 )
 }
 
+sub setBallSpeedY( i16 yOffset ) {
+  if ( yOffset < angleZone1 ) ballSpeedY = -ballSpeedY3
+  else if ( yOffset < angleZone2 ) ballSpeedY = -ballSpeedY2
+  else if ( yOffset < angleZone3 ) ballSpeedY = -ballSpeedY1
+  else if ( yOffset < angleZone4 ) ballSpeedY = 0
+  else if ( yOffset < angleZone5 ) ballSpeedY = ballSpeedY1
+  else if ( yOffset < angleZone6 ) ballSpeedY = ballSpeedY2
+  else ballSpeedY = ballSpeedY3
+}
+
+// pi scored, so pi serves - unless that was the winning point
+sub scorePoint( u8 pi ) {
+  player[ pi ].score++
+
+  drawScore( pi )
+  
+  if ( player[ pi ].score == winScore ) {
+    win( pi )
+  } else {
+    ballPlayer = pi
+
+    serve()
+  }
+}
+
+// ball at player pi's column - either bounce or miss (other player scores)
+sub hitPaddle( u8 pi ) {
+  i16 yOffset
+
+  yOffset = ballY - player[ pi ].y + hitLead
+  
+  if ( yOffset < 0 || yOffset >= hitWindow ) {
+    scorePoint( 1 - pi )
+
+    return
+  }
+
+  ballX = serveX[ pi ]
+  setBallSpeedY( yOffset )
+
+  // three returns before the rally speeds up, to a ceiling
+  if ( iabs( ballSpeedX ) < ballSpeedXMax ) {
+    volleyCount++
+  
+    if ( volleyCount == volleyTarget ) {
+      volleyCount = 0
+
+      if ( ballSpeedX > 0 ) ballSpeedX += ballSpeedStep
+      else ballSpeedX -= ballSpeedStep
+    }
+  }
+  
+  ballSpeedX = -ballSpeedX
+  ballPlayer = pi
+  ballColor = paddleColor[ pi ]
+}
+
 // recalculate state
 sub update {
+  if( isWinScreen ) return
+  
   ballX += ballSpeedX
   ballY += ballSpeedY
 
-  // bounce off top/bottom walls
   if( ballY < 0 ){
     ballY = 0
     ballSpeedY = -ballSpeedY
@@ -234,50 +291,34 @@ sub update {
     ballY = ballYMax
     ballSpeedY = -ballSpeedY
   }
-
-
-  // paddle column
-  //   if paddle volleyCount/speed and angle bounce 
-  //   else score change
-  // if score, drawScore, check win, if !win serve
-
-  // if scored...
-  drawScore()
-  // then serve()
+  
+  // only the side the ball is travelling toward can be reached
+  if( ballSpeedX > 0 && ballX >= ballXMax ){
+    hitPaddle( rightPlayer )
+  } else if ( ballSpeedX < 0 && ballX <= 0 ){
+    hitPaddle( leftPlayer )
+  }
 }
-
-// probably worth extracting to std/time later
-sub waitMicros( u16 high, u16 low ) {
-  _ah = 0x86
-  _cx = high
-  _dx = low
-  int 0x15
-}
-
-const frameMicros = 33333
-
-// wait is reserved by nasm - add it to our list to mangle, in mean time, use a 
-// different name - we should probably do some research and handle *all* 
-// reserved words rather than finding them one at a time when compile fails 😂
-sub doWait => waitMicros( 0, frameMicros )
 
 sub render {
+  if( isWinScreen ) return
+
   // testing if they moved or not is probably cheaper but this keeps tick time
   // consistent
   clearBall()
-  clearPaddle( 0 )
-  clearPaddle( 1 )
+  clearPaddle( leftPlayer )
+  clearPaddle( rightPlayer )
 
   // not super efficient to draw net every frame, but means clearing ball is
   // simple (no test for net cross) and tick time is consistent
   drawNet()
 
   drawBall()
-  drawPaddle( 0 )
-  drawPaddle( 1 )
+  drawPaddle( leftPlayer )
+  drawPaddle( rightPlayer )
 
-  player[ 0 ].oldY = player[ 0 ].y
-  player[ 1 ].oldY = player[ 1 ].y
+  player[ leftPlayer ].oldY = player[ leftPlayer ].y
+  player[ rightPlayer ].oldY = player[ rightPlayer ].y
 
   oBallX = ballX
   oBallY = ballY
@@ -287,12 +328,18 @@ sub render {
 sub tick {  
   input()
   update()
+  waitFrame()
   render()
-  doWait()
 }
 
 // show win screen, wait for input, then call start again
-sub win {}
+sub win( u8 pi ) {
+  isWinScreen = true
+  
+  drawBackground( winColor[ pi ] )
+  drawScore( leftPlayer )
+  drawScore( rightPlayer )
+}
 
 sub serve(){
   ballSpeedY = 0
@@ -309,22 +356,24 @@ sub start {
   seedRandom( ticks() )
 
   isWinScreen = false
-  score1 = 0
-  score2 = 0
 
-  player[ 0 ].speed = 0
-  player[ 0 ].y = paddleYHome
-  player[ 0 ].oldY = paddleYHome
+  player[ leftPlayer ].speed = 0
+  player[ leftPlayer ].score = 0
+  player[ leftPlayer ].y = paddleYHome
+  player[ leftPlayer ].oldY = paddleYHome
 
-  player[ 1 ].speed = 0
-  player[ 1 ].y = paddleYHome
-  player[ 1 ].oldY = paddleYHome
+  player[ rightPlayer ].speed = 0
+  player[ rightPlayer ].score = 0
+  player[ rightPlayer ].y = paddleYHome
+  player[ rightPlayer ].oldY = paddleYHome
 
   // an index into player, so 0 serves from the left
   ballPlayer = randomBelow( len( player ) )
 
-  drawBackground()
+  drawBackground( lightGreenW )
   drawPlayfield()
+  drawScore( leftPlayer )
+  drawScore( rightPlayer )
 
   serve()
 

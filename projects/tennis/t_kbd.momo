@@ -40,12 +40,13 @@ sub keyboardBegin {
 }
 
 local bool anyKeyDown() => (
+  isEsc ||  
   isUp1 || isDown1 || isLeft1 || isRight1 ||
-  isUp2 || isDown2 || isLeft2 || isRight2 || isEsc
+  isUp2 || isDown2 || isLeft2 || isRight2 
 )
 
 sub keyboardEnd {
-  // consume any keys before existing so we don't eg write ESC back to DOS
+  // consume any keys before exiting so we don't eg write ESC back to DOS
   // prompt while quitting
   while ( anyKeyDown() ) {
     pollKeyboard()

@@ -180,23 +180,35 @@ else:
   speed = 0
 ```
 
-Full speed is reached after 8 frames, about a quarter of a second at 30Hz, and
-tops out at 4 pixels per frame. The original ramped over 15 frames at 60Hz with
-an integer-division dead zone that made the first two frames of a tap move
-nothing; that dead zone is dropped here, so a tap moves half a pixel. Add a
-threshold back if taps feel too coarse.
+Full speed is reached after 8 frames - just under a quarter of a second at 35Hz
+(§15) - and tops out at 4 pixels per frame. The original ramped over 15 frames
+at 60Hz with an integer-division dead zone that made the first two frames of a
+tap move nothing; that dead zone is dropped here, so a tap moves half a pixel.
+Add a threshold back if taps feel too coarse.
 
 The win screen ignores these and waits for a **restart control** - in the
 original, either player's left or right.
 
-> **Open issue, and the largest one left.** BIOS `int 16h` reports keystrokes,
-> not key state: there is no key-up event, and two players holding keys at once
-> cannot be distinguished. The acceleration model above assumes held keys. The
-> honest options are (a) approximate a hold by draining the keyboard buffer each
-> frame and keeping a per-direction countdown of a few frames, which works but
-> inherits the typematic repeat delay, or (b) read scancodes from port 0x60,
-> which gives real key-down and key-up and needs `in` - DESIGN 22. Two-player
-> simultaneous input is a second argument for that section.
+**Settled.** This was the largest open question here, because BIOS `int 16h`
+reports keystrokes rather than key state - no key-up, and no way to see two
+players holding keys at once, which the acceleration model above requires.
+`tkbd.momo` reads scancodes from port `0x60` instead, which needs `in` and `out`
+(DESIGN §22, now built) and gives real presses and releases for as many keys as
+are held.
+
+The cost is that IRQ1 is masked for the duration, so the BIOS never sees the
+keyboard: `keyboardBegin` and `keyboardEnd` bracket the game, and a crash
+between them leaves the machine needing a reset. That was accepted deliberately
+rather than worked around.
+
+Two details the module owns rather than the game:
+
+- **`keyboardEnd` waits for every key to be released** before unmasking. A key
+  still held when IRQ1 goes live repeats straight into the BIOS buffer, and that
+  keystroke turns up at the DOS prompt.
+- **Esc is latched.** The nine key bools are level state, so a press and release
+  falling inside one frame's poll would cancel out and the quit would be missed;
+  `wasEsc` is set on the press and never cleared.
 
 ## 9. Ball movement
 
@@ -303,48 +315,58 @@ Centred is a deliberate change.
 
 ## 15. Frame timing
 
-The original ran at 60Hz. **This runs at 30Hz**, and the speeds in this document
-are scaled for it - at 60Hz everything moves at half the intended rate, and at
-the BIOS tick rate of 18.2Hz the ball advances far enough per frame to read as
-teleporting rather than travelling.
-
-`std/time.momo`'s tick counter is 18.2Hz and cannot pace this. `int 15h AH=86h`
-waits a given number of microseconds and is what makes 30Hz reachable without
-port I/O. It is worth adding to `std/time.momo`:
+The original ran at 60Hz. **This runs at 35Hz**, locked to the display: mode 13h
+refreshes at 70Hz, and a frame waits two retraces.
 
 ```momo
-// Waits for `high:low` microseconds - int 15h AH=86h, which takes the count in
-// CX:DX. AT and later; on an original PC or XT the call is absent and returns
-// immediately, so anything depending on the delay being real should check it
-// once at startup rather than trust it.
-sub waitMicros( u16 high, u16 low ) {
-  _ah = 0x86
-  _cx = high
-  _dx = low
-  int 0x15
+const vgaStatus = 0x3DA
+const vgaVRetrace = 1 << 3
+
+sub waitRetrace {
+  while ( in8( vgaStatus ) & vgaVRetrace ) { }        // let one in progress end
+  while ( ( in8( vgaStatus ) & vgaVRetrace ) == 0 ) { }
+}
+
+sub waitFrame {
+  waitRetrace()
+  waitRetrace()
 }
 ```
 
-Then a frame is:
+Two loops rather than one: called during a retrace, waiting only for "in
+retrace" would return at once and give a partial frame.
+
+**The wait goes before drawing, not after**, which is the whole point of using
+retrace rather than a timer:
 
 ```momo
-const frameMicros = 33333            // 30Hz
-
-sub waitFrame => waitMicros( 0, frameMicros )
-
-while ( true ) {
-  tick()
+sub tick {
+  input()
+  update()
   waitFrame()
+  render()
 }
 ```
 
-**Measured, not assumed:** thirty `waitMicros( 0, 33333 )` calls advance the
-BIOS tick counter by exactly 18, which is one second. So the call is real under
-DOSBox and the pacing is accurate to better than a tick.
+During the retrace the beam is off-screen, so writes made then are not caught
+mid-scan. Pacing the loop from the end would keep the same rate and tear exactly
+as much as before.
 
-This is a fixed wait rather than a deadline, so the true frame period is the
-work plus 33.3ms and the game runs slightly under 30Hz. With no clock finer than
-18.2Hz there is nothing to measure the remainder against, and for a game whose
-per-frame work barely varies the difference is not visible. If it ever matters,
-that is a third argument for DESIGN 22 - a retrace poll on port 0x3DA is both a
-finer clock and the cure for tearing.
+**The speeds in this document were scaled for 30Hz**, so at 35Hz everything runs
+about 17% brisk. That is a tuning knob rather than an error, and §10 and §11 are
+where it would be turned.
+
+This replaced a fixed `int 15h AH=86h` wait of 33333us, and is better in three
+ways. It cannot tear. It does not drift - a fixed wait made a frame take *work
+plus 33.3ms*, so the rate moved with the workload, where a missed retrace simply
+costs the next one and the game steps down in whole frames. And it needs no
+clock at all, where the BIOS tick at 18.2Hz was too coarse to measure a frame
+against.
+
+**What is not yet known** is how much of `render` fits inside the blanking
+interval on real hardware. It is about 1.4ms of a 14.3ms frame, and `render` is
+longer than that - so strictly this buys a head start rather than a guarantee,
+and the score area, drawn last and low on the screen, is where the beam would
+catch up first. Under DOSBox the whole frame fits and the result is completely
+flicker free. 86Box is the next honest measurement, and a real machine after
+that.

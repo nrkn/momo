@@ -14,12 +14,28 @@
   160x100 is 16k - fits easily
 */
 
+include "t_cfg.momo"
+
+local const vgaStatus = 0x3da
+local const vgaVRetrace = 1 << 3
+
+local sub waitRetrace {
+  while ( in8( vgaStatus ) & vgaVRetrace ) { }
+  while ( ( in8( vgaStatus ) & vgaVRetrace ) == 0 ) { }
+}
+
+// mode 13 is 70Hz, two retraces is 35Hz
+sub waitFrame {
+  waitRetrace()
+  waitRetrace()
+}
+
 far u8[64000] pixels = 0xA000
 
 // for later optimisation of setPixel
 view u16[32000] pxwords = pixels[0]
 
-local const pxIndex( u16 x, u16 y ) = y * 320 + x
+local const pxIndex( u16 x, u16 y ) = y * screenW + x
 
 local u8 savedMode
 
@@ -40,6 +56,7 @@ sub mode13 {
   int 0x10
 }
 
+local const screenWNext = screenW + 1
 local u16 at
 
 sub setPixel( u16 x, u16 y, u8 color ) {
@@ -49,8 +66,8 @@ sub setPixel( u16 x, u16 y, u8 color ) {
   // later this becomes two statements instead of four
   pixels[ at ] = color
   pixels[ at + 1 ] = color
-  pixels[ at + 320 ] = color
-  pixels[ at + 321 ] = color
+  pixels[ at + screenW ] = color
+  pixels[ at + screenWNext ] = color
 }
 
 // neither of these need to call pset - it's just easier for now - much more
