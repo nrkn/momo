@@ -34,7 +34,7 @@ group player[playerCount] {
 const u8[] paddleX = [ playLeft, playRight ]
 const u8[] paddleColor = [ red, blue ]
 const u16[] winColor = [ redW, blueW ]
-const u16[] serveX = [ 0, ballXMax ]
+const i16[] serveX = [ 0, ballXMax ]
 const i16[] serveSpeedX = [ serveSpeed, -serveSpeed ]
 
 // ball
@@ -101,7 +101,8 @@ i16 subPxY
 i16 subPxY2
 
 // clear at old, draw at new
-// note - it flickers quite badly - that was somewhat expected with no buffer;
+// note - ~~it flickers quite badly~~ fixed by vsync - on fast hardware at 
+// least
 // but wait until optimised blitting lands and see if we can live with it
 // otherwise, we might need better dirty tracking
 // eg maybe a buffer of 27 elements to track 9x2 paddle pixels, 9 ball px, and a
@@ -309,9 +310,7 @@ sub render {
   clearPaddle( leftPlayer )
   clearPaddle( rightPlayer )
 
-  // not super efficient to draw net every frame, but means clearing ball is
-  // simple (no test for net cross) and tick time is consistent
-  drawNet()
+  if ( oBallX >= netBallXMin && oBallX <= netBallXMax ) drawNet()
 
   drawBall()
   drawPaddle( leftPlayer )
@@ -336,6 +335,7 @@ sub tick {
 sub win( u8 pi ) {
   isWinScreen = true
   
+  waitFrame()
   drawBackground( winColor[ pi ] )
   drawScore( leftPlayer )
   drawScore( rightPlayer )
@@ -370,6 +370,7 @@ sub start {
   // an index into player, so 0 serves from the left
   ballPlayer = randomBelow( len( player ) )
 
+  waitFrame()
   drawBackground( lightGreenW )
   drawPlayfield()
   drawScore( leftPlayer )

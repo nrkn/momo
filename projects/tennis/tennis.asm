@@ -29,6 +29,8 @@ paddleYHome     equ     122
 ballServeOffset equ     12
 hitLead         equ     11
 hitWindow       equ     47
+netBallXMin     equ     144
+netBallXMax     equ     155
 scoreTopWord    equ     26880
 screenWord      equ     32000
 angleZone       equ     6
@@ -1691,8 +1693,19 @@ render:
 ; ---- clearPaddle( rightPlayer )
         mov     byte [clearPaddle__pi], 1
         call    clearPaddle
-; ---- drawNet()
+; ---- if ( oBallX >= netBallXMin && oBallX <= netBallXMax ) drawNet()
+        mov     ax, [oBallX]
+        cmp     ax, 144
+        jge     .L210                       ; signed >=
+        jmp     .L208
+.L210:
+        mov     ax, [oBallX]
+        cmp     ax, 155
+        jle     .L211                       ; signed <=
+        jmp     .L208
+.L211:
         call    drawNet
+.L208:
 ; ---- drawBall()
         call    drawBall
 ; ---- drawPaddle( leftPlayer )
@@ -1733,6 +1746,8 @@ tick:
 win:
 ; ---- isWinScreen = true
         mov     byte [isWinScreen], 1
+; ---- waitFrame()
+        call    waitFrame
 ; ---- drawBackground( winColor[ pi ] )
         mov     al, [win__pi]
         xor     ah, ah                      ; u8 -> u16
@@ -1817,6 +1832,8 @@ start:
         call    randomBelow
         mov     ax, [randomBelow__ret]
         mov     [ballPlayer], al            ; narrowed to u8
+; ---- waitFrame()
+        call    waitFrame
 ; ---- drawBackground( lightGreenW )
         mov     word [drawBackground__color], 257
         call    drawBackground
@@ -1982,7 +1999,7 @@ hitPaddle__yOffset dw      0        ; i16
 scoreXTens      db      ',e'        ; u8[2] const
 scoreXOnes      db      '3l'        ; u8[2] const
 t_pal__palette  db      224, 224, 244, 145, 255, 166, 206, 208, 255, 16, 16, 16, 255, '1S', 2, 204, ']K?', 243, 252, 252, 252        ; u8[24] const
-textSprites     db      7, 7, 7, 7, 7, 7, 3, 3, 3, 7, 7, 3, 3, 3, 7, 7, 3, 3, 3, 7, 7, 7, 7, 7, 7, 3, 7, 7, 3, 3, 3, 3, 7, 3, 3, 3, 3, 7, 3, 3, 3, 3, 7, 3, 3, 3, 7, 7, 7, 3, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 7, 7, 3, 3, 3, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 3, 3, 3, 3, 7, 3, 3, 3, 3, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7        ; u8[250] const
+textSprites     db      7, 7, 7, 7, 7, 7, 3, 3, 3, 7, 7, 3, 3, 3, 7, 7, 3, 3, 3, 7, 7, 7, 7, 7, 7, 3, 3, 7, 3, 3, 3, 3, 7, 3, 3, 3, 3, 7, 3, 3, 3, 3, 7, 3, 3, 3, 3, 7, 3, 3, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 7, 7, 3, 3, 3, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 3, 3, 3, 3, 7, 3, 3, 3, 3, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7        ; u8[250] const
 player__y       times 2 dw 0        ; i16[2]
 player__oldY    times 2 dw 0        ; i16[2]
 player__score   times 2 db 0        ; u8[2]
@@ -1990,7 +2007,7 @@ player__speed   times 2 db 0        ; u8[2]
 paddleX         db      '(v'        ; u8[2] const
 paddleColor     db      4, 6        ; u8[2] const
 winColor        dw      1028, 1542        ; u16[2] const
-serveX          dw      0, 296        ; u16[2] const
+serveX          dw      0, 296        ; i16[2] const
 serveSpeedX     dw      3, -3        ; i16[2] const
 
 ; ============================================================ heap ====
