@@ -19,10 +19,7 @@ include "t_cfg.momo"
 local const vgaStatus = 0x3da
 local const vgaVRetrace = 1 << 3
 
-// The predicate rather than the wait, so the caller owns the spin and can do
-// something useful in it - see waitFrame in tennis.momo, which drains the
-// keyboard there. A wait that owned its own loop would have to know about the
-// keyboard, which is the wrong way round.
+// predicate rather than a wait, so the caller owns it
 bool inRetrace() => ( in8( vgaStatus ) & vgaVRetrace ) != 0
 
 far u8[64000] pixels = 0xA000
