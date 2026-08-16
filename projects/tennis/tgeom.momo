@@ -29,12 +29,19 @@ const digitH = 5
 
 const subgridScale = 4
 
+const paddleSpeedStep = 2
+const paddleSpeedMax = 16
+
 // subgrid units
 
 const paddleYMax = ( playH - paddleH  - 2 ) * subgridScale
 const ballXMax = ( playW - ballW - 2 ) * subgridScale
 const ballYMax = ( playH - ballH - 2 ) * subgridScale
 const paddleYHome = paddleYMax / 2
+
+// centres the ball on the serving paddle: both are subgrid, so the gap either
+// side is half the difference
+const ballServeOffset = ( paddleH - ballH ) * subgridScale / 2
 
 // word blitting
 

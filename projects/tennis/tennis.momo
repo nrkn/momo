@@ -5,6 +5,7 @@ include "std/math.momo"
 include "std/rand.momo"
 include "std/time.momo"
 include "tgeom.momo"
+include "tkbd.momo"
 include "tpal.momo"
 include "tscr.momo"
 include "tsprites.momo"
@@ -20,13 +21,20 @@ bool isRunning = true
 u8 score1
 u8 score2
 
-// paddles
-i16 p1Y
-i16 p2Y
-i16 oP1Y // old paddle 1 y
-i16 oP2Y // old paddle 2 y
-u8 p1Speed
-u8 p2Speed
+// paddles - player 0 is on the left, player 1 on the right
+const playerCount = 2
+
+group player[playerCount] {
+  i16 y      // subgrid
+  i16 oldY   // what is currently on screen
+  u8 speed   // acceleration counter, 0 when the keys are up
+}
+
+// per-player consts
+const u8[] paddleX = [ playLeft, playRight ]
+const u8[] paddleColor = [ red, blue ]
+const u16[] serveX = [ 0, ballXMax ]
+const i16[] serveSpeedX = [ 3, -3 ]
 
 // ball
 i16 ballX
@@ -46,6 +54,7 @@ u8 volleyCount
 saveMode()
 mode13()
 initPal()
+keyboardBegin()
 
 // -- main
 
@@ -57,6 +66,7 @@ sub drawBackground {
   for( dy = 0; dy < scoreTopWord; dy++ ){
     pxwords[ dy ] = lightGreenW
   }
+  
   for( dy = scoreTopWord; dy < screenWord; dy++ ){
     pxwords[ dy ] = blackW
   }
@@ -83,7 +93,7 @@ sub drawNet {
 
 // subgrid to pixels
 // playfield offset, eg playRight, playLeft, playTop etc 
-// object offset, eg ballX, ballY, p1Y etc
+// object offset, eg ballX, ballY, player[ i ].y etc
 const subgridToPx( i16 play, i16 obj ) = play + 1 + (obj >> 2)
 
 i16 subPxX
@@ -102,28 +112,18 @@ i16 subPxY2
 // pixels[n] assignments - oh, but pixel doubling... can do 1 on x with a word
 // but still have to double rows!
 
-sub drawPaddles {
-  subPxY = subgridToPx( playTop, p1Y )
+sub drawPaddle( u8 pi ) {
+  subPxY = subgridToPx( playTop, player[ pi ].y )
   subPxY2 = subPxY + paddleH - 1
 
-  drawLineVertical( playLeft, subPxY, subPxY2, red )
-
-  subPxY = subgridToPx( playTop, p2Y )
-  subPxY2 = subPxY + paddleH - 1
-
-  drawLineVertical( playRight, subPxY, subPxY2, blue )
+  drawLineVertical( paddleX[ pi ], subPxY, subPxY2, paddleColor[ pi ] )
 }
 
-sub clearPaddles {
-  subPxY = subgridToPx( playTop, oP1Y )
+sub clearPaddle( u8 pi ) {
+  subPxY = subgridToPx( playTop, player[ pi ].oldY )
   subPxY2 = subPxY + paddleH - 1
 
-  drawLineVertical( playLeft, subPxY, subPxY2, lightGreen )
-
-  subPxY = subgridToPx( playTop, oP2Y )
-  subPxY2 = subPxY + paddleH - 1
-
-  drawLineVertical( playRight, subPxY, subPxY2, lightGreen )
+  drawLineVertical( paddleX[ pi ], subPxY, subPxY2, lightGreen )
 }
 
 // clear at old, draw at new
@@ -191,21 +191,34 @@ sub drawScore {
   drawSprite( digit3, scoreX3, scoreY )
 }
 
-u16 key
+sub movePaddle( u8 pi, bool up, bool down ) {
+  if ( up || down ) {
+    if ( up ) player[ pi ].y -= player[ pi ].speed
+    if ( down ) player[ pi ].y += player[ pi ].speed
+
+    if ( player[ pi ].y < 0 ) player[ pi ].y = 0
+    if ( player[ pi ].y > paddleYMax ) player[ pi ].y = paddleYMax
+
+    if ( player[ pi ].speed < paddleSpeedMax ) {
+      player[ pi ].speed += paddleSpeedStep
+    }
+  } else {
+    player[ pi ].speed = 0
+  }
+}
+
 // player movements, ESC to exit
 sub input {
-  // currently the only thing in tick that branches - can't be helped
-  if( keyWaiting() ){
-    key = readKey()
+  pollKeyboard()
 
-    isRunning = lo( key ) != keyEsc
-  }
+  if( wasEsc ){
+    isRunning = false
 
-  // apply input to p1Y, p2Y, clamp - no "keyup" without §22 so this is going
-  // to be a pain for paddle acceleration when key held down, both players' 
-  // keys etc - we might actually have to land §22 first - that would also give
-  // us frame sync which would help with flicker more than any amount of 
-  // optimisation does
+    return
+  } 
+
+  movePaddle( 0, isUp1, isDown1 )
+  movePaddle( 1, isUp2, isDown2 )
 }
 
 // recalculate state
@@ -213,7 +226,16 @@ sub update {
   ballX += ballSpeedX
   ballY += ballSpeedY
 
-  // bounce off top/bottom? reflect
+  // bounce off top/bottom walls
+  if( ballY < 0 ){
+    ballY = 0
+    ballSpeedY = -ballSpeedY
+  } else if( ballY > ballYMax ){
+    ballY = ballYMax
+    ballSpeedY = -ballSpeedY
+  }
+
+
   // paddle column
   //   if paddle volleyCount/speed and angle bounce 
   //   else score change
@@ -243,17 +265,20 @@ sub render {
   // testing if they moved or not is probably cheaper but this keeps tick time
   // consistent
   clearBall()
-  clearPaddles()
+  clearPaddle( 0 )
+  clearPaddle( 1 )
 
   // not super efficient to draw net every frame, but means clearing ball is
   // simple (no test for net cross) and tick time is consistent
   drawNet()
 
   drawBall()
-  drawPaddles()
+  drawPaddle( 0 )
+  drawPaddle( 1 )
 
-  oP1Y = p1Y
-  oP2Y = p2Y
+  player[ 0 ].oldY = player[ 0 ].y
+  player[ 1 ].oldY = player[ 1 ].y
+
   oBallX = ballX
   oBallY = ballY
 }
@@ -273,17 +298,10 @@ sub serve(){
   ballSpeedY = 0
   volleyCount = 0
 
-  if( ballPlayer ){
-    ballX = 0
-    ballY = p1Y + 12
-    ballSpeedX = 3    
-    ballColor = red
-  } else {
-    ballX = ballXMax
-    ballY = p2Y + 12
-    ballSpeedX = -3
-    ballColor = blue
-  }
+  ballX = serveX[ ballPlayer ]
+  ballY = player[ ballPlayer ].y + ballServeOffset
+  ballSpeedX = serveSpeedX[ ballPlayer ]
+  ballColor = paddleColor[ ballPlayer ]
 }
 
 // first time or new game after a win
@@ -293,13 +311,17 @@ sub start {
   isWinScreen = false
   score1 = 0
   score2 = 0
-  p1Speed = 0
-  p2Speed = 0
-  p1Y = paddleYHome
-  p2Y = paddleYHome
-  oP1Y = p1Y
-  oP2Y = p2Y
-  ballPlayer = randomBelow( 2 )
+
+  player[ 0 ].speed = 0
+  player[ 0 ].y = paddleYHome
+  player[ 0 ].oldY = paddleYHome
+
+  player[ 1 ].speed = 0
+  player[ 1 ].y = paddleYHome
+  player[ 1 ].oldY = paddleYHome
+
+  // an index into player, so 0 serves from the left
+  ballPlayer = randomBelow( len( player ) )
 
   drawBackground()
   drawPlayfield()
@@ -316,4 +338,5 @@ while( isRunning ) tick()
 
 // -- end
 
+keyboardEnd()
 restoreMode()
