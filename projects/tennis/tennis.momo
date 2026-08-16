@@ -323,8 +323,20 @@ sub render {
   oBallY = ballY
 }
 
-// timer based tick
-sub tick {  
+// pollKeyboard collects one byte per call, so polling once a frame lets a held
+// key outrun it. Drained here instead, where the frame is idle anyway.
+sub waitRetrace {
+  while ( inRetrace() ) pollKeyboard()
+  while ( !inRetrace() ) pollKeyboard()
+}
+
+// mode 13 is 70Hz, two retraces is 35Hz
+sub waitFrame {
+  waitRetrace()
+  waitRetrace()
+}
+
+sub tick {
   input()
   update()
   waitFrame()

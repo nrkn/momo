@@ -581,44 +581,24 @@ initPal:
 .L73:
         ret
 
-; ============================================== sub waitRetrace ====
+; ============================================== bool inRetrace ====
 
-t_scr__waitRetrace:
-; ---- while ( in8( vgaStatus ) & vgaVRetrace ) { }
-.L75:
+inRetrace:
+; ---- bool inRetrace() => ( in8( vgaStatus ) & vgaVRetrace ) != 0
         mov     dx, 986
         in      al, dx
         xor     ah, ah                      ; u8 -> u16
         and     ax, 8
         test    ax, ax
-        jnz     .L78
-        jmp     .L77
-.L78:
-.L76:
+        jne     .L77                        ; unsigned !=
         jmp     .L75
 .L77:
-; ---- while ( ( in8( vgaStatus ) & vgaVRetrace ) == 0 ) { }
-.L79:
-        mov     dx, 986
-        in      al, dx
-        xor     ah, ah                      ; u8 -> u16
-        and     ax, 8
-        test    ax, ax
-        je      .L82                        ; unsigned ==
-        jmp     .L81
-.L82:
-.L80:
-        jmp     .L79
-.L81:
-        ret
-
-; ============================================== sub waitFrame ====
-
-waitFrame:
-; ---- waitRetrace()
-        call    t_scr__waitRetrace
-; ---- waitRetrace()
-        call    t_scr__waitRetrace
+        mov     ax, 1
+        jmp     .L76
+.L75:
+        xor     ax, ax
+.L76:
+        mov     [inRetrace__ret], al        ; narrowed to bool
         ret
 
 ; ============================================== sub saveMode ====
@@ -719,14 +699,14 @@ drawLineHorizontal:
         mov     al, [drawLineHorizontal__x1]
         xor     ah, ah                      ; u8 -> u16
         mov     [t_scr__x], ax
-.L83:
+.L78:
         mov     ax, [t_scr__x]
         mov     bl, [drawLineHorizontal__x2]
         xor     bh, bh                      ; u8 -> u16
         cmp     ax, bx
-        jbe     .L86                        ; unsigned <=
-        jmp     .L85
-.L86:
+        jbe     .L81                        ; unsigned <=
+        jmp     .L80
+.L81:
 ; ---- setPixel( x, y, color )
         mov     ax, [t_scr__x]
         mov     [setPixel__x], ax
@@ -736,10 +716,10 @@ drawLineHorizontal:
         mov     al, [drawLineHorizontal__color]
         mov     [setPixel__color], al       ; u8 -> u8, no widening
         call    setPixel
-.L84:
+.L79:
         inc     word [t_scr__x]
-        jmp     .L83
-.L85:
+        jmp     .L78
+.L80:
         ret
 
 ; ============================================== sub drawLineVertical ====
@@ -749,14 +729,14 @@ drawLineVertical:
         mov     al, [drawLineVertical__y1]
         xor     ah, ah                      ; u8 -> u16
         mov     [t_scr__y], ax
-.L87:
+.L82:
         mov     ax, [t_scr__y]
         mov     bl, [drawLineVertical__y2]
         xor     bh, bh                      ; u8 -> u16
         cmp     ax, bx
-        jbe     .L90                        ; unsigned <=
-        jmp     .L89
-.L90:
+        jbe     .L85                        ; unsigned <=
+        jmp     .L84
+.L85:
 ; ---- setPixel( x, y, color )
         mov     al, [drawLineVertical__x]
         xor     ah, ah                      ; u8 -> u16
@@ -766,10 +746,10 @@ drawLineVertical:
         mov     al, [drawLineVertical__color]
         mov     [setPixel__color], al       ; u8 -> u8, no widening
         call    setPixel
-.L88:
+.L83:
         inc     word [t_scr__y]
-        jmp     .L87
-.L89:
+        jmp     .L82
+.L84:
         ret
 
 ; ============================================== sub drawBackground ====
@@ -777,12 +757,12 @@ drawLineVertical:
 drawBackground:
 ; ---- for( dy = 0; dy < scoreTopWord; dy++ ){
         mov     word [dy_], 0
-.L91:
+.L86:
         mov     ax, [dy_]
         cmp     ax, 26880
-        jb      .L94                        ; unsigned <
-        jmp     .L93
-.L94:
+        jb      .L89                        ; unsigned <
+        jmp     .L88
+.L89:
 ; ---- pxwords[ dy ] = color
         mov     ax, [drawBackground__color]
         push    ax                          ; save value while computing the index
@@ -793,18 +773,18 @@ drawBackground:
         mov     es, dx
         pop     ax
         mov     [es:bx], ax
-.L92:
+.L87:
         inc     word [dy_]
-        jmp     .L91
-.L93:
+        jmp     .L86
+.L88:
 ; ---- for( dy = scoreTopWord; dy < screenWord; dy++ ){
         mov     word [dy_], 26880
-.L95:
+.L90:
         mov     ax, [dy_]
         cmp     ax, 32000
-        jb      .L98                        ; unsigned <
-        jmp     .L97
-.L98:
+        jb      .L93                        ; unsigned <
+        jmp     .L92
+.L93:
 ; ---- pxwords[ dy ] = blackW
         mov     ax, [dy_]
         shl     ax, 1                       ; word elements
@@ -812,10 +792,10 @@ drawBackground:
         mov     dx, 0xA000                  ; segment of pxwords
         mov     es, dx
         mov     word [es:bx], 771
-.L96:
+.L91:
         inc     word [dy_]
-        jmp     .L95
-.L97:
+        jmp     .L90
+.L92:
         ret
 
 ; ============================================== sub drawPlayfield ====
@@ -842,12 +822,12 @@ drawPlayfield:
 drawNet:
 ; ---- for( net = 0; net < 5; net++ ){
         mov     byte [net], 0
-.L99:
+.L94:
         mov     al, [net]
         cmp     al, 5                       ; byte operands, no widening
-        jb      .L102                       ; unsigned <
-        jmp     .L101
-.L102:
+        jb      .L97                        ; unsigned <
+        jmp     .L96
+.L97:
 ; ---- netY = playTop + 3 + net * 14
         mov     ax, 12
         push    ax                          ; save lhs: rhs is not a leaf
@@ -869,10 +849,10 @@ drawNet:
         mov     [drawLineVertical__y2], al  ; narrowed to u8
         mov     byte [drawLineVertical__color], 5
         call    drawLineVertical
-.L100:
+.L95:
         inc     byte [net]
-        jmp     .L99
-.L101:
+        jmp     .L94
+.L96:
         ret
 
 ; ============================================== sub drawPaddle ====
@@ -1083,20 +1063,20 @@ drawSprite:
         mov     [tile], ax
 ; ---- for( j = 0; j < spriteH; j++ ){
         mov     byte [j], 0
-.L103:
+.L98:
         mov     al, [j]
         cmp     al, 5                       ; byte operands, no widening
-        jb      .L106                       ; unsigned <
-        jmp     .L105
-.L106:
+        jb      .L101                       ; unsigned <
+        jmp     .L100
+.L101:
 ; ---- for( i = 0; i < spriteW; i++ ){
         mov     byte [i], 0
-.L107:
+.L102:
         mov     al, [i]
         cmp     al, 5                       ; byte operands, no widening
-        jb      .L110                       ; unsigned <
-        jmp     .L109
-.L110:
+        jb      .L105                       ; unsigned <
+        jmp     .L104
+.L105:
 ; ---- setPixel( i + dx, j + dy, textSprites[ tile ] )
         mov     al, [i]
         xor     ah, ah                      ; u8 -> u16
@@ -1117,14 +1097,14 @@ drawSprite:
         call    setPixel
 ; ---- tile++
         inc     word [tile]
-.L108:
+.L103:
         inc     byte [i]
-        jmp     .L107
-.L109:
+        jmp     .L102
 .L104:
+.L99:
         inc     byte [j]
-        jmp     .L103
-.L105:
+        jmp     .L98
+.L100:
         ret
 
 ; ============================================== sub drawScore ====
@@ -1136,9 +1116,9 @@ drawScore:
         mov     bx, ax
         mov     al, [player__score + bx]
         cmp     al, 10                      ; byte operands, no widening
-        jb      .L113                       ; unsigned <
-        jmp     .L111
-.L113:
+        jb      .L108                       ; unsigned <
+        jmp     .L106
+.L108:
 ; ---- digitTens = 0
         mov     byte [digitTens], 0
 ; ---- digitOnes = player[ pi ].score
@@ -1147,8 +1127,8 @@ drawScore:
         mov     bx, ax
         mov     al, [player__score + bx]
         mov     [digitOnes], al             ; u8 -> u8, no widening
-        jmp     .L112
-.L111:
+        jmp     .L107
+.L106:
 ; ---- digitTens = 1
         mov     byte [digitTens], 1
 ; ---- digitOnes = player[ pi ].score - 10
@@ -1159,7 +1139,7 @@ drawScore:
         xor     ah, ah                      ; u8 -> u16
         sub     ax, 10
         mov     [digitOnes], al             ; narrowed to u8
-.L112:
+.L107:
 ; ---- drawSprite( digitTens, scoreXTens[ pi ], scoreY )
         mov     al, [digitTens]
         mov     [drawSprite__index], al     ; u8 -> u8, no widening
@@ -1188,21 +1168,21 @@ movePaddle:
 ; ---- if ( up || down ) {
         mov     al, [movePaddle__up]
         test    al, al
-        jz      .L117
-        jmp     .L116
-.L117:
+        jz      .L112
+        jmp     .L111
+.L112:
         mov     al, [movePaddle__down]
         test    al, al
-        jnz     .L118
-        jmp     .L114
-.L118:
-.L116:
+        jnz     .L113
+        jmp     .L109
+.L113:
+.L111:
 ; ---- if ( up ) player[ pi ].y -= player[ pi ].speed
         mov     al, [movePaddle__up]
         test    al, al
-        jnz     .L121
-        jmp     .L119
-.L121:
+        jnz     .L116
+        jmp     .L114
+.L116:
         mov     al, [movePaddle__pi]
         xor     ah, ah                      ; u8 -> u16
         shl     ax, 1                       ; word elements
@@ -1224,13 +1204,13 @@ movePaddle:
         mov     bx, ax
         pop     ax
         mov     [player__y + bx], ax
-.L119:
+.L114:
 ; ---- if ( down ) player[ pi ].y += player[ pi ].speed
         mov     al, [movePaddle__down]
         test    al, al
-        jnz     .L124
-        jmp     .L122
-.L124:
+        jnz     .L119
+        jmp     .L117
+.L119:
         mov     al, [movePaddle__pi]
         xor     ah, ah                      ; u8 -> u16
         shl     ax, 1                       ; word elements
@@ -1252,7 +1232,7 @@ movePaddle:
         mov     bx, ax
         pop     ax
         mov     [player__y + bx], ax
-.L122:
+.L117:
 ; ---- if ( player[ pi ].y < 0 ) player[ pi ].y = 0
         mov     al, [movePaddle__pi]
         xor     ah, ah                      ; u8 -> u16
@@ -1260,15 +1240,15 @@ movePaddle:
         mov     bx, ax
         mov     ax, [player__y + bx]
         test    ax, ax
-        jl      .L127                       ; signed <
-        jmp     .L125
-.L127:
+        jl      .L122                       ; signed <
+        jmp     .L120
+.L122:
         mov     al, [movePaddle__pi]
         xor     ah, ah                      ; u8 -> u16
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     word [player__y + bx], 0
-.L125:
+.L120:
 ; ---- if ( player[ pi ].y > paddleYMax ) player[ pi ].y = paddleYMax
         mov     al, [movePaddle__pi]
         xor     ah, ah                      ; u8 -> u16
@@ -1276,24 +1256,24 @@ movePaddle:
         mov     bx, ax
         mov     ax, [player__y + bx]
         cmp     ax, 244
-        jg      .L130                       ; signed >
-        jmp     .L128
-.L130:
+        jg      .L125                       ; signed >
+        jmp     .L123
+.L125:
         mov     al, [movePaddle__pi]
         xor     ah, ah                      ; u8 -> u16
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     word [player__y + bx], 244
-.L128:
+.L123:
 ; ---- if ( player[ pi ].speed < paddleSpeedMax ) {
         mov     al, [movePaddle__pi]
         xor     ah, ah                      ; u8 -> u16
         mov     bx, ax
         mov     al, [player__speed + bx]
         cmp     al, 16                      ; byte operands, no widening
-        jb      .L133                       ; unsigned <
-        jmp     .L131
-.L133:
+        jb      .L128                       ; unsigned <
+        jmp     .L126
+.L128:
 ; ---- player[ pi ].speed += paddleSpeedStep
         mov     al, [movePaddle__pi]
         xor     ah, ah                      ; u8 -> u16
@@ -1307,15 +1287,15 @@ movePaddle:
         mov     bx, ax
         pop     ax
         mov     [player__speed + bx], al
-.L131:
-        jmp     .L115
-.L114:
+.L126:
+        jmp     .L110
+.L109:
 ; ---- player[ pi ].speed = 0
         mov     al, [movePaddle__pi]
         xor     ah, ah                      ; u8 -> u16
         mov     bx, ax
         mov     byte [player__speed + bx], 0
-.L115:
+.L110:
         ret
 
 ; ============================================== sub input ====
@@ -1326,48 +1306,48 @@ input:
 ; ---- if( wasEsc ){
         mov     al, [wasEsc]
         test    al, al
-        jnz     .L136
-        jmp     .L134
-.L136:
+        jnz     .L131
+        jmp     .L129
+.L131:
 ; ---- isRunning = false
         mov     byte [isRunning], 0
 ; ---- return
         ret
-.L134:
+.L129:
 ; ---- if( isWinScreen ){
         mov     al, [isWinScreen]
         test    al, al
-        jnz     .L139
-        jmp     .L137
-.L139:
+        jnz     .L134
+        jmp     .L132
+.L134:
 ; ---- if( isLeft1 || isLeft2 || isRight1 || isRight2 ){
         mov     al, [isLeft1]
         test    al, al
-        jz      .L143
-        jmp     .L142
-.L143:
+        jz      .L138
+        jmp     .L137
+.L138:
         mov     al, [isLeft2]
         test    al, al
-        jz      .L144
-        jmp     .L142
-.L144:
+        jz      .L139
+        jmp     .L137
+.L139:
         mov     al, [isRight1]
         test    al, al
-        jz      .L145
-        jmp     .L142
-.L145:
+        jz      .L140
+        jmp     .L137
+.L140:
         mov     al, [isRight2]
         test    al, al
-        jnz     .L146
-        jmp     .L140
-.L146:
-.L142:
+        jnz     .L141
+        jmp     .L135
+.L141:
+.L137:
 ; ---- start()
         call    start
-.L140:
+.L135:
 ; ---- return
         ret
-.L137:
+.L132:
 ; ---- movePaddle( 0, isUp1, isDown1 )
         mov     byte [movePaddle__pi], 0
         mov     al, [isUp1]
@@ -1390,65 +1370,65 @@ setBallSpeedY:
 ; ---- if ( yOffset < angleZone1 ) ballSpeedY = -ballSpeedY3
         mov     ax, [setBallSpeedY__yOffset]
         cmp     ax, 6
-        jl      .L149                       ; signed <
-        jmp     .L147
-.L149:
+        jl      .L144                       ; signed <
+        jmp     .L142
+.L144:
         mov     word [ballSpeedY], 65527
-        jmp     .L148
-.L147:
+        jmp     .L143
+.L142:
 ; ---- else if ( yOffset < angleZone2 ) ballSpeedY = -ballSpeedY2
         mov     ax, [setBallSpeedY__yOffset]
         cmp     ax, 12
-        jl      .L152                       ; signed <
-        jmp     .L150
-.L152:
+        jl      .L147                       ; signed <
+        jmp     .L145
+.L147:
         mov     word [ballSpeedY], 65530
-        jmp     .L151
-.L150:
+        jmp     .L146
+.L145:
 ; ---- else if ( yOffset < angleZone3 ) ballSpeedY = -ballSpeedY1
         mov     ax, [setBallSpeedY__yOffset]
         cmp     ax, 18
-        jl      .L155                       ; signed <
-        jmp     .L153
-.L155:
+        jl      .L150                       ; signed <
+        jmp     .L148
+.L150:
         mov     word [ballSpeedY], 65533
-        jmp     .L154
-.L153:
+        jmp     .L149
+.L148:
 ; ---- else if ( yOffset < angleZone4 ) ballSpeedY = 0
         mov     ax, [setBallSpeedY__yOffset]
         cmp     ax, 29
-        jl      .L158                       ; signed <
-        jmp     .L156
-.L158:
+        jl      .L153                       ; signed <
+        jmp     .L151
+.L153:
         mov     word [ballSpeedY], 0
-        jmp     .L157
-.L156:
+        jmp     .L152
+.L151:
 ; ---- else if ( yOffset < angleZone5 ) ballSpeedY = ballSpeedY1
         mov     ax, [setBallSpeedY__yOffset]
         cmp     ax, 35
-        jl      .L161                       ; signed <
-        jmp     .L159
-.L161:
+        jl      .L156                       ; signed <
+        jmp     .L154
+.L156:
         mov     word [ballSpeedY], 3
-        jmp     .L160
-.L159:
+        jmp     .L155
+.L154:
 ; ---- else if ( yOffset < angleZone6 ) ballSpeedY = ballSpeedY2
         mov     ax, [setBallSpeedY__yOffset]
         cmp     ax, 41
-        jl      .L164                       ; signed <
-        jmp     .L162
-.L164:
+        jl      .L159                       ; signed <
+        jmp     .L157
+.L159:
         mov     word [ballSpeedY], 6
-        jmp     .L163
-.L162:
+        jmp     .L158
+.L157:
 ; ---- else ballSpeedY = ballSpeedY3
         mov     word [ballSpeedY], 9
-.L163:
-.L160:
-.L157:
-.L154:
-.L151:
-.L148:
+.L158:
+.L155:
+.L152:
+.L149:
+.L146:
+.L143:
         ret
 
 ; ============================================== sub scorePoint ====
@@ -1469,21 +1449,21 @@ scorePoint:
         mov     bx, ax
         mov     al, [player__score + bx]
         cmp     al, 11                      ; byte operands, no widening
-        je      .L167                       ; unsigned ==
-        jmp     .L165
-.L167:
+        je      .L162                       ; unsigned ==
+        jmp     .L160
+.L162:
 ; ---- win( pi )
         mov     al, [scorePoint__pi]
         mov     [win__pi], al               ; u8 -> u8, no widening
         call    win
-        jmp     .L166
-.L165:
+        jmp     .L161
+.L160:
 ; ---- ballPlayer = pi
         mov     al, [scorePoint__pi]
         mov     [ballPlayer], al            ; u8 -> u8, no widening
 ; ---- serve()
         call    serve
-.L166:
+.L161:
         ret
 
 ; ============================================== sub hitPaddle ====
@@ -1505,15 +1485,15 @@ hitPaddle:
 ; ---- if ( yOffset < 0 || yOffset >= hitWindow ) {
         mov     ax, [hitPaddle__yOffset]
         test    ax, ax
-        jge     .L171                       ; signed <
-        jmp     .L170
-.L171:
+        jge     .L166                       ; signed <
+        jmp     .L165
+.L166:
         mov     ax, [hitPaddle__yOffset]
         cmp     ax, 47
-        jge     .L172                       ; signed >=
-        jmp     .L168
-.L172:
-.L170:
+        jge     .L167                       ; signed >=
+        jmp     .L163
+.L167:
+.L165:
 ; ---- scorePoint( 1 - pi )
         mov     ax, 1
         mov     bl, [hitPaddle__pi]
@@ -1523,7 +1503,7 @@ hitPaddle:
         call    scorePoint
 ; ---- return
         ret
-.L168:
+.L163:
 ; ---- ballX = serveX[ pi ]
         mov     al, [hitPaddle__pi]
         xor     ah, ah                      ; u8 -> u16
@@ -1538,47 +1518,47 @@ hitPaddle:
 ; ---- if ( iabs( ballSpeedX ) < ballSpeedXMax ) {
         mov     ax, [ballSpeedX]
         test    ax, ax
-        jl      .L177                       ; signed <
-        jmp     .L175
-.L177:
+        jl      .L172                       ; signed <
+        jmp     .L170
+.L172:
         mov     ax, [ballSpeedX]
         neg     ax
-        jmp     .L176
-.L175:
+        jmp     .L171
+.L170:
         mov     ax, [ballSpeedX]
-.L176:
+.L171:
         cmp     ax, 9
-        jl      .L178                       ; signed <
-        jmp     .L173
-.L178:
+        jl      .L173                       ; signed <
+        jmp     .L168
+.L173:
 ; ---- volleyCount++
         inc     byte [volleyCount]
 ; ---- if ( volleyCount == volleyTarget ) {
         mov     al, [volleyCount]
         cmp     al, 3                       ; byte operands, no widening
-        je      .L181                       ; unsigned ==
-        jmp     .L179
-.L181:
+        je      .L176                       ; unsigned ==
+        jmp     .L174
+.L176:
 ; ---- volleyCount = 0
         mov     byte [volleyCount], 0
 ; ---- if ( ballSpeedX > 0 ) ballSpeedX += ballSpeedStep
         mov     ax, [ballSpeedX]
         test    ax, ax
-        jg      .L184                       ; signed >
-        jmp     .L182
-.L184:
+        jg      .L179                       ; signed >
+        jmp     .L177
+.L179:
         mov     ax, [ballSpeedX]
         add     ax, 3
         mov     [ballSpeedX], ax
-        jmp     .L183
-.L182:
+        jmp     .L178
+.L177:
 ; ---- else ballSpeedX -= ballSpeedStep
         mov     ax, [ballSpeedX]
         sub     ax, 3
         mov     [ballSpeedX], ax
-.L183:
-.L179:
-.L173:
+.L178:
+.L174:
+.L168:
 ; ---- ballSpeedX = -ballSpeedX
         mov     ax, [ballSpeedX]
         neg     ax
@@ -1600,11 +1580,11 @@ update:
 ; ---- if( isWinScreen ) return
         mov     al, [isWinScreen]
         test    al, al
-        jnz     .L187
-        jmp     .L185
-.L187:
+        jnz     .L182
+        jmp     .L180
+.L182:
         ret
-.L185:
+.L180:
 ; ---- ballX += ballSpeedX
         mov     ax, [ballX]
         mov     bx, [ballSpeedX]
@@ -1618,63 +1598,63 @@ update:
 ; ---- if( ballY < 0 ){
         mov     ax, [ballY]
         test    ax, ax
-        jl      .L190                       ; signed <
-        jmp     .L188
-.L190:
+        jl      .L185                       ; signed <
+        jmp     .L183
+.L185:
 ; ---- ballY = 0
         mov     word [ballY], 0
 ; ---- ballSpeedY = -ballSpeedY
         mov     ax, [ballSpeedY]
         neg     ax
         mov     [ballSpeedY], ax
-        jmp     .L189
-.L188:
+        jmp     .L184
+.L183:
 ; ---- } else if( ballY > ballYMax ){
         mov     ax, [ballY]
         cmp     ax, 268
-        jg      .L193                       ; signed >
-        jmp     .L191
-.L193:
+        jg      .L188                       ; signed >
+        jmp     .L186
+.L188:
 ; ---- ballY = ballYMax
         mov     word [ballY], 268
 ; ---- ballSpeedY = -ballSpeedY
         mov     ax, [ballSpeedY]
         neg     ax
         mov     [ballSpeedY], ax
-.L191:
-.L189:
+.L186:
+.L184:
 ; ---- if( ballSpeedX > 0 && ballX >= ballXMax ){
         mov     ax, [ballSpeedX]
         test    ax, ax
-        jg      .L196                       ; signed >
-        jmp     .L194
-.L196:
+        jg      .L191                       ; signed >
+        jmp     .L189
+.L191:
         mov     ax, [ballX]
         cmp     ax, 296
-        jge     .L197                       ; signed >=
-        jmp     .L194
-.L197:
+        jge     .L192                       ; signed >=
+        jmp     .L189
+.L192:
 ; ---- hitPaddle( rightPlayer )
         mov     byte [hitPaddle__pi], 1
         call    hitPaddle
-        jmp     .L195
-.L194:
+        jmp     .L190
+.L189:
 ; ---- } else if ( ballSpeedX < 0 && ballX <= 0 ){
         mov     ax, [ballSpeedX]
         test    ax, ax
-        jl      .L200                       ; signed <
-        jmp     .L198
-.L200:
+        jl      .L195                       ; signed <
+        jmp     .L193
+.L195:
         mov     ax, [ballX]
         test    ax, ax
-        jle     .L201                       ; signed <=
-        jmp     .L198
-.L201:
+        jle     .L196                       ; signed <=
+        jmp     .L193
+.L196:
 ; ---- hitPaddle( leftPlayer )
         mov     byte [hitPaddle__pi], 0
         call    hitPaddle
-.L198:
-.L195:
+.L193:
+.L190:
         ret
 
 ; ============================================== sub render ====
@@ -1683,11 +1663,11 @@ render:
 ; ---- if( isWinScreen ) return
         mov     al, [isWinScreen]
         test    al, al
-        jnz     .L204
-        jmp     .L202
-.L204:
+        jnz     .L199
+        jmp     .L197
+.L199:
         ret
-.L202:
+.L197:
 ; ---- clearBall()
         call    clearBall
 ; ---- clearPaddle( leftPlayer )
@@ -1699,16 +1679,16 @@ render:
 ; ---- if ( oBallX >= netBallXMin && oBallX <= netBallXMax ) drawNet()
         mov     ax, [oBallX]
         cmp     ax, 144
-        jge     .L207                       ; signed >=
-        jmp     .L205
-.L207:
+        jge     .L202                       ; signed >=
+        jmp     .L200
+.L202:
         mov     ax, [oBallX]
         cmp     ax, 155
-        jle     .L208                       ; signed <=
-        jmp     .L205
-.L208:
+        jle     .L203                       ; signed <=
+        jmp     .L200
+.L203:
         call    drawNet
-.L205:
+.L200:
 ; ---- drawBall()
         call    drawBall
 ; ---- drawPaddle( leftPlayer )
@@ -1729,6 +1709,46 @@ render:
 ; ---- oBallY = ballY
         mov     ax, [ballY]
         mov     [oBallY], ax
+        ret
+
+; ============================================== sub waitRetrace ====
+
+waitRetrace:
+; ---- while ( inRetrace() ) pollKeyboard()
+.L204:
+        call    inRetrace
+        mov     al, [inRetrace__ret]
+        xor     ah, ah                      ; bool -> u16
+        test    ax, ax
+        jnz     .L207
+        jmp     .L206
+.L207:
+        call    pollKeyboard
+.L205:
+        jmp     .L204
+.L206:
+; ---- while ( !inRetrace() ) pollKeyboard()
+.L208:
+        call    inRetrace
+        mov     al, [inRetrace__ret]
+        xor     ah, ah                      ; bool -> u16
+        test    ax, ax
+        jz      .L211
+        jmp     .L210
+.L211:
+        call    pollKeyboard
+.L209:
+        jmp     .L208
+.L210:
+        ret
+
+; ============================================== sub waitFrame ====
+
+waitFrame:
+; ---- waitRetrace()
+        call    waitRetrace
+; ---- waitRetrace()
+        call    waitRetrace
         ret
 
 ; ============================================== sub tick ====
@@ -1945,6 +1965,7 @@ t_pal__setPaletteColor__g db      0        ; u8
 t_pal__setPaletteColor__b db      0        ; u8
 t_pal__i        db      0        ; u8
 t_pal__pIndex   db      0        ; u8
+inRetrace__ret  db      0        ; bool
 t_scr__savedMode db      0        ; u8
 t_scr__at       dw      0        ; u16
 setPixel__x     dw      0        ; u16

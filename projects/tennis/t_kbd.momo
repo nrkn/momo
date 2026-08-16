@@ -91,14 +91,9 @@ sub pollKeyboard {
     code = in8( kbData )
     ioDelay()
 
-    // // if bit 5, it's mouse, not kbd
-    // if ( ( status & kbAux ) == 0 ) {
-    //   down = code < 0x80
-    //   applyKey( code & 0x7F, down )
-    // }
-
-    // try skipping mouse check
+    // this ignores: aux (mouse)/transmit timeout on at controllers
     down = code < 0x80
+
     applyKey( code & 0x7F, down )
   }
 }

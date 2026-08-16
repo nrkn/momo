@@ -77,4 +77,3 @@ const ballSpeedY3 = ballSpeedStep * 3
 const ballSpeedXMax = ballSpeedStep * 3
 const volleyTarget = 3
 const winScore = 11
-
