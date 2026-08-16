@@ -3040,6 +3040,15 @@ golden-tier only. **The honest claim for an automated test here is "the right po
 instruction was emitted", not "the hardware agreed"** - and any test added should
 say so in its own comment rather than implying otherwise.
 
+**That hierarchy has since been paid for rather than argued.** A raw keyboard
+reader built on these builtins worked perfectly under DOSBox and dropped
+keystrokes on 86Box, because DOSBox hands over the next byte from the controller
+immediately where real hardware takes about a millisecond - so a drain loop
+really drains on one and collects a single byte on the other. Nothing in tier 2
+could have caught it, and three plausible explanations were wrong before the
+right one. `PITFALLS.md` records it, and the general form: a passing DOSBox run
+means the logic is right, not that the program works.
+
 ### Deliberately out of scope
 
 - **A graphics library.** §20 already separates "access to the hardware" from "a
