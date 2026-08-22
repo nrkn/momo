@@ -323,14 +323,15 @@ sub render {
   oBallY = ballY
 }
 
-// pollKeyboard collects one byte per call, so polling once a frame lets a held
-// key outrun it. Drained here instead, where the frame is idle anyway.
+// with a high typematic rate, the keyboard buffer can get very full, especially
+// with numlock fake codes and etc - using the retrace period means a good
+// chance to drain it properly
 sub waitRetrace {
   while ( inRetrace() ) pollKeyboard()
   while ( !inRetrace() ) pollKeyboard()
 }
 
-// mode 13 is 70Hz, two retraces is 35Hz
+// mode 13 is 70Hz, so two retraces for 35Hz
 sub waitFrame {
   waitRetrace()
   waitRetrace()
