@@ -13,6 +13,8 @@
 //   npm run reference -- --demo=sizing  --stage=sizeY
 //   npm run reference -- --demo=capped  --stage=sizeY
 //   npm run reference -- --demo=squeeze --stage=sizeY
+//   npm run reference -- --demo=overflow --stage=sizeY
+//   npm run reference -- --demo=alignment --stage=sizeY
 //
 // concatenated in that order. Two independent implementations of one algorithm
 // agreeing on every integer is the point of the exercise.
@@ -28,6 +30,13 @@
 //            never runs either, and nothing in shell overflows at all. The
 //            8-wide track squeezes both paragraphs onto their longest word and
 //            still does not fit.
+//   alignment  nothing else uses `end` on either axis, so leadFor's third branch
+//            never ran. Nine cells cover every combination of the two.
+//   overflow content that will not fit and cannot be squeezed, in a centred
+//            track. Aligning content larger than its container is the one place
+//            the arithmetic has to answer "no room" instead of a negative
+//            number, and unsigned that is a 32766-cell lead rather than a small
+//            mistake.
 //   capped   the other three all remove a candidate from the end of the list, or
 //            from a position where order has stopped mattering, so shift-down and
 //            swap-with-last cannot be told apart. Four swatches with the SECOND
@@ -98,6 +107,21 @@ const u8[] sAa       = "aa$"
 const u8[] sBb       = "bb$"
 const u8[] sCc       = "cc$"
 const u8[] sDd       = "dd$"
+
+const u8[] sWider    = "wider$"
+const u8[] sThan     = "than$"
+const u8[] sThis     = "this$"
+
+// The nine alignment combinations, named for their main and cross alignment.
+const u8[] sAlSs     = "ss$"
+const u8[] sAlCs     = "cs$"
+const u8[] sAlEs     = "es$"
+const u8[] sAlSc     = "sc$"
+const u8[] sAlCc     = "cc$"
+const u8[] sAlEc     = "ec$"
+const u8[] sAlSe     = "se$"
+const u8[] sAlCe     = "ce$"
+const u8[] sAlEe     = "ee$"
 
 // A paragraph's minimum width is its longest word, and that one number is the
 // whole of what makes it a paragraph rather than a label. In a Momo program it is
@@ -241,7 +265,12 @@ sub buildShell {
     cfgInsetX( u )
     openBox()
       labelAt( addr( sMomolo ) )
+
+      // The gap on a childless box is deliberate and does nothing - there are no
+      // gaps to add between no children. It is here so that `gap * (n - 1)`
+      // without a guard reads 65535 and says so; see m_fit.momo.
       cfgGrowW()
+      cfg.gap = u
       openBox()
       closeBox()
       labelAt( addr( sGeometry ) )
@@ -418,6 +447,80 @@ sub buildSqueeze {
   closeBox()
 }
 
+// ---- scene: overflow ------------------------------------------------------
+//
+// Three labels that will not fit and cannot be squeezed. A label refuses to be
+// narrowed, so shrink has nothing to reclaim and the excess spills - the engine
+// raises a flag and stops there.
+//
+// The track is centred, which is the point: aligning content larger than its
+// container is the one place the arithmetic has to answer "no room" rather than a
+// negative number.
+
+sub buildOverflow {
+  cfgCol()
+  cfgGrowW()
+  cfgGrowH()
+  cfgInset( u )
+  openBox()
+
+    cfgFixedW( 10 * u )
+    cfg.gap = u
+    cfg.alignMain = alignCenter
+    openBox()
+      labelAt( addr( sWider ) )
+      labelAt( addr( sThan ) )
+      labelAt( addr( sThis ) )
+    closeBox()
+
+  closeBox()
+}
+
+// ---- scene: alignment -----------------------------------------------------
+//
+// Nine combinations of alignMain and alignCross, relative to the layout axis
+// rather than absolute - one concept instead of two, and the divergence from
+// Clay the study argued hardest for. Each cell is a row, so main is x and cross
+// is y, and each is labelled with the first letter of each.
+//
+// Ported because `end` appears nowhere else: without this scene leadFor's third
+// branch never runs on either axis.
+
+sub alignCell( u16 at, u8 main, u8 cross ) {
+  cfgFixedW( 12 * u )
+  cfgFixedH( 3 * lineHeight )
+  cfg.alignMain = main
+  cfg.alignCross = cross
+  openBox()
+    labelAt( at )
+  closeBox()
+}
+
+sub alignRow( u16 a, u16 b, u16 c, u8 cross ) {
+  cfgGrowW()
+  cfg.gap = u
+  openBox()
+    alignCell( a, alignStart, cross )
+    alignCell( b, alignCenter, cross )
+    alignCell( c, alignEnd, cross )
+  closeBox()
+}
+
+sub buildAlignment {
+  cfgCol()
+  cfgGrowW()
+  cfgGrowH()
+  cfgInset( u )
+  cfg.gap = u
+  openBox()
+
+    alignRow( addr( sAlSs ), addr( sAlCs ), addr( sAlEs ), alignStart )
+    alignRow( addr( sAlSc ), addr( sAlCc ), addr( sAlEc ), alignCenter )
+    alignRow( addr( sAlSe ), addr( sAlCe ), addr( sAlEe ), alignEnd )
+
+  closeBox()
+}
+
 // ---- entry ----------------------------------------------------------------
 
 begin( 72 * u, 24 * lineHeight )
@@ -440,6 +543,18 @@ dumpBoxes()
 
 begin( 40 * u, 15 * lineHeight )
 buildSqueeze()
+closeBox()
+runPasses()
+dumpBoxes()
+
+begin( 20 * u, 3 * lineHeight )
+buildOverflow()
+closeBox()
+runPasses()
+dumpBoxes()
+
+begin( 40 * u, 13 * lineHeight )
+buildAlignment()
 closeBox()
 runPasses()
 dumpBoxes()

@@ -11,6 +11,7 @@ maxElements:    equ     64
 unbounded:      equ     65535
 alignStart:     equ     0
 alignCenter:    equ     1
+alignEnd:       equ     2
 u:              equ     1
 lineHeight:     equ     1
 border:         equ     1
@@ -63,6 +64,30 @@ __entry:
         call    begin
 ; ---- buildSqueeze()
         call    buildSqueeze
+; ---- closeBox()
+        call    closeBox
+; ---- runPasses()
+        call    runPasses
+; ---- dumpBoxes()
+        call    dumpBoxes
+; ---- begin( 20 * u, 3 * lineHeight )
+        mov     word [begin__w], 20
+        mov     word [begin__h], 3
+        call    begin
+; ---- buildOverflow()
+        call    buildOverflow
+; ---- closeBox()
+        call    closeBox
+; ---- runPasses()
+        call    runPasses
+; ---- dumpBoxes()
+        call    dumpBoxes
+; ---- begin( 40 * u, 13 * lineHeight )
+        mov     word [begin__w], 40
+        mov     word [begin__h], 13
+        call    begin
+; ---- buildAlignment()
+        call    buildAlignment
 ; ---- closeBox()
         call    closeBox
 ; ---- runPasses()
@@ -3660,6 +3685,8 @@ buildShell:
         call    labelAt
 ; ---- cfgGrowW()
         call    cfgGrowW
+; ---- cfg.gap = u
+        mov     byte [cfg__gap], 1
 ; ---- openBox()
         call    openBox
 ; ---- closeBox()
@@ -3998,6 +4025,153 @@ buildSqueeze:
         call    closeBox
         ret
 
+; ============================================== sub buildOverflow ====
+
+buildOverflow:
+; ---- cfgCol()
+        call    cfgCol
+; ---- cfgGrowW()
+        call    cfgGrowW
+; ---- cfgGrowH()
+        call    cfgGrowH
+; ---- cfgInset( u )
+        mov     byte [cfgInset__n], 1
+        call    cfgInset
+; ---- openBox()
+        call    openBox
+; ---- cfgFixedW( 10 * u )
+        mov     word [cfgFixedW__n], 10
+        call    cfgFixedW
+; ---- cfg.gap = u
+        mov     byte [cfg__gap], 1
+; ---- cfg.alignMain = alignCenter
+        mov     byte [cfg__alignMain], 1
+; ---- openBox()
+        call    openBox
+; ---- labelAt( addr( sWider ) )
+        mov     ax, sWider                  ; link-time constant
+        mov     [labelAt__at], ax
+        call    labelAt
+; ---- labelAt( addr( sThan ) )
+        mov     ax, sThan                   ; link-time constant
+        mov     [labelAt__at], ax
+        call    labelAt
+; ---- labelAt( addr( sThis ) )
+        mov     ax, sThis                   ; link-time constant
+        mov     [labelAt__at], ax
+        call    labelAt
+; ---- closeBox()
+        call    closeBox
+; ---- closeBox()
+        call    closeBox
+        ret
+
+; ============================================== sub alignCell ====
+
+alignCell:
+; ---- cfgFixedW( 12 * u )
+        mov     word [cfgFixedW__n], 12
+        call    cfgFixedW
+; ---- cfgFixedH( 3 * lineHeight )
+        mov     word [cfgFixedH__n], 3
+        call    cfgFixedH
+; ---- cfg.alignMain = main
+        mov     al, [alignCell__main]
+        mov     [cfg__alignMain], al        ; u8 -> u8, no widening
+; ---- cfg.alignCross = cross
+        mov     al, [alignCell__cross]
+        mov     [cfg__alignCross], al       ; u8 -> u8, no widening
+; ---- openBox()
+        call    openBox
+; ---- labelAt( at )
+        mov     ax, [alignCell__at]
+        mov     [labelAt__at], ax
+        call    labelAt
+; ---- closeBox()
+        call    closeBox
+        ret
+
+; ============================================== sub alignRow ====
+
+alignRow:
+; ---- cfgGrowW()
+        call    cfgGrowW
+; ---- cfg.gap = u
+        mov     byte [cfg__gap], 1
+; ---- openBox()
+        call    openBox
+; ---- alignCell( a, alignStart, cross )
+        mov     ax, [alignRow__a]
+        mov     [alignCell__at], ax
+        mov     byte [alignCell__main], 0
+        mov     al, [alignRow__cross]
+        mov     [alignCell__cross], al      ; u8 -> u8, no widening
+        call    alignCell
+; ---- alignCell( b, alignCenter, cross )
+        mov     ax, [alignRow__b]
+        mov     [alignCell__at], ax
+        mov     byte [alignCell__main], 1
+        mov     al, [alignRow__cross]
+        mov     [alignCell__cross], al      ; u8 -> u8, no widening
+        call    alignCell
+; ---- alignCell( c, alignEnd, cross )
+        mov     ax, [alignRow__c]
+        mov     [alignCell__at], ax
+        mov     byte [alignCell__main], 2
+        mov     al, [alignRow__cross]
+        mov     [alignCell__cross], al      ; u8 -> u8, no widening
+        call    alignCell
+; ---- closeBox()
+        call    closeBox
+        ret
+
+; ============================================== sub buildAlignment ====
+
+buildAlignment:
+; ---- cfgCol()
+        call    cfgCol
+; ---- cfgGrowW()
+        call    cfgGrowW
+; ---- cfgGrowH()
+        call    cfgGrowH
+; ---- cfgInset( u )
+        mov     byte [cfgInset__n], 1
+        call    cfgInset
+; ---- cfg.gap = u
+        mov     byte [cfg__gap], 1
+; ---- openBox()
+        call    openBox
+; ---- alignRow( addr( sAlSs ), addr( sAlCs ), addr( sAlEs ), alignStart )
+        mov     ax, sAlSs                   ; link-time constant
+        mov     [alignRow__a], ax
+        mov     ax, sAlCs                   ; link-time constant
+        mov     [alignRow__b], ax
+        mov     ax, sAlEs                   ; link-time constant
+        mov     [alignRow__c], ax
+        mov     byte [alignRow__cross], 0
+        call    alignRow
+; ---- alignRow( addr( sAlSc ), addr( sAlCc ), addr( sAlEc ), alignCenter )
+        mov     ax, sAlSc                   ; link-time constant
+        mov     [alignRow__a], ax
+        mov     ax, sAlCc                   ; link-time constant
+        mov     [alignRow__b], ax
+        mov     ax, sAlEc                   ; link-time constant
+        mov     [alignRow__c], ax
+        mov     byte [alignRow__cross], 1
+        call    alignRow
+; ---- alignRow( addr( sAlSe ), addr( sAlCe ), addr( sAlEe ), alignEnd )
+        mov     ax, sAlSe                   ; link-time constant
+        mov     [alignRow__a], ax
+        mov     ax, sAlCe                   ; link-time constant
+        mov     [alignRow__b], ax
+        mov     ax, sAlEe                   ; link-time constant
+        mov     [alignRow__c], ax
+        mov     byte [alignRow__cross], 2
+        call    alignRow
+; ---- closeBox()
+        call    closeBox
+        ret
+
 ; ==================================================== int helpers ====
 ; One per distinct interrupt: the literal is baked in, so the register
 ; sync is emitted once rather than at every call site.
@@ -4105,6 +4279,13 @@ swatchCapped__at: dw      0        ; u16
 swatchCapped__n: dw      0        ; u16
 squeezeTrack__caption: dw      0        ; u16
 squeezeTrack__width: dw      0        ; u16
+alignCell__at:  dw      0        ; u16
+alignCell__main: db      0        ; u8
+alignCell__cross: db      0        ; u8
+alignRow__a:    dw      0        ; u16
+alignRow__b:    dw      0        ; u16
+alignRow__c:    dw      0        ; u16
+alignRow__cross: db      0        ; u8
 putNumber__i:   db      0        ; u8
 strLen__n:      dw      0        ; u16
 fitSize__n:     dw      0        ; u16
@@ -4246,6 +4427,18 @@ sAa:            db      'aa$'        ; u8[3] const
 sBb:            db      'bb$'        ; u8[3] const
 sCc:            db      'cc$'        ; u8[3] const
 sDd:            db      'dd$'        ; u8[3] const
+sWider:         db      'wider$'        ; u8[6] const
+sThan:          db      'than$'        ; u8[5] const
+sThis:          db      'this$'        ; u8[5] const
+sAlSs:          db      'ss$'        ; u8[3] const
+sAlCs:          db      'cs$'        ; u8[3] const
+sAlEs:          db      'es$'        ; u8[3] const
+sAlSc:          db      'sc$'        ; u8[3] const
+sAlCc:          db      'cc$'        ; u8[3] const
+sAlEc:          db      'ec$'        ; u8[3] const
+sAlSe:          db      'se$'        ; u8[3] const
+sAlCe:          db      'ce$'        ; u8[3] const
+sAlEe:          db      'ee$'        ; u8[3] const
 putNumber__digits: times 5 db 0        ; u8[5]
 
 ; ============================================================ heap ====
