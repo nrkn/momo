@@ -10,6 +10,9 @@ console is kept as `_reference/yuki.txt`.
   open questions (§20), and long-term directions (§21). Read the relevant section
   before changing anything; the rationale matters more than the rules.
 - **`STYLE.md`** - TypeScript and Momo conventions.
+- **`PITFALLS.md`** - what bites when writing Momo *programs*, as opposed to the
+  gotchas below, which are about working on the compiler. Each entry leads with
+  the symptom, and every one of them cost real time to find.
 
 ## Layout
 
@@ -254,5 +257,5 @@ The cost of waiting is that the first thing a visitor reads is the weakest
 document in the repo. That trade is made deliberately, and preferred to shipping a
 second draft in the same voice as the first.
 
-242 tier-1 assertions (142 compile tests, 26 golden `.asm`, 25 type, 46 round
-trip, 3 subset), 22 e2e programs, all green.
+246 tier-1 assertions (143 compile tests, 27 golden `.asm`, 25 type, 48 round
+trip, 3 subset), 23 e2e programs, all green.

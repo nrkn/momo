@@ -214,6 +214,13 @@ const nasmReserved = new Set([
   'al', 'ah', 'ax', 'bl', 'bh', 'bx', 'cl', 'ch', 'cx', 'dl', 'dh', 'dx',
   'si', 'di', 'bp', 'sp', 'cs', 'ds', 'es', 'ss', 'fs', 'gs',
   'eax', 'ebx', 'ecx', 'edx', 'esi', 'edi', 'ebp', 'esp',
+  // prefixes. These are the reason the rule is narrower than "avoid mnemonic
+  // names": a prefix may legally precede an instruction on the same line, so
+  // NASM reads the bare word as one and then meets a colon it cannot place.
+  // Ordinary mnemonics are unaffected - `add:`, `ret:`, `nop:` and `cbw:` all
+  // assemble, which is why they stay unmangled. Verified one name at a time.
+  'wait', 'lock', 'rep', 'repe', 'repz', 'repne', 'repnz',
+  'a16', 'a32', 'o16', 'o32', 'xacquire', 'xrelease', 'bnd', 'nobnd',
 ])
 
 // Momo has its own name rules; NASM has others. A trailing underscore keeps the

@@ -535,6 +535,20 @@ Colliding names get a trailing underscore (`absolute_`), which keeps the output
 readable. Instruction mnemonics are deliberately *not* mangled - `add:` assembles
 fine, and `add` is far too natural a name to disfigure.
 
+**Prefixes are the exception, and this paragraph used to imply otherwise.** A
+prefix may legally precede an instruction on the same line, so NASM reads a bare
+`wait` or `rep` as one and then meets a colon it cannot place. That makes the
+rule narrower than "mnemonics are safe": `add:`, `ret:`, `nop:` and `cbw:` all
+assemble, while `wait:`, `lock:`, `rep:` and the rest do not. All fifteen are in
+the mangled set, checked one name at a time rather than taken from a list - the
+count is worth stating because the shape of the mistake was assuming the
+category rather than testing it.
+
+**Nothing in tier 1 can catch a regression here.** The program compiles; only
+NASM objects, and tier 1 never assembles. A compile test keeps the resolver
+honest about accepting the names, but the failure this guards against is
+visible only at tier 2.
+
 ---
 
 ## 8. Parameterised consts
@@ -3039,6 +3053,15 @@ cannot be checked from stdout at all, so it joins the three existing demos as
 golden-tier only. **The honest claim for an automated test here is "the right port
 instruction was emitted", not "the hardware agreed"** - and any test added should
 say so in its own comment rather than implying otherwise.
+
+**That hierarchy has since been paid for rather than argued.** A raw keyboard
+reader built on these builtins worked perfectly under DOSBox and dropped
+keystrokes on 86Box, because DOSBox hands over the next byte from the controller
+immediately where real hardware takes about a millisecond - so a drain loop
+really drains on one and collects a single byte on the other. Nothing in tier 2
+could have caught it, and three plausible explanations were wrong before the
+right one. `PITFALLS.md` records it, and the general form: a passing DOSBox run
+means the logic is right, not that the program works.
 
 ### Deliberately out of scope
 

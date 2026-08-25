@@ -1,0 +1,54 @@
+// prefixes.momo - names that collide with NASM's vocabulary (DESIGN §7).
+//
+// The point of this program is that it *assembles*. Every routine here is named
+// after something the assembler reserves, and the interesting group is the
+// prefixes: a prefix may legally precede an instruction on the same line, so
+// NASM reads a bare `wait` as one and then meets a colon it cannot place. That
+// compiles perfectly well in Momo, so tier 1 cannot see the failure - this is
+// the tier that can.
+//
+// Each routine returns a distinct bit, so the printed sums say that every one of
+// them was reached under its own label rather than collapsing into a neighbour.
+
+include "std/io.momo"
+
+// Prefixes. All fifteen were rejected as labels before they were mangled,
+// checked one name at a time.
+u16 wait() => 1
+u16 lock() => 2
+u16 rep() => 4
+u16 repe() => 8
+u16 repz() => 16
+u16 repne() => 32
+u16 repnz() => 64
+u16 a16() => 128
+u16 a32() => 256
+u16 o16() => 512
+u16 o32() => 1024
+u16 xacquire() => 2048
+u16 xrelease() => 4096
+u16 bnd() => 8192
+u16 nobnd() => 16384
+
+// Directives, size keywords and registers, which were covered from the start.
+u16 absolute() => 1
+u16 times() => 2
+u16 es() => 4
+u16 word() => 8
+
+// An ordinary mnemonic, deliberately *not* mangled - `add:` assembles fine and
+// `add` is too natural a name to disfigure.
+u16 add() => 16
+
+u16 total
+
+total = wait() + lock() + rep() + repe() + repz() + repne() + repnz() + a16()
+total = total + a32() + o16() + o32() + xacquire() + xrelease() + bnd() + nobnd()
+
+putNumber( total )
+newline()
+
+total = absolute() + times() + es() + word() + add()
+
+putNumber( total )
+newline()

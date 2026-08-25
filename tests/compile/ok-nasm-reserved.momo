@@ -1,0 +1,41 @@
+// Names that collide with NASM's vocabulary. All of these are legal Momo and
+// are mangled with a trailing underscore on the way out (§7).
+//
+// This only asserts that the resolver accepts them. The failure it guards
+// against - a label NASM refuses - happens at assembly, which tier 1 never
+// reaches, so the real coverage is `projects/prefixes` under tier 2.
+
+// prefixes: a bare one reads as the start of an instruction, so `wait:` is
+// rejected where `add:` is fine
+sub wait { _dl = 1 }
+sub lock { _dl = 2 }
+sub rep { _dl = 3 }
+sub repe { _dl = 4 }
+sub repz { _dl = 5 }
+sub repne { _dl = 6 }
+sub repnz { _dl = 7 }
+sub a16 { _dl = 8 }
+sub o32 { _dl = 9 }
+sub bnd { _dl = 10 }
+
+// directives, size keywords and registers, which were already covered
+u16 absolute() => 1
+u16 times() => 2
+u16 es() => 3
+u16 word() => 4
+
+// and an ordinary mnemonic, which is deliberately left alone
+u16 add() => 5
+
+wait()
+lock()
+rep()
+repe()
+repz()
+repne()
+repnz()
+a16()
+o32()
+bnd()
+
+_ax = absolute() + times() + es() + word() + add()
