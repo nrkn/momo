@@ -96,3 +96,37 @@ u16              childListLen
 // advised splitting it across two statements on the grounds that the codegen was
 // unknown. It is known now, and it is fine.
 const u16 childAt( u16 p, u16 k ) = childList[ el[p].childStart + k ]
+
+// ---- axis accessors --------------------------------------------------------
+//
+// Pass 2 is written once and run twice, once per axis, and these are what let
+// that work: `xAxis` picks which set of fields the pass is looking at. They live
+// with the data rather than with the pass that uses them, because being able to
+// write a pass once is a property of the data model.
+//
+// The readers are parameterised consts, so no call is emitted - a pass that
+// mentions `sizeOf` thirty times pays nothing for it. The writers have to be
+// subs, since assignment is a statement in Momo (§6) and a const is an
+// expression.
+
+const u16  sizeOf ( u16 i, bool xAxis ) = xAxis ? el[i].w    : el[i].h
+const u16  minOf  ( u16 i, bool xAxis ) = xAxis ? el[i].minW : el[i].minH
+const u16  maxOf  ( u16 i, bool xAxis ) = xAxis ? el[i].wMax : el[i].hMax
+const bool growsOn( u16 i, bool xAxis ) = xAxis ? el[i].wGrow : el[i].hGrow
+
+sub setSize( u16 i, bool xAxis, u16 v ) {
+  if ( xAxis ) {
+    el[i].w = v
+  } else {
+    el[i].h = v
+  }
+}
+
+// Only ever raised, never lowered, so it takes no value.
+sub setOverflow( u16 i, bool xAxis ) {
+  if ( xAxis ) {
+    el[i].overflowX = true
+  } else {
+    el[i].overflowY = true
+  }
+}
