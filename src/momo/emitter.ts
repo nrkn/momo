@@ -86,6 +86,12 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
   const note = (text: string) => lines.push(`; ${text}`)
   const label = (name: string) => lines.push(`${name}:`)
 
+  // A data label carries its colon too, and the colon is load-bearing: without
+  // one NASM reads the leading token as an instruction, so `add dw 0` is parsed
+  // as an ADD whose operands are `dw 0`. Padded so the directive still lines up.
+  // See DESIGN §7.
+  const dataLabel = (name: string) => `${name}:`.padEnd(15)
+
   const ins = (mnemonic: string, operands = '', comment = '') => {
     if (mnemonic === 'push') {
       pushDepth += 1
@@ -1392,7 +1398,7 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     if (!('alias' in symbol) || !symbol.alias) return
     const offset = symbol.alias.byteOffset === 0 ? '' : ` + ${symbol.alias.byteOffset}`
     lines.push(
-      `${symbol.label.padEnd(15)} equ     ${symbol.alias.parent}${offset}` +
+      `${dataLabel(symbol.label)} equ     ${symbol.alias.parent}${offset}` +
         (comment ? `        ; ${comment}` : ''),
     )
   }
@@ -1413,9 +1419,9 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
       if (symbol.alias) {
         aliasLine(symbol)
       } else if (widthOf(symbol.type) === 2) {
-        lines.push(`${symbol.label.padEnd(15)} dw      0`)
+        lines.push(`${dataLabel(symbol.label)} dw      0`)
       } else {
-        lines.push(`${symbol.label.padEnd(15)} db      0`)
+        lines.push(`${dataLabel(symbol.label)} db      0`)
       }
     }
 
@@ -1431,7 +1437,7 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
         const directive = word ? 'dw' : 'db'
         const value = symbol.init & (word ? 0xffff : 0xff)
         lines.push(
-          `${symbol.label.padEnd(15)} ${directive.padEnd(7)} ${value}` +
+          `${dataLabel(symbol.label)} ${directive.padEnd(7)} ${value}` +
             `        ; ${symbol.type}${symbol.init === 0 ? '' : ` = ${symbol.init}`}`,
         )
       }
@@ -1450,7 +1456,7 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
 
         if (allZero) {
           lines.push(
-            `${symbol.label.padEnd(15)} times ${symbol.length} ${directive} 0` +
+            `${dataLabel(symbol.label)} times ${symbol.length} ${directive} 0` +
               `        ; ${symbol.elementType}[${symbol.length}]`,
           )
           continue
@@ -1459,7 +1465,7 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
         const body =
           directive === 'db' ? formatBytes(symbol.values) : symbol.values.join(', ')
         lines.push(
-          `${symbol.label.padEnd(15)} ${directive.padEnd(7)} ${body}` +
+          `${dataLabel(symbol.label)} ${directive.padEnd(7)} ${body}` +
             `        ; ${symbol.elementType}[${symbol.length}]${symbol.readonly ? ' const' : ''}`,
         )
       }
@@ -1477,14 +1483,14 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     note('No storage is emitted - a .COM owns everything past its image, so')
     note('these are addresses and NASM does the arithmetic.')
     blank()
-    lines.push(`_hstack         equ     ${stack + interruptReserve}` +
+    lines.push(`${dataLabel('_hstack')} equ     ${stack + interruptReserve}` +
       `        ; ${stack} worst-case + ${interruptReserve} interrupt reserve`)
-    lines.push('_htop           equ     0FFFEh - _hstack')
+    lines.push(`${dataLabel('_htop')} equ     0FFFEh - _hstack`)
     blank()
     // Deliberately `dw` and not `equ`. With -f bin + org, NASM resolves a label
     // correctly inside a data expression but SECTION-RELATIVE inside an equ, so
     // `_hsize equ _htop - _heap` comes out 100h too large. Verified empirically.
-    lines.push('_hsize          dw      _htop - _heap        ; NASM computes this')
+    lines.push(`${dataLabel('_hsize')} dw      _htop - _heap        ; NASM computes this`)
     ins('align', '2', 'keep the u16 view aligned')
     label('_heap')
 
@@ -1537,7 +1543,7 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     note('---- constants: no storage, folded at assembly time ----')
     for (const symbol of consts) {
       if (symbol.kind !== 'const') continue
-      lines.push(`${symbol.label.padEnd(15)} equ     ${symbol.value}`)
+      lines.push(`${dataLabel(symbol.label)} equ     ${symbol.value}`)
     }
   }
 

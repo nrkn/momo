@@ -9,6 +9,8 @@
 //
 // Each routine returns a distinct bit, so the printed sums say that every one of
 // them was reached under its own label rather than collapsing into a neighbour.
+// The third sum does the same for storage: routines were only ever half of the
+// problem, because a routine got a colon and a variable did not.
 
 include "std/io.momo"
 
@@ -49,6 +51,57 @@ putNumber( total )
 newline()
 
 total = absolute() + times() + es() + word() + add()
+
+putNumber( total )
+newline()
+
+// ---- the same collision, in DATA rather than in a label ----
+//
+// A routine named `add` emits `add:`, and the colon is what makes it a label
+// rather than an ADD. Storage used to be emitted with no colon at all, so
+// `add dw 0` was read as an instruction whose operands were `dw 0` - the
+// program compiled and NASM rejected it. Every storage shape is here once,
+// under a mnemonic name: word and byte variables, a zero-filled array, an array
+// with values, a const, a view, and a group field.
+//
+// Group fields are safe by construction rather than by the colon - `ret__dec`
+// is nobody's mnemonic - and `dec` is here to say so rather than to be at risk.
+
+u16    mov
+u8     xor
+u16[3] cmp
+
+// Not one of Momo's 39 - the compiler never emits a NOP. NASM's vocabulary is
+// the one that matters here, and it is far larger than the emitted subset, which
+// is the argument for the colon over listing mnemonics in `nasmReserved`.
+u16    nop
+
+const u8[] jmp  = [ 1, 2, 4 ]
+const      push = 256
+
+// A view puts a mnemonic on both sides of one `equ`.
+view u16[2] pop = cmp[0]
+
+group ret[2] {
+  u16 dec
+}
+
+mov = 8
+xor = 16
+nop = 2048
+
+cmp[0] = 32
+cmp[1] = 64
+cmp[2] = 128
+
+ret[0].dec = 512
+ret[1].dec = 1024
+
+// pop is cmp seen through its other name, so 32 and 64 arrive through the view
+// and 128 through the array itself.
+total = jmp[0] + jmp[1] + jmp[2] + mov + xor
+total = total + pop[0] + pop[1] + cmp[2] + push
+total = total + ret[0].dec + ret[1].dec + nop
 
 putNumber( total )
 newline()

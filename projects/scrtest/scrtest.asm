@@ -4,15 +4,15 @@
         org     100h
 
 ; ---- constants: no storage, folded at assembly time ----
-ioBase          equ     10
-ioZeroChar      equ     48
-screenCols      equ     80
-screenRows      equ     25
-black           equ     0
-blue            equ     1
-lightGray       equ     7
-lightGreen      equ     10
-yellow          equ     14
+ioBase:         equ     10
+ioZeroChar:     equ     48
+screenCols:     equ     80
+screenRows:     equ     25
+black:          equ     0
+blue:           equ     1
+lightGray:      equ     7
+lightGreen:     equ     10
+yellow:         equ     14
 
 ; =========================================================== entry ====
 
@@ -378,58 +378,58 @@ int21:
 ; ============================================================ data ====
 
 ; ---- reserved globals: the machine registers ----
-_ax             dw      0
-_al             equ     _ax
-_ah             equ     _ax + 1
-_bx             dw      0
-_bl             equ     _bx
-_bh             equ     _bx + 1
-_cx             dw      0
-_cl             equ     _cx
-_ch             equ     _cx + 1
-_dx             dw      0
-_dl             equ     _dx
-_dh             equ     _dx + 1
-_si             dw      0
-_di             dw      0
+_ax:            dw      0
+_al:            equ     _ax
+_ah:            equ     _ax + 1
+_bx:            dw      0
+_bl:            equ     _bx
+_bh:            equ     _bx + 1
+_cx:            dw      0
+_cl:            equ     _cx
+_ch:            equ     _cx + 1
+_dx:            dw      0
+_dl:            equ     _dx
+_dh:            equ     _dx + 1
+_si:            dw      0
+_di:            dw      0
 
 ; ---- variables ----
-putChar__c      db      0        ; u8
-putNumber__n    dw      0        ; u16
-clearScreen__attr db      0        ; u8
-moveTo__col     db      0        ; u8
-moveTo__row     db      0        ; u8
-putCell__ch     db      0        ; u8
-putCell__attr   db      0        ; u8
-repeatCell__ch  db      0        ; u8
-repeatCell__attr db      0        ; u8
-repeatCell__count dw      0        ; u16
-writeAt__col    db      0        ; u8
-writeAt__row    db      0        ; u8
-writeAt__ch     db      0        ; u8
-writeAt__attr   db      0        ; u8
-fillRow__col    db      0        ; u8
-fillRow__row    db      0        ; u8
-fillRow__ch     db      0        ; u8
-fillRow__attr   db      0        ; u8
-fillRow__count  dw      0        ; u16
-cell            dw      0        ; u16
-readCellAt__col db      0        ; u8
-readCellAt__row db      0        ; u8
-readCellAt__ret dw      0        ; u16
-putNumber__i    db      0        ; u8
+putChar__c:     db      0        ; u8
+putNumber__n:   dw      0        ; u16
+clearScreen__attr: db      0        ; u8
+moveTo__col:    db      0        ; u8
+moveTo__row:    db      0        ; u8
+putCell__ch:    db      0        ; u8
+putCell__attr:  db      0        ; u8
+repeatCell__ch: db      0        ; u8
+repeatCell__attr: db      0        ; u8
+repeatCell__count: dw      0        ; u16
+writeAt__col:   db      0        ; u8
+writeAt__row:   db      0        ; u8
+writeAt__ch:    db      0        ; u8
+writeAt__attr:  db      0        ; u8
+fillRow__col:   db      0        ; u8
+fillRow__row:   db      0        ; u8
+fillRow__ch:    db      0        ; u8
+fillRow__attr:  db      0        ; u8
+fillRow__count: dw      0        ; u16
+cell:           dw      0        ; u16
+readCellAt__col: db      0        ; u8
+readCellAt__row: db      0        ; u8
+readCellAt__ret: dw      0        ; u16
+putNumber__i:   db      0        ; u8
 
 ; ---- arrays ----
-putNumber__digits times 5 db 0        ; u8[5]
+putNumber__digits: times 5 db 0        ; u8[5]
 
 ; ============================================================ heap ====
 ; No storage is emitted - a .COM owns everything past its image, so
 ; these are addresses and NASM does the arithmetic.
 
-_hstack         equ     262        ; 6 worst-case + 256 interrupt reserve
-_htop           equ     0FFFEh - _hstack
+_hstack:        equ     262        ; 6 worst-case + 256 interrupt reserve
+_htop:          equ     0FFFEh - _hstack
 
-_hsize          dw      _htop - _heap        ; NASM computes this
+_hsize:         dw      _htop - _heap        ; NASM computes this
         align   2                           ; keep the u16 view aligned
 _heap:
-_heapw          equ     _heap        ; same bytes, u16 view
+_heapw:         equ     _heap        ; same bytes, u16 view

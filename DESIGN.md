@@ -544,10 +544,44 @@ the mangled set, checked one name at a time rather than taken from a list - the
 count is worth stating because the shape of the mistake was assuming the
 category rather than testing it.
 
-**Nothing in tier 1 can catch a regression here.** The program compiles; only
-NASM objects, and tier 1 never assembles. A compile test keeps the resolver
-honest about accepting the names, but the failure this guards against is
-visible only at tier 2.
+**The colon is what makes a mnemonic safe, and the sentence above was half
+right.** `add:` does assemble - as a *routine* label, which is the only place the
+claim was ever tested. Storage was emitted with no colon at all:
+
+```nasm
+add             dw      0        ; u16
+```
+
+so NASM read the leading token as an `ADD` whose operands were `dw 0`. The
+program compiled and the assembler rejected it, which is the prefix mistake
+again in a different place: the category was assumed from the one case that had
+been checked. Every data line now carries its colon - `add: dw 0`, `push: equ
+256`, `pop: equ cmp` - and the class goes away for variables, arrays, consts and
+views at once. Extending the mangled set was the alternative and is strictly
+worse: it would disfigure exactly the names the rule exists to protect, and it
+would have to enumerate NASM's whole instruction table rather than Momo's 39.
+
+**The colon rescues mnemonics and nothing else**, which is why none of the list
+above came out. `wait: dw 1`, `absolute: dw 1`, `word: dw 1` and `es: dw 1` are
+all still errors - a prefix is consumed as a prefix, a directive as a directive,
+and a register is not a name - so the two mechanisms are complementary rather
+than overlapping. Stated honestly: a word NASM knows *only* as an instruction is
+fine once it is followed by a colon; a word it can read as anything else at the
+start of a line has to be mangled.
+
+Group fields never needed either. `group add { u8 x }` emits `add__x`, and a
+suffix is enough to make a name nobody's mnemonic - only a label that reaches
+the output unmangled and unsuffixed is exposed.
+
+**Tier 1 can see the spelling but not the verdict.** The program compiles; only
+NASM objects, and tier 1 never assembles. What tier 1 does have is the golden
+output (§14): `prefixes.asm` is committed, so dropping the colon again fails
+`npm test` at the diff rather than silently. That pins the spelling this section
+arrived at - it cannot tell you that some *new* spelling assembles. Only tier 2
+can, and `prefixes` is the program that asks: it now declares a variable, an
+array, a const, a view and a group field under mnemonic names alongside its
+mnemonic-named routines, and prints a sum that only comes out right if every one
+of them landed at its own address.
 
 ---
 
@@ -602,7 +636,7 @@ const u16[] squares = [ sqr(0), sqr(1), sqr(2), sqr(3), sqr(4), sqr(5) ]
 ```
 
 ```nasm
-squares         dw      0, 1, 4, 9, 16, 25        ; u16[6] const
+squares:        dw      0, 1, 4, 9, 16, 25        ; u16[6] const
 ```
 
 and `value = sqr(7)` becomes `mov word [value], 49`.
@@ -783,11 +817,11 @@ standard library - is ordinary subs written in the language, shipped as a prelud
 
 ```nasm
 _ax:    dw 0
-_al     equ _ax                         ; little-endian: low byte first
-_ah     equ _ax + 1
+_al:    equ _ax                         ; little-endian: low byte first
+_ah:    equ _ax + 1
 _bx:    dw 0
-_bl     equ _bx
-_bh     equ _bx + 1
+_bl:    equ _bx
+_bh:    equ _bx + 1
         ; ... _cx, _dx, _si, _di
 ```
 
@@ -1129,13 +1163,13 @@ binary does not grow by a single byte. `_hsize` costs two bytes; the `align 2`
 before `_heap` costs at most one.
 
 ```nasm
-_hstack         equ     262        ; 6 worst-case + 256 interrupt reserve
-_htop           equ     0FFFEh - _hstack
+_hstack:        equ     262        ; 6 worst-case + 256 interrupt reserve
+_htop:          equ     0FFFEh - _hstack
 
-_hsize          dw      _htop - _heap        ; NASM computes this
+_hsize:         dw      _htop - _heap        ; NASM computes this
         align   2
 _heap:
-_heapw          equ     _heap        ; same bytes, u16 view
+_heapw:         equ     _heap        ; same bytes, u16 view
 ```
 
 The word view exists because a byte-only heap makes allocators miserable -
@@ -1751,7 +1785,7 @@ sugar, and it is free: with a compile-time offset, a view is nothing but an
 assembly-time label.
 
 ```nasm
-bottom          equ     bar + 50
+bottom:         equ     bar + 50
 ```
 
 `bottom[i]` emits `[bottom + bx]`, which NASM folds to `[bar + 50 + bx]`. No

@@ -4,12 +4,12 @@
         org     100h
 
 ; ---- constants: no storage, folded at assembly time ----
-limit           equ     20
-base            equ     10
-maxDigits       equ     5
-zeroChar        equ     48
-mask            equ     127
-stripe          equ     170
+limit:          equ     20
+base:           equ     10
+maxDigits:      equ     5
+zeroChar:       equ     48
+mask:           equ     127
+stripe:         equ     170
 
 ; =========================================================== entry ====
 
@@ -636,59 +636,59 @@ int21:
 ; ============================================================ data ====
 
 ; ---- reserved globals: the machine registers ----
-_ax             dw      0
-_al             equ     _ax
-_ah             equ     _ax + 1
-_bx             dw      0
-_bl             equ     _bx
-_bh             equ     _bx + 1
-_cx             dw      0
-_cl             equ     _cx
-_ch             equ     _cx + 1
-_dx             dw      0
-_dl             equ     _dx
-_dh             equ     _dx + 1
-_si             dw      0
-_di             dw      0
+_ax:            dw      0
+_al:            equ     _ax
+_ah:            equ     _ax + 1
+_bx:            dw      0
+_bl:            equ     _bx
+_bh:            equ     _bx + 1
+_cx:            dw      0
+_cl:            equ     _cx
+_ch:            equ     _cx + 1
+_dx:            dw      0
+_dl:            equ     _dx
+_dh:            equ     _dx + 1
+_si:            dw      0
+_di:            dw      0
 
 ; ---- variables ----
-value           dw      0        ; u16
-strAddr         dw      0        ; u16
-char            db      0        ; u8
-hash            db      0        ; u8
-signedAcc       dw      65535        ; i16 = -1
-delta           db      253        ; i8 = -3
-done            db      0        ; bool
-divN            dw      0        ; u16
-divD            dw      0        ; u16
-divResult       db      0        ; bool
-bigByte         db      200        ; u8 = 200
-smallByte       db      100        ; u8 = 100
-negByte         db      251        ; i8 = -5
-posByte         db      100        ; i8 = 100
-spaceCount      db      0        ; u8
-putBar__n       db      0        ; u8
-putNumber__i    db      0        ; u8
-putNumber__n    dw      0        ; u16
-checksum__i     db      0        ; u8
+value:          dw      0        ; u16
+strAddr:        dw      0        ; u16
+char:           db      0        ; u8
+hash:           db      0        ; u8
+signedAcc:      dw      65535        ; i16 = -1
+delta:          db      253        ; i8 = -3
+done:           db      0        ; bool
+divN:           dw      0        ; u16
+divD:           dw      0        ; u16
+divResult:      db      0        ; bool
+bigByte:        db      200        ; u8 = 200
+smallByte:      db      100        ; u8 = 100
+negByte:        db      251        ; i8 = -5
+posByte:        db      100        ; i8 = 100
+spaceCount:     db      0        ; u8
+putBar__n:      db      0        ; u8
+putNumber__i:   db      0        ; u8
+putNumber__n:   dw      0        ; u16
+checksum__i:    db      0        ; u8
 
 ; ---- arrays ----
-banner          db      'smoke', 13, 10, '$'        ; u8[8] const
-fizz            db      'fizz $'        ; u8[6] const
-buzz            db      'buzz $'        ; u8[6] const
-squares         db      0, 1, 4, 9, 16, 25        ; u8[6] const
-digits          times 5 db 0        ; u8[5]
-partial         db      1, 2, 3, 0, 0, 0        ; u8[6]
-table           db      2, 4, 6, 8        ; u8[4]
+banner:         db      'smoke', 13, 10, '$'        ; u8[8] const
+fizz:           db      'fizz $'        ; u8[6] const
+buzz:           db      'buzz $'        ; u8[6] const
+squares:        db      0, 1, 4, 9, 16, 25        ; u8[6] const
+digits:         times 5 db 0        ; u8[5]
+partial:        db      1, 2, 3, 0, 0, 0        ; u8[6]
+table:          db      2, 4, 6, 8        ; u8[4]
 
 ; ============================================================ heap ====
 ; No storage is emitted - a .COM owns everything past its image, so
 ; these are addresses and NASM does the arithmetic.
 
-_hstack         equ     268        ; 12 worst-case + 256 interrupt reserve
-_htop           equ     0FFFEh - _hstack
+_hstack:        equ     268        ; 12 worst-case + 256 interrupt reserve
+_htop:          equ     0FFFEh - _hstack
 
-_hsize          dw      _htop - _heap        ; NASM computes this
+_hsize:         dw      _htop - _heap        ; NASM computes this
         align   2                           ; keep the u16 view aligned
 _heap:
-_heapw          equ     _heap        ; same bytes, u16 view
+_heapw:         equ     _heap        ; same bytes, u16 view
