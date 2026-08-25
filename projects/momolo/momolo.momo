@@ -1,0 +1,218 @@
+// momolo.momo - momolo on an 8086. Chunk 1: the element array, the builder, and
+// pass 1.
+//
+// See PORT.md in the clay-study for the plan this follows. The engine lives in
+// m_el.momo, m_fit.momo and m_bld.momo; this file is the scene and the dump.
+//
+// The scene is `shell` from the study's demo gallery, box for box - the only demo
+// that exercises the whole engine in one picture, and the scene this port uses
+// from the first chunk to the last. Nothing is drawn yet: the output is one line
+// per element, `i x y w h minW minH`, compared against the same numbers from the
+// TypeScript engine running the same subset of passes. Two independent
+// implementations of one algorithm agreeing on every integer is the point.
+//
+//   npm run reference -- --stage=fit        (in the clay-study)
+//
+// x and y are printed although pass 3 does not exist yet. They are zero on both
+// sides, so the columns cost nothing and the format will not change when place
+// lands.
+
+include "std/io.momo"
+include "std/str.momo"
+
+include "m_el.momo"
+include "m_fit.momo"
+include "m_bld.momo"
+
+// One unit is one character cell, and one line of text is one cell tall. The
+// study runs the same scene against a pixel target where these are 11 and 20;
+// nothing below mentions a cell, which is what makes that possible.
+const u          = 1
+const lineHeight = 1
+
+// The study derives this as max(1, u >> 3), so it is one cell here and two
+// pixels there. A border is not geometry - it is a decision to draw in space the
+// caller reserved - so what the engine gets told is the inset.
+const border = 1
+
+// ---- the content ----------------------------------------------------------
+
+const u8[] sMomolo   = "momolo$"
+const u8[] sGeometry = "geometry$"
+const u8[] sNew      = "New$"
+const u8[] sOpen     = "Open$"
+const u8[] sSave     = "Save$"
+const u8[] sQuit     = "Quit$"
+const u8[] sBody     = "wrapped text in a narrow column$"
+const u8[] sCentred  = "centred on both axes$"
+const u8[] sA        = "a$"
+const u8[] sB        = "bbbb$"
+const u8[] sC        = "cc$"
+const u8[] sLeft     = "squeezed left column$"
+const u8[] sRight    = "squeezed right column$"
+const u8[] sReady    = "ready$"
+
+// A paragraph's minimum width is its longest word, and that one number is the
+// whole of what makes it a paragraph rather than a label. In a Momo program it is
+// a compile-time constant because the string is - so shrink gets the right answer
+// with no runtime word-breaking anywhere, and wrapping can wait for chunk 6.
+const bodyMinW     = 7          // "wrapped"
+const squeezedMinW = 8          // "squeezed"
+
+// ---- the two kinds of text run --------------------------------------------
+//
+// These are paint's job and will move to m_paint.momo when it exists. They are
+// here because a leaf's size has to come from somewhere, and measuring a
+// monospaced string is `strLen` - which is the whole of what paint contributes to
+// geometry in the cell target.
+
+// A run that will never be broken: a menu item, a heading, a status line. It
+// refuses to be narrowed, so an ancestor cannot compress past it.
+u16 labelAt( u16 at ) {
+  u16 n
+
+  n = strLen( at )
+  return leaf( n, lineHeight, n, lineHeight )
+}
+
+// A run that may be broken across lines. Created at its full one-line width; its
+// minimum is its longest word, and nothing else about it differs.
+u16 paraAt( u16 at, u16 minW ) {
+  u16 n
+
+  n = strLen( at )
+  return leaf( n, lineHeight, minW, lineHeight )
+}
+
+// ---- the dump -------------------------------------------------------------
+
+// A number and its separator. Six of the seven columns want one, and a sub is
+// shorter than a bare `space()` on its own line six times - Momo ends a statement
+// at a newline, so there is no way to put the pair on one line.
+sub putField( u16 n ) {
+  putNumber( n )
+  space()
+}
+
+sub dumpBoxes {
+  u16 i
+
+  for ( i = 0; i < elCount; i++ ) {
+    putField( i )
+    putField( el[i].x )
+    putField( el[i].y )
+    putField( el[i].w )
+    putField( el[i].h )
+    putField( el[i].minW )
+    putNumber( el[i].minH )
+    newline()
+  }
+}
+
+// ---- the scene ------------------------------------------------------------
+
+// One of the three swatches in the centred row: a growing panel with a centred
+// label inside it.
+sub swatch( u16 at ) {
+  cfgGrowW()
+  cfgInsetX( u )
+  cfg.alignMain = alignCenter
+  openBox()
+    labelAt( at )
+  closeBox()
+}
+
+sub buildShell {
+  // ---- the frame
+  cfgCol()
+  cfgGrowW()
+  cfgGrowH()
+  openBox()
+
+    // ---- title bar. The empty grow box between the two labels is a spacer -
+    // it is how you push something to the far end without a dedicated
+    // alignment rule for it.
+    cfgGrowW()
+    cfgFixedH( lineHeight )
+    cfgInsetX( u )
+    openBox()
+      labelAt( addr( sMomolo ) )
+      cfgGrowW()
+      openBox()
+      closeBox()
+      labelAt( addr( sGeometry ) )
+    closeBox()
+
+    // ---- body: a fixed sidebar and a growing pane
+    cfgGrowW()
+    cfgGrowH()
+    cfgInset( u )
+    cfg.gap = u
+    openBox()
+
+      // ---- sidebar. The study's paint layer adds a border's width to the
+      // inset before handing it over, because a border reserves geometry the
+      // engine has to know about while remaining something the engine never
+      // hears of. There is no paint layer yet, so it is added here.
+      cfgCol()
+      cfgFixedW( 16 * u )
+      cfgGrowH()
+      cfgInset( u + border )
+      openBox()
+        labelAt( addr( sNew ) )
+        labelAt( addr( sOpen ) )
+        labelAt( addr( sSave ) )
+        labelAt( addr( sQuit ) )
+        cfgFixedH( lineHeight )
+        openBox()
+        closeBox()
+        paraAt( addr( sBody ), bodyMinW )
+      closeBox()
+
+      // ---- main pane
+      cfgCol()
+      cfgGrowW()
+      cfgGrowH()
+      cfgInset( u + border )
+      cfg.gap = u
+      cfg.alignMain = alignCenter
+      cfg.alignCross = alignCenter
+      openBox()
+        labelAt( addr( sCentred ) )
+
+        cfgGrowW()
+        cfg.gap = u
+        openBox()
+          swatch( addr( sA ) )
+          swatch( addr( sB ) )
+          swatch( addr( sC ) )
+        closeBox()
+
+        cfgFixedW( 24 * u )
+        cfg.gap = u
+        openBox()
+          paraAt( addr( sLeft ), squeezedMinW )
+          paraAt( addr( sRight ), squeezedMinW )
+        closeBox()
+      closeBox()
+
+    closeBox()
+
+    // ---- status bar
+    cfgGrowW()
+    cfgFixedH( lineHeight )
+    cfgInsetX( u )
+    openBox()
+      labelAt( addr( sReady ) )
+    closeBox()
+
+  closeBox()
+}
+
+// ---- entry ----------------------------------------------------------------
+
+begin( 72 * u, 24 * lineHeight )
+buildShell()
+closeBox()
+
+dumpBoxes()

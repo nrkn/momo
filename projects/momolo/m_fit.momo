@@ -1,0 +1,77 @@
+// m_fit.momo - pass 1: fit sizing. A container wraps tightly around its
+// children.
+//
+// Port of src/momolo/fit.ts. This runs from closeBox rather than from a
+// traversal of its own: children necessarily close before their parent does, so
+// by the time a parent closes its children already know their sizes. That is
+// what makes the pass free, and it is why this file has one caller instead of a
+// place in the pass order.
+//
+// Two sizes come out of it - what the content prefers, and the smallest it can
+// be squeezed to. They are accumulated the same way and differ only where some
+// descendant declared itself compressible, which only a leaf can do.
+//
+// Leaves never reach here; m_bld.momo sizes them directly, since their size came
+// from the caller rather than from anything below them.
+
+include "std/math.momo"
+
+sub fitSize( u16 i ) {
+  u16 n
+  u16 insetX
+  u16 insetY
+  u16 gaps
+  u16 contentW
+  u16 contentH
+  u16 minContentW
+  u16 minContentH
+  u16 k
+  u16 ci
+
+  n = el[i].childCount
+  insetX = el[i].insetL + el[i].insetR
+  insetY = el[i].insetT + el[i].insetB
+
+  // `max(n - 1, 0)` in the TypeScript. Unsigned, n = 0 makes `n - 1` 65535 and
+  // `max` then keeps it, so the branch is the port rather than a preference -
+  // see PORT.md, "Unsigned subtraction".
+  gaps = n == 0 ? 0 : el[i].gap * ( n - 1 )
+
+  // The extent of the children alone, before the inset is added back on.
+  contentW = 0
+  contentH = 0
+  minContentW = 0
+  minContentH = 0
+
+  if ( el[i].isCol ) {
+    for ( k = 0; k < n; k++ ) {
+      ci = childAt( i, k )
+      contentH += el[ci].h
+      minContentH += el[ci].minH
+      contentW = max( contentW, el[ci].w )
+      minContentW = max( minContentW, el[ci].minW )
+    }
+    contentH += gaps
+    minContentH += gaps
+  } else {
+    for ( k = 0; k < n; k++ ) {
+      ci = childAt( i, k )
+      contentW += el[ci].w
+      minContentW += el[ci].minW
+      contentH = max( contentH, el[ci].h )
+      minContentH = max( minContentH, el[ci].minH )
+    }
+    contentW += gaps
+    minContentW += gaps
+  }
+
+  // The clamp is the whole of `fixed`: a size whose minimum and maximum are
+  // equal has only one value it can take, whatever the children came to. That is
+  // why there is no third sizing kind to test for here.
+  el[i].w = clamp( insetX + contentW, el[i].wMin, el[i].wMax )
+  el[i].h = clamp( insetY + contentH, el[i].hMin, el[i].hMax )
+
+  // The floor a shrink may not pass, held inside the same clamps as the size.
+  el[i].minW = clamp( insetX + minContentW, el[i].wMin, el[i].wMax )
+  el[i].minH = clamp( insetY + minContentH, el[i].hMin, el[i].hMax )
+}
