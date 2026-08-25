@@ -45,6 +45,18 @@ __entry:
         call    runPasses
 ; ---- dumpBoxes()
         call    dumpBoxes
+; ---- begin( 30 * u, 3 * lineHeight )
+        mov     word [begin__w], 30
+        mov     word [begin__h], 3
+        call    begin
+; ---- buildCapped()
+        call    buildCapped
+; ---- closeBox()
+        call    closeBox
+; ---- runPasses()
+        call    runPasses
+; ---- dumpBoxes()
+        call    dumpBoxes
 ; ---- begin( 40 * u, 15 * lineHeight )
         mov     word [begin__w], 40
         mov     word [begin__h], 15
@@ -3871,6 +3883,50 @@ buildSizing:
         call    closeBox
         ret
 
+; ============================================== sub buildCapped ====
+
+buildCapped:
+; ---- cfgCol()
+        call    cfgCol
+; ---- cfgGrowW()
+        call    cfgGrowW
+; ---- cfgGrowH()
+        call    cfgGrowH
+; ---- cfgInset( u )
+        mov     byte [cfgInset__n], 1
+        call    cfgInset
+; ---- openBox()
+        call    openBox
+; ---- cfgFixedW( 28 * u )
+        mov     word [cfgFixedW__n], 28
+        call    cfgFixedW
+; ---- cfg.gap = u
+        mov     byte [cfg__gap], 1
+; ---- openBox()
+        call    openBox
+; ---- swatchGrow( addr( sAa ) )
+        mov     ax, sAa                     ; link-time constant
+        mov     [swatchGrow__at], ax
+        call    swatchGrow
+; ---- swatchCapped( addr( sBb ), 5 * u )
+        mov     ax, sBb                     ; link-time constant
+        mov     [swatchCapped__at], ax
+        mov     word [swatchCapped__n], 5
+        call    swatchCapped
+; ---- swatchGrow( addr( sCc ) )
+        mov     ax, sCc                     ; link-time constant
+        mov     [swatchGrow__at], ax
+        call    swatchGrow
+; ---- swatchGrow( addr( sDd ) )
+        mov     ax, sDd                     ; link-time constant
+        mov     [swatchGrow__at], ax
+        call    swatchGrow
+; ---- closeBox()
+        call    closeBox
+; ---- closeBox()
+        call    closeBox
+        ret
+
 ; ============================================== sub squeezeTrack ====
 
 squeezeTrack:
@@ -4186,6 +4242,10 @@ sTrack26:       db      'track of 26$'        ; u8[12] const
 sTrack22:       db      'track of 22$'        ; u8[12] const
 sTrack14:       db      'track of 14$'        ; u8[12] const
 sTrack8:        db      'track of 8$'        ; u8[11] const
+sAa:            db      'aa$'        ; u8[3] const
+sBb:            db      'bb$'        ; u8[3] const
+sCc:            db      'cc$'        ; u8[3] const
+sDd:            db      'dd$'        ; u8[3] const
 putNumber__digits: times 5 db 0        ; u8[5]
 
 ; ============================================================ heap ====

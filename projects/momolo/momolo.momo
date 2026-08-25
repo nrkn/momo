@@ -11,6 +11,7 @@
 //
 //   npm run reference -- --demo=shell   --stage=sizeY
 //   npm run reference -- --demo=sizing  --stage=sizeY
+//   npm run reference -- --demo=capped  --stage=sizeY
 //   npm run reference -- --demo=squeeze --stage=sizeY
 //
 // concatenated in that order. Two independent implementations of one algorithm
@@ -27,6 +28,11 @@
 //            never runs either, and nothing in shell overflows at all. The
 //            8-wide track squeezes both paragraphs onto their longest word and
 //            still does not fit.
+//   capped   the other three all remove a candidate from the end of the list, or
+//            from a position where order has stopped mattering, so shift-down and
+//            swap-with-last cannot be told apart. Four swatches with the SECOND
+//            capped can: it drops out mid-distribution, and the two units left
+//            over then go to survivors that the two schemes order differently.
 //
 // Running three scenes also tests something one scene structurally cannot: that
 // a second `begin()` reuses the element array correctly. Nothing re-zeroes a
@@ -87,6 +93,11 @@ const u8[] sTrack26  = "track of 26$"
 const u8[] sTrack22  = "track of 22$"
 const u8[] sTrack14  = "track of 14$"
 const u8[] sTrack8   = "track of 8$"
+
+const u8[] sAa       = "aa$"
+const u8[] sBb       = "bb$"
+const u8[] sCc       = "cc$"
+const u8[] sDd       = "dd$"
 
 // A paragraph's minimum width is its longest word, and that one number is the
 // whole of what makes it a paragraph rather than a label. In a Momo program it is
@@ -338,6 +349,39 @@ sub buildSizing {
   closeBox()
 }
 
+// ---- scene: capped --------------------------------------------------------
+//
+// Four growing swatches in a fixed track, the second capped. It reaches its
+// ceiling partway through the distribution and drops out, and the two units left
+// over are handed to the survivors in order.
+//
+// This is the scene written for the port rather than ported to it. Every other
+// scene removes a candidate from the end of the list, so shift-down and
+// swap-with-last produce the same answer and candRemove's whole reason for being
+// goes unchecked. Removing the second of four is the smallest shape that tells
+// them apart: shift-down leaves the survivors in list order, swap-with-last puts
+// the last one where the second was, and the remainder then lands on different
+// swatches. Expected widths are 7, 5, 7, 6.
+
+sub buildCapped {
+  cfgCol()
+  cfgGrowW()
+  cfgGrowH()
+  cfgInset( u )
+  openBox()
+
+    cfgFixedW( 28 * u )
+    cfg.gap = u
+    openBox()
+      swatchGrow( addr( sAa ) )
+      swatchCapped( addr( sBb ), 5 * u )
+      swatchGrow( addr( sCc ) )
+      swatchGrow( addr( sDd ) )
+    closeBox()
+
+  closeBox()
+}
+
 // ---- scene: squeeze -------------------------------------------------------
 //
 // The same pair of paragraphs in shrinking tracks. They converge downward, and
@@ -384,6 +428,12 @@ dumpBoxes()
 
 begin( 40 * u, 10 * lineHeight )
 buildSizing()
+closeBox()
+runPasses()
+dumpBoxes()
+
+begin( 30 * u, 3 * lineHeight )
+buildCapped()
 closeBox()
 runPasses()
 dumpBoxes()
