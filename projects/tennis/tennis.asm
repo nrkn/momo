@@ -4,85 +4,85 @@
         org     100h
 
 ; ---- constants: no storage, folded at assembly time ----
-screenW         equ     320
-screenH         equ     200
-playLeft        equ     40
-playRight       equ     118
-playTop         equ     9
-playBottom      equ     80
-playW           equ     79
-playH           equ     72
-centerX         equ     79
-scoreTop        equ     84
-scoreY          equ     85
-paddleH         equ     9
-ballW           equ     3
-ballH           equ     3
-subgridScale    equ     4
-paddleSpeedStep equ     2
-paddleSpeedMax  equ     16
-serveSpeed      equ     3
-paddleYMax      equ     244
-ballXMax        equ     296
-ballYMax        equ     268
-paddleYHome     equ     122
-ballServeOffset equ     12
-hitLead         equ     11
-hitWindow       equ     47
-netBallXMin     equ     144
-netBallXMax     equ     155
-scoreTopWord    equ     26880
-screenWord      equ     32000
-angleZone       equ     6
-angleZone1      equ     6
-angleZone2      equ     12
-angleZone3      equ     18
-angleZone4      equ     29
-angleZone5      equ     35
-angleZone6      equ     41
-ballSpeedStep   equ     3
-ballSpeedY1     equ     3
-ballSpeedY2     equ     6
-ballSpeedY3     equ     9
-ballSpeedXMax   equ     9
-volleyTarget    equ     3
-winScore        equ     11
-t_kbd__picMask  equ     33
-t_kbd__kbData   equ     96
-t_kbd__kbStatus equ     100
-t_kbd__kbFull   equ     1
-t_kbd__irqKbd   equ     2
-t_kbd__scEsc    equ     1
-t_kbd__scW      equ     17
-t_kbd__scA      equ     30
-t_kbd__scS      equ     31
-t_kbd__scD      equ     32
-t_kbd__scUp     equ     72
-t_kbd__scLeft   equ     75
-t_kbd__scRight  equ     77
-t_kbd__scDown   equ     80
-t_pal__palSize  equ     8
-lightGrey       equ     0
-lightGreen      equ     1
-lightBlue       equ     2
-black           equ     3
-red             equ     4
-green           equ     5
-blue            equ     6
-white           equ     7
-lightGreenW     equ     257
-blackW          equ     771
-redW            equ     1028
-blueW           equ     1542
-t_scr__vgaStatus equ     986
-t_scr__vgaVRetrace equ     8
-t_scr__screenWNext equ     321
-spriteW         equ     5
-spriteH         equ     5
-spriteSize      equ     25
-playerCount     equ     2
-leftPlayer      equ     0
-rightPlayer     equ     1
+screenW:        equ     320
+screenH:        equ     200
+playLeft:       equ     40
+playRight:      equ     118
+playTop:        equ     9
+playBottom:     equ     80
+playW:          equ     79
+playH:          equ     72
+centerX:        equ     79
+scoreTop:       equ     84
+scoreY:         equ     85
+paddleH:        equ     9
+ballW:          equ     3
+ballH:          equ     3
+subgridScale:   equ     4
+paddleSpeedStep: equ     2
+paddleSpeedMax: equ     16
+serveSpeed:     equ     3
+paddleYMax:     equ     244
+ballXMax:       equ     296
+ballYMax:       equ     268
+paddleYHome:    equ     122
+ballServeOffset: equ     12
+hitLead:        equ     11
+hitWindow:      equ     47
+netBallXMin:    equ     144
+netBallXMax:    equ     155
+scoreTopWord:   equ     26880
+screenWord:     equ     32000
+angleZone:      equ     6
+angleZone1:     equ     6
+angleZone2:     equ     12
+angleZone3:     equ     18
+angleZone4:     equ     29
+angleZone5:     equ     35
+angleZone6:     equ     41
+ballSpeedStep:  equ     3
+ballSpeedY1:    equ     3
+ballSpeedY2:    equ     6
+ballSpeedY3:    equ     9
+ballSpeedXMax:  equ     9
+volleyTarget:   equ     3
+winScore:       equ     11
+t_kbd__picMask: equ     33
+t_kbd__kbData:  equ     96
+t_kbd__kbStatus: equ     100
+t_kbd__kbFull:  equ     1
+t_kbd__irqKbd:  equ     2
+t_kbd__scEsc:   equ     1
+t_kbd__scW:     equ     17
+t_kbd__scA:     equ     30
+t_kbd__scS:     equ     31
+t_kbd__scD:     equ     32
+t_kbd__scUp:    equ     72
+t_kbd__scLeft:  equ     75
+t_kbd__scRight: equ     77
+t_kbd__scDown:  equ     80
+t_pal__palSize: equ     8
+lightGrey:      equ     0
+lightGreen:     equ     1
+lightBlue:      equ     2
+black:          equ     3
+red:            equ     4
+green:          equ     5
+blue:           equ     6
+white:          equ     7
+lightGreenW:    equ     257
+blackW:         equ     771
+redW:           equ     1028
+blueW:          equ     1542
+t_scr__vgaStatus: equ     986
+t_scr__vgaVRetrace: equ     8
+t_scr__screenWNext: equ     321
+spriteW:        equ     5
+spriteH:        equ     5
+spriteSize:     equ     25
+playerCount:    equ     2
+leftPlayer:     equ     0
+rightPlayer:    equ     1
 
 ; =========================================================== entry ====
 
@@ -1921,127 +1921,127 @@ int21:
 ; ============================================================ data ====
 
 ; ---- reserved globals: the machine registers ----
-_ax             dw      0
-_al             equ     _ax
-_ah             equ     _ax + 1
-_bx             dw      0
-_bl             equ     _bx
-_bh             equ     _bx + 1
-_cx             dw      0
-_cl             equ     _cx
-_ch             equ     _cx + 1
-_dx             dw      0
-_dl             equ     _dx
-_dh             equ     _dx + 1
-_si             dw      0
-_di             dw      0
+_ax:            dw      0
+_al:            equ     _ax
+_ah:            equ     _ax + 1
+_bx:            dw      0
+_bl:            equ     _bx
+_bh:            equ     _bx + 1
+_cx:            dw      0
+_cl:            equ     _cx
+_ch:            equ     _cx + 1
+_dx:            dw      0
+_dl:            equ     _dx
+_dh:            equ     _dx + 1
+_si:            dw      0
+_di:            dw      0
 
 ; ---- variables ----
-rand__randomSeed dw      42        ; u16 = 42
-seedRandom__s   dw      0        ; u16
-nextRandom__ret dw      0        ; u16
-randomBelow__n  dw      0        ; u16
-randomBelow__ret dw      0        ; u16
-ticks__ret      dw      0        ; u16
-isUp1           db      0        ; bool
-isDown1         db      0        ; bool
-isLeft1         db      0        ; bool
-isRight1        db      0        ; bool
-isUp2           db      0        ; bool
-isDown2         db      0        ; bool
-isLeft2         db      0        ; bool
-isRight2        db      0        ; bool
-isEsc           db      0        ; bool
-wasEsc          db      0        ; bool
-t_kbd__code     db      0        ; u8
-t_kbd__anyKeyDown__ret db      0        ; bool
-t_kbd__applyKey__key db      0        ; u8
-t_kbd__applyKey__pressed db      0        ; bool
-t_kbd__status   db      0        ; u8
-t_kbd__down     db      0        ; bool
-t_pal__setPaletteColor__index db      0        ; u8
-t_pal__setPaletteColor__r db      0        ; u8
-t_pal__setPaletteColor__g db      0        ; u8
-t_pal__setPaletteColor__b db      0        ; u8
-t_pal__i        db      0        ; u8
-t_pal__pIndex   db      0        ; u8
-inRetrace__ret  db      0        ; bool
-t_scr__savedMode db      0        ; u8
-t_scr__at       dw      0        ; u16
-setPixel__x     dw      0        ; u16
-setPixel__y     dw      0        ; u16
-setPixel__color db      0        ; u8
-t_scr__x        dw      0        ; u16
-t_scr__y        dw      0        ; u16
-drawLineHorizontal__y db      0        ; u8
-drawLineHorizontal__x1 db      0        ; u8
-drawLineHorizontal__x2 db      0        ; u8
-drawLineHorizontal__color db      0        ; u8
-drawLineVertical__x db      0        ; u8
-drawLineVertical__y1 db      0        ; u8
-drawLineVertical__y2 db      0        ; u8
-drawLineVertical__color db      0        ; u8
-isWinScreen     db      0        ; bool
-isRunning       db      1        ; bool = 1
-ballX           dw      0        ; i16
-ballY           dw      0        ; i16
-oBallX          dw      0        ; i16
-oBallY          dw      0        ; i16
-ballSpeedX      dw      0        ; i16
-ballSpeedY      dw      0        ; i16
-ballPlayer      db      0        ; u8
-ballColor       db      0        ; u8
-volleyCount     db      0        ; u8
-dy_             dw      0        ; u16
-drawBackground__color dw      0        ; u16
-net             db      0        ; u8
-netY            db      0        ; u8
-subPxX          dw      0        ; i16
-subPxY          dw      0        ; i16
-subPxY2         dw      0        ; i16
-drawPaddle__pi  db      0        ; u8
-clearPaddle__pi db      0        ; u8
-tile            dw      0        ; u16
-i               db      0        ; u8
-j               db      0        ; u8
-drawSprite__index db      0        ; u8
-drawSprite__dx  db      0        ; u8
-drawSprite__dy  db      0        ; u8
-digitTens       db      0        ; u8
-digitOnes       db      0        ; u8
-drawScore__pi   db      0        ; u8
-movePaddle__pi  db      0        ; u8
-movePaddle__up  db      0        ; bool
-movePaddle__down db      0        ; bool
-setBallSpeedY__yOffset dw      0        ; i16
-scorePoint__pi  db      0        ; u8
-hitPaddle__pi   db      0        ; u8
-win__pi         db      0        ; u8
-hitPaddle__yOffset dw      0        ; i16
+rand__randomSeed: dw      42        ; u16 = 42
+seedRandom__s:  dw      0        ; u16
+nextRandom__ret: dw      0        ; u16
+randomBelow__n: dw      0        ; u16
+randomBelow__ret: dw      0        ; u16
+ticks__ret:     dw      0        ; u16
+isUp1:          db      0        ; bool
+isDown1:        db      0        ; bool
+isLeft1:        db      0        ; bool
+isRight1:       db      0        ; bool
+isUp2:          db      0        ; bool
+isDown2:        db      0        ; bool
+isLeft2:        db      0        ; bool
+isRight2:       db      0        ; bool
+isEsc:          db      0        ; bool
+wasEsc:         db      0        ; bool
+t_kbd__code:    db      0        ; u8
+t_kbd__anyKeyDown__ret: db      0        ; bool
+t_kbd__applyKey__key: db      0        ; u8
+t_kbd__applyKey__pressed: db      0        ; bool
+t_kbd__status:  db      0        ; u8
+t_kbd__down:    db      0        ; bool
+t_pal__setPaletteColor__index: db      0        ; u8
+t_pal__setPaletteColor__r: db      0        ; u8
+t_pal__setPaletteColor__g: db      0        ; u8
+t_pal__setPaletteColor__b: db      0        ; u8
+t_pal__i:       db      0        ; u8
+t_pal__pIndex:  db      0        ; u8
+inRetrace__ret: db      0        ; bool
+t_scr__savedMode: db      0        ; u8
+t_scr__at:      dw      0        ; u16
+setPixel__x:    dw      0        ; u16
+setPixel__y:    dw      0        ; u16
+setPixel__color: db      0        ; u8
+t_scr__x:       dw      0        ; u16
+t_scr__y:       dw      0        ; u16
+drawLineHorizontal__y: db      0        ; u8
+drawLineHorizontal__x1: db      0        ; u8
+drawLineHorizontal__x2: db      0        ; u8
+drawLineHorizontal__color: db      0        ; u8
+drawLineVertical__x: db      0        ; u8
+drawLineVertical__y1: db      0        ; u8
+drawLineVertical__y2: db      0        ; u8
+drawLineVertical__color: db      0        ; u8
+isWinScreen:    db      0        ; bool
+isRunning:      db      1        ; bool = 1
+ballX:          dw      0        ; i16
+ballY:          dw      0        ; i16
+oBallX:         dw      0        ; i16
+oBallY:         dw      0        ; i16
+ballSpeedX:     dw      0        ; i16
+ballSpeedY:     dw      0        ; i16
+ballPlayer:     db      0        ; u8
+ballColor:      db      0        ; u8
+volleyCount:    db      0        ; u8
+dy_:            dw      0        ; u16
+drawBackground__color: dw      0        ; u16
+net:            db      0        ; u8
+netY:           db      0        ; u8
+subPxX:         dw      0        ; i16
+subPxY:         dw      0        ; i16
+subPxY2:        dw      0        ; i16
+drawPaddle__pi: db      0        ; u8
+clearPaddle__pi: db      0        ; u8
+tile:           dw      0        ; u16
+i:              db      0        ; u8
+j:              db      0        ; u8
+drawSprite__index: db      0        ; u8
+drawSprite__dx: db      0        ; u8
+drawSprite__dy: db      0        ; u8
+digitTens:      db      0        ; u8
+digitOnes:      db      0        ; u8
+drawScore__pi:  db      0        ; u8
+movePaddle__pi: db      0        ; u8
+movePaddle__up: db      0        ; bool
+movePaddle__down: db      0        ; bool
+setBallSpeedY__yOffset: dw      0        ; i16
+scorePoint__pi: db      0        ; u8
+hitPaddle__pi:  db      0        ; u8
+win__pi:        db      0        ; u8
+hitPaddle__yOffset: dw      0        ; i16
 
 ; ---- arrays ----
-scoreXTens      db      ',e'        ; u8[2] const
-scoreXOnes      db      '3l'        ; u8[2] const
-t_pal__palette  db      224, 224, 244, 145, 255, 166, 206, 208, 255, 16, 16, 16, 255, '1S', 2, 204, ']K?', 243, 252, 252, 252        ; u8[24] const
-textSprites     db      7, 7, 7, 7, 7, 7, 3, 3, 3, 7, 7, 3, 3, 3, 7, 7, 3, 3, 3, 7, 7, 7, 7, 7, 7, 3, 3, 7, 3, 3, 3, 3, 7, 3, 3, 3, 3, 7, 3, 3, 3, 3, 7, 3, 3, 3, 3, 7, 3, 3, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 7, 7, 3, 3, 3, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 3, 3, 3, 3, 7, 3, 3, 3, 3, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7        ; u8[250] const
-player__y       times 2 dw 0        ; i16[2]
-player__oldY    times 2 dw 0        ; i16[2]
-player__score   times 2 db 0        ; u8[2]
-player__speed   times 2 db 0        ; u8[2]
-paddleX         db      '(v'        ; u8[2] const
-paddleColor     db      4, 6        ; u8[2] const
-winColor        dw      1028, 1542        ; u16[2] const
-serveX          dw      0, 296        ; i16[2] const
-serveSpeedX     dw      3, -3        ; i16[2] const
+scoreXTens:     db      ',e'        ; u8[2] const
+scoreXOnes:     db      '3l'        ; u8[2] const
+t_pal__palette: db      224, 224, 244, 145, 255, 166, 206, 208, 255, 16, 16, 16, 255, '1S', 2, 204, ']K?', 243, 252, 252, 252        ; u8[24] const
+textSprites:    db      7, 7, 7, 7, 7, 7, 3, 3, 3, 7, 7, 3, 3, 3, 7, 7, 3, 3, 3, 7, 7, 7, 7, 7, 7, 3, 3, 7, 3, 3, 3, 3, 7, 3, 3, 3, 3, 7, 3, 3, 3, 3, 7, 3, 3, 3, 3, 7, 3, 3, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 7, 7, 3, 3, 3, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 3, 3, 3, 3, 7, 3, 3, 3, 3, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7        ; u8[250] const
+player__y:      times 2 dw 0        ; i16[2]
+player__oldY:   times 2 dw 0        ; i16[2]
+player__score:  times 2 db 0        ; u8[2]
+player__speed:  times 2 db 0        ; u8[2]
+paddleX:        db      '(v'        ; u8[2] const
+paddleColor:    db      4, 6        ; u8[2] const
+winColor:       dw      1028, 1542        ; u16[2] const
+serveX:         dw      0, 296        ; i16[2] const
+serveSpeedX:    dw      3, -3        ; i16[2] const
 
 ; ============================================================ heap ====
 ; No storage is emitted - a .COM owns everything past its image, so
 ; these are addresses and NASM does the arithmetic.
 
-_hstack         equ     276        ; 20 worst-case + 256 interrupt reserve
-_htop           equ     0FFFEh - _hstack
+_hstack:        equ     276        ; 20 worst-case + 256 interrupt reserve
+_htop:          equ     0FFFEh - _hstack
 
-_hsize          dw      _htop - _heap        ; NASM computes this
+_hsize:         dw      _htop - _heap        ; NASM computes this
         align   2                           ; keep the u16 view aligned
 _heap:
-_heapw          equ     _heap        ; same bytes, u16 view
+_heapw:         equ     _heap        ; same bytes, u16 view

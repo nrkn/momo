@@ -81,6 +81,15 @@ between "error" and "TS", so `grep "error TS"` silently matches nothing.
 marker file written from the generated batch. Assembler errors are captured with
 NASM's `-Z`, an option that exists precisely because DOS cannot redirect stderr.
 
+**`momoc` reports `ok` for programs NASM will reject.** The compiler's job ends
+at emitting text, and nothing below tier 2 assembles that text - so a codegen bug
+at the NASM boundary is indistinguishable from success. `ok: ... prefixes.asm`
+means "wrote a file", not "this builds". Naming a global after an instruction did
+exactly this for the whole life of the project: `u16 add` compiled clean and
+emitted `add dw 0`, which NASM read as an ADD (DESIGN §7). When a change touches
+what the emitter *writes* rather than what it computes, `npm run test:e2e` is the
+only tier that can tell you it worked.
+
 **To check what a program prints**, run the `.com` with `> out.txt` inside a
 generated batch and read the file afterwards - see `src/tools/e2e.ts`. Do not
 rely on watching the DOSBox window.

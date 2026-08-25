@@ -4,8 +4,9 @@
         org     100h
 
 ; ---- constants: no storage, folded at assembly time ----
-ioBase          equ     10
-ioZeroChar      equ     48
+ioBase:         equ     10
+ioZeroChar:     equ     48
+push:           equ     256
 
 ; =========================================================== entry ====
 
@@ -133,6 +134,83 @@ __entry:
         mov     ax, [add__ret]
         mov     bx, ax
         pop     ax
+        add     ax, bx
+        mov     [total], ax
+; ---- putNumber( total )
+        mov     ax, [total]
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- newline()
+        call    newline
+; ---- mov = 8
+        mov     word [mov], 8
+; ---- xor = 16
+        mov     byte [xor], 16
+; ---- nop = 2048
+        mov     word [nop], 2048
+; ---- cmp[0] = 32
+        mov     word [cmp], 32
+; ---- cmp[1] = 64
+        mov     word [cmp + 2], 64
+; ---- cmp[2] = 128
+        mov     word [cmp + 4], 128
+; ---- ret[0].dec = 512
+        mov     word [ret__dec], 512
+; ---- ret[1].dec = 1024
+        mov     word [ret__dec + 2], 1024
+; ---- total = jmp[0] + jmp[1] + jmp[2] + mov + xor
+        mov     al, [jmp]
+        xor     ah, ah                      ; u8 -> u16
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     al, [jmp + 1]
+        xor     ah, ah                      ; u8 -> u16
+        mov     bx, ax
+        pop     ax
+        add     ax, bx
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     al, [jmp + 2]
+        xor     ah, ah                      ; u8 -> u16
+        mov     bx, ax
+        pop     ax
+        add     ax, bx
+        mov     bx, [mov]
+        add     ax, bx
+        mov     bl, [xor]
+        xor     bh, bh                      ; u8 -> u16
+        add     ax, bx
+        mov     [total], ax
+; ---- total = total + pop[0] + pop[1] + cmp[2] + push
+        mov     ax, [total]
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [pop]
+        mov     bx, ax
+        pop     ax
+        add     ax, bx
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [pop + 2]
+        mov     bx, ax
+        pop     ax
+        add     ax, bx
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [cmp + 4]
+        mov     bx, ax
+        pop     ax
+        add     ax, bx
+        add     ax, 256
+        mov     [total], ax
+; ---- total = total + ret[0].dec + ret[1].dec + nop
+        mov     ax, [total]
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [ret__dec]
+        mov     bx, ax
+        pop     ax
+        add     ax, bx
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [ret__dec + 2]
+        mov     bx, ax
+        pop     ax
+        add     ax, bx
+        mov     bx, [nop]
         add     ax, bx
         mov     [total], ax
 ; ---- putNumber( total )
@@ -400,58 +478,69 @@ int21:
 ; ============================================================ data ====
 
 ; ---- reserved globals: the machine registers ----
-_ax             dw      0
-_al             equ     _ax
-_ah             equ     _ax + 1
-_bx             dw      0
-_bl             equ     _bx
-_bh             equ     _bx + 1
-_cx             dw      0
-_cl             equ     _cx
-_ch             equ     _cx + 1
-_dx             dw      0
-_dl             equ     _dx
-_dh             equ     _dx + 1
-_si             dw      0
-_di             dw      0
+_ax:            dw      0
+_al:            equ     _ax
+_ah:            equ     _ax + 1
+_bx:            dw      0
+_bl:            equ     _bx
+_bh:            equ     _bx + 1
+_cx:            dw      0
+_cl:            equ     _cx
+_ch:            equ     _cx + 1
+_dx:            dw      0
+_dl:            equ     _dx
+_dh:            equ     _dx + 1
+_si:            dw      0
+_di:            dw      0
 
 ; ---- variables ----
-putChar__c      db      0        ; u8
-putNumber__n    dw      0        ; u16
-wait___ret      dw      0        ; u16
-lock___ret      dw      0        ; u16
-rep___ret       dw      0        ; u16
-repe___ret      dw      0        ; u16
-repz___ret      dw      0        ; u16
-repne___ret     dw      0        ; u16
-repnz___ret     dw      0        ; u16
-a16___ret       dw      0        ; u16
-a32___ret       dw      0        ; u16
-o16___ret       dw      0        ; u16
-o32___ret       dw      0        ; u16
-xacquire___ret  dw      0        ; u16
-xrelease___ret  dw      0        ; u16
-bnd___ret       dw      0        ; u16
-nobnd___ret     dw      0        ; u16
-absolute___ret  dw      0        ; u16
-times___ret     dw      0        ; u16
-es___ret        dw      0        ; u16
-word___ret      dw      0        ; u16
-add__ret        dw      0        ; u16
-total           dw      0        ; u16
-putNumber__i    db      0        ; u8
+putChar__c:     db      0        ; u8
+putNumber__n:   dw      0        ; u16
+wait___ret:     dw      0        ; u16
+lock___ret:     dw      0        ; u16
+rep___ret:      dw      0        ; u16
+repe___ret:     dw      0        ; u16
+repz___ret:     dw      0        ; u16
+repne___ret:    dw      0        ; u16
+repnz___ret:    dw      0        ; u16
+a16___ret:      dw      0        ; u16
+a32___ret:      dw      0        ; u16
+o16___ret:      dw      0        ; u16
+o32___ret:      dw      0        ; u16
+xacquire___ret: dw      0        ; u16
+xrelease___ret: dw      0        ; u16
+bnd___ret:      dw      0        ; u16
+nobnd___ret:    dw      0        ; u16
+absolute___ret: dw      0        ; u16
+times___ret:    dw      0        ; u16
+es___ret:       dw      0        ; u16
+word___ret:     dw      0        ; u16
+add__ret:       dw      0        ; u16
+total:          dw      0        ; u16
+mov:            dw      0        ; u16
+xor:            db      0        ; u8
+nop:            dw      0        ; u16
+putNumber__i:   db      0        ; u8
 
 ; ---- arrays ----
-putNumber__digits times 5 db 0        ; u8[5]
+cmp:            times 3 dw 0        ; u16[3]
+jmp:            db      1, 2, 4        ; u8[3] const
+ret__dec:       times 2 dw 0        ; u16[2]
+putNumber__digits: times 5 db 0        ; u8[5]
 
 ; ============================================================ heap ====
 ; No storage is emitted - a .COM owns everything past its image, so
 ; these are addresses and NASM does the arithmetic.
 
-_hstack         equ     264        ; 8 worst-case + 256 interrupt reserve
-_htop           equ     0FFFEh - _hstack
+_hstack:        equ     264        ; 8 worst-case + 256 interrupt reserve
+_htop:          equ     0FFFEh - _hstack
 
-_hsize          dw      _htop - _heap        ; NASM computes this
+_hsize:         dw      _htop - _heap        ; NASM computes this
         align   2                           ; keep the u16 view aligned
 _heap:
-_heapw          equ     _heap        ; same bytes, u16 view
+_heapw:         equ     _heap        ; same bytes, u16 view
+
+; =========================================================== views ====
+; No storage: each is a name for an offset into something else.
+
+pop:            equ     cmp        ; u16[2]

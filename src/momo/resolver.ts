@@ -195,10 +195,13 @@ export const builtinGlobalNames: string[] = [
 const shiftOps = ['<<', '>>']
 const comparisonOps = ['<', '<=', '>', '>=', '==', '!=']
 
-// NASM words that cannot be used as a bare label. Instruction mnemonics are
-// deliberately absent: `add:` assembles fine, and `add` is far too natural a
-// name to mangle. Directives and registers genuinely break - `absolute:` is
-// parsed as the ABSOLUTE directive and fails with an expression syntax error.
+// NASM words that cannot be used as a label even WITH a colon. That last part
+// is the whole rule: ordinary mnemonics are deliberately absent because a colon
+// rescues them - `add:` assembles, and `add` is far too natural a name to
+// mangle - so the emitter puts a colon on every label, data included, and this
+// set is only the words the colon does not save. Directives and registers
+// genuinely break either way: `absolute: dw 1` is still parsed as the ABSOLUTE
+// directive and fails with an expression syntax error. See DESIGN §7.
 const nasmReserved = new Set([
   // directives
   'absolute', 'align', 'alignb', 'bits', 'common', 'cpu', 'default', 'extern',
@@ -218,7 +221,8 @@ const nasmReserved = new Set([
   // names": a prefix may legally precede an instruction on the same line, so
   // NASM reads the bare word as one and then meets a colon it cannot place.
   // Ordinary mnemonics are unaffected - `add:`, `ret:`, `nop:` and `cbw:` all
-  // assemble, which is why they stay unmangled. Verified one name at a time.
+  // assemble, which is why they stay unmangled. Verified one name at a time,
+  // and re-verified with a colon in front of data: `wait: dw 1` fails too.
   'wait', 'lock', 'rep', 'repe', 'repz', 'repne', 'repnz',
   'a16', 'a32', 'o16', 'o32', 'xacquire', 'xrelease', 'bnd', 'nobnd',
 ])

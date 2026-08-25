@@ -190,6 +190,23 @@ established by assembling one sub per candidate rather than by reading a list,
 since assuming the category is what caused the bug in the first place. All are
 in the mangled set now, and `projects/prefixes` keeps them there.
 
-**Worth knowing anyway**, because it is the shape of the next one: nothing in
-tier 1 could have caught this. The program compiled, and only the assembler
-objected.
+**Then it happened again, in data - also fixed.** The paragraph above is right
+that `add:` assembles, and that is what made it misleading: only *routines* were
+emitted with a colon. A `u16 add` came out as `add dw 0`, no colon at all, so
+NASM read the leading token as an instruction and reported it differently:
+
+```
+error: comma, colon, decorator or end of line expected after operand
+error: invalid combination of opcode and operands
+```
+
+Variables, arrays, consts and views were all exposed - group fields were not,
+since `add__x` is nobody's mnemonic - and both `add` (two operands) and `nop`
+(none) failed, so it was every mnemonic rather than a quirk of one. Data labels
+carry a colon now, which retires the class rather than lengthening the mangled
+list; the fifteen prefixes stay mangled because a colon does not save them
+either. See DESIGN §7.
+
+**Worth knowing anyway**, because it was the shape of the next one, twice over:
+nothing in tier 1 could have caught either. The program compiled, and only the
+assembler objected.

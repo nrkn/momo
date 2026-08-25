@@ -4,14 +4,14 @@
         org     100h
 
 ; ---- constants: no storage, folded at assembly time ----
-ioBase          equ     10
-ioZeroChar      equ     48
-discs           equ     4
-frameSize       equ     4
-fN              equ     0
-fFrom           equ     1
-fTo             equ     2
-fStage          equ     3
+ioBase:         equ     10
+ioZeroChar:     equ     48
+discs:          equ     4
+frameSize:      equ     4
+fN:             equ     0
+fFrom:          equ     1
+fTo:            equ     2
+fStage:         equ     3
 
 ; =========================================================== entry ====
 
@@ -383,58 +383,58 @@ int21:
 ; ============================================================ data ====
 
 ; ---- reserved globals: the machine registers ----
-_ax             dw      0
-_al             equ     _ax
-_ah             equ     _ax + 1
-_bx             dw      0
-_bl             equ     _bx
-_bh             equ     _bx + 1
-_cx             dw      0
-_cl             equ     _cx
-_ch             equ     _cx + 1
-_dx             dw      0
-_dl             equ     _dx
-_dh             equ     _dx + 1
-_si             dw      0
-_di             dw      0
+_ax:            dw      0
+_al:            equ     _ax
+_ah:            equ     _ax + 1
+_bx:            dw      0
+_bl:            equ     _bx
+_bh:            equ     _bx + 1
+_cx:            dw      0
+_cl:            equ     _cx
+_ch:            equ     _cx + 1
+_dx:            dw      0
+_dl:            equ     _dx
+_dh:            equ     _dx + 1
+_si:            dw      0
+_di:            dw      0
 
 ; ---- variables ----
-putChar__c      db      0        ; u8
-putNumber__n    dw      0        ; u16
-sp_             dw      0        ; u16
-moves           dw      0        ; u16
-slotOf__frame   dw      0        ; u16
-slotOf__field   dw      0        ; u16
-slotOf__ret     dw      0        ; u16
-frameGet__frame dw      0        ; u16
-frameGet__field dw      0        ; u16
-frameGet__ret   dw      0        ; u16
-frameSet__frame dw      0        ; u16
-frameSet__field dw      0        ; u16
-frameSet__value dw      0        ; u16
-pushFrame__n    dw      0        ; u16
-pushFrame__from dw      0        ; u16
-pushFrame__to   dw      0        ; u16
-reportMove__from dw      0        ; u16
-reportMove__to  dw      0        ; u16
-putNumber__i    db      0        ; u8
-solve__top      dw      0        ; u16
-solve__n        dw      0        ; u16
-solve__from     dw      0        ; u16
-solve__to       dw      0        ; u16
-solve__stage    dw      0        ; u16
+putChar__c:     db      0        ; u8
+putNumber__n:   dw      0        ; u16
+sp_:            dw      0        ; u16
+moves:          dw      0        ; u16
+slotOf__frame:  dw      0        ; u16
+slotOf__field:  dw      0        ; u16
+slotOf__ret:    dw      0        ; u16
+frameGet__frame: dw      0        ; u16
+frameGet__field: dw      0        ; u16
+frameGet__ret:  dw      0        ; u16
+frameSet__frame: dw      0        ; u16
+frameSet__field: dw      0        ; u16
+frameSet__value: dw      0        ; u16
+pushFrame__n:   dw      0        ; u16
+pushFrame__from: dw      0        ; u16
+pushFrame__to:  dw      0        ; u16
+reportMove__from: dw      0        ; u16
+reportMove__to: dw      0        ; u16
+putNumber__i:   db      0        ; u8
+solve__top:     dw      0        ; u16
+solve__n:       dw      0        ; u16
+solve__from:    dw      0        ; u16
+solve__to:      dw      0        ; u16
+solve__stage:   dw      0        ; u16
 
 ; ---- arrays ----
-putNumber__digits times 5 db 0        ; u8[5]
+putNumber__digits: times 5 db 0        ; u8[5]
 
 ; ============================================================ heap ====
 ; No storage is emitted - a .COM owns everything past its image, so
 ; these are addresses and NASM does the arithmetic.
 
-_hstack         equ     266        ; 10 worst-case + 256 interrupt reserve
-_htop           equ     0FFFEh - _hstack
+_hstack:        equ     266        ; 10 worst-case + 256 interrupt reserve
+_htop:          equ     0FFFEh - _hstack
 
-_hsize          dw      _htop - _heap        ; NASM computes this
+_hsize:         dw      _htop - _heap        ; NASM computes this
         align   2                           ; keep the u16 view aligned
 _heap:
-_heapw          equ     _heap        ; same bytes, u16 view
+_heapw:         equ     _heap        ; same bytes, u16 view

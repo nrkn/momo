@@ -4,13 +4,13 @@
         org     100h
 
 ; ---- constants: no storage, folded at assembly time ----
-tileW           equ     8
-tileH           equ     8
-screenW         equ     320
-screenH         equ     200
-tilesAcross     equ     40
-tilesDown       equ     25
-tileBytes       equ     64
+tileW:          equ     8
+tileH:          equ     8
+screenW:        equ     320
+screenH:        equ     200
+tilesAcross:    equ     40
+tilesDown:      equ     25
+tileBytes:      equ     64
 
 ; =========================================================== entry ====
 
@@ -239,45 +239,45 @@ int21:
 ; ============================================================ data ====
 
 ; ---- reserved globals: the machine registers ----
-_ax             dw      0
-_al             equ     _ax
-_ah             equ     _ax + 1
-_bx             dw      0
-_bl             equ     _bx
-_bh             equ     _bx + 1
-_cx             dw      0
-_cl             equ     _cx
-_ch             equ     _cx + 1
-_dx             dw      0
-_dl             equ     _dx
-_dh             equ     _dx + 1
-_si             dw      0
-_di             dw      0
+_ax:            dw      0
+_al:            equ     _ax
+_ah:            equ     _ax + 1
+_bx:            dw      0
+_bl:            equ     _bx
+_bh:            equ     _bx + 1
+_cx:            dw      0
+_cl:            equ     _cx
+_ch:            equ     _cx + 1
+_dx:            dw      0
+_dl:            equ     _dx
+_dh:            equ     _dx + 1
+_si:            dw      0
+_di:            dw      0
 
 ; ---- variables ----
-readKey__ret    dw      0        ; u16
-savedMode       db      0        ; u8
-tx              db      0        ; u8
-ty              db      0        ; u8
-blit__from      dw      0        ; u16
-blit__tx        db      0        ; u8
-blit__ty        db      0        ; u8
-blit__row       dw      0        ; u16
-blit__col       dw      0        ; u16
-blit__dest      dw      0        ; u16
-blit__src       dw      0        ; u16
+readKey__ret:   dw      0        ; u16
+savedMode:      db      0        ; u8
+tx:             db      0        ; u8
+ty:             db      0        ; u8
+blit__from:     dw      0        ; u16
+blit__tx:       db      0        ; u8
+blit__ty:       db      0        ; u8
+blit__row:      dw      0        ; u16
+blit__col:      dw      0        ; u16
+blit__dest:     dw      0        ; u16
+blit__src:      dw      0        ; u16
 
 ; ---- arrays ----
-tiles           db      15, 15, 15, 15, 15, 15, 15, 15, 4, 4, 4, 15, 4, 4, 4, 15, 4, 4, 4, 15, 4, 4, 4, 15, 15, 15, 15, 15, 15, 15, 15, 15, 4, 15, 4, 4, 4, 15, 4, 4, 4, 15, 4, 4, 4, 15, 4, 4, 15, 15, 15, 15, 15, 15, 15, 15, 4, 4, 4, 15, 4, 4, 4, 15, 0, 0, 0, 9, 9, 0, 0, 0, 0, 0, 9, 1, 1, 9, 0, 0, 0, 9, 1, 1, 1, 1, 9, 0, 9, 1, 1, 1, 1, 1, 1, 9, 9, 1, 1, 1, 1, 1, 1, 9, 0, 9, 1, 1, 1, 1, 9, 0, 0, 0, 9, 1, 1, 9, 0, 0, 0, 0, 0, 9, 9, 0, 0, 0        ; u8[128] const
+tiles:          db      15, 15, 15, 15, 15, 15, 15, 15, 4, 4, 4, 15, 4, 4, 4, 15, 4, 4, 4, 15, 4, 4, 4, 15, 15, 15, 15, 15, 15, 15, 15, 15, 4, 15, 4, 4, 4, 15, 4, 4, 4, 15, 4, 4, 4, 15, 4, 4, 15, 15, 15, 15, 15, 15, 15, 15, 4, 4, 4, 15, 4, 4, 4, 15, 0, 0, 0, 9, 9, 0, 0, 0, 0, 0, 9, 1, 1, 9, 0, 0, 0, 9, 1, 1, 1, 1, 9, 0, 9, 1, 1, 1, 1, 1, 1, 9, 9, 1, 1, 1, 1, 1, 1, 9, 0, 9, 1, 1, 1, 1, 9, 0, 0, 0, 9, 1, 1, 9, 0, 0, 0, 0, 0, 9, 9, 0, 0, 0        ; u8[128] const
 
 ; ============================================================ heap ====
 ; No storage is emitted - a .COM owns everything past its image, so
 ; these are addresses and NASM does the arithmetic.
 
-_hstack         equ     260        ; 4 worst-case + 256 interrupt reserve
-_htop           equ     0FFFEh - _hstack
+_hstack:        equ     260        ; 4 worst-case + 256 interrupt reserve
+_htop:          equ     0FFFEh - _hstack
 
-_hsize          dw      _htop - _heap        ; NASM computes this
+_hsize:         dw      _htop - _heap        ; NASM computes this
         align   2                           ; keep the u16 view aligned
 _heap:
-_heapw          equ     _heap        ; same bytes, u16 view
+_heapw:         equ     _heap        ; same bytes, u16 view
