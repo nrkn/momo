@@ -1,21 +1,41 @@
-// momolo.momo - momolo on an 8086. Chunks 1 to 3: the element array, the
-// builder, pass 1, pass 2's grow half, and pass 3.
+// momolo.momo - momolo on an 8086. Chunks 1 to 4: the engine, complete bar the
+// reflow seam.
 //
 // See PORT.md in the clay-study for the plan this follows. The engine lives in
 // m_el.momo, m_fit.momo, m_bld.momo, m_size.momo and m_place.momo; this file is
-// the scene and the dump.
+// the scenes and the dump.
 //
-// The scene is `shell` from the study's demo gallery, box for box - the only demo
-// that exercises the whole engine in one picture, and the scene this port uses
-// from the first chunk to the last. Nothing is drawn yet: the output is one line
-// per element, `i x y w h minW minH`, compared against the same numbers from the
-// TypeScript engine running the same subset of passes. Two independent
-// implementations of one algorithm agreeing on every integer is the point.
+// Three scenes, all of them lifted box for box from the study's demo gallery.
+// The output is one line per element, `i x y w h minW minH oX oY`, held against the
+// same numbers from the TypeScript engine running the same subset of passes:
 //
-//   npm run reference -- --stage=sizeY      (in the clay-study)
+//   npm run reference -- --demo=shell   --stage=sizeY
+//   npm run reference -- --demo=sizing  --stage=sizeY
+//   npm run reference -- --demo=squeeze --stage=sizeY
 //
-// x and y were printed as zeros while only pass 1 existed, which is why the
-// format did not have to change when place landed.
+// concatenated in that order. Two independent implementations of one algorithm
+// agreeing on every integer is the point of the exercise.
+//
+// `shell` exercises the most engine in one picture and was the only scene for
+// three chunks. It is not enough on its own, and knowing what it cannot reach is
+// worth more than the coverage it does give:
+//
+//   sizing   every grow in shell is uncapped, so a candidate never reaches its
+//            maximum and the cap-and-remove path never runs. The middle swatch
+//            of the third strip is grow(0, 8) and settles it.
+//   squeeze  shell's shrink stops well above its floors, so shrink's own removal
+//            never runs either, and nothing in shell overflows at all. The
+//            8-wide track squeezes both paragraphs onto their longest word and
+//            still does not fit.
+//
+// Running three scenes also tests something one scene structurally cannot: that
+// a second `begin()` reuses the element array correctly. Nothing re-zeroes a
+// group, so every field has to be written by pushElement, and until there was a
+// second frame that invariant was an argument rather than a result.
+//
+// shell is 72 columns because that is what the study's gallery uses, which keeps
+// the two sides trivially comparable. A text mode screen is 80, and the scene
+// should move to it once the cross-check has done its work - see PORT.md.
 
 include "std/io.momo"
 include "std/str.momo"
@@ -27,7 +47,7 @@ include "m_size.momo"
 include "m_place.momo"
 
 // One unit is one character cell, and one line of text is one cell tall. The
-// study runs the same scene against a pixel target where these are 11 and 20;
+// study runs the same scenes against a pixel target where these are 11 and 20;
 // nothing below mentions a cell, which is what makes that possible.
 const u          = 1
 const lineHeight = 1
@@ -54,12 +74,27 @@ const u8[] sLeft     = "squeezed left column$"
 const u8[] sRight    = "squeezed right column$"
 const u8[] sReady    = "ready$"
 
+const u8[] sAbc      = "abc$"
+const u8[] sDe       = "de$"
+const u8[] sFghi     = "fghi$"
+const u8[] sCapFit   = "fit() - as wide as the words$"
+const u8[] sCapGrow  = "grow() - converge on a common width$"
+const u8[] sCapMixed = "fixed(6), grow(0, 8) capped, grow()$"
+
+const u8[] sAlpha    = "alpha beta$"
+const u8[] sGamma    = "gamma delta$"
+const u8[] sTrack26  = "track of 26$"
+const u8[] sTrack22  = "track of 22$"
+const u8[] sTrack14  = "track of 14$"
+const u8[] sTrack8   = "track of 8$"
+
 // A paragraph's minimum width is its longest word, and that one number is the
 // whole of what makes it a paragraph rather than a label. In a Momo program it is
 // a compile-time constant because the string is - so shrink gets the right answer
 // with no runtime word-breaking anywhere, and wrapping can wait for chunk 6.
 const bodyMinW     = 7          // "wrapped"
 const squeezedMinW = 8          // "squeezed"
+const trackMinW    = 5          // "alpha", and "gamma" is the same length
 
 // ---- the two kinds of text run --------------------------------------------
 //
@@ -88,9 +123,12 @@ u16 paraAt( u16 at, u16 minW ) {
 
 // ---- the dump -------------------------------------------------------------
 
-// A number and its separator. Six of the seven columns want one, and a sub is
-// shorter than a bare `space()` on its own line six times - Momo ends a statement
-// at a newline, so there is no way to put the pair on one line.
+// A number and its separator. All but the last column wants one, and a sub is
+// shorter than a bare `space()` on its own line eight times - Momo ends a
+// statement at a newline, so there is no way to put the pair on one line.
+//
+// The overflow columns are bools read into a u16 argument, which is free: a bool
+// is genuinely 0 or 1, and only the reverse direction is restricted (DESIGN §3).
 sub putField( u16 n ) {
   putNumber( n )
   space()
@@ -106,23 +144,76 @@ sub dumpBoxes {
     putField( el[i].w )
     putField( el[i].h )
     putField( el[i].minW )
-    putNumber( el[i].minH )
+    putField( el[i].minH )
+    putField( el[i].overflowX )
+    putNumber( el[i].overflowY )
     newline()
   }
 }
 
-// ---- the scene ------------------------------------------------------------
+sub runPasses {
+  sizeX()
+  sizeY()
+  place()
+}
 
-// One of the three swatches in the centred row: a growing panel with a centred
-// label inside it.
-sub swatch( u16 at ) {
+// ---- shared scene pieces --------------------------------------------------
+//
+// The study writes these as functions taking a closure. Momo has no closures, so
+// a wrapper becomes an open/close pair and the caller writes the body between
+// them - which is what PORT.md meant by "the openBox/closeBox pair is what ports,
+// and the closure is a TypeScript convenience only".
+
+// A caption above a strip of content.
+sub stripOpen( u16 caption ) {
+  cfgCol()
   cfgGrowW()
+  openBox()
+
+    labelAt( caption )
+
+    cfgGrowW()
+    cfg.gap = u
+    openBox()
+}
+
+sub stripClose {
+  closeBox()                    // the row of content
+  closeBox()                    // the captioned column
+}
+
+// A centred label in a panel. The width is whatever the caller left in cfg,
+// which works because cfg is not spent until openBox - so the four wrappers
+// below differ only in how they set it.
+local sub swatchBody( u16 at ) {
   cfgInsetX( u )
   cfg.alignMain = alignCenter
   openBox()
     labelAt( at )
   closeBox()
 }
+
+sub swatchFit( u16 at ) => swatchBody( at )
+
+sub swatchGrow( u16 at ) {
+  cfgGrowW()
+  swatchBody( at )
+}
+
+sub swatchFixed( u16 at, u16 n ) {
+  cfgFixedW( n )
+  swatchBody( at )
+}
+
+// The one that matters here: a grow with a ceiling, so the candidate drops out
+// of the convergence loop when it reaches it.
+sub swatchCapped( u16 at, u16 n ) {
+  cfgGrowW()
+  cfg.wMax = n
+  swatchBody( at )
+}
+
+// ---- scene: shell ---------------------------------------------------------
 
 sub buildShell {
   // ---- the frame
@@ -185,9 +276,9 @@ sub buildShell {
         cfgGrowW()
         cfg.gap = u
         openBox()
-          swatch( addr( sA ) )
-          swatch( addr( sB ) )
-          swatch( addr( sC ) )
+          swatchGrow( addr( sA ) )
+          swatchGrow( addr( sB ) )
+          swatchGrow( addr( sC ) )
         closeBox()
 
         cfgFixedW( 24 * u )
@@ -211,17 +302,94 @@ sub buildShell {
   closeBox()
 }
 
+// ---- scene: sizing --------------------------------------------------------
+//
+// Two kinds and a clamp. fit hugs its content, grow shares what is left over,
+// and fixed is a fit whose minimum and maximum are equal. The third strip is the
+// one this port needed: a capped grow that stops at 8 while its neighbour keeps
+// taking.
+
+sub buildSizing {
+  cfgCol()
+  cfgGrowW()
+  cfgGrowH()
+  cfgInset( u )
+  cfg.gap = u
+  openBox()
+
+    stripOpen( addr( sCapFit ) )
+      swatchFit( addr( sAbc ) )
+      swatchFit( addr( sDe ) )
+      swatchFit( addr( sFghi ) )
+    stripClose()
+
+    stripOpen( addr( sCapGrow ) )
+      swatchGrow( addr( sAbc ) )
+      swatchGrow( addr( sDe ) )
+      swatchGrow( addr( sFghi ) )
+    stripClose()
+
+    stripOpen( addr( sCapMixed ) )
+      swatchFixed( addr( sAbc ), 6 * u )
+      swatchCapped( addr( sDe ), 8 * u )
+      swatchGrow( addr( sFghi ) )
+    stripClose()
+
+  closeBox()
+}
+
+// ---- scene: squeeze -------------------------------------------------------
+//
+// The same pair of paragraphs in shrinking tracks. They converge downward, and
+// once both reach their longest word the rest overflows rather than crushing
+// them - which is the only place in these three scenes where an overflow flag is
+// raised at all.
+
+sub squeezeTrack( u16 caption, u16 width ) {
+  stripOpen( caption )
+
+    cfgFixedW( width )
+    cfg.gap = u
+    openBox()
+      paraAt( addr( sAlpha ), trackMinW )
+      paraAt( addr( sGamma ), trackMinW )
+    closeBox()
+
+  stripClose()
+}
+
+sub buildSqueeze {
+  cfgCol()
+  cfgGrowW()
+  cfgGrowH()
+  cfgInset( u )
+  cfg.gap = u
+  openBox()
+
+    squeezeTrack( addr( sTrack26 ), 26 * u )
+    squeezeTrack( addr( sTrack22 ), 22 * u )
+    squeezeTrack( addr( sTrack14 ), 14 * u )
+    squeezeTrack( addr( sTrack8 ), 8 * u )
+
+  closeBox()
+}
+
 // ---- entry ----------------------------------------------------------------
 
 begin( 72 * u, 24 * lineHeight )
 buildShell()
 closeBox()
+runPasses()
+dumpBoxes()
 
-// Pass 2's surplus half is built; its deficit half - shrink - is not, so the two
-// paragraphs in the 24-unit row keep their fit widths. That is the whole of the
-// expected divergence from the reference, and it closes in chunk 4.
-sizeX()
-sizeY()
-place()
+begin( 40 * u, 10 * lineHeight )
+buildSizing()
+closeBox()
+runPasses()
+dumpBoxes()
 
+begin( 40 * u, 15 * lineHeight )
+buildSqueeze()
+closeBox()
+runPasses()
 dumpBoxes()

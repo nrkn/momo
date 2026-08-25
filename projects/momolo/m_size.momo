@@ -11,9 +11,10 @@
 // Either way a child that reaches its own limit drops out and the rest carry on
 // without it.
 //
-// **Chunk 3 builds the surplus half only.** The deficit half is shrink, and it
-// lands in chunk 4 - see the comment at the bottom of sizeAxis for what that
-// costs in the meantime, which is two elements and nothing else.
+// The two walks are written out separately rather than unified behind a sign. A
+// unified version is about half the lines and every comparison in it reads
+// backwards half the time, which is the wrong trade for the one function here
+// that is genuinely intricate.
 
 include "std/math.momo"
 
@@ -130,6 +131,110 @@ local sub growInto( bool xAxis, u16 surplus ) {
   }
 }
 
+// Take `deficit` back off the candidates, largest first. Returns whatever it
+// could not reclaim, which is exactly the amount that will overflow.
+//
+// The mirror of growInto, and the sentinel collapses here too - which PORT.md
+// predicted it would not, and which is worth the four lines to explain.
+//
+// The prediction was that `largest - second` against a 0 sentinel is `largest`,
+// so min( largest, even ) differs from `even` whenever even exceeds largest, and
+// an explicit haveSecond would be needed where grow needed none. The first half
+// is true. The second does not follow, because `give` on the next line clamps to
+// `largest - floorAt`, and `largest` is never below that:
+//
+//   min( min( largest, even ), largest - floorAt )  ==  min( even, largest - floorAt )
+//
+// So the two spellings cannot produce a different `give`, and `step == 0` holds
+// in one exactly when it holds in the other. The flag was written, and then
+// removing it changed nothing in any of the three scenes - which is what sent the
+// argument back for a second look rather than being taken as coverage.
+//
+// In the TypeScript the check IS load-bearing, and that is the asymmetry: `none`
+// is -1 there, so `second - smallest` goes negative and drives the remainder
+// branch by mistake. Unsigned it cannot. The sentinel analysis was right about
+// grow, right about the arithmetic, and wrong about the conclusion.
+local u16 shrinkFrom( bool xAxis, u16 deficit ) {
+  u16  excess
+  u16  largest
+  u16  second
+  u16  countAtLargest
+  u16  j
+  u16  ci
+  u16  s
+  u16  even
+  u16  step
+  u16  floorAt
+  u16  give
+
+  excess = deficit
+
+  while ( excess > 0 && candLen > 0 ) {
+    // The largest candidate, how many share that size, and the next size down.
+    largest = 0
+    second = 0
+    countAtLargest = 0
+
+    for ( j = 0; j < candLen; j++ ) {
+      ci = cand[j]
+      s = sizeOf( ci, xAxis )
+
+      if ( s > largest ) {
+        // countAtLargest is the "have we seen one yet" test that `largest !==
+        // none` is in the TypeScript, since 0 is a legal size rather than a
+        // sentinel here.
+        if ( countAtLargest > 0 ) second = largest
+        largest = s
+        countAtLargest = 1
+      } else if ( s == largest ) {
+        countAtLargest++
+      } else if ( s > second ) {
+        second = s
+      }
+    }
+
+    even = excess / countAtLargest
+    step = min( largest - second, even )
+
+    if ( step == 0 ) {
+      // The mirror of the remainder case in growInto: take one unit each until
+      // it is gone.
+      for ( j = 0; j < candLen; j++ ) {
+        if ( excess == 0 ) break
+        ci = cand[j]
+        if ( sizeOf( ci, xAxis ) != largest ) continue
+
+        // The TypeScript says `largest - 1 < minOf(...)`. Spelled as `largest <=
+        // min` instead: the two agree for every size this can actually see, and
+        // this one is also safe if `largest` were ever 0, where `largest - 1`
+        // would be 65535 and sail past the guard. PORT.md asked for that case to
+        // be asserted rather than assumed; it cannot be asserted in Momo, so it
+        // is made harmless instead.
+        if ( largest <= minOf( ci, xAxis ) ) continue
+
+        setSize( ci, xAxis, largest - 1 )
+        excess--
+      }
+
+      return excess
+    }
+
+    for ( j = candLen; j > 0; j-- ) {
+      ci = cand[j - 1]
+      if ( sizeOf( ci, xAxis ) != largest ) continue
+
+      floorAt = minOf( ci, xAxis )
+      give = min( step, largest - floorAt )
+      setSize( ci, xAxis, largest - give )
+      excess -= give
+
+      if ( largest - give <= floorAt ) candRemove( j - 1 )
+    }
+  }
+
+  return excess
+}
+
 sub sizeAxis( bool xAxis ) {
   u16  qi
   u16  i
@@ -141,6 +246,7 @@ sub sizeAxis( bool xAxis ) {
   u16  avail
   u16  inner
   u16  fitted
+  u16  spilled
 
   bfs[0] = 0
   bfsLen = 1
@@ -199,13 +305,30 @@ sub sizeAxis( bool xAxis ) {
     if ( avail == inner ) continue
 
     if ( avail < inner ) {
-      // A deficit, and reclaiming it is shrink - chunk 4. Until then the
-      // children keep the sizes pass 1 gave them.
-      //
-      // For `shell` that is exactly two elements: the paragraph pair in the
-      // 24-unit row stays 20 and 21 wide where the reference says 11 and 12.
-      // Predicted before the chunk was written and bounded to those two, which
-      // is the whole of what chunk 3 is expected to get wrong.
+      // Any child with room above its own minimum may give some back, whatever
+      // its sizing kind. A fixed child has a minimum equal to its size, so it is
+      // excluded by arithmetic rather than by a special case - which is where
+      // this parts company with Clay, whose resizable buffer names the kinds it
+      // must skip.
+      candLen = 0
+      for ( k = 0; k < n; k++ ) {
+        ci = childAt( i, k )
+        if ( sizeOf( ci, xAxis ) > minOf( ci, xAxis ) ) {
+          cand[candLen] = ci
+          candLen++
+        }
+      }
+
+      // Whatever shrink could not reclaim is what spills, and with nothing
+      // compressible the whole shortfall does. Either way the container is
+      // marked so a caller can clip, truncate or offer to scroll it.
+      if ( candLen > 0 ) {
+        spilled = shrinkFrom( xAxis, inner - avail )
+      } else {
+        spilled = inner - avail
+      }
+
+      if ( spilled > 0 ) setOverflow( i, xAxis )
       continue
     }
 
