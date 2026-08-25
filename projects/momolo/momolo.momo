@@ -1,8 +1,9 @@
-// momolo.momo - momolo on an 8086. Chunk 1: the element array, the builder, and
-// pass 1.
+// momolo.momo - momolo on an 8086. Chunks 1 and 2: the element array, the
+// builder, pass 1 and pass 3.
 //
 // See PORT.md in the clay-study for the plan this follows. The engine lives in
-// m_el.momo, m_fit.momo and m_bld.momo; this file is the scene and the dump.
+// m_el.momo, m_fit.momo, m_bld.momo and m_place.momo; this file is the scene and
+// the dump.
 //
 // The scene is `shell` from the study's demo gallery, box for box - the only demo
 // that exercises the whole engine in one picture, and the scene this port uses
@@ -11,11 +12,10 @@
 // TypeScript engine running the same subset of passes. Two independent
 // implementations of one algorithm agreeing on every integer is the point.
 //
-//   npm run reference -- --stage=fit        (in the clay-study)
+//   npm run reference -- --stage=place      (in the clay-study)
 //
-// x and y are printed although pass 3 does not exist yet. They are zero on both
-// sides, so the columns cost nothing and the format will not change when place
-// lands.
+// x and y were printed as zeros while only pass 1 existed, which is why the
+// format did not have to change when place landed.
 
 include "std/io.momo"
 include "std/str.momo"
@@ -23,6 +23,7 @@ include "std/str.momo"
 include "m_el.momo"
 include "m_fit.momo"
 include "m_bld.momo"
+include "m_place.momo"
 
 // One unit is one character cell, and one line of text is one cell tall. The
 // study runs the same scene against a pixel target where these are 11 and 20;
@@ -214,5 +215,9 @@ sub buildShell {
 begin( 72 * u, 24 * lineHeight )
 buildShell()
 closeBox()
+
+// Pass 2 does not exist yet, so the sizes are still pass 1's. place only reads
+// them, which is exactly why pass 3 can be checked before pass 2 is written.
+place()
 
 dumpBoxes()

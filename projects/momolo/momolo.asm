@@ -28,6 +28,8 @@ __entry:
         call    buildShell
 ; ---- closeBox()
         call    closeBox
+; ---- place()
+        call    place
 ; ---- dumpBoxes()
         call    dumpBoxes
 
@@ -1361,6 +1363,538 @@ begin:
         call    openBox
         ret
 
+; ============================================== sub place ====
+
+place:
+; ---- stkI[0] = 0
+        mov     word [m_place__stkI], 0
+; ---- stkX[0] = 0
+        mov     word [m_place__stkX], 0
+; ---- stkY[0] = 0
+        mov     word [m_place__stkY], 0
+; ---- stkTop = 1
+        mov     word [m_place__stkTop], 1
+; ---- while ( stkTop > 0 ) {
+.L106:
+        mov     ax, [m_place__stkTop]
+        test    ax, ax
+        ja      .L109                       ; unsigned >
+        jmp     .L108
+.L109:
+; ---- stkTop--
+        dec     word [m_place__stkTop]
+; ---- i = stkI[stkTop]
+        mov     ax, [m_place__stkTop]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [m_place__stkI + bx]
+        mov     [place__i], ax
+; ---- el[i].x = stkX[stkTop]
+        mov     ax, [m_place__stkTop]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [m_place__stkX + bx]
+        push    ax                          ; save value while computing the index
+        mov     ax, [place__i]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        pop     ax
+        mov     [el__x + bx], ax
+; ---- el[i].y = stkY[stkTop]
+        mov     ax, [m_place__stkTop]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [m_place__stkY + bx]
+        push    ax                          ; save value while computing the index
+        mov     ax, [place__i]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        pop     ax
+        mov     [el__y + bx], ax
+; ---- n = el[i].childCount
+        mov     ax, [place__i]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [el__childCount + bx]
+        mov     [place__n], ax
+; ---- if ( n == 0 ) continue
+        mov     ax, [place__n]
+        test    ax, ax
+        je      .L112                       ; unsigned ==
+        jmp     .L110
+.L112:
+        jmp     .L107
+.L110:
+; ---- row = !el[i].isCol
+        mov     ax, [place__i]
+        mov     bx, ax
+        mov     al, [el__isCol + bx]
+        test    al, al
+        jz      .L115
+        jmp     .L113
+.L115:
+        mov     ax, 1
+        jmp     .L114
+.L113:
+        xor     ax, ax
+.L114:
+        mov     [place__row], al            ; narrowed to bool
+; ---- if ( row ) {
+        mov     al, [place__row]
+        test    al, al
+        jnz     .L118
+        jmp     .L116
+.L118:
+; ---- insetMain = el[i].insetL + el[i].insetR
+        mov     ax, [place__i]
+        mov     bx, ax
+        mov     al, [el__insetL + bx]
+        xor     ah, ah                      ; u8 -> u16
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [place__i]
+        mov     bx, ax
+        mov     al, [el__insetR + bx]
+        xor     ah, ah                      ; u8 -> u16
+        mov     bx, ax
+        pop     ax
+        add     ax, bx
+        mov     [place__insetMain], ax
+; ---- insetCross = el[i].insetT + el[i].insetB
+        mov     ax, [place__i]
+        mov     bx, ax
+        mov     al, [el__insetT + bx]
+        xor     ah, ah                      ; u8 -> u16
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [place__i]
+        mov     bx, ax
+        mov     al, [el__insetB + bx]
+        xor     ah, ah                      ; u8 -> u16
+        mov     bx, ax
+        pop     ax
+        add     ax, bx
+        mov     [place__insetCross], ax
+; ---- inner = el[i].w
+        mov     ax, [place__i]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [el__w + bx]
+        mov     [place__inner], ax
+; ---- crossInner = el[i].h
+        mov     ax, [place__i]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [el__h + bx]
+        mov     [place__crossInner], ax
+        jmp     .L117
+.L116:
+; ---- insetMain = el[i].insetT + el[i].insetB
+        mov     ax, [place__i]
+        mov     bx, ax
+        mov     al, [el__insetT + bx]
+        xor     ah, ah                      ; u8 -> u16
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [place__i]
+        mov     bx, ax
+        mov     al, [el__insetB + bx]
+        xor     ah, ah                      ; u8 -> u16
+        mov     bx, ax
+        pop     ax
+        add     ax, bx
+        mov     [place__insetMain], ax
+; ---- insetCross = el[i].insetL + el[i].insetR
+        mov     ax, [place__i]
+        mov     bx, ax
+        mov     al, [el__insetL + bx]
+        xor     ah, ah                      ; u8 -> u16
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [place__i]
+        mov     bx, ax
+        mov     al, [el__insetR + bx]
+        xor     ah, ah                      ; u8 -> u16
+        mov     bx, ax
+        pop     ax
+        add     ax, bx
+        mov     [place__insetCross], ax
+; ---- inner = el[i].h
+        mov     ax, [place__i]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [el__h + bx]
+        mov     [place__inner], ax
+; ---- crossInner = el[i].w
+        mov     ax, [place__i]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [el__w + bx]
+        mov     [place__crossInner], ax
+.L117:
+; ---- inner = inner > insetMain ? inner - insetMain : 0
+        mov     ax, [place__inner]
+        mov     bx, [place__insetMain]
+        cmp     ax, bx
+        ja      .L121                       ; unsigned >
+        jmp     .L119
+.L121:
+        mov     ax, [place__inner]
+        mov     bx, [place__insetMain]
+        sub     ax, bx
+        jmp     .L120
+.L119:
+        xor     ax, ax                      ; 0
+.L120:
+        mov     [place__inner], ax
+; ---- crossInner = crossInner > insetCross ? crossInner - insetCross : 0
+        mov     ax, [place__crossInner]
+        mov     bx, [place__insetCross]
+        cmp     ax, bx
+        ja      .L124                       ; unsigned >
+        jmp     .L122
+.L124:
+        mov     ax, [place__crossInner]
+        mov     bx, [place__insetCross]
+        sub     ax, bx
+        jmp     .L123
+.L122:
+        xor     ax, ax                      ; 0
+.L123:
+        mov     [place__crossInner], ax
+; ---- content = el[i].gap * ( n - 1 )
+        mov     ax, [place__i]
+        mov     bx, ax
+        mov     al, [el__gap + bx]
+        xor     ah, ah                      ; u8 -> u16
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [place__n]
+        dec     ax
+        mov     bx, ax
+        pop     ax
+        mul     bx                          ; low 16 bits are sign-agnostic
+        mov     [place__content], ax
+; ---- for ( k = 0; k < n; k++ ) {
+        mov     word [place__k], 0
+.L125:
+        mov     ax, [place__k]
+        mov     bx, [place__n]
+        cmp     ax, bx
+        jb      .L128                       ; unsigned <
+        jmp     .L127
+.L128:
+; ---- ci = childAt( i, k )
+        mov     ax, [place__i]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [el__childStart + bx]
+        mov     bx, [place__k]
+        add     ax, bx
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [childList + bx]
+        mov     [place__ci], ax
+; ---- content += row ? el[ci].w : el[ci].h
+        mov     ax, [place__content]
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     al, [place__row]
+        test    al, al
+        jnz     .L131
+        jmp     .L129
+.L131:
+        mov     ax, [place__ci]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [el__w + bx]
+        jmp     .L130
+.L129:
+        mov     ax, [place__ci]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [el__h + bx]
+.L130:
+        mov     bx, ax
+        pop     ax
+        add     ax, bx
+        mov     [place__content], ax
+.L126:
+        inc     word [place__k]
+        jmp     .L125
+.L127:
+; ---- slack = inner > content ? inner - content : 0
+        mov     ax, [place__inner]
+        mov     bx, [place__content]
+        cmp     ax, bx
+        ja      .L134                       ; unsigned >
+        jmp     .L132
+.L134:
+        mov     ax, [place__inner]
+        mov     bx, [place__content]
+        sub     ax, bx
+        jmp     .L133
+.L132:
+        xor     ax, ax                      ; 0
+.L133:
+        mov     [place__slack], ax
+; ---- cursor = ( row ? el[i].insetL : el[i].insetT ) + leadFor( el[i].alignMain, slack )
+        mov     al, [place__row]
+        test    al, al
+        jnz     .L137
+        jmp     .L135
+.L137:
+        mov     ax, [place__i]
+        mov     bx, ax
+        mov     al, [el__insetL + bx]
+        xor     ah, ah                      ; u8 -> u16
+        jmp     .L136
+.L135:
+        mov     ax, [place__i]
+        mov     bx, ax
+        mov     al, [el__insetT + bx]
+        xor     ah, ah                      ; u8 -> u16
+.L136:
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [place__i]
+        mov     bx, ax
+        mov     al, [el__alignMain + bx]
+        test    al, al
+        je      .L140                       ; unsigned ==
+        jmp     .L138
+.L140:
+        xor     ax, ax                      ; 0
+        jmp     .L139
+.L138:
+        mov     ax, [place__i]
+        mov     bx, ax
+        mov     al, [el__alignMain + bx]
+        cmp     al, 1                       ; byte operands, no widening
+        je      .L143                       ; unsigned ==
+        jmp     .L141
+.L143:
+        mov     ax, [place__slack]
+        shr     ax, 1                       ; unsigned >>
+        jmp     .L142
+.L141:
+        mov     ax, [place__slack]
+.L142:
+.L139:
+        mov     bx, ax
+        pop     ax
+        add     ax, bx
+        mov     [place__cursor], ax
+; ---- base = stkTop
+        mov     ax, [m_place__stkTop]
+        mov     [place__base], ax
+; ---- stkTop += n
+        mov     ax, [m_place__stkTop]
+        mov     bx, [place__n]
+        add     ax, bx
+        mov     [m_place__stkTop], ax
+; ---- for ( k = 0; k < n; k++ ) {
+        mov     word [place__k], 0
+.L144:
+        mov     ax, [place__k]
+        mov     bx, [place__n]
+        cmp     ax, bx
+        jb      .L147                       ; unsigned <
+        jmp     .L146
+.L147:
+; ---- ci = childAt( i, k )
+        mov     ax, [place__i]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [el__childStart + bx]
+        mov     bx, [place__k]
+        add     ax, bx
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [childList + bx]
+        mov     [place__ci], ax
+; ---- room = row ? el[ci].h : el[ci].w
+        mov     al, [place__row]
+        test    al, al
+        jnz     .L150
+        jmp     .L148
+.L150:
+        mov     ax, [place__ci]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [el__h + bx]
+        jmp     .L149
+.L148:
+        mov     ax, [place__ci]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [el__w + bx]
+.L149:
+        mov     [place__room], ax
+; ---- room = crossInner > room ? crossInner - room : 0
+        mov     ax, [place__crossInner]
+        mov     bx, [place__room]
+        cmp     ax, bx
+        ja      .L153                       ; unsigned >
+        jmp     .L151
+.L153:
+        mov     ax, [place__crossInner]
+        mov     bx, [place__room]
+        sub     ax, bx
+        jmp     .L152
+.L151:
+        xor     ax, ax                      ; 0
+.L152:
+        mov     [place__room], ax
+; ---- cross = ( row ? el[i].insetT : el[i].insetL ) + leadFor( el[i].alignCross, room )
+        mov     al, [place__row]
+        test    al, al
+        jnz     .L156
+        jmp     .L154
+.L156:
+        mov     ax, [place__i]
+        mov     bx, ax
+        mov     al, [el__insetT + bx]
+        xor     ah, ah                      ; u8 -> u16
+        jmp     .L155
+.L154:
+        mov     ax, [place__i]
+        mov     bx, ax
+        mov     al, [el__insetL + bx]
+        xor     ah, ah                      ; u8 -> u16
+.L155:
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [place__i]
+        mov     bx, ax
+        mov     al, [el__alignCross + bx]
+        test    al, al
+        je      .L159                       ; unsigned ==
+        jmp     .L157
+.L159:
+        xor     ax, ax                      ; 0
+        jmp     .L158
+.L157:
+        mov     ax, [place__i]
+        mov     bx, ax
+        mov     al, [el__alignCross + bx]
+        cmp     al, 1                       ; byte operands, no widening
+        je      .L162                       ; unsigned ==
+        jmp     .L160
+.L162:
+        mov     ax, [place__room]
+        shr     ax, 1                       ; unsigned >>
+        jmp     .L161
+.L160:
+        mov     ax, [place__room]
+.L161:
+.L158:
+        mov     bx, ax
+        pop     ax
+        add     ax, bx
+        mov     [place__cross], ax
+; ---- slot = base + n - 1 - k
+        mov     ax, [place__base]
+        mov     bx, [place__n]
+        add     ax, bx
+        dec     ax
+        mov     bx, [place__k]
+        sub     ax, bx
+        mov     [place__slot], ax
+; ---- stkI[slot] = ci
+        mov     ax, [place__ci]
+        push    ax                          ; save value while computing the index
+        mov     ax, [place__slot]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        pop     ax
+        mov     [m_place__stkI + bx], ax
+; ---- stkX[slot] = row ? el[i].x + cursor : el[i].x + cross
+        mov     al, [place__row]
+        test    al, al
+        jnz     .L165
+        jmp     .L163
+.L165:
+        mov     ax, [place__i]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [el__x + bx]
+        mov     bx, [place__cursor]
+        add     ax, bx
+        jmp     .L164
+.L163:
+        mov     ax, [place__i]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [el__x + bx]
+        mov     bx, [place__cross]
+        add     ax, bx
+.L164:
+        push    ax                          ; save value while computing the index
+        mov     ax, [place__slot]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        pop     ax
+        mov     [m_place__stkX + bx], ax
+; ---- stkY[slot] = row ? el[i].y + cross : el[i].y + cursor
+        mov     al, [place__row]
+        test    al, al
+        jnz     .L168
+        jmp     .L166
+.L168:
+        mov     ax, [place__i]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [el__y + bx]
+        mov     bx, [place__cross]
+        add     ax, bx
+        jmp     .L167
+.L166:
+        mov     ax, [place__i]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [el__y + bx]
+        mov     bx, [place__cursor]
+        add     ax, bx
+.L167:
+        push    ax                          ; save value while computing the index
+        mov     ax, [place__slot]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        pop     ax
+        mov     [m_place__stkY + bx], ax
+; ---- cursor += ( row ? el[ci].w : el[ci].h ) + el[i].gap
+        mov     ax, [place__cursor]
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     al, [place__row]
+        test    al, al
+        jnz     .L171
+        jmp     .L169
+.L171:
+        mov     ax, [place__ci]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [el__w + bx]
+        jmp     .L170
+.L169:
+        mov     ax, [place__ci]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [el__h + bx]
+.L170:
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [place__i]
+        mov     bx, ax
+        mov     al, [el__gap + bx]
+        xor     ah, ah                      ; u8 -> u16
+        mov     bx, ax
+        pop     ax
+        add     ax, bx
+        mov     bx, ax
+        pop     ax
+        add     ax, bx
+        mov     [place__cursor], ax
+.L145:
+        inc     word [place__k]
+        jmp     .L144
+.L146:
+.L107:
+        jmp     .L106
+.L108:
+        ret
+
 ; ============================================== u16 labelAt ====
 
 labelAt:
@@ -1419,13 +1953,13 @@ putField:
 dumpBoxes:
 ; ---- for ( i = 0; i < elCount; i++ ) {
         mov     word [dumpBoxes__i], 0
-.L106:
+.L172:
         mov     ax, [dumpBoxes__i]
         mov     bx, [elCount]
         cmp     ax, bx
-        jb      .L109                       ; unsigned <
-        jmp     .L108
-.L109:
+        jb      .L175                       ; unsigned <
+        jmp     .L174
+.L175:
 ; ---- putField( i )
         mov     ax, [dumpBoxes__i]
         mov     [putField__n], ax
@@ -1474,10 +2008,10 @@ dumpBoxes:
         call    putNumber
 ; ---- newline()
         call    newline
-.L107:
+.L173:
         inc     word [dumpBoxes__i]
-        jmp     .L106
-.L108:
+        jmp     .L172
+.L174:
         ret
 
 ; ============================================== sub swatch ====
@@ -1750,6 +2284,7 @@ leaf__minH:     dw      0        ; u16
 leaf__ret:      dw      0        ; u16
 begin__w:       dw      0        ; u16
 begin__h:       dw      0        ; u16
+m_place__stkTop: dw      0        ; u16
 labelAt__at:    dw      0        ; u16
 labelAt__ret:   dw      0        ; u16
 paraAt__at:     dw      0        ; u16
@@ -1781,6 +2316,22 @@ leaf__insetX:   dw      0        ; u16
 leaf__insetY:   dw      0        ; u16
 leaf__mw:       dw      0        ; u16
 leaf__mh:       dw      0        ; u16
+place__i:       dw      0        ; u16
+place__n:       dw      0        ; u16
+place__k:       dw      0        ; u16
+place__ci:      dw      0        ; u16
+place__row:     db      0        ; bool
+place__insetMain: dw      0        ; u16
+place__insetCross: dw      0        ; u16
+place__inner:   dw      0        ; u16
+place__crossInner: dw      0        ; u16
+place__content: dw      0        ; u16
+place__slack:   dw      0        ; u16
+place__cursor:  dw      0        ; u16
+place__base:    dw      0        ; u16
+place__room:    dw      0        ; u16
+place__cross:   dw      0        ; u16
+place__slot:    dw      0        ; u16
 labelAt__n:     dw      0        ; u16
 paraAt__n:      dw      0        ; u16
 dumpBoxes__i:   dw      0        ; u16
@@ -1813,6 +2364,9 @@ el__overflowY:  times 64 db 0        ; bool[64]
 openStack:      times 16 dw 0        ; u16[16]
 childBuf:       times 64 dw 0        ; u16[64]
 childList:      times 64 dw 0        ; u16[64]
+m_place__stkI:  times 64 dw 0        ; u16[64]
+m_place__stkX:  times 64 dw 0        ; u16[64]
+m_place__stkY:  times 64 dw 0        ; u16[64]
 sMomolo:        db      'momolo$'        ; u8[7] const
 sGeometry:      db      'geometry$'        ; u8[9] const
 sNew:           db      'New$'        ; u8[4] const
