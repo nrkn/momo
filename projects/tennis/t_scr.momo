@@ -1,0 +1,81 @@
+/*
+  first, do the naive port, then later look for optimisations 
+
+  todo, optimisations:
+
+  create u16[100] with row lookups to save doing y * 320 for the 100 logical
+  rows, only costs 200 bytes but saves a lot of mul
+
+  write a word instead of a pixel in setPixel, as we double on x
+
+  any other lookups we can generate at startup or as const?  
+
+  is it worth having a logical buffer? logical->screen? 
+  160x100 is 16k - fits easily
+*/
+
+include "t_cfg.momo"
+
+local const vgaStatus = 0x3da
+local const vgaVRetrace = 1 << 3
+
+// predicate rather than a wait, so the caller owns it
+bool inRetrace() => ( in8( vgaStatus ) & vgaVRetrace ) != 0
+
+far u8[64000] pixels = 0xA000
+
+// for later optimisation of setPixel
+view u16[32000] pxwords = pixels[0]
+
+local const pxIndex( u16 x, u16 y ) = y * screenW + x
+
+local u8 savedMode
+
+sub saveMode {
+  _ah = 0x0F
+  int 0x10
+  savedMode = _al & 0x7F
+}
+
+sub restoreMode {
+  _ah = 0x00
+  _al = savedMode
+  int 0x10
+}
+
+sub mode13 {
+  _ax = 0x0013
+  int 0x10
+}
+
+local const screenWNext = screenW + 1
+local u16 at
+
+sub setPixel( u16 x, u16 y, u8 color ) {
+  // logical to screen
+  at = pxIndex( x << 1, y << 1 )
+  
+  // later this becomes two statements instead of four
+  pixels[ at ] = color
+  pixels[ at + 1 ] = color
+  pixels[ at + screenW ] = color
+  pixels[ at + screenWNext ] = color
+}
+
+// neither of these need to call pset - it's just easier for now - much more
+// efficient to write them by hand - fix later
+
+local u16 x
+local u16 y 
+
+sub drawLineHorizontal(  u8 y, u8 x1, u8 x2, u8 color ){
+  for( x = x1; x <= x2; x++ ){
+    setPixel( x, y, color )
+  }
+}
+
+sub drawLineVertical( u8 x, u8 y1, u8 y2, u8 color ){
+  for( y = y1; y <= y2; y++ ){
+    setPixel( x, y, color )
+  }
+}

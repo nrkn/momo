@@ -1,0 +1,79 @@
+// pixel units
+const screenW = 320
+const screenH = 200
+const viewW = screenW / 2
+const viewH = screenH / 2
+
+const playLeft = 40
+const playRight = 118
+const playTop = 9
+const playBottom = 80
+const playW = playRight - playLeft + 1
+const playH = playBottom - playTop + 1
+const centerX = ( playLeft + playRight ) / 2
+const scoreTop = 84
+const scoreY = scoreTop + 1
+// per player 
+const u8[] scoreXTens = [ 44, 101 ]
+const u8[] scoreXOnes = [ 51, 108 ]
+
+const paddleW = 1
+const paddleH = 9
+
+const ballW = 3
+const ballH = 3
+
+const digitW = 5
+const digitH = 5
+
+const subgridScale = 4
+
+const paddleSpeedStep = 2
+const paddleSpeedMax = 16
+
+const serveSpeed = 3
+
+// subgrid units
+
+const paddleYMax = ( playH - paddleH  - 2 ) * subgridScale
+const ballXMax = ( playW - ballW - 2 ) * subgridScale
+const ballYMax = ( playH - ballH - 2 ) * subgridScale
+const paddleYHome = paddleYMax / 2
+
+// centres the ball on the serving paddle: both are subgrid, so the gap either
+// side is half the difference
+const ballServeOffset = ( paddleH - ballH ) * subgridScale / 2
+
+// the ball meets the paddle from its bottom edge just reaching the paddle top,
+// to its top edge just leaving the paddle bottom
+const hitLead = ballH * subgridScale - 1
+const hitWindow = hitLead + paddleH * subgridScale
+
+const netBallXMin = ( centerX - playLeft - ballW ) * subgridScale
+const netBallXMax = ( centerX - playLeft ) * subgridScale - 1
+const netBallXSpan = netBallXMax - netBallXMin
+
+// word blitting
+
+// halved for word, but scoreTop doubled for view doubling - cancels out
+const scoreTopWord = scoreTop * screenW 
+
+const screenWord = ( screenW * screenH ) >> 1
+
+// six equal zones and a wider flat one in the middle, so the table is
+// symmetric
+const angleZone = 6
+const angleZone1 = angleZone
+const angleZone2 = angleZone * 2
+const angleZone3 = angleZone * 3
+const angleZone4 = hitWindow - angleZone * 3
+const angleZone5 = hitWindow - angleZone * 2
+const angleZone6 = hitWindow - angleZone
+
+const ballSpeedStep = serveSpeed
+const ballSpeedY1 = ballSpeedStep
+const ballSpeedY2 = ballSpeedStep * 2
+const ballSpeedY3 = ballSpeedStep * 3
+const ballSpeedXMax = ballSpeedStep * 3
+const volleyTarget = 3
+const winScore = 11

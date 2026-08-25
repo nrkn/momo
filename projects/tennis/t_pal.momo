@@ -1,0 +1,63 @@
+/*
+  doesn't really need optimising as it runs once on startup
+*/
+
+// 8bpp -> 6bpp
+local const u8 dac( u8 v ) = v >> 2
+
+local sub setPaletteColor( u8 index, u8 r, u8 g, u8 b ) {
+  _ax = 0x1010
+  _bx = index
+  _dh = dac( r )
+  _ch = dac( g )
+  _cl = dac( b )
+
+  int 0x10
+}
+
+local const palette = [
+  224, 224, 244, // lightGrey
+  145, 255, 166, // lightGreen
+  206, 208, 255, // lightBlue
+   16,  16,  16, // black
+  255,  49,  83, // red
+    2, 204,  93, // green
+   75,  63, 243, // blue
+  252, 252, 252  // white
+]
+
+local const palSize = len(palette) / 3
+
+const lightGrey = 0
+const lightGreen = 1
+const lightBlue = 2
+const black = 3
+const red = 4
+const green = 5
+const blue = 6
+const white = 7
+
+// for copying two pixels at once of the same index
+const pxDouble( u8 color ) = color | color << 8
+
+const lightGreyW = pxDouble( lightGrey )
+const lightGreenW = pxDouble( lightGreen )
+const lightBlueW = pxDouble( lightBlue )
+const blackW = pxDouble( black )
+const redW = pxDouble( red )
+const greenW = pxDouble( green )
+const blueW = pxDouble( blue )
+const whiteW = pxDouble( white )
+
+local u8 i
+local u8 pIndex
+
+sub initPal {
+  for( i = 0; i < palSize; i++ ){
+    pIndex = i * 3
+
+    setPaletteColor( 
+      i, palette[ pIndex ], palette[ pIndex + 1 ], palette[ pIndex + 2 ] 
+    )
+  }
+}
