@@ -1,0 +1,49 @@
+// momovec - a vector rasteriser: normalized paths in, pixels out.
+//
+// Ported from the vector study, which distilled it out of a TypeScript port of
+// Alois Zingl's Bresenham curve algorithms. The study is the reference this is
+// held against, number for number - see its PORT.md and NOTES.md.
+//
+// Three things about the shape of this library are worth knowing before reading
+// any of it.
+//
+// **It has no cubic.** Zingl's cubic segment routine is genuinely floating point -
+// a square root for its resolution factor, divisions by 8 and 64 that do not
+// divide - so unlike the quadratic it cannot be ported by answering a range
+// question. Cubics are converted to chains of quadratics by the study, before the
+// data gets here, and nothing in this directory knows they ever existed. That
+// deletes a rasteriser, two splitters, the float split points and a subdivision
+// stack; it costs 30% more stored data.
+//
+// **Every segment that arrives is already limited**, meaning its control point
+// lies inside its endpoints' bounding box, and no wider than 15 pixels. Both are
+// guaranteed by the study, which splits at the gradient extremes and subdivides to
+// the audited range before rounding. 15 is measured: above it the quadratic's
+// error terms leave a signed 16-bit word.
+//
+// **It calls routines it does not define.** `plot( x, y )` is supplied by the
+// PROGRAM, and so are the scene arrays. Momo splices every include into one
+// namespace and resolves routines by name whatever file declared them, so a
+// library may call forward into its caller and the call compiles to a direct
+// `call` with no indirection. That is how one rasteriser serves a harness that
+// prints numbers and a demo that writes VRAM, with no runtime cost and without
+// waiting on DESIGN 19 or 21.
+//
+// What a program must supply:
+//
+//   sub plot( i16 x, i16 y )        where a pixel goes
+//   const u8[]  opKind              0 move, 1 line, 2 quad
+//   const i16[] px, py              points, 1, 1 or 2 per op
+//   const u16[] pathOpStart, pathOpCount, pathPointStart
+
+const screenW = 320
+const screenH = 200
+
+// Coordinates are i16 and not u16, deliberately. A control point clipped at the
+// edge of the canvas goes negative, and a step direction is signed by
+// construction - so DESIGN 4's rule that u16 does not mix with signed types means
+// picking one and staying there. Signed is the one that can represent the inputs.
+const i16 xMin = 0
+const i16 yMin = 0
+const i16 xMax = screenW - 1
+const i16 yMax = screenH - 1
