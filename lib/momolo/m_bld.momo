@@ -256,3 +256,26 @@ sub begin( u16 w, u16 h ) {
   cfgFixedH( h )
   openBox()
 }
+
+// ---- the reflow seam ------------------------------------------------------
+//
+// Between sizeX and sizeY a caller knows how wide its content ended up and may
+// need to say how tall that made it. These two are the whole of that
+// conversation, and neither knows why the answer changed.
+//
+// This is the inversion Clay's measure callback is turned inside out into: the
+// engine offers a sequence point instead of calling out to the host. It matters
+// more here than it did in TypeScript, because Momo has no function pointers -
+// taking text out of the engine deleted the problem rather than solving it.
+
+// The space inside a resolved element, once its inset is taken off. Meaningful
+// only after sizeX has run.
+sub setLeafHeight( u16 i, u16 h ) {
+  u16 insetY
+
+  insetY = el[i].insetT + el[i].insetB
+  el[i].h = clamp( insetY + h, el[i].hMin, el[i].hMax )
+  el[i].minH = clamp( insetY + h, el[i].hMin, el[i].hMax )
+}
+
+const u16 contentWidth( u16 i ) = el[i].w - el[i].insetL - el[i].insetR

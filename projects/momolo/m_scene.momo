@@ -17,6 +17,7 @@
 include "mopaint.momo"
 include "momolo/m_fit.momo"
 include "momolo/m_size.momo"
+include "momolo/m_refit.momo"
 include "momolo/m_place.momo"
 
 // One unit is one character cell, which mopaint decides rather than the scene.
@@ -86,12 +87,18 @@ const trackMinW    = 5          // "alpha", and "gamma" is the same length
 
 // ---- the pass sequence ----------------------------------------------------
 //
-// Written out rather than hidden, because the gap between sizeX and sizeY is
-// where a reflow would go - see PORT.md, chunk 6. There is no reflow yet, so
-// this is that sequence with it left out.
+// Written out rather than hidden, because the reflow in the middle is the whole
+// point: widths are final after sizeX, paint breaks its paragraphs into lines and
+// says how tall they came out, and refitY carries that up the tree before heights
+// are settled.
+//
+// That is Clay's pass order with its measure callback turned inside out - the
+// engine offers a sequence point and never calls out.
 
 sub runPasses {
   sizeX()
+  reflowAll()
+  refitY()
   sizeY()
   place()
 }

@@ -12,8 +12,11 @@
 // reserved. What the engine gets told is an inset, which it would have needed
 // either way - see panelFramed.
 //
-// Wrapping does not live here yet. That is the reflow seam, and the engine
-// already offers the moment it would need; see PORT.md, chunk 6.
+// Wrapping lives here for the same reason, and it is the harder case. See
+// reflowAll below: the engine offers a moment between sizeX and sizeY, and this
+// layer does all the breaking inside it. Clay's engine calls out to a measure
+// function from inside its own pass; momolo instead stops, lets this run, and
+// carries the answer up the tree when it resumes.
 
 include "std/screen.momo"
 include "std/str.momo"
@@ -42,7 +45,26 @@ group st[maxElements] {
   u16 text
   u8  border
   u8  borderColor
+  // Where this element's wrapped lines start in the line table, and how many. A
+  // count of 0 means "draw the whole run" - which is every label, and every
+  // paragraph until reflowAll has been over it.
+  u16 line0
+  u8  lineCount
 }
+
+// Paragraphs awaiting a reflow, and the lines they came to. A line is a slice of
+// the original string rather than a new one: Momo has no way to build a string at
+// runtime, and it does not need one - a start address and a length say the same
+// thing and cost three bytes.
+const maxParas = 16
+const maxLines = 64
+
+local u16[maxParas] paraEl
+local u16           paraCount
+
+local u16[maxLines] lineAt
+local u8[maxLines]  lineLen
+local u16           lineTop
 
 local sub stClear( u16 i ) {
   st[i].bg = transparent
@@ -50,6 +72,8 @@ local sub stClear( u16 i ) {
   st[i].text = 0
   st[i].border = 0
   st[i].borderColor = lightGray
+  st[i].line0 = 0
+  st[i].lineCount = 0
 }
 
 // begin() plus the root's style, since the root is the one element no caller
@@ -57,6 +81,8 @@ local sub stClear( u16 i ) {
 sub paintBegin( u16 w, u16 h ) {
   begin( w, h )
   stClear( 0 )
+  paraCount = 0
+  lineTop = 0
 }
 
 // A container with nothing to draw: a spacer, or a row that only groups.
@@ -129,6 +155,118 @@ sub paraPaint( u16 at, u16 minW, u8 fg, u8 bg ) {
   st[i].text = at
   st[i].fg = fg
   st[i].bg = bg
+
+  paraEl[paraCount] = i
+  paraCount++
+}
+
+// ---- the reflow -----------------------------------------------------------
+
+// Break one run into lines no wider than `limit`, appending them to the line
+// table and returning how many there were. Greedy, and the same rule as the
+// TypeScript: a word that will not fit starts a new line, and a word wider than
+// the line goes on its own and overflows, because there is nothing better to do
+// with it.
+//
+// One difference worth stating. The TypeScript rebuilds each line from its words
+// joined by single spaces, so a run of spaces in the source collapses. A slice
+// cannot collapse anything, so this is equivalent only where the source already
+// has single spaces - which every scene here does. A source with double spaces
+// would measure short.
+local u16 wrapInto( u16 at, u16 limit ) {
+  u16 lim
+  u16 n
+  u16 i
+  u16 lineStart
+  u16 lineLength
+  u16 wordStart
+  u16 wordLen
+  u16 candidate
+  u8  ch
+
+  lim = limit < 1 ? 1 : limit
+  n = 0
+  i = 0
+  lineStart = 0
+  lineLength = 0
+
+  for ( ;; ) {
+    for ( ;; ) {
+      ch = peek8( at + i )
+      if ( ch != 32 ) break
+      i++
+    }
+
+    if ( peek8( at + i ) == strEnd ) break
+
+    wordStart = i
+    for ( ;; ) {
+      ch = peek8( at + i )
+      if ( ch == strEnd ) break
+      if ( ch == 32 ) break
+      i++
+    }
+    wordLen = i - wordStart
+
+    candidate = lineLength == 0 ? wordLen : lineLength + 1 + wordLen
+
+    if ( candidate <= lim ) {
+      if ( lineLength == 0 ) lineStart = wordStart
+      lineLength = candidate
+      continue
+    }
+
+    if ( lineLength > 0 ) {
+      lineAt[lineTop] = at + lineStart
+      lineLen[lineTop] = u8( lineLength )
+      lineTop++
+      n++
+    }
+
+    lineStart = wordStart
+    lineLength = wordLen
+  }
+
+  if ( lineLength > 0 ) {
+    lineAt[lineTop] = at + lineStart
+    lineLen[lineTop] = u8( lineLength )
+    lineTop++
+    n++
+  }
+
+  // An empty run still occupies one line, matching the TypeScript's
+  // `lines.length === 0 ? [''] : lines`.
+  if ( n == 0 ) {
+    lineAt[lineTop] = at
+    lineLen[lineTop] = 0
+    lineTop++
+    n = 1
+  }
+
+  return n
+}
+
+// Run between momolo's sizeX and refitY. Widths are final, so every paragraph can
+// now be broken into lines and say how tall that made it.
+//
+// This is the whole of the inversion: Clay's engine calls a measure function from
+// inside its own pass, and momolo instead stops, lets this run, and carries the
+// answer up the tree when it resumes.
+sub reflowAll {
+  u16 p
+  u16 i
+  u16 first
+  u16 n
+
+  for ( p = 0; p < paraCount; p++ ) {
+    i = paraEl[p]
+    first = lineTop
+    n = wrapInto( st[i].text, contentWidth( i ) )
+
+    st[i].line0 = first
+    st[i].lineCount = u8( n )
+    setLeafHeight( i, n * lineHeight )
+  }
 }
 
 // ---- the renderer ---------------------------------------------------------
@@ -194,6 +332,19 @@ local sub drawFrame( u16 x, u16 y, u16 w, u16 h, u8 b, u8 attr ) {
   }
 }
 
+// A run of exactly `count` characters, for a wrapped line - which is a slice of a
+// longer string and so has no terminator of its own.
+local sub drawRun( u16 at, u16 count, u16 x, u16 y, u8 attr ) {
+  u16 i
+
+  if ( y >= screenRows ) return
+
+  for ( i = 0; i < count; i++ ) {
+    if ( x + i >= screenCols ) break
+    vram[ y * screenCols + x + i ] = peek8( at + i ) | ( attr << 8 )
+  }
+}
+
 local sub drawText( u16 at, u16 x, u16 y, u8 attr ) {
   u16 i
   u8  ch
@@ -213,6 +364,7 @@ local sub drawText( u16 at, u16 x, u16 y, u8 attr ) {
 
 sub paintAll {
   u16 i
+  u16 k
   u8  bg
   u8  fg
 
@@ -232,12 +384,25 @@ sub paintAll {
       // Text starts inside the element's own inset, which for a run of text is
       // normally zero - but it costs nothing to be right about.
       fg = bg == transparent ? black : bg
-      drawText(
-        st[i].text,
-        el[i].x + el[i].insetL,
-        el[i].y + el[i].insetT,
-        color( st[i].fg, fg )
-      )
+
+      if ( st[i].lineCount == 0 ) {
+        drawText(
+          st[i].text,
+          el[i].x + el[i].insetL,
+          el[i].y + el[i].insetT,
+          color( st[i].fg, fg )
+        )
+      } else {
+        for ( k = 0; k < st[i].lineCount; k++ ) {
+          drawRun(
+            lineAt[ st[i].line0 + k ],
+            lineLen[ st[i].line0 + k ],
+            el[i].x + el[i].insetL,
+            el[i].y + el[i].insetT + k,
+            color( st[i].fg, fg )
+          )
+        }
+      }
     }
   }
 }
