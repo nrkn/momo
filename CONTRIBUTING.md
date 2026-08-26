@@ -128,6 +128,15 @@ should ignore a directory with no project behind it, as `npm run image` does.
 That staleness is the whole reason the disk image is generated rather than made
 by hand.
 
+It also spoiled three separate measurements before being handled properly, because
+a stale binary reads exactly like a current one: the figure is real, just not from
+this version. `tennis` was reported at 4,110 bytes from a build predating its last
+two commits, and the vector port at an image of 3,478 bytes against 4,601 bytes of
+data - which is not a number that can exist, and got written down anyway.
+**`npm run memory` now compares the binary's timestamp against the source and warns
+when the code and image it just printed came from an earlier build.** Being careful
+was not working.
+
 **`git status` can show a generated `.asm` as modified when `git diff` is empty.**
 The emitter writes CRLF, `core.autocrlf` is `input`, so the working tree and the
 stored blob differ in line endings while comparing identical after normalisation.

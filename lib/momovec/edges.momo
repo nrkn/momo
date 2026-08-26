@@ -57,3 +57,109 @@ sub addCrossing( i16 y, i16 x, i8 dir ) {
 
   crossingCount += 1
 }
+
+// -- sorting ------------------------------------------------------------------
+//
+// By (y, x). A counting sort on y, then insertion on x inside each scanline's run.
+//
+// **Neither half is a general sort, and neither should be.** y is a scanline index,
+// so counting it is O(n + 200) with no comparisons at all. The study measured the
+// busiest scanline in the tiger at 20 crossings, so the runs insertion sort sees
+// are short and nearly sorted already - a general sort would be code written for a
+// case that does not occur, and `qsort` is the precedent for one if it ever does.
+//
+// A counting sort is not in place, so there is a scratch copy. 1,024 entries at
+// four bytes is 4 KB, which against 22 KB of headroom is the cheaper half of the
+// trade: sorting the live arrays in place would need a cycle-following permutation,
+// and that is a lot of cleverness to save four kilobytes nothing else wants.
+
+u8[maxCrossings]  sy_
+i16[maxCrossings] sx_
+i8[maxCrossings]  sd_
+
+// How many crossings each scanline holds, then - after the prefix sums are in
+// `runStart` - reused as the per-run fill offset during the scatter. Reused rather
+// than duplicated because once `runStart` exists the counts are recoverable from
+// it, so a second array would hold nothing that is not already known.
+u16[screenH] rowCount
+
+// One past the end, so a run is always runStart[y] to runStart[y + 1].
+u16[screenH + 1] runStart
+
+sub sortCrossings {
+  u16 i
+  u16 y
+  u16 at
+  u16 running
+  u16 from
+  u16 to
+  u16 k
+  i16 keyX
+  i8  keyDir
+
+  if ( crossingCount < 2 ) return
+
+  for ( y = 0; y < screenH; y++ ) {
+    rowCount[y] = 0
+  }
+
+  for ( i = 0; i < crossingCount; i++ ) {
+    rowCount[ cy[i] ] += 1
+  }
+
+  running = 0
+
+  for ( y = 0; y < screenH; y++ ) {
+    runStart[y] = running
+    running += rowCount[y]
+  }
+
+  runStart[screenH] = running
+
+  // Scatter. rowCount becomes the offset already filled within each run.
+  for ( y = 0; y < screenH; y++ ) {
+    rowCount[y] = 0
+  }
+
+  for ( i = 0; i < crossingCount; i++ ) {
+    y = cy[i]
+    at = runStart[y] + rowCount[y]
+
+    sy_[at] = cy[i]
+    sx_[at] = cx[i]
+    sd_[at] = cdir[i]
+
+    rowCount[y] += 1
+  }
+
+  // Insertion sort on x within each run. Each crossing carries its own direction,
+  // so the direction moves with the x it belongs to - getting that wrong would
+  // sort the list correctly and hand the winding walk the wrong signs.
+  for ( y = 0; y < screenH; y++ ) {
+    from = runStart[y]
+    to = runStart[y + 1]
+
+    for ( i = from + 1; i < to; i++ ) {
+      keyX = sx_[i]
+      keyDir = sd_[i]
+      k = i
+
+      while ( k > from && sx_[k - 1] > keyX ) {
+        sx_[k] = sx_[k - 1]
+        sd_[k] = sd_[k - 1]
+        k -= 1
+      }
+
+      sx_[k] = keyX
+      sd_[k] = keyDir
+    }
+  }
+
+  // Back into the live arrays. y is unchanged by the insertion pass - a run holds
+  // one scanline by construction - so it is copied rather than recomputed.
+  for ( i = 0; i < crossingCount; i++ ) {
+    cy[i] = sy_[i]
+    cx[i] = sx_[i]
+    cdir[i] = sd_[i]
+  }
+}

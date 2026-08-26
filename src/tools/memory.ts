@@ -84,6 +84,31 @@ const main = async () => {
     const binary = join(buildRoot, project, `${project}.com`)
     const imageSize = existsSync(binary) ? statSync(binary).size : null
 
+    // Whether that .COM is older than the source it claims to be the size of.
+    //
+    // `build/` keeps the output of everything ever built here and nothing prunes
+    // it, so a stale binary reads exactly like a current one - the figure is a real
+    // number from a real build, just not this one. That has now misled three
+    // separate measurements: tennis reported 4,110 bytes from a build predating its
+    // last two commits, and the vector port reported an image of 3,478 bytes
+    // against 4,601 bytes of data, which is not a number that can exist.
+    //
+    // The second of those is the tell worth keeping in mind: the figures were
+    // mutually impossible and got written down anyway. So this says so rather than
+    // leaving it to whoever notices.
+    const staleBy = imageSize === null
+      ? null
+      : (() => {
+          const source = entryFor(project)
+
+          if (!existsSync(source)) return null
+
+          const built = statSync(binary).mtimeMs
+          const written = statSync(source).mtimeMs
+
+          return written > built ? Math.round((written - built) / 1000) : null
+        })()
+
     if (imageSize !== null) row('code', `${imageSize - data} bytes`)
     row('data', `${data} bytes`)
     row('reserved globals', `${reserved}`, 2)
@@ -99,6 +124,17 @@ const main = async () => {
       console.log()
       row('image', `${imageSize} bytes`)
       row('load range', `0x${pspSize.toString(16)}..0x${(pspSize + imageSize).toString(16)}`)
+
+      if (staleBy !== null) {
+        console.log()
+        console.log(
+          `  warning: the build is ${staleBy}s older than the source, so code and`,
+        )
+        console.log(
+          '           image above are from an earlier version - rebuild with:',
+        )
+        console.log(`             npm run build -- ${project}`)
+      }
     }
 
     console.log()

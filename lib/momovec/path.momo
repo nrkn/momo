@@ -119,6 +119,12 @@ sub pathEdges( u16 pathIndex ) {
   walkPath( pathIndex, false, true, true )
 }
 
+// The same, sorted - the `sorted` stage.
+sub pathEdgesSorted( u16 pathIndex ) {
+  pathEdges( pathIndex )
+  sortCrossings()
+}
+
 // Every path of one scene, in order.
 sub strokeScene( u16 sceneIndex ) {
   u16 p

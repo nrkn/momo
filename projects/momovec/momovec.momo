@@ -25,6 +25,7 @@
 //
 //   pixels   x y          every scene, outlines, subpaths NOT closed
 //   edges    y x dir      every scene, crossings as emitted, subpaths closed
+//   sorted   y x dir      the same crossings, after the sort
 
 include "std/io.momo"
 include "std/math.momo"
@@ -68,6 +69,28 @@ for ( s = 0; s < len( sceneFirstPath ); s++ ) {
 for ( s = 0; s < len( sceneFirstPath ); s++ ) {
   for ( p = 0; p < scenePathCount[ s ]; p++ ) {
     pathEdges( sceneFirstPath[ s ] + p )
+
+    for ( i = 0; i < crossingCount; i++ ) {
+      putNumber( cy[ i ] )
+      space()
+      putNumber( u16( cx[ i ] ) )
+      space()
+      putNumber( u16( cdir[ i ] ) )
+      newline()
+    }
+  }
+}
+
+// ---- the sorted stage ----
+//
+// The same crossings again, after the counting sort and the insertion pass. Both
+// forms are printed because they fail differently: `edges` catches a wrong
+// emission, `sorted` catches a wrong ordering, and a sort that quietly dropped a
+// crossing would pass one and fail the other.
+
+for ( s = 0; s < len( sceneFirstPath ); s++ ) {
+  for ( p = 0; p < scenePathCount[ s ]; p++ ) {
+    pathEdgesSorted( sceneFirstPath[ s ] + p )
 
     for ( i = 0; i < crossingCount; i++ ) {
       putNumber( cy[ i ] )
