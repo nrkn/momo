@@ -17,12 +17,19 @@
 // Two independent implementations of one algorithm agreeing on every integer is
 // the point of the exercise, and this project is the whole of that claim.
 //
-// This is the `pixels` stage: outlines only, subpaths not closed. The fill stages
-// arrive with their chunks.
+// Every stage the port has reached is printed, in order, and the expectation covers
+// all of them - so an earlier chunk keeps its regression coverage as later ones
+// land rather than being replaced by them. The stages have different shapes, which
+// makes the boundary self-evident in a diff: `pixels` is two columns and `edges` is
+// three.
+//
+//   pixels   x y          every scene, outlines, subpaths NOT closed
+//   edges    y x dir      every scene, crossings as emitted, subpaths closed
 
 include "std/io.momo"
 include "std/math.momo"
 include "momovec/types.momo"
+include "momovec/edges.momo"
 include "momovec/path.momo"
 include "m_scene.momo"
 
@@ -40,7 +47,44 @@ sub plot( i16 x, i16 y ) {
 }
 
 u16 s
+u16 p
+u16 i
+
+// ---- the pixels stage ----
 
 for ( s = 0; s < len( sceneFirstPath ); s++ ) {
   strokeScene( s )
 }
+
+// ---- the edges stage ----
+//
+// Printed as emitted, before any sort. Comparing after the sort would let a wrong
+// emission order hide behind a correct sort, and the sort is chunk 4.
+//
+// Direction is printed as u16, so -1 comes out as 65535 - which is what the study
+// emits, for the same reason: exactness beats readability in a file that exists to
+// be compared.
+
+for ( s = 0; s < len( sceneFirstPath ); s++ ) {
+  for ( p = 0; p < scenePathCount[ s ]; p++ ) {
+    pathEdges( sceneFirstPath[ s ] + p )
+
+    for ( i = 0; i < crossingCount; i++ ) {
+      putNumber( cy[ i ] )
+      space()
+      putNumber( u16( cx[ i ] ) )
+      space()
+      putNumber( u16( cdir[ i ] ) )
+      newline()
+    }
+  }
+}
+
+// A capacity problem must not look like a rasteriser bug, so it says so. The
+// expectation never has this line, which makes an overflow a one-line diff.
+if ( crossingsOverflowed ) {
+  putStr( addr( overflowed ) )
+  newline()
+}
+
+const u8[] overflowed = "CROSSING LIST OVERFLOWED$"

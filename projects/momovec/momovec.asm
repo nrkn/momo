@@ -8,6 +8,7 @@ ioBase:         equ     10
 ioZeroChar:     equ     48
 screenW:        equ     320
 screenH:        equ     200
+maxCrossings:   equ     1024
 opMove:         equ     0
 opLine:         equ     1
 
@@ -28,6 +29,95 @@ __entry:
         inc     word [s]
         jmp     .L1
 .L3:
+; ---- for ( s = 0; s < len( sceneFirstPath ); s++ ) {
+        mov     word [s], 0
+.L5:
+        mov     ax, [s]
+        cmp     ax, 7
+        jb      .L8                         ; unsigned <
+        jmp     .L7
+.L8:
+; ---- for ( p = 0; p < scenePathCount[ s ]; p++ ) {
+        mov     word [p], 0
+.L9:
+        mov     ax, [p]
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [s]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [scenePathCount + bx]
+        mov     bx, ax
+        pop     ax
+        cmp     ax, bx
+        jb      .L12                        ; unsigned <
+        jmp     .L11
+.L12:
+; ---- pathEdges( sceneFirstPath[ s ] + p )
+        mov     ax, [s]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [sceneFirstPath + bx]
+        mov     bx, [p]
+        add     ax, bx
+        mov     [pathEdges__pathIndex], ax
+        call    pathEdges
+; ---- for ( i = 0; i < crossingCount; i++ ) {
+        mov     word [i], 0
+.L13:
+        mov     ax, [i]
+        mov     bx, [crossingCount]
+        cmp     ax, bx
+        jae     .L15                        ; unsigned <
+; ---- putNumber( cy[ i ] )
+        mov     ax, [i]
+        mov     bx, ax
+        mov     al, [cy + bx]
+        xor     ah, ah                      ; u8 -> u16
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- space()
+        call    space
+; ---- putNumber( u16( cx[ i ] ) )
+        mov     ax, [i]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [cx_ + bx]
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- space()
+        call    space
+; ---- putNumber( u16( cdir[ i ] ) )
+        mov     ax, [i]
+        mov     bx, ax
+        mov     al, [cdir + bx]
+        cbw                                 ; i8 -> i16
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- newline()
+        call    newline
+.L14:
+        inc     word [i]
+        jmp     .L13
+.L15:
+.L10:
+        inc     word [p]
+        jmp     .L9
+.L11:
+.L6:
+        inc     word [s]
+        jmp     .L5
+.L7:
+; ---- if ( crossingsOverflowed ) {
+        mov     al, [crossingsOverflowed]
+        test    al, al
+        jz      .L17
+; ---- putStr( addr( overflowed ) )
+        mov     ax, overflowed              ; link-time constant
+        mov     [putStr__at], ax
+        call    putStr
+; ---- newline()
+        call    newline
+.L17:
 
 ; ---- implicit exit ----
         mov     word [_ax], 0x4C00          ; DOS terminate, exit code 0
@@ -41,6 +131,18 @@ putChar:
 ; ---- _dl = c
         mov     al, [putChar__c]
         mov     [_dl], al                   ; u8 -> u8, no widening
+; ---- int 0x21
+        call    int21
+        ret
+
+; ============================================== sub putStr ====
+
+putStr:
+; ---- _ah = 0x09
+        mov     byte [_ah], 9
+; ---- _dx = at
+        mov     ax, [putStr__at]
+        mov     [_dx], ax
 ; ---- int 0x21
         call    int21
         ret
@@ -70,19 +172,19 @@ putNumber:
 ; ---- if (n == 0) {
         mov     ax, [putNumber__n]
         test    ax, ax
-        jne     .L5                         ; unsigned ==
+        jne     .L20                        ; unsigned ==
 ; ---- putChar(ioZeroChar)
         mov     byte [putChar__c], 48
         call    putChar
 ; ---- return
         ret
-.L5:
+.L20:
 ; ---- for (i = 0; n > 0; i++) {
         mov     byte [putNumber__i], 0
-.L8:
+.L23:
         mov     ax, [putNumber__n]
         test    ax, ax
-        jbe     .L10                        ; unsigned >
+        jbe     .L25                        ; unsigned >
 ; ---- digits[i] = u8(n % ioBase) + ioZeroChar
         mov     ax, [putNumber__n]
         mov     bx, 10
@@ -103,15 +205,15 @@ putNumber:
         xor     dx, dx                      ; clear high half for div
         div     bx
         mov     [putNumber__n], ax
-.L9:
+.L24:
         inc     byte [putNumber__i]
-        jmp     .L8
-.L10:
+        jmp     .L23
+.L25:
 ; ---- for (; i > 0; i--) {
-.L12:
+.L27:
         mov     al, [putNumber__i]
         test    al, al
-        jbe     .L14                        ; unsigned >
+        jbe     .L29                        ; unsigned >
 ; ---- putChar(digits[i - 1])
         mov     al, [putNumber__i]
         xor     ah, ah                      ; u8 -> u16
@@ -120,10 +222,70 @@ putNumber:
         mov     al, [putNumber__digits + bx]
         mov     [putChar__c], al            ; u8 -> u8, no widening
         call    putChar
-.L13:
+.L28:
         dec     byte [putNumber__i]
-        jmp     .L12
-.L14:
+        jmp     .L27
+.L29:
+        ret
+
+; ============================================== sub clearCrossings ====
+
+clearCrossings:
+; ---- crossingCount = 0
+        mov     word [crossingCount], 0
+        ret
+
+; ============================================== sub addCrossing ====
+
+addCrossing:
+; ---- if ( y < 0 ) return
+        mov     ax, [addCrossing__y]
+        test    ax, ax
+        jge     .L31                        ; signed <
+        ret
+.L31:
+; ---- if ( y >= screenH ) return
+        mov     ax, [addCrossing__y]
+        cmp     ax, 200
+        jl      .L34                        ; signed >=
+        ret
+.L34:
+; ---- if ( crossingCount >= maxCrossings ) {
+        mov     ax, [crossingCount]
+        cmp     ax, 1024
+        jb      .L37                        ; unsigned >=
+; ---- crossingsOverflowed = true
+        mov     byte [crossingsOverflowed], 1
+; ---- return
+        ret
+.L37:
+; ---- cy[ crossingCount ] = u8( y )
+        mov     ax, [addCrossing__y]
+        xor     ah, ah                      ; cast to u8
+        push    ax                          ; save value while computing the index
+        mov     ax, [crossingCount]
+        mov     bx, ax
+        pop     ax
+        mov     [cy + bx], al
+; ---- cx[ crossingCount ] = x
+        mov     ax, [addCrossing__x]
+        push    ax                          ; save value while computing the index
+        mov     ax, [crossingCount]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        pop     ax
+        mov     [cx_ + bx], ax
+; ---- cdir[ crossingCount ] = dir
+        mov     al, [addCrossing__dir]
+        push    ax                          ; save value while computing the index
+        mov     ax, [crossingCount]
+        mov     bx, ax
+        pop     ax
+        mov     [cdir + bx], al
+; ---- crossingCount += 1
+        mov     ax, [crossingCount]
+        inc     ax
+        mov     [crossingCount], ax
         ret
 
 ; ============================================== sub drawLine ====
@@ -134,71 +296,93 @@ drawLine:
         mov     bx, [drawLine__x0]
         sub     ax, bx
         test    ax, ax
-        jge     .L16                        ; signed <
+        jge     .L40                        ; signed <
         mov     ax, [drawLine__x1]
         mov     bx, [drawLine__x0]
         sub     ax, bx
         neg     ax
-        jmp     .L17
-.L16:
+        jmp     .L41
+.L40:
         mov     ax, [drawLine__x1]
         mov     bx, [drawLine__x0]
         sub     ax, bx
-.L17:
+.L41:
         mov     [drawLine__dx], ax
 ; ---- dy = -iabs( y1 - y0 )
         mov     ax, [drawLine__y1]
         mov     bx, [drawLine__y0]
         sub     ax, bx
         test    ax, ax
-        jge     .L19                        ; signed <
+        jge     .L43                        ; signed <
         mov     ax, [drawLine__y1]
         mov     bx, [drawLine__y0]
         sub     ax, bx
         neg     ax
-        jmp     .L20
-.L19:
+        jmp     .L44
+.L43:
         mov     ax, [drawLine__y1]
         mov     bx, [drawLine__y0]
         sub     ax, bx
-.L20:
+.L44:
         neg     ax
         mov     [drawLine__dy], ax
 ; ---- sx = x0 < x1 ? 1 : -1
         mov     ax, [drawLine__x0]
         mov     bx, [drawLine__x1]
         cmp     ax, bx
-        jge     .L22                        ; signed <
+        jge     .L46                        ; signed <
         mov     ax, 1
-        jmp     .L23
-.L22:
+        jmp     .L47
+.L46:
         mov     ax, -1
-.L23:
+.L47:
         mov     [drawLine__sx], ax
 ; ---- sy = y0 < y1 ? 1 : -1
         mov     ax, [drawLine__y0]
         mov     bx, [drawLine__y1]
         cmp     ax, bx
-        jge     .L25                        ; signed <
+        jge     .L49                        ; signed <
         mov     ax, 1
-        jmp     .L26
-.L25:
+        jmp     .L50
+.L49:
         mov     ax, -1
-.L26:
+.L50:
         mov     [drawLine__sy], ax
 ; ---- err = dx + dy
         mov     ax, [drawLine__dx]
         mov     bx, [drawLine__dy]
         add     ax, bx
         mov     [drawLine__err], ax
+; ---- dir = forceDir != 0 ? forceDir : i8( sy )
+        mov     al, [drawLine__forceDir]
+        test    al, al
+        je      .L52                        ; signed !=
+        mov     al, [drawLine__forceDir]
+        cbw                                 ; i8 -> i16
+        jmp     .L53
+.L52:
+        mov     ax, [drawLine__sy]
+        cbw                                 ; cast to i8
+.L53:
+        mov     [drawLine__dir], al         ; narrowed to i8
 ; ---- for ( ;; ) {
-.L28:
-; ---- plot( x0, y0 )
+.L55:
+; ---- curX = x0
         mov     ax, [drawLine__x0]
-        mov     [plot__x], ax
+        mov     [drawLine__curX], ax
+; ---- curY = y0
         mov     ax, [drawLine__y0]
+        mov     [drawLine__curY], ax
+; ---- if ( wantPixels ) plot( curX, curY )
+        mov     al, [drawLine__wantPixels]
+        test    al, al
+        jz      .L58
+        mov     ax, [drawLine__curX]
+        mov     [plot__x], ax
+        mov     ax, [drawLine__curY]
         mov     [plot__y], ax
         call    plot
+.L58:
 ; ---- e2 = 2 * err
         mov     ax, [drawLine__err]
         shl     ax, 1                       ; * 2 is << 1
@@ -206,14 +390,14 @@ drawLine:
 ; ---- if ( e2 >= dy ) {
         mov     bx, [drawLine__dy]
         cmp     ax, bx
-        jl      .L31                        ; signed >=
+        jl      .L61                        ; signed >=
 ; ---- if ( x0 == x1 ) break
         mov     ax, [drawLine__x0]
         mov     bx, [drawLine__x1]
         cmp     ax, bx
-        jne     .L34                        ; signed ==
-        jmp     .L30
-.L34:
+        jne     .L64                        ; signed ==
+        jmp     .L57
+.L64:
 ; ---- err += dy
         mov     ax, [drawLine__err]
         mov     bx, [drawLine__dy]
@@ -224,19 +408,51 @@ drawLine:
         mov     bx, [drawLine__sx]
         add     ax, bx
         mov     [drawLine__x0], ax
-.L31:
+.L61:
 ; ---- if ( e2 <= dx ) {
         mov     ax, [drawLine__e2]
         mov     bx, [drawLine__dx]
         cmp     ax, bx
-        jg      .L37                        ; signed <=
+        jle     .L69                        ; signed <=
+        jmp     .L67
+.L69:
 ; ---- if ( y0 == y1 ) break
         mov     ax, [drawLine__y0]
         mov     bx, [drawLine__y1]
         cmp     ax, bx
-        jne     .L40                        ; signed ==
-        jmp     .L30
-.L40:
+        jne     .L70                        ; signed ==
+        jmp     .L57
+.L70:
+; ---- if ( wantEdges ) {
+        mov     al, [drawLine__wantEdges]
+        test    al, al
+        jz      .L73
+; ---- if ( sy > 0 ) {
+        mov     ax, [drawLine__sy]
+        test    ax, ax
+        jle     .L76                        ; signed >
+; ---- addCrossing( curY, curX, dir )
+        mov     ax, [drawLine__curY]
+        mov     [addCrossing__y], ax
+        mov     ax, [drawLine__curX]
+        mov     [addCrossing__x], ax
+        mov     al, [drawLine__dir]
+        mov     [addCrossing__dir], al      ; i8 -> i8, no widening
+        call    addCrossing
+        jmp     .L77
+.L76:
+; ---- addCrossing( curY + sy, x0, dir )
+        mov     ax, [drawLine__curY]
+        mov     bx, [drawLine__sy]
+        add     ax, bx
+        mov     [addCrossing__y], ax
+        mov     ax, [drawLine__x0]
+        mov     [addCrossing__x], ax
+        mov     al, [drawLine__dir]
+        mov     [addCrossing__dir], al      ; i8 -> i8, no widening
+        call    addCrossing
+.L77:
+.L73:
 ; ---- err += dx
         mov     ax, [drawLine__err]
         mov     bx, [drawLine__dx]
@@ -247,15 +463,26 @@ drawLine:
         mov     bx, [drawLine__sy]
         add     ax, bx
         mov     [drawLine__y0], ax
-.L37:
-.L29:
-        jmp     .L28
-.L30:
+.L67:
+.L56:
+        jmp     .L55
+.L57:
         ret
 
 ; ============================================== sub drawQuad ====
 
 drawQuad:
+; ---- windDir = y0 < y2 ? 1 : -1
+        mov     ax, [drawQuad__y0]
+        mov     bx, [drawQuad__y2]
+        cmp     ax, bx
+        jge     .L79                        ; signed <
+        mov     ax, 1
+        jmp     .L80
+.L79:
+        mov     ax, -1
+.L80:
+        mov     [drawQuad__windDir], al     ; narrowed to i8
 ; ---- sx = x2 - x1
         mov     ax, [drawQuad__x2]
         mov     bx, [drawQuad__x1]
@@ -313,7 +540,7 @@ drawQuad:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jle     .L43                        ; signed >
+        jle     .L82                        ; signed >
 ; ---- x2 = x0
         mov     ax, [drawQuad__x0]
         mov     [drawQuad__x2], ax
@@ -334,13 +561,13 @@ drawQuad:
         mov     ax, [drawQuad__cur]
         neg     ax
         mov     [drawQuad__cur], ax
-.L43:
+.L82:
 ; ---- if ( cur != 0 ) {
         mov     ax, [drawQuad__cur]
         test    ax, ax
-        jne     .L48                        ; signed !=
-        jmp     .L46
-.L48:
+        jne     .L87                        ; signed !=
+        jmp     .L85
+.L87:
 ; ---- xx += sx
         mov     ax, [drawQuad__xx]
         mov     bx, [drawQuad__sx]
@@ -350,12 +577,12 @@ drawQuad:
         mov     ax, [drawQuad__x0]
         mov     bx, [drawQuad__x2]
         cmp     ax, bx
-        jge     .L49                        ; signed <
+        jge     .L88                        ; signed <
         mov     ax, 1
-        jmp     .L50
-.L49:
+        jmp     .L89
+.L88:
         mov     ax, -1
-.L50:
+.L89:
         mov     [drawQuad__sx], ax
 ; ---- xx *= sx
         mov     ax, [drawQuad__xx]
@@ -371,12 +598,12 @@ drawQuad:
         mov     ax, [drawQuad__y0]
         mov     bx, [drawQuad__y2]
         cmp     ax, bx
-        jge     .L52                        ; signed <
+        jge     .L91                        ; signed <
         mov     ax, 1
-        jmp     .L53
-.L52:
+        jmp     .L92
+.L91:
         mov     ax, -1
-.L53:
+.L92:
         mov     [drawQuad__sy], ax
 ; ---- yy *= sy
         mov     ax, [drawQuad__yy]
@@ -406,7 +633,7 @@ drawQuad:
         mov     bx, [drawQuad__sy]
         mul     bx                          ; low 16 bits are sign-agnostic
         test    ax, ax
-        jge     .L55                        ; signed <
+        jge     .L94                        ; signed <
 ; ---- xx = -xx
         mov     ax, [drawQuad__xx]
         neg     ax
@@ -423,7 +650,7 @@ drawQuad:
         mov     ax, [drawQuad__cur]
         neg     ax
         mov     [drawQuad__cur], ax
-.L55:
+.L94:
 ; ---- dx = 4 * sy * cur * ( x1 - x0 ) + xx - xy
         mov     ax, [drawQuad__sy]
         shl     ax, 1                       ; * 4 is << 2
@@ -478,42 +705,52 @@ drawQuad:
         add     ax, bx
         mov     [drawQuad__err], ax
 ; ---- do {
-.L58:
-; ---- plot( x0, y0 )
+.L97:
+; ---- curX = x0
         mov     ax, [drawQuad__x0]
-        mov     [plot__x], ax
+        mov     [drawQuad__curX], ax
+; ---- curY = y0
         mov     ax, [drawQuad__y0]
+        mov     [drawQuad__curY], ax
+; ---- if ( wantPixels ) plot( curX, curY )
+        mov     al, [drawQuad__wantPixels]
+        test    al, al
+        jz      .L100
+        mov     ax, [drawQuad__curX]
+        mov     [plot__x], ax
+        mov     ax, [drawQuad__curY]
         mov     [plot__y], ax
         call    plot
+.L100:
 ; ---- if ( x0 == x2 && y0 == y2 ) return
         mov     ax, [drawQuad__x0]
         mov     bx, [drawQuad__x2]
         cmp     ax, bx
-        jne     .L61                        ; signed ==
+        jne     .L103                       ; signed ==
         mov     ax, [drawQuad__y0]
         mov     bx, [drawQuad__y2]
         cmp     ax, bx
-        jne     .L61                        ; signed ==
+        jne     .L103                       ; signed ==
         ret
-.L61:
+.L103:
 ; ---- stepY = 2 * err < dx
         mov     ax, [drawQuad__err]
         shl     ax, 1                       ; * 2 is << 1
         mov     bx, [drawQuad__dx]
         cmp     ax, bx
-        jge     .L65                        ; signed <
+        jge     .L107                       ; signed <
         mov     ax, 1
-        jmp     .L66
-.L65:
+        jmp     .L108
+.L107:
         xor     ax, ax
-.L66:
+.L108:
         mov     [drawQuad__stepY], al       ; narrowed to bool
 ; ---- if ( 2 * err > dy ) {
         mov     ax, [drawQuad__err]
         shl     ax, 1                       ; * 2 is << 1
         mov     bx, [drawQuad__dy]
         cmp     ax, bx
-        jle     .L68                        ; signed >
+        jle     .L110                       ; signed >
 ; ---- x0 += sx
         mov     ax, [drawQuad__x0]
         mov     bx, [drawQuad__sx]
@@ -534,11 +771,43 @@ drawQuad:
         mov     bx, [drawQuad__dy]
         add     ax, bx
         mov     [drawQuad__err], ax
-.L68:
+.L110:
 ; ---- if ( stepY ) {
         mov     al, [drawQuad__stepY]
         test    al, al
-        jz      .L71
+        jnz     .L115
+        jmp     .L113
+.L115:
+; ---- if ( wantEdges ) {
+        mov     al, [drawQuad__wantEdges]
+        test    al, al
+        jz      .L116
+; ---- if ( sy > 0 ) {
+        mov     ax, [drawQuad__sy]
+        test    ax, ax
+        jle     .L119                       ; signed >
+; ---- addCrossing( curY, curX, windDir )
+        mov     ax, [drawQuad__curY]
+        mov     [addCrossing__y], ax
+        mov     ax, [drawQuad__curX]
+        mov     [addCrossing__x], ax
+        mov     al, [drawQuad__windDir]
+        mov     [addCrossing__dir], al      ; i8 -> i8, no widening
+        call    addCrossing
+        jmp     .L120
+.L119:
+; ---- addCrossing( curY + sy, x0, windDir )
+        mov     ax, [drawQuad__curY]
+        mov     bx, [drawQuad__sy]
+        add     ax, bx
+        mov     [addCrossing__y], ax
+        mov     ax, [drawQuad__x0]
+        mov     [addCrossing__x], ax
+        mov     al, [drawQuad__windDir]
+        mov     [addCrossing__dir], al      ; i8 -> i8, no widening
+        call    addCrossing
+.L120:
+.L116:
 ; ---- y0 += sy
         mov     ax, [drawQuad__y0]
         mov     bx, [drawQuad__sy]
@@ -559,20 +828,20 @@ drawQuad:
         mov     bx, [drawQuad__dx]
         add     ax, bx
         mov     [drawQuad__err], ax
-.L71:
-.L59:
+.L113:
+.L98:
         mov     ax, [drawQuad__dy]
         test    ax, ax
-        jge     .L74                        ; signed <
+        jge     .L122                       ; signed <
         mov     ax, [drawQuad__dx]
         test    ax, ax
-        jle     .L76                        ; signed >
-        jmp     .L58
-.L76:
-.L74:
-.L60:
-.L46:
-; ---- drawLine( x0, y0, x2, y2 )
+        jle     .L124                       ; signed >
+        jmp     .L97
+.L124:
+.L122:
+.L99:
+.L85:
+; ---- drawLine( x0, y0, x2, y2, wantPixels, wantEdges, windDir )
         mov     ax, [drawQuad__x0]
         mov     [drawLine__x0], ax
         mov     ax, [drawQuad__y0]
@@ -581,209 +850,352 @@ drawQuad:
         mov     [drawLine__x1], ax
         mov     ax, [drawQuad__y2]
         mov     [drawLine__y1], ax
+        mov     al, [drawQuad__wantPixels]
+        mov     [drawLine__wantPixels], al  ; bool -> bool, no widening
+        mov     al, [drawQuad__wantEdges]
+        mov     [drawLine__wantEdges], al   ; bool -> bool, no widening
+        mov     al, [drawQuad__windDir]
+        mov     [drawLine__forceDir], al    ; i8 -> i8, no widening
         call    drawLine
         ret
 
-; ============================================== sub strokePath ====
+; ============================================== sub walkPath ====
 
-strokePath:
+walkPath:
 ; ---- at = pathPointStart[ pathIndex ]
-        mov     ax, [strokePath__pathIndex]
+        mov     ax, [walkPath__pathIndex]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [pathPointStart + bx]
-        mov     [strokePath__at], ax
+        mov     [walkPath__at], ax
+; ---- inSubpath = false
+        mov     byte [walkPath__inSubpath], 0
+; ---- startX = 0
+        mov     word [walkPath__startX], 0
+; ---- startY = 0
+        mov     word [walkPath__startY], 0
 ; ---- curX = 0
-        mov     word [strokePath__curX], 0
+        mov     word [walkPath__curX], 0
 ; ---- curY = 0
-        mov     word [strokePath__curY], 0
+        mov     word [walkPath__curY], 0
 ; ---- for ( k = 0; k < pathOpCount[ pathIndex ]; k++ ) {
-        mov     word [strokePath__k], 0
-.L77:
-        mov     ax, [strokePath__k]
+        mov     word [walkPath__k], 0
+.L125:
+        mov     ax, [walkPath__k]
         push    ax                          ; save lhs: rhs is not a leaf
-        mov     ax, [strokePath__pathIndex]
+        mov     ax, [walkPath__pathIndex]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [pathOpCount + bx]
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L80                        ; unsigned <
-        jmp     .L79
-.L80:
+        jb      .L128                       ; unsigned <
+        jmp     .L127
+.L128:
 ; ---- op = opKind[ pathOpStart[ pathIndex ] + k ]
-        mov     ax, [strokePath__pathIndex]
+        mov     ax, [walkPath__pathIndex]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [pathOpStart + bx]
-        mov     bx, [strokePath__k]
+        mov     bx, [walkPath__k]
         add     ax, bx
         mov     bx, ax
         mov     al, [opKind + bx]
         xor     ah, ah                      ; u8 -> u16
-        mov     [strokePath__op], ax
+        mov     [walkPath__op], ax
 ; ---- if ( op == opMove ) {
         test    ax, ax
-        jne     .L81                        ; unsigned ==
+        je      .L131                       ; unsigned ==
+        jmp     .L129
+.L131:
+; ---- if ( closeSubpaths && inSubpath ) {
+        mov     al, [walkPath__closeSubpaths]
+        test    al, al
+        jnz     .L134
+        jmp     .L132
+.L134:
+        mov     al, [walkPath__inSubpath]
+        test    al, al
+        jnz     .L135
+        jmp     .L132
+.L135:
+; ---- if ( curX != startX || curY != startY ) {
+        mov     ax, [walkPath__curX]
+        mov     bx, [walkPath__startX]
+        cmp     ax, bx
+        jne     .L138                       ; signed !=
+        mov     ax, [walkPath__curY]
+        mov     bx, [walkPath__startY]
+        cmp     ax, bx
+        je      .L136                       ; signed !=
+.L138:
+; ---- drawLine( curX, curY, startX, startY, wantPixels, wantEdges, 0 )
+        mov     ax, [walkPath__curX]
+        mov     [drawLine__x0], ax
+        mov     ax, [walkPath__curY]
+        mov     [drawLine__y0], ax
+        mov     ax, [walkPath__startX]
+        mov     [drawLine__x1], ax
+        mov     ax, [walkPath__startY]
+        mov     [drawLine__y1], ax
+        mov     al, [walkPath__wantPixels]
+        mov     [drawLine__wantPixels], al  ; bool -> bool, no widening
+        mov     al, [walkPath__wantEdges]
+        mov     [drawLine__wantEdges], al   ; bool -> bool, no widening
+        mov     byte [drawLine__forceDir], 0
+        call    drawLine
+.L136:
+.L132:
 ; ---- curX = px[ at ]
-        mov     ax, [strokePath__at]
+        mov     ax, [walkPath__at]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [px + bx]
-        mov     [strokePath__curX], ax
+        mov     [walkPath__curX], ax
 ; ---- curY = py[ at ]
-        mov     ax, [strokePath__at]
+        mov     ax, [walkPath__at]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [py + bx]
-        mov     [strokePath__curY], ax
+        mov     [walkPath__curY], ax
 ; ---- at += 1
-        mov     ax, [strokePath__at]
+        mov     ax, [walkPath__at]
         inc     ax
-        mov     [strokePath__at], ax
-        jmp     .L82
-.L81:
+        mov     [walkPath__at], ax
+; ---- startX = curX
+        mov     ax, [walkPath__curX]
+        mov     [walkPath__startX], ax
+; ---- startY = curY
+        mov     ax, [walkPath__curY]
+        mov     [walkPath__startY], ax
+; ---- inSubpath = true
+        mov     byte [walkPath__inSubpath], 1
+        jmp     .L130
+.L129:
 ; ---- } else if ( op == opLine ) {
-        mov     ax, [strokePath__op]
+        mov     ax, [walkPath__op]
         cmp     ax, 1
-        je      .L86                        ; unsigned ==
-        jmp     .L84
-.L86:
+        je      .L143                       ; unsigned ==
+        jmp     .L141
+.L143:
 ; ---- toX = px[ at ]
-        mov     ax, [strokePath__at]
+        mov     ax, [walkPath__at]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [px + bx]
-        mov     [strokePath__toX], ax
+        mov     [walkPath__toX], ax
 ; ---- toY = py[ at ]
-        mov     ax, [strokePath__at]
+        mov     ax, [walkPath__at]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [py + bx]
-        mov     [strokePath__toY], ax
+        mov     [walkPath__toY], ax
 ; ---- at += 1
-        mov     ax, [strokePath__at]
+        mov     ax, [walkPath__at]
         inc     ax
-        mov     [strokePath__at], ax
-; ---- drawLine( curX, curY, toX, toY )
-        mov     ax, [strokePath__curX]
+        mov     [walkPath__at], ax
+; ---- drawLine( curX, curY, toX, toY, wantPixels, wantEdges, 0 )
+        mov     ax, [walkPath__curX]
         mov     [drawLine__x0], ax
-        mov     ax, [strokePath__curY]
+        mov     ax, [walkPath__curY]
         mov     [drawLine__y0], ax
-        mov     ax, [strokePath__toX]
+        mov     ax, [walkPath__toX]
         mov     [drawLine__x1], ax
-        mov     ax, [strokePath__toY]
+        mov     ax, [walkPath__toY]
         mov     [drawLine__y1], ax
+        mov     al, [walkPath__wantPixels]
+        mov     [drawLine__wantPixels], al  ; bool -> bool, no widening
+        mov     al, [walkPath__wantEdges]
+        mov     [drawLine__wantEdges], al   ; bool -> bool, no widening
+        mov     byte [drawLine__forceDir], 0
         call    drawLine
 ; ---- curX = toX
-        mov     ax, [strokePath__toX]
-        mov     [strokePath__curX], ax
+        mov     ax, [walkPath__toX]
+        mov     [walkPath__curX], ax
 ; ---- curY = toY
-        mov     ax, [strokePath__toY]
-        mov     [strokePath__curY], ax
-        jmp     .L85
-.L84:
+        mov     ax, [walkPath__toY]
+        mov     [walkPath__curY], ax
+        jmp     .L142
+.L141:
 ; ---- ctlX = px[ at ]
-        mov     ax, [strokePath__at]
+        mov     ax, [walkPath__at]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [px + bx]
-        mov     [strokePath__ctlX], ax
+        mov     [walkPath__ctlX], ax
 ; ---- ctlY = py[ at ]
-        mov     ax, [strokePath__at]
+        mov     ax, [walkPath__at]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [py + bx]
-        mov     [strokePath__ctlY], ax
+        mov     [walkPath__ctlY], ax
 ; ---- toX = px[ at + 1 ]
-        mov     ax, [strokePath__at]
+        mov     ax, [walkPath__at]
         inc     ax
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [px + bx]
-        mov     [strokePath__toX], ax
+        mov     [walkPath__toX], ax
 ; ---- toY = py[ at + 1 ]
-        mov     ax, [strokePath__at]
+        mov     ax, [walkPath__at]
         inc     ax
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [py + bx]
-        mov     [strokePath__toY], ax
+        mov     [walkPath__toY], ax
 ; ---- at += 2
-        mov     ax, [strokePath__at]
+        mov     ax, [walkPath__at]
         add     ax, 2
-        mov     [strokePath__at], ax
+        mov     [walkPath__at], ax
 ; ---- if ( ctlX == curX && ctlY == curY ) {
-        mov     ax, [strokePath__ctlX]
-        mov     bx, [strokePath__curX]
+        mov     ax, [walkPath__ctlX]
+        mov     bx, [walkPath__curX]
         cmp     ax, bx
-        jne     .L87                        ; signed ==
-        mov     ax, [strokePath__ctlY]
-        mov     bx, [strokePath__curY]
+        jne     .L144                       ; signed ==
+        mov     ax, [walkPath__ctlY]
+        mov     bx, [walkPath__curY]
         cmp     ax, bx
-        jne     .L87                        ; signed ==
-; ---- drawLine( curX, curY, toX, toY )
-        mov     ax, [strokePath__curX]
+        jne     .L144                       ; signed ==
+; ---- drawLine( curX, curY, toX, toY, wantPixels, wantEdges, 0 )
+        mov     ax, [walkPath__curX]
         mov     [drawLine__x0], ax
-        mov     ax, [strokePath__curY]
+        mov     ax, [walkPath__curY]
         mov     [drawLine__y0], ax
-        mov     ax, [strokePath__toX]
+        mov     ax, [walkPath__toX]
         mov     [drawLine__x1], ax
-        mov     ax, [strokePath__toY]
+        mov     ax, [walkPath__toY]
         mov     [drawLine__y1], ax
+        mov     al, [walkPath__wantPixels]
+        mov     [drawLine__wantPixels], al  ; bool -> bool, no widening
+        mov     al, [walkPath__wantEdges]
+        mov     [drawLine__wantEdges], al   ; bool -> bool, no widening
+        mov     byte [drawLine__forceDir], 0
         call    drawLine
-        jmp     .L88
-.L87:
+        jmp     .L145
+.L144:
 ; ---- } else if ( ctlX == toX && ctlY == toY ) {
-        mov     ax, [strokePath__ctlX]
-        mov     bx, [strokePath__toX]
+        mov     ax, [walkPath__ctlX]
+        mov     bx, [walkPath__toX]
         cmp     ax, bx
-        jne     .L91                        ; signed ==
-        mov     ax, [strokePath__ctlY]
-        mov     bx, [strokePath__toY]
+        jne     .L148                       ; signed ==
+        mov     ax, [walkPath__ctlY]
+        mov     bx, [walkPath__toY]
         cmp     ax, bx
-        jne     .L91                        ; signed ==
-; ---- drawLine( curX, curY, toX, toY )
-        mov     ax, [strokePath__curX]
+        jne     .L148                       ; signed ==
+; ---- drawLine( curX, curY, toX, toY, wantPixels, wantEdges, 0 )
+        mov     ax, [walkPath__curX]
         mov     [drawLine__x0], ax
-        mov     ax, [strokePath__curY]
+        mov     ax, [walkPath__curY]
         mov     [drawLine__y0], ax
-        mov     ax, [strokePath__toX]
+        mov     ax, [walkPath__toX]
         mov     [drawLine__x1], ax
-        mov     ax, [strokePath__toY]
+        mov     ax, [walkPath__toY]
         mov     [drawLine__y1], ax
+        mov     al, [walkPath__wantPixels]
+        mov     [drawLine__wantPixels], al  ; bool -> bool, no widening
+        mov     al, [walkPath__wantEdges]
+        mov     [drawLine__wantEdges], al   ; bool -> bool, no widening
+        mov     byte [drawLine__forceDir], 0
         call    drawLine
-        jmp     .L92
-.L91:
-; ---- drawQuad( curX, curY, ctlX, ctlY, toX, toY )
-        mov     ax, [strokePath__curX]
+        jmp     .L149
+.L148:
+; ---- drawQuad( curX, curY, ctlX, ctlY, toX, toY, wantPixels, wantEdges )
+        mov     ax, [walkPath__curX]
         mov     [drawQuad__x0], ax
-        mov     ax, [strokePath__curY]
+        mov     ax, [walkPath__curY]
         mov     [drawQuad__y0], ax
-        mov     ax, [strokePath__ctlX]
+        mov     ax, [walkPath__ctlX]
         mov     [drawQuad__x1], ax
-        mov     ax, [strokePath__ctlY]
+        mov     ax, [walkPath__ctlY]
         mov     [drawQuad__y1], ax
-        mov     ax, [strokePath__toX]
+        mov     ax, [walkPath__toX]
         mov     [drawQuad__x2], ax
-        mov     ax, [strokePath__toY]
+        mov     ax, [walkPath__toY]
         mov     [drawQuad__y2], ax
+        mov     al, [walkPath__wantPixels]
+        mov     [drawQuad__wantPixels], al  ; bool -> bool, no widening
+        mov     al, [walkPath__wantEdges]
+        mov     [drawQuad__wantEdges], al   ; bool -> bool, no widening
         call    drawQuad
-.L92:
-.L88:
+.L149:
+.L145:
 ; ---- curX = toX
-        mov     ax, [strokePath__toX]
-        mov     [strokePath__curX], ax
+        mov     ax, [walkPath__toX]
+        mov     [walkPath__curX], ax
 ; ---- curY = toY
-        mov     ax, [strokePath__toY]
-        mov     [strokePath__curY], ax
-.L85:
-.L82:
-.L78:
-        inc     word [strokePath__k]
-        jmp     .L77
-.L79:
+        mov     ax, [walkPath__toY]
+        mov     [walkPath__curY], ax
+.L142:
+.L130:
+.L126:
+        inc     word [walkPath__k]
+        jmp     .L125
+.L127:
+; ---- if ( closeSubpaths && inSubpath ) {
+        mov     al, [walkPath__closeSubpaths]
+        test    al, al
+        jnz     .L154
+        jmp     .L152
+.L154:
+        mov     al, [walkPath__inSubpath]
+        test    al, al
+        jnz     .L155
+        jmp     .L152
+.L155:
+; ---- if ( curX != startX || curY != startY ) {
+        mov     ax, [walkPath__curX]
+        mov     bx, [walkPath__startX]
+        cmp     ax, bx
+        jne     .L158                       ; signed !=
+        mov     ax, [walkPath__curY]
+        mov     bx, [walkPath__startY]
+        cmp     ax, bx
+        je      .L156                       ; signed !=
+.L158:
+; ---- drawLine( curX, curY, startX, startY, wantPixels, wantEdges, 0 )
+        mov     ax, [walkPath__curX]
+        mov     [drawLine__x0], ax
+        mov     ax, [walkPath__curY]
+        mov     [drawLine__y0], ax
+        mov     ax, [walkPath__startX]
+        mov     [drawLine__x1], ax
+        mov     ax, [walkPath__startY]
+        mov     [drawLine__y1], ax
+        mov     al, [walkPath__wantPixels]
+        mov     [drawLine__wantPixels], al  ; bool -> bool, no widening
+        mov     al, [walkPath__wantEdges]
+        mov     [drawLine__wantEdges], al   ; bool -> bool, no widening
+        mov     byte [drawLine__forceDir], 0
+        call    drawLine
+.L156:
+.L152:
+        ret
+
+; ============================================== sub strokePath ====
+
+strokePath:
+; ---- walkPath( pathIndex, true, false, false )
+        mov     ax, [strokePath__pathIndex]
+        mov     [walkPath__pathIndex], ax
+        mov     byte [walkPath__wantPixels], 1
+        mov     byte [walkPath__wantEdges], 0
+        mov     byte [walkPath__closeSubpaths], 0
+        call    walkPath
+        ret
+
+; ============================================== sub pathEdges ====
+
+pathEdges:
+; ---- clearCrossings()
+        call    clearCrossings
+; ---- walkPath( pathIndex, false, true, true )
+        mov     ax, [pathEdges__pathIndex]
+        mov     [walkPath__pathIndex], ax
+        mov     byte [walkPath__wantPixels], 0
+        mov     byte [walkPath__wantEdges], 1
+        mov     byte [walkPath__closeSubpaths], 1
+        call    walkPath
         ret
 
 ; ============================================== sub strokeScene ====
@@ -791,7 +1203,7 @@ strokePath:
 strokeScene:
 ; ---- for ( p = 0; p < scenePathCount[ sceneIndex ]; p++ ) {
         mov     word [strokeScene__p], 0
-.L95:
+.L161:
         mov     ax, [strokeScene__p]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [strokeScene__sceneIndex]
@@ -801,7 +1213,7 @@ strokeScene:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jae     .L97                        ; unsigned <
+        jae     .L163                       ; unsigned <
 ; ---- strokePath( sceneFirstPath[ sceneIndex ] + p )
         mov     ax, [strokeScene__sceneIndex]
         shl     ax, 1                       ; word elements
@@ -811,10 +1223,10 @@ strokeScene:
         add     ax, bx
         mov     [strokePath__pathIndex], ax
         call    strokePath
-.L96:
+.L162:
         inc     word [strokeScene__p]
-        jmp     .L95
-.L97:
+        jmp     .L161
+.L163:
         ret
 
 ; ============================================== sub plot ====
@@ -874,22 +1286,40 @@ _di:            dw      0
 
 ; ---- variables ----
 putChar__c:     db      0        ; u8
+putStr__at:     dw      0        ; u16
 putNumber__n:   dw      0        ; u16
+crossingCount:  dw      0        ; u16
+crossingsOverflowed: db      0        ; bool
+addCrossing__y: dw      0        ; i16
+addCrossing__x: dw      0        ; i16
+addCrossing__dir: db      0        ; i8
 drawLine__x0:   dw      0        ; i16
 drawLine__y0:   dw      0        ; i16
 drawLine__x1:   dw      0        ; i16
 drawLine__y1:   dw      0        ; i16
+drawLine__wantPixels: db      0        ; bool
+drawLine__wantEdges: db      0        ; bool
+drawLine__forceDir: db      0        ; i8
 drawQuad__x0:   dw      0        ; i16
 drawQuad__y0:   dw      0        ; i16
 drawQuad__x1:   dw      0        ; i16
 drawQuad__y1:   dw      0        ; i16
 drawQuad__x2:   dw      0        ; i16
 drawQuad__y2:   dw      0        ; i16
+drawQuad__wantPixels: db      0        ; bool
+drawQuad__wantEdges: db      0        ; bool
+walkPath__pathIndex: dw      0        ; u16
+walkPath__wantPixels: db      0        ; bool
+walkPath__wantEdges: db      0        ; bool
+walkPath__closeSubpaths: db      0        ; bool
 strokePath__pathIndex: dw      0        ; u16
+pathEdges__pathIndex: dw      0        ; u16
 strokeScene__sceneIndex: dw      0        ; u16
 plot__x:        dw      0        ; i16
 plot__y:        dw      0        ; i16
 s:              dw      0        ; u16
+p:              dw      0        ; u16
+i:              dw      0        ; u16
 putNumber__i:   db      0        ; u8
 drawLine__dx:   dw      0        ; i16
 drawLine__dy:   dw      0        ; i16
@@ -897,6 +1327,9 @@ drawLine__sx:   dw      0        ; i16
 drawLine__sy:   dw      0        ; i16
 drawLine__err:  dw      0        ; i16
 drawLine__e2:   dw      0        ; i16
+drawLine__curX: dw      0        ; i16
+drawLine__curY: dw      0        ; i16
+drawLine__dir:  db      0        ; i8
 drawQuad__sx:   dw      0        ; i16
 drawQuad__sy:   dw      0        ; i16
 drawQuad__xx:   dw      0        ; i16
@@ -906,19 +1339,28 @@ drawQuad__cur:  dw      0        ; i16
 drawQuad__dx:   dw      0        ; i16
 drawQuad__dy:   dw      0        ; i16
 drawQuad__err:  dw      0        ; i16
+drawQuad__curX: dw      0        ; i16
+drawQuad__curY: dw      0        ; i16
+drawQuad__windDir: db      0        ; i8
 drawQuad__stepY: db      0        ; bool
-strokePath__k:  dw      0        ; u16
-strokePath__at: dw      0        ; u16
-strokePath__op: dw      0        ; u16
-strokePath__curX: dw      0        ; i16
-strokePath__curY: dw      0        ; i16
-strokePath__toX: dw      0        ; i16
-strokePath__toY: dw      0        ; i16
-strokePath__ctlX: dw      0        ; i16
-strokePath__ctlY: dw      0        ; i16
+walkPath__k:    dw      0        ; u16
+walkPath__at:   dw      0        ; u16
+walkPath__op:   dw      0        ; u16
+walkPath__curX: dw      0        ; i16
+walkPath__curY: dw      0        ; i16
+walkPath__toX:  dw      0        ; i16
+walkPath__toY:  dw      0        ; i16
+walkPath__ctlX: dw      0        ; i16
+walkPath__ctlY: dw      0        ; i16
+walkPath__startX: dw      0        ; i16
+walkPath__startY: dw      0        ; i16
+walkPath__inSubpath: db      0        ; bool
 strokeScene__p: dw      0        ; u16
 
 ; ---- arrays ----
+cy:             times 1024 db 0        ; u8[1024]
+cx_:            times 1024 dw 0        ; i16[1024]
+cdir:           times 1024 db 0        ; i8[1024]
 opKind:         db      0, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1,        ; u8[65] const
                 db      0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 2, 2, 2, 2,
                 db      2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1
@@ -939,13 +1381,14 @@ pathOpCount:    dw      4, 10, 10, 5, 6, 8, 22        ; u16[7] const
 pathPointStart: dw      0, 4, 14, 24, 29, 35, 43        ; u16[7] const
 sceneFirstPath: dw      0, 1, 2, 3, 4, 5, 6        ; u16[7] const
 scenePathCount: dw      1, 1, 1, 1, 1, 1, 1        ; u16[7] const
+overflowed:     db      'CROSSING LIST OVERFLOWED$'        ; u8[25] const
 putNumber__digits: times 5 db 0        ; u8[5]
 
 ; ============================================================ heap ====
 ; No storage is emitted - a .COM owns everything past its image, so
 ; these are addresses and NASM does the arithmetic.
 
-_hstack:        equ     280        ; 24 worst-case + 256 interrupt reserve
+_hstack:        equ     284        ; 28 worst-case + 256 interrupt reserve
 _htop:          equ     0FFFEh - _hstack
 
 _hsize:         dw      _htop - _heap        ; NASM computes this

@@ -1,24 +1,49 @@
-// Bresenham's line.
+// Bresenham's line, emitting pixels, scanline crossings, or both.
 //
 // The one primitive that needs no range audit to be trusted: dx, dy and err are
 // all bounded by the coordinate range, so at 320x200 nothing here leaves the low
 // hundreds. The study measured it anyway and the worst value over the four
-// full-screen diagonals is 558, which is two orders of magnitude inside a signed
-// word.
+// full-screen diagonals is 558, two orders of magnitude inside a signed word.
 //
-// Straight from Zingl, unchanged apart from the two things Momo requires: no
-// `|0` coercions, because integers are the only thing there is, and `plot` rather
-// than a callback parameter.
+// Straight from Zingl, with the two things Momo requires - no `|0` coercions,
+// because integers are the only thing there is, and `plot` rather than a callback.
+//
+// **One walk, and what it emits is a parameter.** The playground has separate files
+// for the pixel version and the edge-event version: two copies of the same
+// stepping, which is a mild drift risk for a line and a serious one for the
+// quadratic. The study collapsed them into one routine with two sinks; this does
+// the same with two flags, because a flag costs a test where a call into a no-op
+// costs a call. It also makes chunk 6's combined pass free - it is this, with both
+// true.
+//
+// The half-open y rule is what makes shared vertices behave. Stepping down reports
+// the scanline being LEFT; stepping up reports the one being ENTERED. Two segments
+// meeting at a vertex then report the same scanline once each, rather than one
+// twice and the other never - invisible on a convex outline and obvious on a star.
 
 include "std/math.momo"
+include "momovec/edges.momo"
 
-sub drawLine( i16 x0, i16 y0, i16 x1, i16 y1 ) {
+// `forceDir` overrides the crossing direction, or 0 to use the walk's own `sy`.
+//
+// It exists for the quadratic, which may swap its endpoints to begin with the
+// longer part - reversing the direction it is walked in, so its `sy` stops
+// describing the curve. Winding is a property of the curve, so the quadratic
+// captures its direction before the swap and passes it here, for its straight
+// remainder as well as its own steps.
+sub drawLine(
+  i16 x0, i16 y0, i16 x1, i16 y1,
+  bool wantPixels, bool wantEdges, i8 forceDir
+) {
   i16 dx
   i16 dy
   i16 sx
   i16 sy
   i16 err
   i16 e2
+  i16 curX
+  i16 curY
+  i8  dir
 
   dx = iabs( x1 - x0 )
   dy = -iabs( y1 - y0 )
@@ -28,8 +53,14 @@ sub drawLine( i16 x0, i16 y0, i16 x1, i16 y1 ) {
 
   err = dx + dy
 
+  dir = forceDir != 0 ? forceDir : i8( sy )
+
   for ( ;; ) {
-    plot( x0, y0 )
+    // Captured before any step, so it is the pixel this iteration owns.
+    curX = x0
+    curY = y0
+
+    if ( wantPixels ) plot( curX, curY )
 
     e2 = 2 * err
 
@@ -45,6 +76,14 @@ sub drawLine( i16 x0, i16 y0, i16 x1, i16 y1 ) {
 
     if ( e2 <= dx ) {
       if ( y0 == y1 ) break
+
+      if ( wantEdges ) {
+        if ( sy > 0 ) {
+          addCrossing( curY, curX, dir )
+        } else {
+          addCrossing( curY + sy, x0, dir )
+        }
+      }
 
       err += dx
       y0 += sy

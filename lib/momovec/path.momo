@@ -5,16 +5,20 @@
 // a stack: a path is a run of ops and a run of points, and the two are walked
 // together.
 //
-// `strokePath` does NOT close a subpath. A stroke draws what the path says and no
-// more; the closing segment a fill needs is the fill's business, and it arrives
-// with the fill.
+// **A fill closes every subpath and a stroke closes none.** The representation does
+// not record which are closed, and does not need to: normalization turns SVG's `Z`
+// into an explicit line back to the subpath start, so a closed subpath is one whose
+// last point equals its first, and closing one that already is is a no-op. A stroke
+// draws what the path says and no more.
 //
 // The arrays this reads - opKind, px, py, pathOpStart, pathOpCount,
 // pathPointStart - are defined by the PROGRAM, not here. See types.momo.
 
 include "momovec/quad.momo"
 
-sub strokePath( u16 pathIndex ) {
+sub walkPath(
+  u16 pathIndex, bool wantPixels, bool wantEdges, bool closeSubpaths
+) {
   u16 k
   u16 at
   u16 op
@@ -24,8 +28,14 @@ sub strokePath( u16 pathIndex ) {
   i16 toY
   i16 ctlX
   i16 ctlY
+  i16 startX
+  i16 startY
+  bool inSubpath
 
   at = pathPointStart[ pathIndex ]
+  inSubpath = false
+  startX = 0
+  startY = 0
 
   // A path that does not begin with a move has no current point, and every path
   // the study emits begins with one. Starting at the origin rather than guarding
@@ -38,15 +48,27 @@ sub strokePath( u16 pathIndex ) {
     op = opKind[ pathOpStart[ pathIndex ] + k ]
 
     if ( op == opMove ) {
+      // A move ends the previous subpath, so anything a fill needs closing gets
+      // closed here rather than only at the end of the path.
+      if ( closeSubpaths && inSubpath ) {
+        if ( curX != startX || curY != startY ) {
+          drawLine( curX, curY, startX, startY, wantPixels, wantEdges, 0 )
+        }
+      }
+
       curX = px[ at ]
       curY = py[ at ]
       at += 1
+
+      startX = curX
+      startY = curY
+      inSubpath = true
     } else if ( op == opLine ) {
       toX = px[ at ]
       toY = py[ at ]
       at += 1
 
-      drawLine( curX, curY, toX, toY )
+      drawLine( curX, curY, toX, toY, wantPixels, wantEdges, 0 )
 
       curX = toX
       curY = toY
@@ -65,17 +87,36 @@ sub strokePath( u16 pathIndex ) {
       // its own drawLine anyway, but only after computing a page of products
       // from it.
       if ( ctlX == curX && ctlY == curY ) {
-        drawLine( curX, curY, toX, toY )
+        drawLine( curX, curY, toX, toY, wantPixels, wantEdges, 0 )
       } else if ( ctlX == toX && ctlY == toY ) {
-        drawLine( curX, curY, toX, toY )
+        drawLine( curX, curY, toX, toY, wantPixels, wantEdges, 0 )
       } else {
-        drawQuad( curX, curY, ctlX, ctlY, toX, toY )
+        drawQuad( curX, curY, ctlX, ctlY, toX, toY, wantPixels, wantEdges )
       }
 
       curX = toX
       curY = toY
     }
   }
+
+  // The last subpath, which no move follows.
+  if ( closeSubpaths && inSubpath ) {
+    if ( curX != startX || curY != startY ) {
+      drawLine( curX, curY, startX, startY, wantPixels, wantEdges, 0 )
+    }
+  }
+}
+
+// Pixels only, nothing closed - the `pixels` stage.
+sub strokePath( u16 pathIndex ) {
+  walkPath( pathIndex, true, false, false )
+}
+
+// Crossings only, every subpath closed - the `edges` stage. The list is cleared
+// first, because winding belongs to one path.
+sub pathEdges( u16 pathIndex ) {
+  clearCrossings()
+  walkPath( pathIndex, false, true, true )
 }
 
 // Every path of one scene, in order.

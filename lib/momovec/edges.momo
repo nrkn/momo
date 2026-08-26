@@ -1,0 +1,59 @@
+// The crossing list: where a path's edges cross a scanline.
+//
+// Three parallel arrays and a count, which is what a `group` is - kept as separate
+// arrays rather than a group because the sort in chunk 4 permutes them together
+// and reads better against three names than against three fields.
+//
+// **Cleared per path, not per drawing.** Winding is a property of one path, so two
+// paths sharing a list would fill the gap between them. That is also what keeps the
+// capacity small: the study measured the worst single path in the tiger at 692
+// crossings, against 9,422 for the whole drawing.
+//
+// 1,024 entries at four bytes is 4 KB, against 37.5 KB of path data - so the
+// crossing list is not the sizing problem, which was worth knowing before designing
+// around it.
+
+include "momovec/types.momo"
+
+const maxCrossings = 1024
+
+// y fits a byte because it is a scanline index, 0..199. x does not: a crossing off
+// the side of the canvas is KEPT, because a span between two off-screen crossings
+// still crosses it, and dropping those punches holes in anything that overhangs an
+// edge.
+u8[maxCrossings]  cy
+i16[maxCrossings] cx
+i8[maxCrossings]  cdir
+
+u16 crossingCount
+
+// Set when a path has more crossings than the list can hold.
+//
+// The study throws here, which Momo cannot do - and dropping silently would give a
+// wrong picture with no way to tell it from a rasteriser bug. So it is a flag, the
+// harness prints it, and the expectation never has it set: a capacity problem shows
+// up as a diff rather than as a mystery.
+bool crossingsOverflowed
+
+sub clearCrossings {
+  crossingCount = 0
+}
+
+sub addCrossing( i16 y, i16 x, i8 dir ) {
+  // Off the canvas in y can never contribute a visible span. Off in x can, so it
+  // is not tested here.
+  if ( y < 0 ) return
+  if ( y >= screenH ) return
+
+  if ( crossingCount >= maxCrossings ) {
+    crossingsOverflowed = true
+
+    return
+  }
+
+  cy[ crossingCount ] = u8( y )
+  cx[ crossingCount ] = x
+  cdir[ crossingCount ] = dir
+
+  crossingCount += 1
+}
