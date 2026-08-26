@@ -1,0 +1,234 @@
+// Preparation: an arbitrary quadratic in, only quadratics `drawQuad` can draw out.
+//
+// `drawQuad` needs its input **limited** - control point inside the endpoint bounds,
+// so the gradient never changes sign - and spanning **15 pixels or less**, because
+// at span 15 its intermediate `2*err` reaches 28,800 and 16 does not fit a signed
+// word. Stage 1 met that offline, in the study, before anything became Momo source.
+//
+// That is fine for generated data and wrong as an interface. Someone who wants to
+// draw a curve should not have to know a rasteriser's overflow threshold, and the
+// long-term aim is that nothing has to run offline at all. So the limit stops being
+// the caller's problem here.
+//
+// **What the machine allows, and what it therefore does.**
+//
+// There is no 32-bit type: `*` emits `mul` and never reads `DX`, so products
+// truncate to 16 bits. That rules out fixed-point de Casteljau at an arbitrary `t`,
+// and rules out splitting at the exact gradient extremum `(x0-x1)/(x0-2*x1+x2)`,
+// which is a proper fraction and worthless in integers. Midpoint halving needs only
+// sums and halves, so that is the whole method.
+//
+// Both termination tests avoid multiplying, which is not a tidiness point. The span
+// is subtractions and compares. `quadLimited` asks the same question as the study's
+// `xx * sx <= 0` and asks it as a **sign test**, because the real product would
+// overflow a word on the caller's raw numbers and answer "is this safe?" wrongly -
+// on exactly the input this routine exists to handle.
+//
+// And Momo has no recursion, so the work list is an explicit stack. The study
+// measured its peak at 11 entries for a span of 8,000; 16 is the size with headroom.
+//
+// **Already-conforming input passes straight through.** A limited quadratic inside
+// the span exits on the first test, so the existing datasets pay two tests per
+// segment and nothing else.
+
+include "momovec/types.momo"
+include "momovec/line.momo"
+include "momovec/quad.momo"
+
+// The audited range limit, and the size below which a piece that will never become
+// monotonic is drawn as its chord.
+const maxSpan = 15
+
+// **The floor is 1, and 2 was wrong.** A chord's worst departure from its curve is
+// `|control - chordMidpoint| / 2`, and enumerating every integer quadratic inside a
+// floor-sized box gives an exact bound of `floor * 0.707`. The worst case is a
+// degenerate spike where `from == to`, so the chord collapses to a point and the
+// deviation is the whole excursion: floor 2 permits 1.41 pixels, floor 1 permits
+// 0.707. The first is not sub-pixel; the second is the same order as the rounding
+// already accepted on integer control points.
+const chordFloor = 1
+
+// Why a floor is needed at all: halving can never move the gradient extremum out of
+// the interior of the piece containing it, so that piece is never monotonic in exact
+// arithmetic and would be split forever. In practice integer rounding collapses it
+// first - the study's corpus takes the chord in one case out of nine - so this is a
+// guarantee of termination rather than a path anything normally walks.
+const maxSubdivDepth = 16
+
+i16[maxSubdivDepth] subX0
+i16[maxSubdivDepth] subY0
+i16[maxSubdivDepth] subX1
+i16[maxSubdivDepth] subY1
+i16[maxSubdivDepth] subX2
+i16[maxSubdivDepth] subY2
+
+u16 subTop
+
+// Set if the stack ever fills. Nothing is dropped when it does - the piece is drawn
+// as its chord - so this reports a quality loss rather than a missing shape, and it
+// exists because a capacity problem must not look like a geometry bug. Same argument
+// as `crossingsOverflowed`.
+bool subdivOverflowed
+
+// The larger of the two axis extents over the three points. No products, so nothing
+// here can overflow on input this routine is meant to be given.
+i16 quadSpan( i16 x0, i16 y0, i16 x1, i16 y1, i16 x2, i16 y2 ) {
+  i16 lo
+  i16 hi
+  i16 wide
+  i16 tall
+
+  lo = x0
+  hi = x0
+
+  if ( x1 < lo ) lo = x1
+  if ( x1 > hi ) hi = x1
+  if ( x2 < lo ) lo = x2
+  if ( x2 > hi ) hi = x2
+
+  wide = hi - lo
+
+  lo = y0
+  hi = y0
+
+  if ( y1 < lo ) lo = y1
+  if ( y1 > hi ) hi = y1
+  if ( y2 < lo ) lo = y2
+  if ( y2 > hi ) hi = y2
+
+  tall = hi - lo
+
+  return wide > tall ? wide : tall
+}
+
+// `a * b <= 0` without the multiply: non-positive exactly when the two have
+// opposite signs, or either is zero.
+bool oppositeOrZero( i16 a, i16 b ) {
+  if ( a == 0 ) return true
+  if ( b == 0 ) return true
+  if ( a > 0 && b < 0 ) return true
+  if ( a < 0 && b > 0 ) return true
+
+  return false
+}
+
+// The study's `isLimited`, restated over six coordinates.
+bool quadLimited( i16 x0, i16 y0, i16 x1, i16 y1, i16 x2, i16 y2 ) {
+  if ( !oppositeOrZero( x0 - x1, x2 - x1 ) ) return false
+  if ( !oppositeOrZero( y0 - y1, y2 - y1 ) ) return false
+
+  return true
+}
+
+// **Coordinates must satisfy |x| <= 8191 and |y| <= 8191.**
+//
+// The midpoint ladder sums two coordinates before halving, so the sum has to fit a
+// signed word; 8,191 leaves a factor of four spare. That is a trade of one
+// precondition for another and a much better one - "stay inside a 16k box" is
+// something a caller can satisfy without knowing anything about Bresenham, where
+// "keep every segment under 15 pixels" is not.
+//
+// The ladder is written as three pairs of midpoints rather than as
+// `(from + 2*control + to) / 4`, because that intermediate reaches four times a
+// coordinate and would overflow where every rung here stays inside its inputs'
+// range.
+//
+// `/ 2` and not `>> 1`: division emits `cwd` + `idiv` and truncates toward zero,
+// where `sar` rounds toward negative infinity, and they differ on every odd
+// negative - about half the midpoints of any path crossing the origin.
+// `projects/divtest` measures that on the 8086 and the study's model matches it, so
+// this must stay a division.
+sub drawQuadAny(
+  i16 x0, i16 y0, i16 x1, i16 y1, i16 x2, i16 y2,
+  bool wantPixels, bool wantEdges
+) {
+  i16 px0
+  i16 py0
+  i16 px1
+  i16 py1
+  i16 px2
+  i16 py2
+  i16 ax
+  i16 ay
+  i16 bx
+  i16 by
+  i16 mx
+  i16 my
+  i16 span
+
+  subX0[0] = x0
+  subY0[0] = y0
+  subX1[0] = x1
+  subY1[0] = y1
+  subX2[0] = x2
+  subY2[0] = y2
+  subTop = 1
+
+  while ( subTop > 0 ) {
+    subTop -= 1
+
+    px0 = subX0[ subTop ]
+    py0 = subY0[ subTop ]
+    px1 = subX1[ subTop ]
+    py1 = subY1[ subTop ]
+    px2 = subX2[ subTop ]
+    py2 = subY2[ subTop ]
+
+    span = quadSpan( px0, py0, px1, py1, px2, py2 )
+
+    if ( span <= maxSpan && quadLimited( px0, py0, px1, py1, px2, py2 ) ) {
+      // A control point that has rounded onto an endpoint leaves no curvature, and
+      // `drawQuad` would divide by it to find that out. `walkPath` already guards
+      // this for source data; subdivision can CREATE it, because halving pulls
+      // control points toward endpoints and rounding finishes the job. So the guard
+      // belongs here too, or the routine is safe through one entry point and not the
+      // other.
+      if ( px1 == px0 && py1 == py0 ) {
+        drawLine( px0, py0, px2, py2, wantPixels, wantEdges, 0 )
+      } else if ( px1 == px2 && py1 == py2 ) {
+        drawLine( px0, py0, px2, py2, wantPixels, wantEdges, 0 )
+      } else {
+        drawQuad( px0, py0, px1, py1, px2, py2, wantPixels, wantEdges )
+      }
+    } else if ( span <= chordFloor ) {
+      drawLine( px0, py0, px2, py2, wantPixels, wantEdges, 0 )
+    } else if ( subTop + 2 > maxSubdivDepth ) {
+      // Never reached with the documented precondition - the study's worst is 11 of
+      // 16 - so this degrades rather than drops, and says so.
+      subdivOverflowed = true
+      drawLine( px0, py0, px2, py2, wantPixels, wantEdges, 0 )
+    } else {
+      ax = ( px0 + px1 ) / 2
+      ay = ( py0 + py1 ) / 2
+      bx = ( px1 + px2 ) / 2
+      by = ( py1 + py2 ) / 2
+      mx = ( ax + bx ) / 2
+      my = ( ay + by ) / 2
+
+      // Right half pushed first so the left is popped first, which makes the output
+      // left to right. A fill would not care - the crossing list is sorted by y
+      // regardless - but a stroke is pixels in the order they are drawn, and the
+      // digest hashes that order.
+      subX0[ subTop ] = mx
+      subY0[ subTop ] = my
+      subX1[ subTop ] = bx
+      subY1[ subTop ] = by
+      subX2[ subTop ] = px2
+      subY2[ subTop ] = py2
+      subTop += 1
+
+      subX0[ subTop ] = px0
+      subY0[ subTop ] = py0
+      subX1[ subTop ] = ax
+      subY1[ subTop ] = ay
+      subX2[ subTop ] = mx
+      subY2[ subTop ] = my
+      subTop += 1
+    }
+  }
+}
+
+sub clearSubdiv {
+  subTop = 0
+  subdivOverflowed = false
+}

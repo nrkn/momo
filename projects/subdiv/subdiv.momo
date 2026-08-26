@@ -1,0 +1,81 @@
+// subdiv.momo - preparation, checked against the study.
+//
+//   npm start subdiv
+//
+// `lib/momovec/subdiv.momo` takes an arbitrary quadratic and feeds `drawQuad` only
+// quadratics it can draw. This runs it over deliberately illegal input - spans of
+// 20, 100, 320 and 8,000, non-monotonic in one axis and both, a control point far
+// outside its endpoints, coordinates straddling the origin, and degenerate curves
+// with coincident points - and prints every pixel.
+//
+// **Pixels rather than pieces**, because pixels are what the thing is for and
+// because a piece list can be right while the drawing is wrong. The study runs its
+// bit-exact model of the same routine and rasterises each piece with the same
+// Bresenham, so a match is a claim about the whole path from an illegal curve to a
+// lit pixel.
+//
+// The rounding is the part most likely to disagree. Momo's `/ 2` truncates toward
+// zero where `>> 1` rounds toward negative infinity, and about half the midpoints of
+// any curve crossing the origin are odd negatives. `projects/divtest` pins that
+// separately; the `straddling origin` and `negative coordinates` cases here are what
+// would break if the model ever drifted.
+//
+// The corpus is generated, so it and `subdiv.expected` cannot disagree about what
+// was asked.
+
+// The crossing budget. Nothing here fills, so this is the minimum the library needs
+// to link rather than a measured figure.
+const maxCrossings = 64
+
+include "std/io.momo"
+include "std/math.momo"
+include "momovec/types.momo"
+include "momovec/edges.momo"
+include "momovec/subdiv.momo"
+
+include "s_corpus.momo"
+
+// One pixel, printed. The library calls this by name and never learns it is a
+// `putNumber` rather than a byte of video memory - the same arrangement that let
+// `projects/tiger` and `projects/tigerpic` differ by exactly one routine.
+sub plot( i16 x, i16 y ) {
+  putNumber( u16( x ) )
+  space()
+  putNumber( u16( y ) )
+  newline()
+}
+
+// Nothing here collects edges, so this is never called - but the resolver wants
+// every name a library mentions to exist, whether the code is reachable or not.
+sub emitSpan( u16 y, i16 x0, i16 x1 ) {
+  putNumber( y )
+  space()
+  putNumber( u16( x0 ) )
+  space()
+  putNumber( u16( x1 ) )
+  newline()
+}
+
+u16 c
+u16 at
+
+clearSubdiv()
+
+for ( c = 0; c < caseCount; c++ ) {
+  at = c * 6
+
+  drawQuadAny(
+    cx0[ at ], cx0[ at + 1 ], cx0[ at + 2 ],
+    cx0[ at + 3 ], cx0[ at + 4 ], cx0[ at + 5 ],
+    true, false
+  )
+}
+
+// A capacity problem must not look like a geometry bug. The study measured a peak of
+// 11 stack entries against 16, so this should never fire.
+if ( subdivOverflowed ) {
+  putStr( addr( overflowed ) )
+  newline()
+}
+
+const u8[] overflowed = "SUBDIVISION STACK OVERFLOWED$"

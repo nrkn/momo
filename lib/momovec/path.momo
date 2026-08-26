@@ -14,7 +14,7 @@
 // The arrays this reads - opKind, px, py, pathOpStart, pathOpCount,
 // pathPointStart - are defined by the PROGRAM, not here. See types.momo.
 
-include "momovec/quad.momo"
+include "momovec/subdiv.momo"
 
 sub walkPath(
   u16 pathIndex, bool wantPixels, bool wantEdges, bool closeSubpaths
@@ -80,19 +80,16 @@ sub walkPath(
       toY = py[ at + 1 ]
       at += 2
 
-      // A control point that rounded onto an endpoint leaves no curvature, and
-      // drawQuad would have to divide by it to find that out - so the caller
-      // decides, exactly as the study's own walk does. This is not an
-      // optimisation: `cur` would be zero and the routine would fall through to
-      // its own drawLine anyway, but only after computing a page of products
-      // from it.
-      if ( ctlX == curX && ctlY == curY ) {
-        drawLine( curX, curY, toX, toY, wantPixels, wantEdges, 0 )
-      } else if ( ctlX == toX && ctlY == toY ) {
-        drawLine( curX, curY, toX, toY, wantPixels, wantEdges, 0 )
-      } else {
-        drawQuad( curX, curY, ctlX, ctlY, toX, toY, wantPixels, wantEdges )
-      }
+      // `drawQuadAny` rather than `drawQuad`, so a caller can hand this an arbitrary
+      // quadratic and not a pre-subdivided one. Anything already inside the audited
+      // span and already monotonic passes straight through after two tests, so the
+      // generated datasets pay almost nothing for it.
+      //
+      // The degenerate check that used to sit here - a control point rounded onto an
+      // endpoint, which leaves no curvature for `drawQuad` to divide by - moved into
+      // `drawQuadAny`, because subdivision can *create* that case and a guard only on
+      // this path would have missed it.
+      drawQuadAny( curX, curY, ctlX, ctlY, toX, toY, wantPixels, wantEdges )
 
       curX = toX
       curY = toY

@@ -1,0 +1,73 @@
+// divtest.momo - what signed division by two actually does.
+//
+//   npm start divtest
+//
+// The vector study's on-target subdivider halves quadratics with a de Casteljau
+// midpoint ladder, and the study has to model that bit-exactly or its expected
+// output drifts from the target on exactly the curves that cross the origin - which
+// would present as a subdivision bug rather than a rounding disagreement.
+//
+// Momo's `/` on a signed type emits `cwd` + `idiv`, which truncates toward zero,
+// where an arithmetic shift rounds toward negative infinity. They differ for every
+// odd negative value. `lib/std/place.momo` already carries a comment about the same
+// distinction for the same reason.
+//
+// This is written and run rather than reasoned about, because "reading the emitter
+// says idiv and idiv truncates" is two inferences and one run settles it. The
+// difference is printed alongside `>> 1` so the two are visible together.
+//
+// Expected, if division truncates toward zero:
+//
+//   -7 / 2  = -3     -7 >> 1  = -4
+//   -5 / 2  = -2     -5 >> 1  = -3
+//   -3 / 2  = -1     -3 >> 1  = -2
+//   -1 / 2  =  0     -1 >> 1  = -1
+//
+// A midpoint ladder also cares about the SUM before the halving, so the last block
+// checks the exact expression the subdivider uses.
+
+include "std/io.momo"
+
+sub show( i16 v ) {
+  i16 half
+  i16 shifted
+
+  half = v / 2
+  shifted = v >> 1
+
+  putNumber( u16( v ) )
+  space()
+  putNumber( u16( half ) )
+  space()
+  putNumber( u16( shifted ) )
+  newline()
+}
+
+i16 a
+i16 b
+i16 mid
+
+// Printed as u16, so a negative reads as its two's complement - 65533 is -3. The
+// point is whether the two columns differ, not their decimal presentation.
+show( -7 )
+show( -5 )
+show( -3 )
+show( -1 )
+show( 1 )
+show( 3 )
+show( 7 )
+
+// The ladder itself: (a + b) / 2, computed as the subdivider will compute it, for a
+// pair straddling zero. If this disagrees with the study's model the whole
+// comparison is worthless, so it is checked here rather than assumed.
+a = -5
+b = 2
+mid = ( a + b ) / 2
+putNumber( u16( mid ) )
+newline()
+
+a = -6
+b = 1
+mid = ( a + b ) / 2
+putNumber( u16( mid ) )
+newline()
