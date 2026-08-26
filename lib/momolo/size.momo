@@ -1,4 +1,4 @@
-// m_size.momo - pass 2: size. Settle every child's extent along one axis.
+// size.momo - pass 2: size. Settle every child's extent along one axis.
 //
 // Port of src/momolo/size.ts. Breadth-first from the root, run once per axis. A
 // parent's size is final before its children are considered, which is what makes

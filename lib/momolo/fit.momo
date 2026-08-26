@@ -1,4 +1,4 @@
-// m_fit.momo - pass 1: fit sizing. A container wraps tightly around its
+// fit.momo - pass 1: fit sizing. A container wraps tightly around its
 // children.
 //
 // Port of src/momolo/fit.ts. This runs from closeBox rather than from a
@@ -11,7 +11,7 @@
 // be squeezed to. They are accumulated the same way and differ only where some
 // descendant declared itself compressible, which only a leaf can do.
 //
-// Leaves never reach here; m_bld.momo sizes them directly, since their size came
+// Leaves never reach here; build.momo sizes them directly, since their size came
 // from the caller rather than from anything below them.
 
 include "std/math.momo"

@@ -1,4 +1,4 @@
-// m_bld.momo - the immediate-mode surface: the config block, begin, openBox,
+// build.momo - the immediate-mode surface: the config block, begin, openBox,
 // closeBox, leaf.
 //
 // Port of src/momolo/build.ts. Elements are pushed onto one flat array as they
@@ -136,7 +136,7 @@ local u16 pushElement() {
   el[i].hMin = cfg.hMin
   el[i].hMax = cfg.hMax
 
-  // Cleared rather than assumed zero, for the reason in m_el.momo: nothing
+  // Cleared rather than assumed zero, for the reason in types.momo: nothing
   // re-zeroes a group between frames.
   el[i].childStart = 0
   el[i].childCount = 0

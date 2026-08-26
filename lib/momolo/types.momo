@@ -1,4 +1,4 @@
-// m_el.momo - the element array, the builder's scratch stacks, and the one
+// types.momo - the element array, the builder's scratch stacks, and the one
 // accessor pass 1 needs.
 //
 // Port of src/momolo/types.ts from the clay-study. See PORT.md there.

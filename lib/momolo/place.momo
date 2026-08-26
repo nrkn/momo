@@ -1,4 +1,4 @@
-// m_place.momo - pass 3: place. Turn sizes into positions.
+// place.momo - pass 3: place. Turn sizes into positions.
 //
 // Port of src/momolo/place.ts. Depth-first over an explicit stack, writing
 // absolute x and y onto every element. Sizes are final by now, so this pass only
@@ -90,7 +90,7 @@ sub place {
     crossInner = crossInner > insetCross ? crossInner - insetCross : 0
 
     // n is at least 1 here, so `n - 1` needs no guard - unlike the same
-    // expression in m_fit.momo, which is reached with no children.
+    // expression in fit.momo, which is reached with no children.
     content = el[i].gap * ( n - 1 )
     for ( k = 0; k < n; k++ ) {
       ci = childAt( i, k )

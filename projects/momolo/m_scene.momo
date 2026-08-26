@@ -15,10 +15,10 @@
 // study's src/palette.ts does. That was not an accident.
 
 include "mopaint.momo"
-include "momolo/m_fit.momo"
-include "momolo/m_size.momo"
-include "momolo/m_refit.momo"
-include "momolo/m_place.momo"
+include "momolo/fit.momo"
+include "momolo/size.momo"
+include "momolo/refit.momo"
+include "momolo/place.momo"
 
 // One unit is one character cell, which mopaint decides rather than the scene.
 const u = cellW
@@ -181,7 +181,7 @@ sub buildShell {
 
       // The gap on a childless box is deliberate and does nothing - there are no
       // gaps between no children. It is here so that `gap * (n - 1)` without a
-      // guard reads 65535 and says so; see momolo/m_fit.momo.
+      // guard reads 65535 and says so; see momolo/fit.momo.
       cfgGrowW()
       cfg.gap = u
       boxOpen()

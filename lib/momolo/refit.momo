@@ -1,4 +1,4 @@
-// m_refit.momo - the reflow pass: re-accumulate heights after a caller has
+// refit.momo - the reflow pass: re-accumulate heights after a caller has
 // changed some.
 //
 // Port of src/momolo/refit.ts. Pass 1 sized every container from children that

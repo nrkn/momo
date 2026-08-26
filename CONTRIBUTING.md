@@ -20,10 +20,15 @@ console is kept as `_reference/yuki.txt`.
 src/momo/       the compiler
 src/tools/      CLI entry points, over cli.ts (paths, fail) and toolchain.ts
 lib/std/        standard library, written in Momo
+lib/momolo/     a layout engine, written in Momo
 projects/       programs, as <name>/<name>.momo
 tests/compile/  tier 1 tests
 editor/vscode/  generated syntax highlighting
 ```
+
+A project with more than one file prefixes its parts - `t_scr.momo` beside
+`tennis.momo` - and a library does not, because there is no entry file to
+separate them from. `STYLE.md` has the rule and why.
 
 ## Pipeline
 
