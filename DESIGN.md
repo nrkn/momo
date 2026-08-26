@@ -810,9 +810,16 @@ reference file exceed 128 bytes under this codegen.
     the golden files had been regenerated, which is the stash-and-rebuild trap
     wearing a different hat: adopting output and then testing it proves only that
     the compiler is self-consistent. And tier 2 caught `qsort` cleanly on its
-    numbers but caught `momolo` only by hanging - `e2e.ts` has no timeout, so a
-    non-terminating program waits for a human to close the window rather than
-    failing. Worth knowing before trusting an unattended run.
+    numbers but caught `momolo` only by hanging - `e2e.ts` had no timeout, so a
+    non-terminating program waited for a human to close the window rather than
+    failing.
+
+    **That is fixed.** A case gets 120 seconds and is then killed and reported as
+    a timeout, before the assembly check - because a program that does not
+    terminate may well have assembled perfectly. It took a second occurrence to
+    do it: a wrong `xy` ordering in the vector port's quadratic never left its
+    recurrence, and cost another interruption. A gap that has been recorded twice
+    and hit twice is one that should have been closed the first time.
 
 15. **The branch expansion is taken back where the target is in reach** - the
     single most valuable one here, and the refinement the paragraph above spent

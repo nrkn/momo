@@ -18,7 +18,7 @@ __entry:
         mov     word [s], 0
 .L1:
         mov     ax, [s]
-        cmp     ax, 6
+        cmp     ax, 7
         jae     .L3                         ; unsigned <
 ; ---- strokeScene( s )
         mov     ax, [s]
@@ -253,6 +253,337 @@ drawLine:
 .L30:
         ret
 
+; ============================================== sub drawQuad ====
+
+drawQuad:
+; ---- sx = x2 - x1
+        mov     ax, [drawQuad__x2]
+        mov     bx, [drawQuad__x1]
+        sub     ax, bx
+        mov     [drawQuad__sx], ax
+; ---- sy = y2 - y1
+        mov     ax, [drawQuad__y2]
+        mov     bx, [drawQuad__y1]
+        sub     ax, bx
+        mov     [drawQuad__sy], ax
+; ---- xx = x0 - x1
+        mov     ax, [drawQuad__x0]
+        mov     bx, [drawQuad__x1]
+        sub     ax, bx
+        mov     [drawQuad__xx], ax
+; ---- yy = y0 - y1
+        mov     ax, [drawQuad__y0]
+        mov     bx, [drawQuad__y1]
+        sub     ax, bx
+        mov     [drawQuad__yy], ax
+; ---- cur = xx * sy - yy * sx
+        mov     ax, [drawQuad__xx]
+        mov     bx, [drawQuad__sy]
+        mul     bx                          ; low 16 bits are sign-agnostic
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [drawQuad__yy]
+        mov     bx, [drawQuad__sx]
+        mul     bx                          ; low 16 bits are sign-agnostic
+        mov     bx, ax
+        pop     ax
+        sub     ax, bx
+        mov     [drawQuad__cur], ax
+; ---- if ( sx * sx + sy * sy > xx * xx + yy * yy ) {
+        mov     ax, [drawQuad__sx]
+        mov     bx, [drawQuad__sx]
+        mul     bx                          ; low 16 bits are sign-agnostic
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [drawQuad__sy]
+        mov     bx, [drawQuad__sy]
+        mul     bx                          ; low 16 bits are sign-agnostic
+        mov     bx, ax
+        pop     ax
+        add     ax, bx
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [drawQuad__xx]
+        mov     bx, [drawQuad__xx]
+        mul     bx                          ; low 16 bits are sign-agnostic
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [drawQuad__yy]
+        mov     bx, [drawQuad__yy]
+        mul     bx                          ; low 16 bits are sign-agnostic
+        mov     bx, ax
+        pop     ax
+        add     ax, bx
+        mov     bx, ax
+        pop     ax
+        cmp     ax, bx
+        jle     .L43                        ; signed >
+; ---- x2 = x0
+        mov     ax, [drawQuad__x0]
+        mov     [drawQuad__x2], ax
+; ---- x0 = sx + x1
+        mov     ax, [drawQuad__sx]
+        mov     bx, [drawQuad__x1]
+        add     ax, bx
+        mov     [drawQuad__x0], ax
+; ---- y2 = y0
+        mov     ax, [drawQuad__y0]
+        mov     [drawQuad__y2], ax
+; ---- y0 = sy + y1
+        mov     ax, [drawQuad__sy]
+        mov     bx, [drawQuad__y1]
+        add     ax, bx
+        mov     [drawQuad__y0], ax
+; ---- cur = -cur
+        mov     ax, [drawQuad__cur]
+        neg     ax
+        mov     [drawQuad__cur], ax
+.L43:
+; ---- if ( cur != 0 ) {
+        mov     ax, [drawQuad__cur]
+        test    ax, ax
+        jne     .L48                        ; signed !=
+        jmp     .L46
+.L48:
+; ---- xx += sx
+        mov     ax, [drawQuad__xx]
+        mov     bx, [drawQuad__sx]
+        add     ax, bx
+        mov     [drawQuad__xx], ax
+; ---- sx = x0 < x2 ? 1 : -1
+        mov     ax, [drawQuad__x0]
+        mov     bx, [drawQuad__x2]
+        cmp     ax, bx
+        jge     .L49                        ; signed <
+        mov     ax, 1
+        jmp     .L50
+.L49:
+        mov     ax, -1
+.L50:
+        mov     [drawQuad__sx], ax
+; ---- xx *= sx
+        mov     ax, [drawQuad__xx]
+        mov     bx, [drawQuad__sx]
+        mul     bx                          ; low 16 bits are sign-agnostic
+        mov     [drawQuad__xx], ax
+; ---- yy += sy
+        mov     ax, [drawQuad__yy]
+        mov     bx, [drawQuad__sy]
+        add     ax, bx
+        mov     [drawQuad__yy], ax
+; ---- sy = y0 < y2 ? 1 : -1
+        mov     ax, [drawQuad__y0]
+        mov     bx, [drawQuad__y2]
+        cmp     ax, bx
+        jge     .L52                        ; signed <
+        mov     ax, 1
+        jmp     .L53
+.L52:
+        mov     ax, -1
+.L53:
+        mov     [drawQuad__sy], ax
+; ---- yy *= sy
+        mov     ax, [drawQuad__yy]
+        mov     bx, [drawQuad__sy]
+        mul     bx                          ; low 16 bits are sign-agnostic
+        mov     [drawQuad__yy], ax
+; ---- xy = 2 * xx * yy
+        mov     ax, [drawQuad__xx]
+        shl     ax, 1                       ; * 2 is << 1
+        mov     bx, [drawQuad__yy]
+        mul     bx                          ; low 16 bits are sign-agnostic
+        mov     [drawQuad__xy], ax
+; ---- xx *= xx
+        mov     ax, [drawQuad__xx]
+        mov     bx, [drawQuad__xx]
+        mul     bx                          ; low 16 bits are sign-agnostic
+        mov     [drawQuad__xx], ax
+; ---- yy *= yy
+        mov     ax, [drawQuad__yy]
+        mov     bx, [drawQuad__yy]
+        mul     bx                          ; low 16 bits are sign-agnostic
+        mov     [drawQuad__yy], ax
+; ---- if ( cur * sx * sy < 0 ) {
+        mov     ax, [drawQuad__cur]
+        mov     bx, [drawQuad__sx]
+        mul     bx                          ; low 16 bits are sign-agnostic
+        mov     bx, [drawQuad__sy]
+        mul     bx                          ; low 16 bits are sign-agnostic
+        test    ax, ax
+        jge     .L55                        ; signed <
+; ---- xx = -xx
+        mov     ax, [drawQuad__xx]
+        neg     ax
+        mov     [drawQuad__xx], ax
+; ---- yy = -yy
+        mov     ax, [drawQuad__yy]
+        neg     ax
+        mov     [drawQuad__yy], ax
+; ---- xy = -xy
+        mov     ax, [drawQuad__xy]
+        neg     ax
+        mov     [drawQuad__xy], ax
+; ---- cur = -cur
+        mov     ax, [drawQuad__cur]
+        neg     ax
+        mov     [drawQuad__cur], ax
+.L55:
+; ---- dx = 4 * sy * cur * ( x1 - x0 ) + xx - xy
+        mov     ax, [drawQuad__sy]
+        shl     ax, 1                       ; * 4 is << 2
+        shl     ax, 1
+        mov     bx, [drawQuad__cur]
+        mul     bx                          ; low 16 bits are sign-agnostic
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [drawQuad__x1]
+        mov     bx, [drawQuad__x0]
+        sub     ax, bx
+        mov     bx, ax
+        pop     ax
+        mul     bx                          ; low 16 bits are sign-agnostic
+        mov     bx, [drawQuad__xx]
+        add     ax, bx
+        mov     bx, [drawQuad__xy]
+        sub     ax, bx
+        mov     [drawQuad__dx], ax
+; ---- dy = 4 * sx * cur * ( y0 - y1 ) + yy - xy
+        mov     ax, [drawQuad__sx]
+        shl     ax, 1                       ; * 4 is << 2
+        shl     ax, 1
+        mov     bx, [drawQuad__cur]
+        mul     bx                          ; low 16 bits are sign-agnostic
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [drawQuad__y0]
+        mov     bx, [drawQuad__y1]
+        sub     ax, bx
+        mov     bx, ax
+        pop     ax
+        mul     bx                          ; low 16 bits are sign-agnostic
+        mov     bx, [drawQuad__yy]
+        add     ax, bx
+        mov     bx, [drawQuad__xy]
+        sub     ax, bx
+        mov     [drawQuad__dy], ax
+; ---- xx += xx
+        mov     ax, [drawQuad__xx]
+        mov     bx, [drawQuad__xx]
+        add     ax, bx
+        mov     [drawQuad__xx], ax
+; ---- yy += yy
+        mov     ax, [drawQuad__yy]
+        mov     bx, [drawQuad__yy]
+        add     ax, bx
+        mov     [drawQuad__yy], ax
+; ---- err = dx + dy + xy
+        mov     ax, [drawQuad__dx]
+        mov     bx, [drawQuad__dy]
+        add     ax, bx
+        mov     bx, [drawQuad__xy]
+        add     ax, bx
+        mov     [drawQuad__err], ax
+; ---- do {
+.L58:
+; ---- plot( x0, y0 )
+        mov     ax, [drawQuad__x0]
+        mov     [plot__x], ax
+        mov     ax, [drawQuad__y0]
+        mov     [plot__y], ax
+        call    plot
+; ---- if ( x0 == x2 && y0 == y2 ) return
+        mov     ax, [drawQuad__x0]
+        mov     bx, [drawQuad__x2]
+        cmp     ax, bx
+        jne     .L61                        ; signed ==
+        mov     ax, [drawQuad__y0]
+        mov     bx, [drawQuad__y2]
+        cmp     ax, bx
+        jne     .L61                        ; signed ==
+        ret
+.L61:
+; ---- stepY = 2 * err < dx
+        mov     ax, [drawQuad__err]
+        shl     ax, 1                       ; * 2 is << 1
+        mov     bx, [drawQuad__dx]
+        cmp     ax, bx
+        jge     .L65                        ; signed <
+        mov     ax, 1
+        jmp     .L66
+.L65:
+        xor     ax, ax
+.L66:
+        mov     [drawQuad__stepY], al       ; narrowed to bool
+; ---- if ( 2 * err > dy ) {
+        mov     ax, [drawQuad__err]
+        shl     ax, 1                       ; * 2 is << 1
+        mov     bx, [drawQuad__dy]
+        cmp     ax, bx
+        jle     .L68                        ; signed >
+; ---- x0 += sx
+        mov     ax, [drawQuad__x0]
+        mov     bx, [drawQuad__sx]
+        add     ax, bx
+        mov     [drawQuad__x0], ax
+; ---- dx -= xy
+        mov     ax, [drawQuad__dx]
+        mov     bx, [drawQuad__xy]
+        sub     ax, bx
+        mov     [drawQuad__dx], ax
+; ---- dy += yy
+        mov     ax, [drawQuad__dy]
+        mov     bx, [drawQuad__yy]
+        add     ax, bx
+        mov     [drawQuad__dy], ax
+; ---- err += dy
+        mov     ax, [drawQuad__err]
+        mov     bx, [drawQuad__dy]
+        add     ax, bx
+        mov     [drawQuad__err], ax
+.L68:
+; ---- if ( stepY ) {
+        mov     al, [drawQuad__stepY]
+        test    al, al
+        jz      .L71
+; ---- y0 += sy
+        mov     ax, [drawQuad__y0]
+        mov     bx, [drawQuad__sy]
+        add     ax, bx
+        mov     [drawQuad__y0], ax
+; ---- dy -= xy
+        mov     ax, [drawQuad__dy]
+        mov     bx, [drawQuad__xy]
+        sub     ax, bx
+        mov     [drawQuad__dy], ax
+; ---- dx += xx
+        mov     ax, [drawQuad__dx]
+        mov     bx, [drawQuad__xx]
+        add     ax, bx
+        mov     [drawQuad__dx], ax
+; ---- err += dx
+        mov     ax, [drawQuad__err]
+        mov     bx, [drawQuad__dx]
+        add     ax, bx
+        mov     [drawQuad__err], ax
+.L71:
+.L59:
+        mov     ax, [drawQuad__dy]
+        test    ax, ax
+        jge     .L74                        ; signed <
+        mov     ax, [drawQuad__dx]
+        test    ax, ax
+        jle     .L76                        ; signed >
+        jmp     .L58
+.L76:
+.L74:
+.L60:
+.L46:
+; ---- drawLine( x0, y0, x2, y2 )
+        mov     ax, [drawQuad__x0]
+        mov     [drawLine__x0], ax
+        mov     ax, [drawQuad__y0]
+        mov     [drawLine__y0], ax
+        mov     ax, [drawQuad__x2]
+        mov     [drawLine__x1], ax
+        mov     ax, [drawQuad__y2]
+        mov     [drawLine__y1], ax
+        call    drawLine
+        ret
+
 ; ============================================== sub strokePath ====
 
 strokePath:
@@ -268,7 +599,7 @@ strokePath:
         mov     word [strokePath__curY], 0
 ; ---- for ( k = 0; k < pathOpCount[ pathIndex ]; k++ ) {
         mov     word [strokePath__k], 0
-.L43:
+.L77:
         mov     ax, [strokePath__k]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [strokePath__pathIndex]
@@ -278,9 +609,9 @@ strokePath:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L46                        ; unsigned <
-        jmp     .L45
-.L46:
+        jb      .L80                        ; unsigned <
+        jmp     .L79
+.L80:
 ; ---- op = opKind[ pathOpStart[ pathIndex ] + k ]
         mov     ax, [strokePath__pathIndex]
         shl     ax, 1                       ; word elements
@@ -294,7 +625,7 @@ strokePath:
         mov     [strokePath__op], ax
 ; ---- if ( op == opMove ) {
         test    ax, ax
-        jne     .L47                        ; unsigned ==
+        jne     .L81                        ; unsigned ==
 ; ---- curX = px[ at ]
         mov     ax, [strokePath__at]
         shl     ax, 1                       ; word elements
@@ -311,14 +642,14 @@ strokePath:
         mov     ax, [strokePath__at]
         inc     ax
         mov     [strokePath__at], ax
-        jmp     .L48
-.L47:
+        jmp     .L82
+.L81:
 ; ---- } else if ( op == opLine ) {
         mov     ax, [strokePath__op]
         cmp     ax, 1
-        je      .L52                        ; unsigned ==
-        jmp     .L50
-.L52:
+        je      .L86                        ; unsigned ==
+        jmp     .L84
+.L86:
 ; ---- toX = px[ at ]
         mov     ax, [strokePath__at]
         shl     ax, 1                       ; word elements
@@ -351,18 +682,108 @@ strokePath:
 ; ---- curY = toY
         mov     ax, [strokePath__toY]
         mov     [strokePath__curY], ax
-        jmp     .L51
-.L50:
+        jmp     .L85
+.L84:
+; ---- ctlX = px[ at ]
+        mov     ax, [strokePath__at]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [px + bx]
+        mov     [strokePath__ctlX], ax
+; ---- ctlY = py[ at ]
+        mov     ax, [strokePath__at]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [py + bx]
+        mov     [strokePath__ctlY], ax
+; ---- toX = px[ at + 1 ]
+        mov     ax, [strokePath__at]
+        inc     ax
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [px + bx]
+        mov     [strokePath__toX], ax
+; ---- toY = py[ at + 1 ]
+        mov     ax, [strokePath__at]
+        inc     ax
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [py + bx]
+        mov     [strokePath__toY], ax
 ; ---- at += 2
         mov     ax, [strokePath__at]
         add     ax, 2
         mov     [strokePath__at], ax
-.L51:
-.L48:
-.L44:
+; ---- if ( ctlX == curX && ctlY == curY ) {
+        mov     ax, [strokePath__ctlX]
+        mov     bx, [strokePath__curX]
+        cmp     ax, bx
+        jne     .L87                        ; signed ==
+        mov     ax, [strokePath__ctlY]
+        mov     bx, [strokePath__curY]
+        cmp     ax, bx
+        jne     .L87                        ; signed ==
+; ---- drawLine( curX, curY, toX, toY )
+        mov     ax, [strokePath__curX]
+        mov     [drawLine__x0], ax
+        mov     ax, [strokePath__curY]
+        mov     [drawLine__y0], ax
+        mov     ax, [strokePath__toX]
+        mov     [drawLine__x1], ax
+        mov     ax, [strokePath__toY]
+        mov     [drawLine__y1], ax
+        call    drawLine
+        jmp     .L88
+.L87:
+; ---- } else if ( ctlX == toX && ctlY == toY ) {
+        mov     ax, [strokePath__ctlX]
+        mov     bx, [strokePath__toX]
+        cmp     ax, bx
+        jne     .L91                        ; signed ==
+        mov     ax, [strokePath__ctlY]
+        mov     bx, [strokePath__toY]
+        cmp     ax, bx
+        jne     .L91                        ; signed ==
+; ---- drawLine( curX, curY, toX, toY )
+        mov     ax, [strokePath__curX]
+        mov     [drawLine__x0], ax
+        mov     ax, [strokePath__curY]
+        mov     [drawLine__y0], ax
+        mov     ax, [strokePath__toX]
+        mov     [drawLine__x1], ax
+        mov     ax, [strokePath__toY]
+        mov     [drawLine__y1], ax
+        call    drawLine
+        jmp     .L92
+.L91:
+; ---- drawQuad( curX, curY, ctlX, ctlY, toX, toY )
+        mov     ax, [strokePath__curX]
+        mov     [drawQuad__x0], ax
+        mov     ax, [strokePath__curY]
+        mov     [drawQuad__y0], ax
+        mov     ax, [strokePath__ctlX]
+        mov     [drawQuad__x1], ax
+        mov     ax, [strokePath__ctlY]
+        mov     [drawQuad__y1], ax
+        mov     ax, [strokePath__toX]
+        mov     [drawQuad__x2], ax
+        mov     ax, [strokePath__toY]
+        mov     [drawQuad__y2], ax
+        call    drawQuad
+.L92:
+.L88:
+; ---- curX = toX
+        mov     ax, [strokePath__toX]
+        mov     [strokePath__curX], ax
+; ---- curY = toY
+        mov     ax, [strokePath__toY]
+        mov     [strokePath__curY], ax
+.L85:
+.L82:
+.L78:
         inc     word [strokePath__k]
-        jmp     .L43
-.L45:
+        jmp     .L77
+.L79:
         ret
 
 ; ============================================== sub strokeScene ====
@@ -370,7 +791,7 @@ strokePath:
 strokeScene:
 ; ---- for ( p = 0; p < scenePathCount[ sceneIndex ]; p++ ) {
         mov     word [strokeScene__p], 0
-.L53:
+.L95:
         mov     ax, [strokeScene__p]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [strokeScene__sceneIndex]
@@ -380,7 +801,7 @@ strokeScene:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jae     .L55                        ; unsigned <
+        jae     .L97                        ; unsigned <
 ; ---- strokePath( sceneFirstPath[ sceneIndex ] + p )
         mov     ax, [strokeScene__sceneIndex]
         shl     ax, 1                       ; word elements
@@ -390,10 +811,10 @@ strokeScene:
         add     ax, bx
         mov     [strokePath__pathIndex], ax
         call    strokePath
-.L54:
+.L96:
         inc     word [strokeScene__p]
-        jmp     .L53
-.L55:
+        jmp     .L95
+.L97:
         ret
 
 ; ============================================== sub plot ====
@@ -458,6 +879,12 @@ drawLine__x0:   dw      0        ; i16
 drawLine__y0:   dw      0        ; i16
 drawLine__x1:   dw      0        ; i16
 drawLine__y1:   dw      0        ; i16
+drawQuad__x0:   dw      0        ; i16
+drawQuad__y0:   dw      0        ; i16
+drawQuad__x1:   dw      0        ; i16
+drawQuad__y1:   dw      0        ; i16
+drawQuad__x2:   dw      0        ; i16
+drawQuad__y2:   dw      0        ; i16
 strokePath__pathIndex: dw      0        ; u16
 strokeScene__sceneIndex: dw      0        ; u16
 plot__x:        dw      0        ; i16
@@ -470,6 +897,16 @@ drawLine__sx:   dw      0        ; i16
 drawLine__sy:   dw      0        ; i16
 drawLine__err:  dw      0        ; i16
 drawLine__e2:   dw      0        ; i16
+drawQuad__sx:   dw      0        ; i16
+drawQuad__sy:   dw      0        ; i16
+drawQuad__xx:   dw      0        ; i16
+drawQuad__yy:   dw      0        ; i16
+drawQuad__xy:   dw      0        ; i16
+drawQuad__cur:  dw      0        ; i16
+drawQuad__dx:   dw      0        ; i16
+drawQuad__dy:   dw      0        ; i16
+drawQuad__err:  dw      0        ; i16
+drawQuad__stepY: db      0        ; bool
 strokePath__k:  dw      0        ; u16
 strokePath__at: dw      0        ; u16
 strokePath__op: dw      0        ; u16
@@ -477,29 +914,38 @@ strokePath__curX: dw      0        ; i16
 strokePath__curY: dw      0        ; i16
 strokePath__toX: dw      0        ; i16
 strokePath__toY: dw      0        ; i16
+strokePath__ctlX: dw      0        ; i16
+strokePath__ctlY: dw      0        ; i16
 strokeScene__p: dw      0        ; u16
 
 ; ---- arrays ----
-opKind:         db      0, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1,        ; u8[43] const
-                db      0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1
-px:             dw      160, 240, 80, 160, 100, 220, 220, 100, 100, 140, 140, 180, 180, 140,        ; i16[43] const
+opKind:         db      0, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1,        ; u8[65] const
+                db      0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 2, 2, 2, 2,
+                db      2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1
+px:             dw      160, 240, 80, 160, 100, 220, 220, 100, 100, 140, 140, 180, 180, 140,        ; i16[85] const
                 dw      100, 220, 220, 100, 100, 140, 180, 180, 140, 140, 90, 230, 230, 90, 90,
-                dw      160, 201, 93, 227, 119, 160, 160, 90, 90, 160, 160, 230, 230, 160
-py:             dw      40, 160, 160, 40, 50, 50, 150, 150, 50, 80, 120, 120, 80, 80, 50, 50,        ; i16[43] const
+                dw      160, 201, 93, 227, 119, 160, 160, 90, 90, 160, 160, 230, 230, 160, 120,
+                dw      125, 130, 134, 139, 143, 147, 151, 155, 163, 169, 175, 180, 185, 189,
+                dw      193, 195, 196, 197, 198, 199, 199, 200, 200, 200, 200, 195, 190, 180,
+                dw      175, 169, 163, 155, 151, 147, 143, 139, 134, 130, 125, 120, 120
+py:             dw      40, 160, 160, 40, 50, 50, 150, 150, 50, 80, 120, 120, 80, 80, 50, 50,        ; i16[85] const
                 dw      150, 150, 50, 80, 80, 120, 120, 80, 60, 140, 60, 140, 60, 30, 157, 78,
-                dw      78, 157, 30, 100, 40, 160, 100, 100, 40, 160, 100
-pathOpStart:    dw      0, 4, 14, 24, 29, 35        ; u16[6] const
-pathOpCount:    dw      4, 10, 10, 5, 6, 8        ; u16[6] const
-pathPointStart: dw      0, 4, 14, 24, 29, 35        ; u16[6] const
-sceneFirstPath: dw      0, 1, 2, 3, 4, 5        ; u16[6] const
-scenePathCount: dw      1, 1, 1, 1, 1, 1        ; u16[6] const
+                dw      78, 157, 30, 100, 40, 160, 100, 100, 40, 160, 100, 60, 60, 60, 61, 61,
+                dw      62, 63, 64, 65, 68, 71, 75, 80, 85, 91, 98, 105, 109, 113, 117, 121,
+                dw      126, 130, 135, 140, 143, 144, 146, 148, 148, 149, 149, 149, 150, 150,
+                dw      150, 150, 150, 150, 150, 150, 60
+pathOpStart:    dw      0, 4, 14, 24, 29, 35, 43        ; u16[7] const
+pathOpCount:    dw      4, 10, 10, 5, 6, 8, 22        ; u16[7] const
+pathPointStart: dw      0, 4, 14, 24, 29, 35, 43        ; u16[7] const
+sceneFirstPath: dw      0, 1, 2, 3, 4, 5, 6        ; u16[7] const
+scenePathCount: dw      1, 1, 1, 1, 1, 1, 1        ; u16[7] const
 putNumber__digits: times 5 db 0        ; u8[5]
 
 ; ============================================================ heap ====
 ; No storage is emitted - a .COM owns everything past its image, so
 ; these are addresses and NASM does the arithmetic.
 
-_hstack:        equ     274        ; 18 worst-case + 256 interrupt reserve
+_hstack:        equ     280        ; 24 worst-case + 256 interrupt reserve
 _htop:          equ     0FFFEh - _hstack
 
 _hsize:         dw      _htop - _heap        ; NASM computes this

@@ -32,14 +32,43 @@ import { compile } from '../momo/compile.js'
 import { formatError, isMomoError } from '../momo/diagnostics.js'
 import { loadToolchain } from './toolchain.js'
 
-const runDosbox = (exe: string, args: string[]): Promise<void> =>
+// A tier-2 case gets this long before it is killed and reported as a timeout.
+//
+// Generous, because a slow machine assembling `momolo` is a legitimate minute and
+// a false timeout is worse than a slow suite. Not unbounded, which it was: a
+// program that does not terminate used to leave DOSBox sitting there until someone
+// noticed and closed the window, and the suite reported nothing until they did.
+//
+// That is not hypothetical. It happened twice while breaking things deliberately to
+// check the suite had teeth - once with a bad peephole that made `momolo` spin, and
+// once with a wrong `xy` ordering in the vector port's quadratic that never left
+// its recurrence. Both times the failure was real and the suite could not say so
+// without a human. DESIGN §9 recorded the gap; this closes it.
+const runTimeoutMs = 120_000
+
+const runDosbox = (exe: string, args: string[]): Promise<'ok' | 'timeout'> =>
   new Promise((resolveRun) => {
     const child = spawn(exe, args, {
       stdio: 'ignore',
       env: { ...process.env, SDL_VIDEO_CENTERED: '0', SDL_VIDEO_WINDOW_POS: '0,0' },
     })
-    child.on('error', (error) => fail(`could not launch dosbox: ${error.message}`))
-    child.on('exit', () => resolveRun())
+
+    let timedOut = false
+
+    const timer = setTimeout(() => {
+      timedOut = true
+      child.kill()
+    }, runTimeoutMs)
+
+    child.on('error', (error) => {
+      clearTimeout(timer)
+      fail(`could not launch dosbox: ${error.message}`)
+    })
+
+    child.on('exit', () => {
+      clearTimeout(timer)
+      resolveRun(timedOut ? 'timeout' : 'ok')
+    })
   })
 
 // Assemble and run in one DOSBox session, with the program's stdout redirected
@@ -68,13 +97,20 @@ const buildAndRun = async (exe: string, project: string): Promise<string> => {
 
   await writeFile(join(buildDir, 'build.bat'), script, 'ascii')
 
-  await runDosbox(exe, [
+  const outcome = await runDosbox(exe, [
     '-conf', confPath,
     '-c', `mount c "${buildDir}"`,
     '-c', `mount d "${nasmDir}"`,
     '-c', 'c:',
     '-c', 'call c:\\build.bat',
   ])
+
+  // Reported before the assembly check, because a timeout says nothing about
+  // whether NASM was happy - the program may well have assembled and then failed
+  // to terminate, which is the case this exists for.
+  if (outcome === 'timeout') {
+    return `<timed out after ${runTimeoutMs / 1000}s - the program did not terminate>`
+  }
 
   if (!existsSync(join(buildDir, 'build.ok'))) {
     const errPath = join(buildDir, 'build.err')

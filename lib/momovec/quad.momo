@@ -1,0 +1,120 @@
+// The quadratic Bezier segment. The only curve this rasteriser has.
+//
+// Zingl declares `double dx, dy, err` here and every value they hold is
+// INTEGRAL - the doubles are for range, not for fractions. That is what makes
+// this portable at all, and it is why the study spent an audit on it: the
+// algorithm was never in question, only how many bits it needs.
+//
+// **The answer is a segment span of 15 pixels**, found by searching the
+// configuration space rather than by algebra. The intermediates grow as about
+// 8.6 * span^3, so at span 15 the largest is 28,800 - which fits a signed word
+// with room - and at span 16 it is 37,376, which does not. The largest value in
+// the routine is `2 * err`, twice the next largest by construction.
+//
+// Nothing here checks that. It cannot: the invariant is a property of the DATA,
+// and the study guarantees it by subdividing every curve to the audited range
+// before rounding. A segment wider than 15 arriving here would wrap silently and
+// draw nonsense, which is exactly why the guarantee lives where the data is made.
+//
+// **Every segment is also already limited** - its control point inside its
+// endpoints' bounding box - because the study splits at the gradient extremes
+// first. So there is no splitter here, no gradient analysis, and no float: the
+// two things Zingl needs a `plotQuadBezier` wrapper for both happen on the other
+// side, in TypeScript, where a square root is free.
+
+include "momovec/line.momo"
+
+sub drawQuad( i16 x0, i16 y0, i16 x1, i16 y1, i16 x2, i16 y2 ) {
+  i16 sx
+  i16 sy
+  i16 xx
+  i16 yy
+  i16 xy
+  i16 cur
+  i16 dx
+  i16 dy
+  i16 err
+  bool stepY
+
+  sx = x2 - x1
+  sy = y2 - y1
+  xx = x0 - x1
+  yy = y0 - y1
+  cur = xx * sy - yy * sx
+
+  // Begin with the longer part, so the error terms start small. This swaps the
+  // endpoints, which reverses the direction the segment is walked in - harmless
+  // here, and the reason the fill variant in chunk 3 has to capture the curve's
+  // own direction before this point rather than reading it from `sy` afterwards.
+  if ( sx * sx + sy * sy > xx * xx + yy * yy ) {
+    // No temporary: x2 takes x0's old value, and x0's new value comes from x1 and
+    // sx, so nothing that is still needed is overwritten.
+    x2 = x0
+    x0 = sx + x1
+    y2 = y0
+    y0 = sy + y1
+
+    cur = -cur
+  }
+
+  if ( cur != 0 ) {
+    xx += sx
+    sx = x0 < x2 ? 1 : -1
+    xx *= sx
+
+    yy += sy
+    sy = y0 < y2 ? 1 : -1
+    yy *= sy
+
+    // Order matters: xy is the product of the UNSQUARED xx and yy.
+    xy = 2 * xx * yy
+    xx *= xx
+    yy *= yy
+
+    if ( cur * sx * sy < 0 ) {
+      xx = -xx
+      yy = -yy
+      xy = -xy
+      cur = -cur
+    }
+
+    dx = 4 * sy * cur * ( x1 - x0 ) + xx - xy
+    dy = 4 * sx * cur * ( y0 - y1 ) + yy - xy
+
+    xx += xx
+    yy += yy
+
+    err = dx + dy + xy
+
+    do {
+      plot( x0, y0 )
+
+      if ( x0 == x2 && y0 == y2 ) return
+
+      // Saved before the x step, because that step changes dx.
+      stepY = 2 * err < dx
+
+      if ( 2 * err > dy ) {
+        x0 += sx
+        dx -= xy
+        dy += yy
+        err += dy
+      }
+
+      if ( stepY ) {
+        y0 += sy
+        dy -= xy
+        dx += xx
+        err += dx
+      }
+      // The gradient has to stay negative in y and positive in x. Where it does
+      // not, the recurrence has left the region it is valid in and the remainder
+      // is finished as a straight line below - which is Zingl's own escape and
+      // not an approximation.
+    } while ( dy < 0 && dx > 0 )
+  }
+
+  // Whatever the gradient test cut short, and the straight-line case where the
+  // curvature was zero to begin with.
+  drawLine( x0, y0, x2, y2 )
+}

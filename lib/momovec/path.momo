@@ -12,7 +12,7 @@
 // The arrays this reads - opKind, px, py, pathOpStart, pathOpCount,
 // pathPointStart - are defined by the PROGRAM, not here. See types.momo.
 
-include "momovec/line.momo"
+include "momovec/quad.momo"
 
 sub strokePath( u16 pathIndex ) {
   u16 k
@@ -22,6 +22,8 @@ sub strokePath( u16 pathIndex ) {
   i16 curY
   i16 toX
   i16 toY
+  i16 ctlX
+  i16 ctlY
 
   at = pathPointStart[ pathIndex ]
 
@@ -49,16 +51,29 @@ sub strokePath( u16 pathIndex ) {
       curX = toX
       curY = toY
     } else {
-      // opQuad, and chunk 2. Its two points still have to be stepped over or
-      // every op after it reads the wrong ones - a wrong picture rather than an
-      // error, which is the reason this branch exists before the curve does.
-      //
-      // **Correct but untested**, and it was checked: setting this to 1 leaves
-      // every scene passing, because none of chunk 1's six rungs contains a
-      // quadratic and the branch never runs. Chunk 2 closes it, by bringing both
-      // the curve and `curved-blob`. Recorded in the study's PORT.md rather than
-      // left to be noticed.
+      // A quadratic: control point then end point.
+      ctlX = px[ at ]
+      ctlY = py[ at ]
+      toX = px[ at + 1 ]
+      toY = py[ at + 1 ]
       at += 2
+
+      // A control point that rounded onto an endpoint leaves no curvature, and
+      // drawQuad would have to divide by it to find that out - so the caller
+      // decides, exactly as the study's own walk does. This is not an
+      // optimisation: `cur` would be zero and the routine would fall through to
+      // its own drawLine anyway, but only after computing a page of products
+      // from it.
+      if ( ctlX == curX && ctlY == curY ) {
+        drawLine( curX, curY, toX, toY )
+      } else if ( ctlX == toX && ctlY == toY ) {
+        drawLine( curX, curY, toX, toY )
+      } else {
+        drawQuad( curX, curY, ctlX, ctlY, toX, toY )
+      }
+
+      curX = toX
+      curY = toY
     }
   }
 }
