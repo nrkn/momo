@@ -1,0 +1,243 @@
+// mopaint.momo - the layer momolo does not have: colour, borders and text.
+//
+// Port of src/paint.ts from the clay-study, and it sits outside lib/momolo/ for
+// the same reason paint.ts sits outside src/momolo/ there. **This is not the
+// engine.** It keeps a style table parallel to the element array, keyed by the
+// indices the builders hand back, and wraps those builders with ones that also
+// record a style. Nothing here computes a layout, and nothing in lib/momolo/
+// knows this file exists.
+//
+// A border lives here rather than in the engine because a border is not
+// geometry: it is a decision to draw something in space the caller already
+// reserved. What the engine gets told is an inset, which it would have needed
+// either way - see panelFramed.
+//
+// Wrapping does not live here yet. That is the reflow seam, and the engine
+// already offers the moment it would need; see PORT.md, chunk 6.
+
+include "std/screen.momo"
+include "std/str.momo"
+include "momolo/m_el.momo"
+include "momolo/m_bld.momo"
+
+// What a layout unit means. The study runs the same scenes against a pixel
+// target where these are 11 and 20 and text is proportional; here a unit is a
+// character cell, so measuring a string is its length and a line is one cell.
+const cellW      = 1
+const lineHeight = 1
+
+// Attribute meaning "draw nothing". A real attribute is 0..15, so 255 cannot
+// collide with one - which is what the -1 of the TypeScript buys, spelled for
+// a byte.
+const transparent = 255
+
+// Parallel to `el`. Every builder below writes every field, for the same reason
+// pushElement does: nothing re-zeroes a group between frames, so a style left
+// unwritten is the previous frame's.
+group st[maxElements] {
+  u8  bg
+  u8  fg
+  // addr() of a $-terminated string, or 0 for an element with no text. A .COM
+  // loads at 0x100, so no byte a Momo program can name lives at offset 0.
+  u16 text
+  u8  border
+  u8  borderColor
+}
+
+local sub stClear( u16 i ) {
+  st[i].bg = transparent
+  st[i].fg = lightGray
+  st[i].text = 0
+  st[i].border = 0
+  st[i].borderColor = lightGray
+}
+
+// begin() plus the root's style, since the root is the one element no caller
+// creates.
+sub paintBegin( u16 w, u16 h ) {
+  begin( w, h )
+  stClear( 0 )
+}
+
+// A container with nothing to draw: a spacer, or a row that only groups.
+sub boxOpen {
+  u16 i
+
+  i = openBox()
+  stClear( i )
+}
+
+sub panelOpen( u8 bg ) {
+  u16 i
+
+  i = openBox()
+  stClear( i )
+  st[i].bg = bg
+}
+
+// A frame's width is added to the inset before the engine sees it, so content is
+// never drawn over. This is the whole of the argument that a border is paint
+// rather than geometry - momolo is told a bigger inset and never hears the word.
+sub panelFramed( u8 bg, u8 borderW, u8 frameColor ) {
+  u16 i
+
+  cfg.insetL += borderW
+  cfg.insetR += borderW
+  cfg.insetT += borderW
+  cfg.insetB += borderW
+
+  i = openBox()
+  stClear( i )
+  st[i].bg = bg
+  st[i].border = borderW
+  st[i].borderColor = frameColor
+}
+
+// Both kinds of text run. The only thing that differs is what the leaf declares
+// as its minimum width, and that is the whole of the distinction:
+//
+//   a label     is at least as wide as the whole string, always
+//   a paragraph is at least as wide as its longest word
+//
+// The minimum propagates up the tree, so this decides how far any ancestor can
+// later be compressed - a layout decision wearing a typographic name.
+sub labelPaint( u16 at, u8 fg, u8 bg ) {
+  u16 i
+  u16 n
+
+  n = strLen( at )
+  i = leaf( n, lineHeight, n, lineHeight )
+
+  stClear( i )
+  st[i].text = at
+  st[i].fg = fg
+  st[i].bg = bg
+}
+
+// The minimum is the longest word, which in a Momo program is a compile-time
+// constant because the string is - so shrink gets the right answer with no
+// runtime word-breaking. Breaking it into lines to *draw* is what still needs
+// the reflow seam.
+sub paraPaint( u16 at, u16 minW, u8 fg, u8 bg ) {
+  u16 i
+  u16 n
+
+  n = strLen( at )
+  i = leaf( n, lineHeight, minW, lineHeight )
+
+  stClear( i )
+  st[i].text = at
+  st[i].fg = fg
+  st[i].bg = bg
+}
+
+// ---- the renderer ---------------------------------------------------------
+//
+// One walk over `el` in order, reading the style table at the same index. That
+// order is already paint order, because elements are pushed as they open and an
+// immediate-mode builder opens them in pre-order - so there is no command list
+// to build or consume. Later elements draw over earlier ones, which is the whole
+// of the model.
+
+// The text buffer, a word per cell: character in the low byte, attribute in the
+// high byte. Writing it directly rather than through int 10h per cell is the
+// difference between a screenful being instant and being visibly slow.
+far u16[screenCols * screenRows] vram = 0xB800
+
+// Bit 7 of the attribute means blink on default hardware, which would make every
+// darkGray panel flash. int 10h AX=1003h with BL=0 trades blinking for bright
+// backgrounds, so all sixteen colours are usable behind text.
+sub useBrightBackgrounds {
+  _ax = 0x1003
+  _bx = 0x0000
+  int 0x10
+}
+
+// Clipped at the screen edge on both axes, which is not politeness: momolo
+// reports overflow rather than preventing it, so a scene is free to hand this a
+// box that runs off the side.
+local sub fillRect( u16 x, u16 y, u16 w, u16 h, u8 ch, u8 attr ) {
+  u16 r
+  u16 c
+  u16 base
+  u16 cell
+
+  cell = ch | ( attr << 8 )
+
+  for ( r = 0; r < h; r++ ) {
+    if ( y + r >= screenRows ) break
+
+    base = ( y + r ) * screenCols + x
+
+    for ( c = 0; c < w; c++ ) {
+      if ( x + c >= screenCols ) break
+      vram[ base + c ] = cell
+    }
+  }
+}
+
+// A ring `b` cells thick, drawn in one colour. The engine already reserved the
+// space; this only decides what goes in it.
+local sub drawFrame( u16 x, u16 y, u16 w, u16 h, u8 b, u8 attr ) {
+  u16 side
+
+  fillRect( x, y, w, b, ' ', attr )
+  fillRect( x, y + h - b, w, b, ' ', attr )
+
+  // The left and right bars stop short of the corners the two rows above
+  // already covered. Guarded because a box shorter than its own frame would
+  // wrap the subtraction.
+  if ( h > b + b ) {
+    side = h - b - b
+    fillRect( x, y + b, b, side, ' ', attr )
+    fillRect( x + w - b, y + b, b, side, ' ', attr )
+  }
+}
+
+local sub drawText( u16 at, u16 x, u16 y, u8 attr ) {
+  u16 i
+  u8  ch
+
+  i = 0
+
+  for ( ;; ) {
+    ch = peek8( at + i )
+    if ( ch == strEnd ) break
+    if ( x + i >= screenCols ) break
+    if ( y >= screenRows ) break
+
+    vram[ y * screenCols + x + i ] = ch | ( attr << 8 )
+    i++
+  }
+}
+
+sub paintAll {
+  u16 i
+  u8  bg
+  u8  fg
+
+  for ( i = 0; i < elCount; i++ ) {
+    bg = st[i].bg
+
+    if ( bg != transparent ) {
+      fillRect( el[i].x, el[i].y, el[i].w, el[i].h, ' ', color( bg, bg ) )
+    }
+
+    if ( st[i].border > 0 ) {
+      fg = st[i].borderColor
+      drawFrame( el[i].x, el[i].y, el[i].w, el[i].h, st[i].border, color( fg, fg ) )
+    }
+
+    if ( st[i].text != 0 ) {
+      // Text starts inside the element's own inset, which for a run of text is
+      // normally zero - but it costs nothing to be right about.
+      fg = bg == transparent ? black : bg
+      drawText(
+        st[i].text,
+        el[i].x + el[i].insetL,
+        el[i].y + el[i].insetT,
+        color( st[i].fg, fg )
+      )
+    }
+  }
+}
