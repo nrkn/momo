@@ -1,0 +1,126 @@
+// The nonzero walk: sorted crossings in, spans out.
+//
+// **The accumulator is unsigned, and that is the whole argument for nonzero on
+// this machine.** Nonzero asks only whether the winding is zero, never what it is,
+// and two's complement gives that for free: a true winding of -1 is 65535, which
+// is not zero and therefore inside, and incrementing wraps it back to 0. So this
+// declares `u16 winding` and DESIGN 4's rule that u16 does not mix with signed
+// types never comes up.
+//
+// Even-odd would have been cheaper by one bit per crossing and would render the
+// acceptance test wrong: the tiger carries no fill-rule attribute on any of its
+// 138 paths, so every one of them is nonzero, and a stroke outline self-overlaps
+// at every concave join. `hole-same` and `pentagram` are the two rungs that tell
+// the rules apart, and both are in the ladder for that reason alone.
+//
+// **Crossings at the same x are applied before the inside test**, which is the
+// merge. Two segments meeting at a vertex both report a crossing there, and
+// testing between them would flip the winding twice where the geometry flips it
+// once - invisible on a convex outline and obvious on a star. The study sums the
+// directions into a delta and adds that; this applies each one directly, which is
+// the same total and avoids adding a signed delta to an unsigned accumulator.
+//
+// Spans go to `emitSpan`, which the PROGRAM defines - so the harness prints them
+// and a demo fills them, from one walk. Same arrangement as `plot`.
+
+include "momovec/edges.momo"
+
+// `tidy` clips each span to the canvas and merges the ones that touch.
+//
+// Neither changes a pixel and the study asserts that on every scene, so both forms
+// are legitimate output - which is why this is a flag rather than a decision. The
+// study offers `spans` and `merged` as separate stages for the same reason.
+//
+// Clipping is worth more than it looks: it saves almost no pixel writes, but a
+// pre-clipped span lets whatever draws it drop its bounds test entirely, on every
+// pixel. The win is in the caller's code, not in this data.
+//
+// Merging is worth less than it looks - about 8% of spans overall, 40% on the
+// self-intersecting scenes and 4% on the tiger, whose paths mostly have one
+// interval per scanline.
+sub walkSpans( bool tidy ) {
+  u16 i
+  u16 runEnd
+  u16 k
+  u16 y
+  u16 winding
+  i16 x
+  i16 nextX
+  i16 lo
+  i16 hi
+  bool pending
+  u16 pendY
+  i16 pendLo
+  i16 pendHi
+
+  i = 0
+  pending = false
+  pendY = 0
+  pendLo = 0
+  pendHi = 0
+
+  while ( i < crossingCount ) {
+    y = cy[i]
+    winding = 0
+
+    // One scanline's run. The sort put them together; this finds where it ends.
+    runEnd = i
+
+    while ( runEnd < crossingCount && cy[runEnd] == y ) {
+      runEnd += 1
+    }
+
+    k = i
+
+    while ( k < runEnd ) {
+      x = cx[k]
+
+      // Every crossing at this x, before anything is decided about it.
+      while ( k < runEnd && cx[k] == x ) {
+        if ( cdir[k] > 0 ) {
+          winding += 1
+        } else {
+          winding -= 1
+        }
+
+        k += 1
+      }
+
+      if ( winding != 0 && k < runEnd ) {
+        nextX = cx[k]
+
+        if ( tidy ) {
+          lo = x < 0 ? 0 : x
+          hi = nextX > xMax ? xMax : nextX
+
+          if ( lo <= hi ) {
+            if ( pending && pendY == y && lo <= pendHi + 1 ) {
+              if ( hi > pendHi ) pendHi = hi
+            } else {
+              if ( pending ) emitSpan( pendY, pendLo, pendHi )
+
+              pending = true
+              pendY = y
+              pendLo = lo
+              pendHi = hi
+            }
+          }
+        } else {
+          emitSpan( y, x, nextX )
+        }
+      }
+    }
+
+    i = runEnd
+  }
+
+  // The last merged span, which no later one displaced.
+  if ( tidy && pending ) emitSpan( pendY, pendLo, pendHi )
+}
+
+// One path's interior: crossings, sorted, walked.
+sub fillPath( u16 pathIndex, bool tidy ) {
+  pathEdges( pathIndex )
+  sortCrossings()
+  walkSpans( tidy )
+}

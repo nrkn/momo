@@ -26,12 +26,15 @@
 //   pixels   x y          every scene, outlines, subpaths NOT closed
 //   edges    y x dir      every scene, crossings as emitted, subpaths closed
 //   sorted   y x dir      the same crossings, after the sort
+//   spans    y x0 x1      the nonzero walk, raw
+//   fill     x y          every pixel the tidied spans cover
 
 include "std/io.momo"
 include "std/math.momo"
 include "momovec/types.momo"
 include "momovec/edges.momo"
 include "momovec/path.momo"
+include "momovec/fill.momo"
 include "m_scene.momo"
 
 // The plot target. The library calls this by name and never sees what it does -
@@ -100,6 +103,59 @@ for ( s = 0; s < len( sceneFirstPath ); s++ ) {
       putNumber( u16( cdir[ i ] ) )
       newline()
     }
+  }
+}
+
+// ---- the spans and fill stages ----
+//
+// `emitSpan` is the library's one hook for a span, and what it does with one is
+// this program's business - the same arrangement as `plot`. A demo would fill;
+// this prints, or fills, according to the mode.
+//
+// A mode global rather than two hooks, because the library must not know there are
+// two stages.
+
+const modeSpans = 0
+const modeFill = 1
+
+u8 spanMode
+
+sub emitSpan( u16 y, i16 x0, i16 x1 ) {
+  i16 x
+
+  if ( spanMode == modeSpans ) {
+    putNumber( y )
+    space()
+    putNumber( u16( x0 ) )
+    space()
+    putNumber( u16( x1 ) )
+    newline()
+
+    return
+  }
+
+  for ( x = x0; x <= x1; x++ ) {
+    plot( x, i16( y ) )
+  }
+}
+
+// Raw spans, straight from the walk.
+spanMode = modeSpans
+
+for ( s = 0; s < len( sceneFirstPath ); s++ ) {
+  for ( p = 0; p < scenePathCount[ s ]; p++ ) {
+    fillPath( sceneFirstPath[ s ] + p, false )
+  }
+}
+
+// Every pixel the tidied spans cover. Tidied rather than raw, so the pixel set has
+// no duplicates whichever form a caller walked - the study asserts the two agree on
+// every pixel, which is what makes either contract usable.
+spanMode = modeFill
+
+for ( s = 0; s < len( sceneFirstPath ); s++ ) {
+  for ( p = 0; p < scenePathCount[ s ]; p++ ) {
+    fillPath( sceneFirstPath[ s ] + p, true )
   }
 }
 
