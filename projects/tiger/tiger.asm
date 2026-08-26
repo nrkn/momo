@@ -4,13 +4,13 @@
         org     100h
 
 ; ---- constants: no storage, folded at assembly time ----
+maxCrossings:   equ     1024
 ioBase:         equ     10
 ioZeroChar:     equ     48
 screenW:        equ     320
 screenH:        equ     200
 xMax:           equ     319
 yMax:           equ     199
-maxCrossings:   equ     1024
 opMove:         equ     0
 opLine:         equ     1
 maxPaths:       equ     138

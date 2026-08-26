@@ -3,7 +3,7 @@
 //   npm start tigerpic
 //
 // The point of the whole port, and the first thing here worth looking at rather
-// than reading. 138 paths, 3,709 quadratic segments and 388 lines, filled by the
+// than reading. 138 paths, 3,693 quadratic segments and 388 lines, filled by the
 // nonzero rule and stroked with hairlines, into a mode 13h frame.
 //
 // A demo rather than a test: it draws, waits for a key and puts the display back,
@@ -22,6 +22,13 @@
 // whether a pixel becomes a number or a byte in video memory, and the rasteriser
 // never learns which - DESIGN 21's routine parameters would be one way to arrange
 // that, and late binding by name is the way that needed no language feature at all.
+
+// The crossing budget, sized by the study against this dataset. Must precede the
+// momovec includes: an array dimension is needed where the array is declared, so
+// unlike `plot` and `emitSpan` this cannot bind late.
+//
+// 1,024 against a measured worst single path of 692, on the tiger.
+const maxCrossings = 1024
 
 include "std/io.momo"
 include "std/key.momo"

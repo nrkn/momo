@@ -9,13 +9,21 @@
 // capacity small: the study measured the worst single path in the tiger at 692
 // crossings, against 9,422 for the whole drawing.
 //
-// 1,024 entries at four bytes is 4 KB, against 37.5 KB of path data - so the
-// crossing list is not the sizing problem, which was worth knowing before designing
-// around it.
+// **`maxCrossings` is the PROGRAM's, and must be declared before this file is
+// included.** It was a `const 1024` here until thick strokes arrived, and 1,024 was
+// measured against the tiger, whose paths are single outlines. A stroke ribbon path
+// is dozens of overlapping subpaths and needs 1,234 for one 21-pixel arc - so a
+// library-wide constant is either too small for one caller or wasted on another, at
+// eight bytes a slot across six arrays.
+//
+// Unlike `plot` and `emitSpan`, this cannot bind late: an array dimension has to be
+// known where the array is declared, so a `const` after the include is
+// "maxCrossings" is not declared. Hence the ordering requirement, which the
+// compiler enforces by name rather than leaving to a comment.
 
 include "momovec/types.momo"
 
-const maxCrossings = 1024
+// maxCrossings is declared by the PROGRAM - see the header.
 
 // y fits a byte because it is a scanline index, 0..199. x does not: a crossing off
 // the side of the canvas is KEPT, because a span between two off-screen crossings

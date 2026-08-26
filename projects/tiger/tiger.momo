@@ -25,6 +25,13 @@
 // here, and tigerpic includes it across with `../`. Same arrangement as
 // projects/mlodemo reaching into projects/momolo.
 
+// The crossing budget, sized by the study against this dataset. Must precede the
+// momovec includes: an array dimension is needed where the array is declared, so
+// unlike `plot` and `emitSpan` this cannot bind late.
+//
+// 1,024 against a measured worst single path of 692, on the tiger.
+const maxCrossings = 1024
+
 include "std/io.momo"
 include "std/math.momo"
 include "momovec/types.momo"

@@ -30,6 +30,13 @@
 //   fill     x y          every pixel the tidied spans cover
 //   both     interleaved  one walk per path: its pixels, then its spans
 
+// The crossing budget, sized by the study against this dataset. Must precede the
+// momovec includes: an array dimension is needed where the array is declared, so
+// unlike `plot` and `emitSpan` this cannot bind late.
+//
+// 1,024 against a measured worst single path of 232 over the eight ladder rungs.
+const maxCrossings = 1024
+
 include "std/io.momo"
 include "std/math.momo"
 include "momovec/types.momo"

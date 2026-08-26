@@ -1,0 +1,138 @@
+// thick.momo - thick strokes, and the point is what is NOT here.
+//
+//   npm start thick
+//
+// Five strokes between 1 and 21 pixels wide, drawn on an 8086. **There is no
+// stroking code in this file, and none in `lib/momovec` either.** Search it for a
+// normal, a square root, a join or a cap and there is nothing to find.
+//
+// A thick stroke is a filled shape: one four-sided ribbon per segment, two bevel
+// triangles per joint, every piece wound the same way, all of them subpaths of one
+// path. The nonzero rule unions them - which is the second thing that rule has paid
+// for, after being free on this machine. It was chosen in chunk 1 because the tiger
+// carries no fill-rule attribute and because an unsigned accumulator tested against
+// zero costs nothing; it turns out also to make a thick stroke a union of convex
+// pieces, needing no outline walk and no self-intersection handling. Even-odd would
+// have cancelled every overlap into a hole.
+//
+// So the whole feature is a generator in the study, and this program is the same
+// `fillPath` loop `projects/tiger` runs.
+//
+// The geometry was verified in the study before this existed, against a brute-force
+// distance field that shares no code with the ribbons or the rasteriser: every
+// pixel of the true stroke body is covered, at every width, on a path that crosses
+// itself and one that doubles back within two pixels. What is checked here is that
+// the 8086 agrees, to the pixel.
+
+// The crossing budget. Declared HERE rather than in the library, because it is a
+// function of the data and the data belongs to the program - and because an array
+// dimension has to be known where the array is declared, so unlike `plot` and
+// `emitSpan` this one cannot bind late. It has to precede the includes.
+//
+// 1,536 because the study measured this dataset at a peak of 1,234, on the widest
+// stroke. A ribbon path is dozens of overlapping subpaths where a tiger path is one
+// outline, so it needs far more than the tiger's worst of 692.
+const maxCrossings = 1536
+
+include "std/io.momo"
+include "std/math.momo"
+include "momovec/types.momo"
+include "momovec/edges.momo"
+include "momovec/path.momo"
+include "momovec/fill.momo"
+
+// Included before the arrays, because it declares the bounds they are sized by.
+include "k_data.momo"
+
+u16[screenH] rowPixels
+u16[screenH] rowSumX
+u16[maxPaths] pathPixels
+u16 orderHash
+
+// Which stroke is being drawn, so its pixels can be counted against it. A global
+// because `plot` is called by the library, which knows nothing about paths.
+u16 currentPath
+
+// Spans arrive already clipped, so no bounds test here - the same arrangement as
+// the tiger, and the reason clipping happens at the span rather than the pixel.
+sub emitSpan( u16 y, i16 x0, i16 x1 ) {
+  i16 x
+
+  for ( x = x0; x <= x1; x++ ) {
+    plot( x, i16( y ) )
+  }
+}
+
+sub plot( i16 x, i16 y ) {
+  u16 ux
+  u16 uy
+
+  if ( x < 0 ) return
+  if ( y < 0 ) return
+  if ( x > xMax ) return
+  if ( y > yMax ) return
+
+  ux = u16( x )
+  uy = u16( y )
+
+  rowPixels[ uy ] += 1
+  rowSumX[ uy ] += ux
+  pathPixels[ currentPath ] += 1
+
+  orderHash = orderHash * 31 + ux + uy
+}
+
+u16 i
+u16 p
+
+for ( i = 0; i < screenH; i++ ) {
+  rowPixels[i] = 0
+  rowSumX[i] = 0
+}
+
+for ( p = 0; p < maxPaths; p++ ) {
+  pathPixels[p] = 0
+}
+
+orderHash = 0
+
+// One stroke per path, filled. No stroke pass at all - a ribbon path has nothing
+// to outline.
+for ( p = 0; p < maxPaths; p++ ) {
+  currentPath = p
+
+  fillPath( p, true )
+}
+
+// ---- the digest ----
+
+for ( i = 0; i < screenH; i++ ) {
+  putNumber( i )
+  space()
+  putNumber( rowPixels[i] )
+  space()
+  putNumber( rowSumX[i] )
+  newline()
+}
+
+for ( p = 0; p < maxPaths; p++ ) {
+  putNumber( p )
+  space()
+  putNumber( pathFill[p] )
+  space()
+  putNumber( pathPixels[p] )
+  newline()
+}
+
+putNumber( orderHash )
+newline()
+
+// A capacity problem must not look like a geometry bug. The widest stroke here is
+// 21 pixels over 154 ops, well inside the 1,024 slot list, so this should never
+// fire - and if it does it says so rather than quietly drawing a wrong shape.
+if ( crossingsOverflowed ) {
+  putStr( addr( overflowed ) )
+  newline()
+}
+
+const u8[] overflowed = "CROSSING LIST OVERFLOWED$"
