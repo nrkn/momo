@@ -125,11 +125,3 @@ sub pathEdgesSorted( u16 pathIndex ) {
   sortCrossings()
 }
 
-// Every path of one scene, in order.
-sub strokeScene( u16 sceneIndex ) {
-  u16 p
-
-  for ( p = 0; p < scenePathCount[ sceneIndex ]; p++ ) {
-    strokePath( sceneFirstPath[ sceneIndex ] + p )
-  }
-}

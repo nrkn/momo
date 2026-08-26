@@ -1746,37 +1746,6 @@ pathEdgesSorted:
         call    sortCrossings
         ret
 
-; ============================================== sub strokeScene ====
-
-strokeScene:
-; ---- for ( p = 0; p < scenePathCount[ sceneIndex ]; p++ ) {
-        mov     word [strokeScene__p], 0
-.L237:
-        mov     ax, [strokeScene__p]
-        push    ax                          ; save lhs: rhs is not a leaf
-        mov     ax, [strokeScene__sceneIndex]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        mov     ax, [scenePathCount + bx]
-        mov     bx, ax
-        pop     ax
-        cmp     ax, bx
-        jae     .L239                       ; unsigned <
-; ---- strokePath( sceneFirstPath[ sceneIndex ] + p )
-        mov     ax, [strokeScene__sceneIndex]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        mov     ax, [sceneFirstPath + bx]
-        mov     bx, [strokeScene__p]
-        add     ax, bx
-        mov     [strokePath__pathIndex], ax
-        call    strokePath
-.L238:
-        inc     word [strokeScene__p]
-        jmp     .L237
-.L239:
-        ret
-
 ; ============================================== sub walkSpans ====
 
 walkSpans:
@@ -1791,13 +1760,13 @@ walkSpans:
 ; ---- pendHi = 0
         mov     word [walkSpans__pendHi], 0
 ; ---- while ( i < crossingCount ) {
-.L241:
+.L237:
         mov     ax, [walkSpans__i]
         mov     bx, [crossingCount]
         cmp     ax, bx
-        jb      .L244                       ; unsigned <
-        jmp     .L243
-.L244:
+        jb      .L240                       ; unsigned <
+        jmp     .L239
+.L240:
 ; ---- y = cy[i]
         mov     ax, [walkSpans__i]
         mov     bx, ax
@@ -1810,36 +1779,36 @@ walkSpans:
         mov     ax, [walkSpans__i]
         mov     [walkSpans__runEnd], ax
 ; ---- while ( runEnd < crossingCount && cy[runEnd] == y ) {
-.L245:
+.L241:
         mov     ax, [walkSpans__runEnd]
         mov     bx, [crossingCount]
         cmp     ax, bx
-        jae     .L247                       ; unsigned <
+        jae     .L243                       ; unsigned <
         mov     ax, [walkSpans__runEnd]
         mov     bx, ax
         mov     al, [cy + bx]
         xor     ah, ah                      ; u8 -> u16
         mov     bx, [walkSpans__y]
         cmp     ax, bx
-        jne     .L247                       ; unsigned ==
+        jne     .L243                       ; unsigned ==
 ; ---- runEnd += 1
         mov     ax, [walkSpans__runEnd]
         inc     ax
         mov     [walkSpans__runEnd], ax
-.L246:
-        jmp     .L245
-.L247:
+.L242:
+        jmp     .L241
+.L243:
 ; ---- k = i
         mov     ax, [walkSpans__i]
         mov     [walkSpans__k], ax
 ; ---- while ( k < runEnd ) {
-.L250:
+.L246:
         mov     ax, [walkSpans__k]
         mov     bx, [walkSpans__runEnd]
         cmp     ax, bx
-        jb      .L253                       ; unsigned <
-        jmp     .L252
-.L253:
+        jb      .L249                       ; unsigned <
+        jmp     .L248
+.L249:
 ; ---- x = cx[k]
         mov     ax, [walkSpans__k]
         shl     ax, 1                       ; word elements
@@ -1847,54 +1816,54 @@ walkSpans:
         mov     ax, [cx_ + bx]
         mov     [walkSpans__x], ax
 ; ---- while ( k < runEnd && cx[k] == x ) {
-.L254:
+.L250:
         mov     ax, [walkSpans__k]
         mov     bx, [walkSpans__runEnd]
         cmp     ax, bx
-        jae     .L256                       ; unsigned <
+        jae     .L252                       ; unsigned <
         mov     ax, [walkSpans__k]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [cx_ + bx]
         mov     bx, [walkSpans__x]
         cmp     ax, bx
-        jne     .L256                       ; signed ==
+        jne     .L252                       ; signed ==
 ; ---- if ( cdir[k] > 0 ) {
         mov     ax, [walkSpans__k]
         mov     bx, ax
         mov     al, [cdir + bx]
         test    al, al
-        jle     .L259                       ; signed >
+        jle     .L255                       ; signed >
 ; ---- winding += 1
         mov     ax, [walkSpans__winding]
         inc     ax
         mov     [walkSpans__winding], ax
-        jmp     .L260
-.L259:
+        jmp     .L256
+.L255:
 ; ---- winding -= 1
         mov     ax, [walkSpans__winding]
         dec     ax
         mov     [walkSpans__winding], ax
-.L260:
+.L256:
 ; ---- k += 1
         mov     ax, [walkSpans__k]
         inc     ax
         mov     [walkSpans__k], ax
-.L255:
-        jmp     .L254
-.L256:
+.L251:
+        jmp     .L250
+.L252:
 ; ---- if ( winding != 0 && k < runEnd ) {
         mov     ax, [walkSpans__winding]
         test    ax, ax
-        jne     .L264                       ; unsigned !=
-        jmp     .L262
-.L264:
+        jne     .L260                       ; unsigned !=
+        jmp     .L258
+.L260:
         mov     ax, [walkSpans__k]
         mov     bx, [walkSpans__runEnd]
         cmp     ax, bx
-        jb      .L265                       ; unsigned <
-        jmp     .L262
-.L265:
+        jb      .L261                       ; unsigned <
+        jmp     .L258
+.L261:
 ; ---- nextX = cx[k]
         mov     ax, [walkSpans__k]
         shl     ax, 1                       ; word elements
@@ -1904,44 +1873,44 @@ walkSpans:
 ; ---- if ( tidy ) {
         mov     al, [walkSpans__tidy]
         test    al, al
-        jnz     .L268
-        jmp     .L266
-.L268:
+        jnz     .L264
+        jmp     .L262
+.L264:
 ; ---- lo = x < 0 ? 0 : x
         mov     ax, [walkSpans__x]
         test    ax, ax
-        jge     .L269                       ; signed <
+        jge     .L265                       ; signed <
         xor     ax, ax                      ; 0
-        jmp     .L270
-.L269:
+        jmp     .L266
+.L265:
         mov     ax, [walkSpans__x]
-.L270:
+.L266:
         mov     [walkSpans__lo], ax
 ; ---- hi = nextX > xMax ? xMax : nextX
         mov     ax, [walkSpans__nextX]
         cmp     ax, 319
-        jle     .L272                       ; signed >
+        jle     .L268                       ; signed >
         mov     ax, 319
-        jmp     .L273
-.L272:
+        jmp     .L269
+.L268:
         mov     ax, [walkSpans__nextX]
-.L273:
+.L269:
         mov     [walkSpans__hi], ax
 ; ---- if ( lo <= hi ) {
         mov     ax, [walkSpans__lo]
         mov     bx, [walkSpans__hi]
         cmp     ax, bx
-        jle     .L277                       ; signed <=
-        jmp     .L275
-.L277:
+        jle     .L273                       ; signed <=
+        jmp     .L271
+.L273:
 ; ---- if ( pending && pendY == y && lo <= pendHi + 1 ) {
         mov     al, [walkSpans__pending]
         test    al, al
-        jz      .L278
+        jz      .L274
         mov     ax, [walkSpans__pendY]
         mov     bx, [walkSpans__y]
         cmp     ax, bx
-        jne     .L278                       ; unsigned ==
+        jne     .L274                       ; unsigned ==
         mov     ax, [walkSpans__lo]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [walkSpans__pendHi]
@@ -1949,21 +1918,21 @@ walkSpans:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jg      .L278                       ; signed <=
+        jg      .L274                       ; signed <=
 ; ---- if ( hi > pendHi ) pendHi = hi
         mov     ax, [walkSpans__hi]
         mov     bx, [walkSpans__pendHi]
         cmp     ax, bx
-        jle     .L283                       ; signed >
+        jle     .L279                       ; signed >
         mov     ax, [walkSpans__hi]
         mov     [walkSpans__pendHi], ax
-.L283:
-        jmp     .L279
-.L278:
+.L279:
+        jmp     .L275
+.L274:
 ; ---- if ( pending ) emitSpan( pendY, pendLo, pendHi )
         mov     al, [walkSpans__pending]
         test    al, al
-        jz      .L286
+        jz      .L282
         mov     ax, [walkSpans__pendY]
         mov     [emitSpan__y], ax
         mov     ax, [walkSpans__pendLo]
@@ -1971,7 +1940,7 @@ walkSpans:
         mov     ax, [walkSpans__pendHi]
         mov     [emitSpan__x1], ax
         call    emitSpan
-.L286:
+.L282:
 ; ---- pending = true
         mov     byte [walkSpans__pending], 1
 ; ---- pendY = y
@@ -1983,10 +1952,10 @@ walkSpans:
 ; ---- pendHi = hi
         mov     ax, [walkSpans__hi]
         mov     [walkSpans__pendHi], ax
-.L279:
 .L275:
-        jmp     .L267
-.L266:
+.L271:
+        jmp     .L263
+.L262:
 ; ---- emitSpan( y, x, nextX )
         mov     ax, [walkSpans__y]
         mov     [emitSpan__y], ax
@@ -1995,24 +1964,24 @@ walkSpans:
         mov     ax, [walkSpans__nextX]
         mov     [emitSpan__x1], ax
         call    emitSpan
-.L267:
-.L262:
-.L251:
-        jmp     .L250
-.L252:
+.L263:
+.L258:
+.L247:
+        jmp     .L246
+.L248:
 ; ---- i = runEnd
         mov     ax, [walkSpans__runEnd]
         mov     [walkSpans__i], ax
-.L242:
-        jmp     .L241
-.L243:
+.L238:
+        jmp     .L237
+.L239:
 ; ---- if ( tidy && pending ) emitSpan( pendY, pendLo, pendHi )
         mov     al, [walkSpans__tidy]
         test    al, al
-        jz      .L289
+        jz      .L285
         mov     al, [walkSpans__pending]
         test    al, al
-        jz      .L289
+        jz      .L285
         mov     ax, [walkSpans__pendY]
         mov     [emitSpan__y], ax
         mov     ax, [walkSpans__pendLo]
@@ -2020,7 +1989,7 @@ walkSpans:
         mov     ax, [walkSpans__pendHi]
         mov     [emitSpan__x1], ax
         call    emitSpan
-.L289:
+.L285:
         ret
 
 ; ============================================== sub fillPath ====
@@ -2056,6 +2025,37 @@ strokeAndFillPath:
         mov     al, [strokeAndFillPath__tidy]
         mov     [walkSpans__tidy], al       ; bool -> bool, no widening
         call    walkSpans
+        ret
+
+; ============================================== sub strokeScene ====
+
+strokeScene:
+; ---- for ( q = 0; q < scenePathCount[ sceneIndex ]; q++ ) {
+        mov     word [strokeScene__q], 0
+.L289:
+        mov     ax, [strokeScene__q]
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [strokeScene__sceneIndex]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [scenePathCount + bx]
+        mov     bx, ax
+        pop     ax
+        cmp     ax, bx
+        jae     .L291                       ; unsigned <
+; ---- strokePath( sceneFirstPath[ sceneIndex ] + q )
+        mov     ax, [strokeScene__sceneIndex]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [sceneFirstPath + bx]
+        mov     bx, [strokeScene__q]
+        add     ax, bx
+        mov     [strokePath__pathIndex], ax
+        call    strokePath
+.L290:
+        inc     word [strokeScene__q]
+        jmp     .L289
+.L291:
         ret
 
 ; ============================================== sub plot ====
@@ -2192,12 +2192,12 @@ walkPath__closeSubpaths: db      0        ; bool
 strokePath__pathIndex: dw      0        ; u16
 pathEdges__pathIndex: dw      0        ; u16
 pathEdgesSorted__pathIndex: dw      0        ; u16
-strokeScene__sceneIndex: dw      0        ; u16
 walkSpans__tidy: db      0        ; bool
 fillPath__pathIndex: dw      0        ; u16
 fillPath__tidy: db      0        ; bool
 strokeAndFillPath__pathIndex: dw      0        ; u16
 strokeAndFillPath__tidy: db      0        ; bool
+strokeScene__sceneIndex: dw      0        ; u16
 plot__x:        dw      0        ; i16
 plot__y:        dw      0        ; i16
 s:              dw      0        ; u16
@@ -2251,7 +2251,6 @@ walkPath__ctlY: dw      0        ; i16
 walkPath__startX: dw      0        ; i16
 walkPath__startY: dw      0        ; i16
 walkPath__inSubpath: db      0        ; bool
-strokeScene__p: dw      0        ; u16
 walkSpans__i:   dw      0        ; u16
 walkSpans__runEnd: dw      0        ; u16
 walkSpans__k:   dw      0        ; u16
@@ -2265,6 +2264,7 @@ walkSpans__pending: db      0        ; bool
 walkSpans__pendY: dw      0        ; u16
 walkSpans__pendLo: dw      0        ; i16
 walkSpans__pendHi: dw      0        ; i16
+strokeScene__q: dw      0        ; u16
 emitSpan__x:    dw      0        ; i16
 
 ; ---- arrays ----

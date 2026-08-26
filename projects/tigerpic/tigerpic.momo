@@ -1,0 +1,124 @@
+// tigerpic.momo - the Ghostscript tiger, drawn.
+//
+//   npm start tigerpic
+//
+// The point of the whole port, and the first thing here worth looking at rather
+// than reading. 138 paths, 3,709 quadratic segments and 388 lines, filled by the
+// nonzero rule and stroked with hairlines, into a mode 13h frame.
+//
+// A demo rather than a test: it draws, waits for a key and puts the display back,
+// so it cannot have a `.expected` - tier 2 has no way to press one. The geometry is
+// not taken on trust for that reason. `projects/tiger` digests the same data
+// through the same rasteriser and holds 339 numbers against the study - every
+// scanline's pixel count and x-sum, every path's colour and pixel count, and a hash
+// over every pixel in draw order. So this picture is made of numbers that have been
+// checked, and only the drawing is new here.
+//
+// The data is shared rather than copied: `../tiger/t_data.momo` is the one
+// generated dataset, reached across the way `projects/mlodemo` reaches into
+// `projects/momolo`. Two programs, one file, and no copy to drift.
+//
+// **The only difference from the digest is `plot`.** That one routine decides
+// whether a pixel becomes a number or a byte in video memory, and the rasteriser
+// never learns which - DESIGN 21's routine parameters would be one way to arrange
+// that, and late binding by name is the way that needed no language feature at all.
+
+include "std/io.momo"
+include "std/key.momo"
+include "std/math.momo"
+include "momovec/types.momo"
+include "momovec/edges.momo"
+include "momovec/path.momo"
+include "momovec/fill.momo"
+
+include "../tiger/t_data.momo"
+
+// Mode 13h video memory: 320x200, one byte per pixel, at A000:0000. A `far` region,
+// so ES is loaded per access and the tiny model stays intact everywhere else.
+far u8[64000] pixels = 0xA000
+
+local u8 savedMode
+
+sub saveMode {
+  _ah = 0x0F
+  int 0x10
+  savedMode = _al & 0x7F
+}
+
+sub restoreMode {
+  _ah = 0x00
+  _al = savedMode
+  int 0x10
+}
+
+sub mode13 {
+  _ax = 0x0013
+  int 0x10
+}
+
+// The DAC, one entry at a time. The values are already six bits, divided by four by
+// the generator - 117 shifts done on a machine that has a shift instruction to
+// spare rather than on one that does not.
+sub loadPalette {
+  u16 i
+
+  for ( i = 0; i < paletteSize; i++ ) {
+    _ax = 0x1010
+    _bx = i
+    _dh = palR[i]
+    _ch = palG[i]
+    _cl = palB[i]
+    int 0x10
+  }
+}
+
+// The colour the current path is painting in. A global because `plot` is called by
+// the library, which has no opinion about colour.
+u8 ink
+
+sub plot( i16 x, i16 y ) {
+  if ( x < 0 ) return
+  if ( y < 0 ) return
+  if ( x > xMax ) return
+  if ( y > yMax ) return
+
+  pixels[ u16( y ) * screenW + u16( x ) ] = ink
+}
+
+// Spans arrive already clipped, so this needs no bounds test of its own - which is
+// the whole value of clipping at the span rather than the pixel.
+sub emitSpan( u16 y, i16 x0, i16 x1 ) {
+  i16 x
+
+  for ( x = x0; x <= x1; x++ ) {
+    pixels[ y * screenW + u16( x ) ] = ink
+  }
+}
+
+u16 p
+u16 held
+
+saveMode()
+mode13()
+loadPalette()
+
+// Paths in order, each filled then stroked. Array order IS declaration order for an
+// immediate-mode builder, so this is paint order - no command list, nothing to sort.
+for ( p = 0; p < maxPaths; p++ ) {
+  if ( pathHasFill[p] != 0 ) {
+    ink = pathFill[p]
+    fillPath( p, true )
+  }
+
+  if ( pathHasStroke[p] != 0 ) {
+    ink = pathStroke[p]
+    strokePath( p )
+  }
+}
+
+// std/key has readKey, which blocks and returns what was pressed. Nothing here
+// wants the value, and discarding it is what a `sub` cannot do - so it goes into a
+// variable that exists to be ignored.
+held = readKey()
+
+restoreMode()

@@ -38,6 +38,22 @@ include "momovec/path.momo"
 include "momovec/fill.momo"
 include "m_scene.momo"
 
+// Every path of one scene, in order.
+//
+// A scene is this harness's idea, not the rasteriser's. It lived in
+// lib/momovec/path.momo until projects/tiger needed the library without one and
+// could not compile - the resolver wants every name to exist whether or not the
+// code is reachable, so a library referring to `scenePathCount` is a library that
+// only works for programs which happen to have scenes. The rasteriser knows about
+// paths; what groups them is the caller's business.
+sub strokeScene( u16 sceneIndex ) {
+  u16 q
+
+  for ( q = 0; q < scenePathCount[ sceneIndex ]; q++ ) {
+    strokePath( sceneFirstPath[ sceneIndex ] + q )
+  }
+}
+
 // The plot target. The library calls this by name and never sees what it does -
 // the demo defines one that writes VRAM instead, from the same rasteriser.
 //

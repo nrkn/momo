@@ -21,6 +21,7 @@ src/momo/       the compiler
 src/tools/      CLI entry points, over cli.ts (paths, fail) and toolchain.ts
 lib/std/        standard library, written in Momo
 lib/momolo/     a layout engine, written in Momo
+lib/momovec/    a vector rasteriser, written in Momo
 projects/       programs, as <name>/<name>.momo
 tests/compile/  tier 1 tests
 editor/vscode/  generated syntax highlighting
@@ -268,6 +269,19 @@ six files, mode 13h, sprites, a palette, and a keyboard reader that masks IRQ1 a
 talks to the 8042 directly. Most of `PITFALLS.md` was found in it, and found on
 86Box rather than under DOSBox. It blocks on input, so it is golden-tier only too.
 
+`lib/momovec/` is a vector rasteriser ported from a TypeScript study, and it also
+arrived with two projects. `projects/tiger` digests the Ghostscript tiger - 339
+numbers covering every scanline, every path and the order all 92,949 pixels were
+drawn in, held against the study - and `projects/tigerpic` draws it at 320x200 in
+mode 13h and waits for a key, so it is golden-tier only. The data is generated and
+lives once, in `projects/tiger/t_data.momo`, which `tigerpic` reaches across for.
+
+The two programs differ in one routine. `plot` decides whether a pixel becomes a
+number or a byte of video memory, and the rasteriser never learns which: a library
+file may call a routine the *program* defines, and it compiles to a direct `call`.
+That is what DESIGN §21's routine parameters would have been for, and it needed no
+language feature at all.
+
 `lib/momolo/` is a layout engine ported from a TypeScript study, and it arrived
 with two projects rather than one. `projects/momolo` runs six scenes through it
 and prints every resolved box as bare numbers, compared against the numbers the
@@ -294,5 +308,5 @@ The cost of waiting is that the first thing a visitor reads is the weakest
 document in the repo. That trade is made deliberately, and preferred to shipping a
 second draft in the same voice as the first.
 
-248 tier-1 assertions (143 compile tests, 30 golden `.asm`, 25 type, 47 round
-trip, 3 subset), 24 e2e programs, all green.
+253 tier-1 assertions (143 compile tests, 33 golden `.asm`, 25 type, 49 round
+trip, 3 subset), 26 e2e programs, all green.
