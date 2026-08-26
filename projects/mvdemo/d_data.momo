@@ -1,0 +1,88 @@
+// d_data.momo - GENERATED from a .mv scene. Do not edit.
+//
+//   cd ../20260826-vector-study && npm run emit:dsl -- --scene=scenes/demo.mv
+//
+// Compiled from scenes/demo.mv by the vector DSL: inheritance resolved, transforms
+// baked into the coordinates, relative commands made absolute, and every quadratic
+// through the portability filter - so nothing here can be wider than the audited
+// 15-pixel span however the scene was written.
+//
+// Included by BOTH projects, the second reaching across with `../`, the way
+// projects/tigerpic reaches into projects/tiger. One dataset, two programs, no copy
+// to drift.
+//
+//   paths    6
+//   ops      41
+//   points   57
+//   palette  6
+//   level    advanced
+//   peak crossings 120
+
+const opMove = 0
+const opLine = 1
+const opQuad = 2
+
+const maxPaths = 6
+const maxOps = 41
+const maxPoints = 57
+const paletteSize = 6
+
+const u8[] opKind = [
+  0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 0, 2, 2, 2, 2, 2, 2,
+  2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 0, 1, 1, 1
+]
+
+const i16[] px = [
+  30, 90, 90, 30, 30, 110, 170, 170, 110, 110, 190, 250, 250, 190, 190,
+  30, 250, 30, 38, 45, 53, 60, 68, 75, 83, 90, 98, 105, 113, 120, 128,
+  135, 143, 150, 158, 165, 173, 180, 188, 195, 203, 210, 218, 225, 233,
+  240, 248, 255, 263, 270, 270, 30, 30, 524, 552, 538, 524
+]
+
+const i16[] py = [
+  40, 40, 100, 100, 40, 40, 40, 100, 100, 40, 40, 40, 100, 100, 40, 120,
+  120, 190, 183, 177, 171, 168, 164, 162, 160, 160, 160, 162, 164, 168,
+  171, 177, 183, 190, 198, 203, 209, 213, 216, 218, 220, 220, 220, 218,
+  216, 213, 209, 203, 198, 190, 195, 195, 190, 80, 80, 108, 80
+]
+
+const u16[] pathOpStart = [
+  0, 5, 10, 15, 17, 37
+]
+
+const u16[] pathOpCount = [
+  5, 5, 5, 2, 20, 4
+]
+
+const u16[] pathPointStart = [
+  0, 5, 10, 15, 17, 53
+]
+
+const u8[] pathFill = [
+  1, 2, 3, 0, 4, 5
+]
+
+const u8[] pathStroke = [
+  5, 5, 5, 4, 0, 0
+]
+
+const u8[] pathHasFill = [
+  1, 1, 1, 0, 1, 1
+]
+
+const u8[] pathHasStroke = [
+  1, 1, 1, 1, 0, 0
+]
+
+// Already six bits per channel for the VGA DAC.
+const u8[] palR = [
+  4, 51, 18, 31, 58, 58
+]
+
+const u8[] palG = [
+  4, 28, 36, 49, 52, 58
+]
+
+const u8[] palB = [
+  6, 9, 54, 31, 18, 58
+]

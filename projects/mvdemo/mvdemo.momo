@@ -1,0 +1,130 @@
+// mvdemo.momo - GENERATED from scenes/demo.mv. Do not edit.
+//
+//   npm start mvdemo
+//
+// The digest: what was drawn, as numbers tier 2 can check. Per scanline the pixel
+// count and the sum of their x, per path its colour and pixel count, and a rolling
+// hash over every pixel in draw order.
+//
+// The hash is the part that earns its place. Count and sum are order-independent, so
+// neither can tell a picture from the same picture painted in a different sequence -
+// and painting order is what makes overlapping paths look like anything.
+//
+// The picture is projects/mvpic. It differs from this program in its setup and
+// its output, as it must - but the rasteriser sees only `plot` and `emitSpan`, so
+// the difference reaches nothing below them. That is what the late binding bought.
+
+// The crossing budget, measured by the study at 120 for the worst single
+// path in this scene and rounded up. Declared before the includes because an array
+// dimension has to be known where the array is declared, so unlike `plot` and
+// `emitSpan` it cannot bind late.
+const maxCrossings = 256
+
+include "std/io.momo"
+include "std/math.momo"
+include "momovec/types.momo"
+include "momovec/edges.momo"
+include "momovec/subdiv.momo"
+include "momovec/path.momo"
+include "momovec/fill.momo"
+
+include "d_data.momo"
+
+u16[screenH] rowPixels
+u16[screenH] rowSumX
+u16[maxPaths] pathPixels
+u16 orderHash
+
+// Which path is being drawn, so its pixels can be counted against it. A global
+// because `plot` is called by the library, which knows nothing about paths.
+u16 currentPath
+
+// Unused here and set anyway, so the paint loop is the same text in both programs.
+u8 ink
+
+// Spans arrive already clipped, so this needs no bounds test of its own.
+sub emitSpan( u16 y, i16 x0, i16 x1 ) {
+  i16 x
+
+  for ( x = x0; x <= x1; x++ ) {
+    plot( x, i16( y ) )
+  }
+}
+
+sub plot( i16 x, i16 y ) {
+  u16 ux
+  u16 uy
+
+  if ( x < 0 ) return
+  if ( y < 0 ) return
+  if ( x > xMax ) return
+  if ( y > yMax ) return
+
+  ux = u16( x )
+  uy = u16( y )
+
+  rowPixels[ uy ] += 1
+  rowSumX[ uy ] += ux
+  pathPixels[ currentPath ] += 1
+
+  orderHash = orderHash * 31 + ux + uy
+}
+
+u16 i
+u16 p
+
+for ( i = 0; i < screenH; i++ ) {
+  rowPixels[i] = 0
+  rowSumX[i] = 0
+}
+
+for ( p = 0; p < maxPaths; p++ ) {
+  pathPixels[p] = 0
+}
+
+orderHash = 0
+
+for ( p = 0; p < maxPaths; p++ ) {
+  currentPath = p
+
+  if ( pathHasFill[p] != 0 ) {
+    ink = pathFill[p]
+    fillPath( p, true )
+  }
+
+  if ( pathHasStroke[p] != 0 ) {
+    ink = pathStroke[p]
+    strokePath( p )
+  }
+}
+
+// ---- the digest ----
+
+for ( i = 0; i < screenH; i++ ) {
+  putNumber( i )
+  space()
+  putNumber( rowPixels[i] )
+  space()
+  putNumber( rowSumX[i] )
+  newline()
+}
+
+for ( p = 0; p < maxPaths; p++ ) {
+  putNumber( p )
+  space()
+  putNumber( pathFill[p] )
+  space()
+  putNumber( pathPixels[p] )
+  newline()
+}
+
+putNumber( orderHash )
+newline()
+
+// A capacity problem must not look like a geometry bug.
+if ( crossingsOverflowed ) {
+  putStr( addr( overflowed ) )
+  newline()
+}
+
+const u8[] overflowed = "CROSSING LIST OVERFLOWED$"

@@ -18,10 +18,16 @@
 // generated dataset, reached across the way `projects/mlodemo` reaches into
 // `projects/momolo`. Two programs, one file, and no copy to drift.
 //
-// **The only difference from the digest is `plot`.** That one routine decides
-// whether a pixel becomes a number or a byte in video memory, and the rasteriser
-// never learns which - DESIGN 21's routine parameters would be one way to arrange
-// that, and late binding by name is the way that needed no language feature at all.
+// **The rasteriser cannot tell this program from the digest.** `lib/momovec` asks a
+// program for exactly two routines - `plot` and `emitSpan` - so one routine decides
+// whether a pixel becomes a byte in video memory or a number, and nothing below it
+// learns which. DESIGN 21's routine parameters would be one way to arrange that; late
+// binding by name is the way that needed no language feature at all.
+//
+// Stated precisely because an earlier version of this comment said the two programs
+// differ only in `plot`, and a diff says otherwise: this one sets a video mode, loads a
+// palette and waits for a key, and the digest carries accumulators and printing. The
+// INTERFACE is what is narrow, not the harnesses.
 
 // The crossing budget, sized by the study against this dataset. Must precede the
 // momovec includes: an array dimension is needed where the array is declared, so
