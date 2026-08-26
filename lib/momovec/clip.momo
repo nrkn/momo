@@ -1,0 +1,154 @@
+// Rejection clipping: declining to process geometry that cannot be visible.
+//
+// The port already clips at the SPAN - `tidy` clamps each span to the canvas - which
+// saves almost no writes and lets whatever draws them drop its bounds test. What it
+// did not do is decline to *walk* a segment that cannot contribute a pixel. Every
+// segment of every path was rasterised in full and its crossings discarded afterwards
+// by `addCrossing` if their y fell outside.
+//
+// Fine for the tiger, which fits the canvas exactly. Wasteful the moment anything
+// pans or zooms, which is what a viewer or an editor does constantly.
+//
+// **Rejection is NOT symmetric in x and y, and that is the whole design.** The study
+// measured it rather than assuming, because getting it wrong corrupts a fill silently:
+//
+//   scene                 none   seg-y   seg-x   path-bbox
+//   wide, off left       10100   10100       0       10100
+//   entirely off left        0       0       0           0
+//   tall, off top+bottom 20200   20200   20200       20200
+//
+// A rectangle reaching far off the left edge has its left side entirely at x < 0.
+// **Reject that side and the fill vanishes completely** - 10,100 pixels to nothing -
+// because the scanline is left with one crossing instead of two, the winding never
+// returns to zero, and no span is emitted at all.
+//
+// The reason is in edges.momo and was written down long before this: `addCrossing`
+// drops a crossing whose y is off-canvas and KEEPS one whose x is, because a span
+// between two off-screen crossings still crosses the canvas. So
+//
+//   y-rejection  discards crossings that would have been discarded anyway - safe
+//   x-rejection  discards a crossing a surviving span still needs - not safe
+//
+// Hence: **per segment, y only. Per whole path, any side.** A path whose every point
+// is left of the canvas emits only crossings left of the canvas, so every span
+// between them is too and `tidy` clips them all away - so there x is safe, and the
+// asymmetry is about segments rather than about x.
+//
+// Measured on the tiger, scaled and panned so the canvas sits over its middle:
+//
+//   zoom   segments   walked   rejected   paths rejected
+//     1x       4094     4094          0        0
+//     3x       5618     3963       1655       53
+//     8x       9521     4182       5339       97
+//
+// **The segments actually walked stay flat while the drawing more than doubles**, so
+// the work becomes proportional to what is visible rather than to what exists. And
+// it is pixel-identical to no rejection at every zoom tested, which is the claim that
+// matters most.
+
+include "momovec/types.momo"
+
+// Counters, so a program can state what rejection bought rather than assert it.
+//
+// Incremented only on the reject branches, which cost nothing when nothing is
+// rejected - the 1x tiger increments them zero times. Four bytes and an `inc` on a
+// path nothing takes at 1x, against a claim that would otherwise be unmeasurable on
+// the target.
+u16 pathsRejected
+u16 segmentsRejected
+
+sub clearClipCounts {
+  pathsRejected = 0
+  segmentsRejected = 0
+}
+
+// Whether three y values are all above the canvas or all below it. A quadratic stays
+// inside the hull of its three points, so a hull entirely off-canvas means the curve
+// is - which is why the control point is included rather than just the endpoints.
+//
+// A line passes its endpoint twice; cheaper than a second routine, and it makes the
+// two call sites read the same.
+bool outsideY( i16 a, i16 b, i16 c ) {
+  if ( a < 0 && b < 0 && c < 0 ) {
+    segmentsRejected += 1
+    return true
+  }
+
+  if ( a > yMax && b > yMax && c > yMax ) {
+    segmentsRejected += 1
+    return true
+  }
+
+  return false
+}
+
+// The whole path's bounding box against the canvas, on all four sides.
+//
+// Costs one pass over the path's points - a few reads per op - to save rasterising
+// every segment in it. The walk is proportional to PIXELS and this is proportional to
+// POINTS, so on a path that turns out to be off-screen it is most of the work
+// avoided, and on one that is visible it is a rounding error.
+//
+// No stored bounding box, deliberately. Four i16 per path is eight bytes, which for
+// the tiger is 1,104 bytes of data to avoid a pass that costs almost nothing - and
+// the data would then have to be kept in step with the geometry by whatever generated
+// it, which is the kind of duplicated invariant that has already cost this port a
+// commit.
+bool pathOutside( u16 pathIndex ) {
+  u16 k
+  u16 at
+  u16 op
+  u16 count
+  i16 loX
+  i16 loY
+  i16 hiX
+  i16 hiY
+  i16 vx
+  i16 vy
+
+  count = pathOpCount[ pathIndex ]
+
+  if ( count == 0 ) return false
+
+  at = pathPointStart[ pathIndex ]
+
+  loX = 32767
+  loY = 32767
+  hiX = -32768
+  hiY = -32768
+
+  for ( k = 0; k < count; k++ ) {
+    op = opKind[ pathOpStart[ pathIndex ] + k ]
+
+    // A move and a line carry one point, a quadratic two. Both of a quadratic's
+    // points count toward the box.
+    vx = px[ at ]
+    vy = py[ at ]
+
+    if ( vx < loX ) loX = vx
+    if ( vy < loY ) loY = vy
+    if ( vx > hiX ) hiX = vx
+    if ( vy > hiY ) hiY = vy
+
+    at += 1
+
+    if ( op == opQuad ) {
+      vx = px[ at ]
+      vy = py[ at ]
+
+      if ( vx < loX ) loX = vx
+      if ( vy < loY ) loY = vy
+      if ( vx > hiX ) hiX = vx
+      if ( vy > hiY ) hiY = vy
+
+      at += 1
+    }
+  }
+
+  if ( hiX < 0 || loX > xMax || hiY < 0 || loY > yMax ) {
+    pathsRejected += 1
+    return true
+  }
+
+  return false
+}

@@ -1,0 +1,149 @@
+// tpan.momo - the tiger panned off the canvas, and what rejection clipping buys.
+//
+//   npm start tpan
+//
+// The same 138 paths and the same data as `projects/tiger`, translated half a canvas
+// up and left so only the bottom-right quarter of the tiger is visible. **98 of its
+// 138 paths are rejected outright** and never rasterised at all.
+//
+// **It is a pan and not a zoom because a zoom does not fit.** The first version of
+// this scaled the tiger 3x, which needs 13,982 points against the 1x tiger's 8,014
+// and comes to an image of 84,914 bytes - over the 64 KB segment. It built, ran, and
+// printed zeros.
+//
+// That is a finding rather than an obstacle: a zoom cannot be done in this port by
+// regenerating data, so it has to be a transform applied as the geometry is read -
+// a multiply per coordinate against a fixed-point scale, which needs the high word of
+// `mul` and therefore a 32-bit type. The first concrete requirement the vector work
+// has produced for that language question, and it arrived by hitting the wall.
+//
+// **This project exists because without it rejection clipping is a feature with no
+// measured benefit.** The tiger at 1x fits the canvas exactly, so nothing is
+// rejectable and `lib/momovec/clip.momo` is 598 bytes of pure cost. A zoom is what a
+// viewer or an editor produces constantly, and it is where the work stops being
+// proportional to the drawing and starts being proportional to the view.
+//
+// The digest carries the rejection counts as its last two lines, so the 8086 has to
+// agree about **how much it skipped** as well as about what it drew:
+//
+//   a rejection that skipped the wrong thing matches the counts and fails the digest
+//   a rejection that skipped nothing matches the digest and fails the counts
+//
+// Both together pin it. Each path is walked twice here - fill then stroke - so both
+// counts are doubled relative to a single pass.
+//
+// The safety argument is in `clip.momo` and is not symmetric: per segment, y only,
+// because rejecting on x drops a crossing a surviving span still needs and the study
+// measured that as a fill vanishing outright. Per whole path, any side.
+
+// Measured by the study at 522 for the worst single path - lower than the 1x tiger's
+// 692, because a panned path has fewer of its scanlines on the canvas.
+const maxCrossings = 1024
+
+include "std/io.momo"
+include "std/math.momo"
+include "momovec/types.momo"
+include "momovec/edges.momo"
+include "momovec/subdiv.momo"
+include "momovec/path.momo"
+include "momovec/fill.momo"
+
+include "z_data.momo"
+
+u16[screenH] rowPixels
+u16[screenH] rowSumX
+u16[maxPaths] pathPixels
+u16 orderHash
+
+u16 currentPath
+
+sub emitSpan( u16 y, i16 x0, i16 x1 ) {
+  i16 x
+
+  for ( x = x0; x <= x1; x++ ) {
+    plot( x, i16( y ) )
+  }
+}
+
+sub plot( i16 x, i16 y ) {
+  u16 ux
+  u16 uy
+
+  if ( x < 0 ) return
+  if ( y < 0 ) return
+  if ( x > xMax ) return
+  if ( y > yMax ) return
+
+  ux = u16( x )
+  uy = u16( y )
+
+  rowPixels[ uy ] += 1
+  rowSumX[ uy ] += ux
+  pathPixels[ currentPath ] += 1
+
+  orderHash = orderHash * 31 + ux + uy
+}
+
+u16 i
+u16 p
+
+for ( i = 0; i < screenH; i++ ) {
+  rowPixels[i] = 0
+  rowSumX[i] = 0
+}
+
+for ( p = 0; p < maxPaths; p++ ) {
+  pathPixels[p] = 0
+}
+
+orderHash = 0
+
+clearClipCounts()
+
+for ( p = 0; p < maxPaths; p++ ) {
+  currentPath = p
+
+  if ( pathHasFill[p] != 0 ) {
+    fillPath( p, true )
+  }
+
+  if ( pathHasStroke[p] != 0 ) {
+    strokePath( p )
+  }
+}
+
+// ---- the digest ----
+
+for ( i = 0; i < screenH; i++ ) {
+  putNumber( i )
+  space()
+  putNumber( rowPixels[i] )
+  space()
+  putNumber( rowSumX[i] )
+  newline()
+}
+
+for ( p = 0; p < maxPaths; p++ ) {
+  putNumber( p )
+  space()
+  putNumber( pathFill[p] )
+  space()
+  putNumber( pathPixels[p] )
+  newline()
+}
+
+putNumber( orderHash )
+newline()
+
+// What the clipping actually rejected. Predicted by the study before this ran.
+putNumber( pathsRejected )
+newline()
+putNumber( segmentsRejected )
+newline()
+
+if ( crossingsOverflowed ) {
+  putStr( addr( overflowed ) )
+  newline()
+}
+
+const u8[] overflowed = "CROSSING LIST OVERFLOWED$"

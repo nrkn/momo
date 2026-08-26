@@ -20,6 +20,7 @@
 // `momovec/quadflat.momo`, which cannot draw one and says so. A level 2 program
 // picking the second drops drawQuad and the subdivision stack entirely.
 include "momovec/line.momo"
+include "momovec/clip.momo"
 
 sub walkPath(
   u16 pathIndex, bool wantPixels, bool wantEdges, bool closeSubpaths
@@ -36,6 +37,12 @@ sub walkPath(
   i16 startX
   i16 startY
   bool inSubpath
+
+  // Whole-path rejection first: a path entirely off any one side of the canvas
+  // cannot contribute a pixel, and this costs one pass over its points against
+  // rasterising every segment in it. Safe on all four sides here - see clip.momo for
+  // why that is true of a path and NOT of a segment.
+  if ( pathOutside( pathIndex ) ) return
 
   at = pathPointStart[ pathIndex ]
   inSubpath = false
@@ -57,7 +64,9 @@ sub walkPath(
       // closed here rather than only at the end of the path.
       if ( closeSubpaths && inSubpath ) {
         if ( curX != startX || curY != startY ) {
-          drawLine( curX, curY, startX, startY, wantPixels, wantEdges, 0 )
+          if ( !outsideY( curY, startY, startY ) ) {
+            drawLine( curX, curY, startX, startY, wantPixels, wantEdges, 0 )
+          }
         }
       }
 
@@ -73,7 +82,11 @@ sub walkPath(
       toY = py[ at ]
       at += 1
 
-      drawLine( curX, curY, toX, toY, wantPixels, wantEdges, 0 )
+      // y only. Rejecting on x would drop a crossing that a surviving span still
+      // needs, and the study measured that as a fill vanishing outright.
+      if ( !outsideY( curY, toY, toY ) ) {
+        drawLine( curX, curY, toX, toY, wantPixels, wantEdges, 0 )
+      }
 
       curX = toX
       curY = toY
@@ -94,7 +107,12 @@ sub walkPath(
       // endpoint, which leaves no curvature for `drawQuad` to divide by - moved into
       // `drawQuadAny`, because subdivision can *create* that case and a guard only on
       // this path would have missed it.
-      drawQuadAny( curX, curY, ctlX, ctlY, toX, toY, wantPixels, wantEdges )
+      // The control point counts toward the bound: a quadratic stays inside the hull
+      // of its three points, so all three have to be off-canvas before it can be
+      // skipped.
+      if ( !outsideY( curY, ctlY, toY ) ) {
+        drawQuadAny( curX, curY, ctlX, ctlY, toX, toY, wantPixels, wantEdges )
+      }
 
       curX = toX
       curY = toY
@@ -104,7 +122,9 @@ sub walkPath(
   // The last subpath, which no move follows.
   if ( closeSubpaths && inSubpath ) {
     if ( curX != startX || curY != startY ) {
-      drawLine( curX, curY, startX, startY, wantPixels, wantEdges, 0 )
+      if ( !outsideY( curY, startY, startY ) ) {
+        drawLine( curX, curY, startX, startY, wantPixels, wantEdges, 0 )
+      }
     }
   }
 }
