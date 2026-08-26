@@ -1427,7 +1427,7 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
   // ---- data -----------------------------------------------------------------
 
   // Group printable runs into quoted strings so data reads as what it is.
-  const formatBytes = (values: number[]): string => {
+  const formatByteParts = (values: number[]): string[] => {
     const parts: string[] = []
     let run = ''
 
@@ -1445,7 +1445,59 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     }
 
     if (run) parts.push(`'${run}'`)
-    return parts.length ? parts.join(', ') : '0'
+    return parts.length ? parts : ['0']
+  }
+
+  // Data wraps rather than running to one enormous line.
+  //
+  // This used to join every element with a comma and push one line, which is fine
+  // at momolo's 64 elements and not fine at the vector study's: 8,014 `i16` points
+  // came out as a single 37,360-character line. NASM assembles it perfectly well -
+  // that was checked - but the golden `.asm` tier compares text, so any change
+  // anywhere in the array reports as one unreadable line, and `git diff` is no
+  // better. The point of that tier is that a human reads the diff.
+  //
+  // A character budget rather than a count, because elements are not the same
+  // width: `formatBytes` emits quoted runs for printable bytes, so one part can be
+  // a whole string and the next a single digit.
+  //
+  // The comment naming the array goes on the FIRST line, with the label. That is
+  // where a reader scanning for a symbol looks, so it is where the type belongs -
+  // the first version put it on the last line of a wrapped array, which reads as
+  // an annotation on the final twelve values rather than on the array.
+  const dataBudget = 72
+
+  const emitArrayData = (
+    label: string,
+    directive: string,
+    parts: string[],
+    comment: string,
+  ) => {
+    const head = `${dataLabel(label)} ${directive.padEnd(7)} `
+    const continued = `${' '.repeat(15)} ${directive.padEnd(7)} `
+
+    const rows: string[] = []
+    let row = ''
+
+    for (let i = 0; i < parts.length; i += 1) {
+      const piece = parts[i]! + (i === parts.length - 1 ? '' : ',')
+
+      if (row !== '' && row.length + 1 + piece.length > dataBudget) {
+        rows.push(row)
+        row = ''
+      }
+
+      row = row === '' ? piece : `${row} ${piece}`
+    }
+
+    if (row !== '') rows.push(row)
+
+    for (let i = 0; i < rows.length; i += 1) {
+      lines.push(
+        (i === 0 ? head : continued) + rows[i] +
+          (i === 0 ? `        ; ${comment}` : ''),
+      )
+    }
   }
 
   // An alias emits no storage - just a name for `parent + n`, which NASM folds
@@ -1519,11 +1571,14 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
           continue
         }
 
-        const body =
-          directive === 'db' ? formatBytes(symbol.values) : symbol.values.join(', ')
-        lines.push(
-          `${dataLabel(symbol.label)} ${directive.padEnd(7)} ${body}` +
-            `        ; ${symbol.elementType}[${symbol.length}]${symbol.readonly ? ' const' : ''}`,
+        const parts =
+          directive === 'db' ? formatByteParts(symbol.values) : symbol.values.map(String)
+
+        emitArrayData(
+          symbol.label,
+          directive,
+          parts,
+          `${symbol.elementType}[${symbol.length}]${symbol.readonly ? ' const' : ''}`,
         )
       }
     }

@@ -894,6 +894,22 @@ have caught it - the output was stable and had simply always been this. It took
 reading `simplerl`'s entry sequence and asking why an argument was widened where
 an assignment beside it was not.
 
+**Data wraps at 72 characters of values**, continuing with a fresh `db`/`dw` at
+the same indentation, and the comment naming the array stays on the label's line.
+
+That is a formatting rule with a tier behind it. Arrays used to emit as one line
+however long they were, which is unremarkable at momolo's 64 elements and stops
+being so above a few hundred: a probe with 8,014 `i16` points came out as a single
+37,360-character line. NASM assembles that perfectly well - it was built and run
+to check - but the golden `.asm` tier compares *text*, so a one-element change
+reports as one unreadable line and `git diff` is no better. A tier whose whole
+purpose is that a human reads the diff cannot have a line nobody can read.
+
+The budget is characters rather than elements because elements are not the same
+width - printable byte runs emit as quoted strings, so one part can be a whole
+word and the next a single digit. Two committed programs wrap under it, `tennis`
+and `tilefill`, which is what keeps the path exercised now that the probe is gone.
+
 **Comment style:** source line as a section header, *not* echoed per
 instruction. Inline comments reserved for width conversions, why `jbe` and not
 `jle`, and the branch-expansion idiom.
