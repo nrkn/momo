@@ -13,7 +13,9 @@
 //     rather than by materialising a bool, because there is no `setcc` until
 //     the 386. Value context exists as a fallback and costs a branch.
 //   - Every conditional jump is emitted inverted, over an unconditional `jmp`,
-//     because 8086 `jcc` is +/-127 only with no near form. See `jumpIf`.
+//     because 8086 `jcc` is +/-127 only with no near form. See `jumpIf` - and
+//     `tightenBranches`, which takes that back afterwards wherever the target
+//     turns out to be within reach.
 
 import type {
   Expression,
@@ -92,7 +94,56 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
   // See DESIGN §7.
   const dataLabel = (name: string) => `${name}:`.padEnd(15)
 
+  // Peephole 14: a load of what the line above just stored is dead work.
+  //
+  //     mov     [handle], ax
+  //     mov     ax, [handle]        <- AX already holds this
+  //
+  // The two are adjacent, so nothing can have touched the register in between -
+  // that is the whole safety argument, and it is why this reads the previous
+  // instruction rather than tracking liveness. `handle = _ax` followed by
+  // `closeFile( handle )` is the shape, so it is a statement-boundary artefact
+  // rather than a hole in any of 1-13.
+  //
+  // Source quotes and blank lines are skipped because they emit nothing. A LABEL
+  // is not skipped: another path can arrive there with the register holding
+  // anything at all, and the scan stops at the first line that is neither.
+  //
+  // `far` is excluded. An `es:` operand may be video memory or the BIOS data
+  // area, where the bytes can change between two instructions without this
+  // program writing them - the 8086 takes interrupts between instructions, so a
+  // reload from there is not provably the same value. Our own segment has no
+  // other writer while §24's handlers stay unbuilt.
+  const previousInstruction = (): string | null => {
+    for (let i = lines.length - 1; i >= 0; i -= 1) {
+      const line = lines[i]
+      if (line === '' || line.startsWith(';')) continue
+      return line
+    }
+
+    return null
+  }
+
+  const isDeadReload = (operands: string): boolean => {
+    const load = operands.match(/^(a[lx]), (\[[^\]]+\])$/)
+    if (!load) return false
+    if (load[2].includes('es:')) return false
+
+    const previous = previousInstruction()
+    if (previous === null) return false
+
+    const store = previous
+      .replace(/;.*$/, '')
+      .trim()
+      .match(/^mov\s+(?:(?:byte|word)\s+)?(\[[^\]]+\]), (a[lx])$/)
+    if (!store) return false
+
+    return store[1] === load[2] && store[2] === load[1]
+  }
+
   const ins = (mnemonic: string, operands = '', comment = '') => {
+    if (mnemonic === 'mov' && isDeadReload(operands)) return
+
     if (mnemonic === 'push') {
       pushDepth += 1
       if (pushDepth > maxPushDepth) maxPushDepth = pushDepth
@@ -139,6 +190,12 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
 
   // Every jcc is emitted inverted over a near jmp: 8086 conditional jumps reach
   // only +/-127 bytes and there is no near form until the 386.
+  //
+  // This cannot decide to use the tight single-jump form, because at the moment
+  // a FORWARD branch is emitted there is nothing yet between it and its target
+  // to measure. So it always emits the safe three-line shape, and
+  // `tightenBranches` collapses the ones that turn out to be in reach - see
+  // peephole 15.
   const jumpIf = (condition: string, target: string, comment = '') => {
     const over = nextLabel()
     ins(invertedJump[condition] ?? condition, over, comment)
@@ -1640,6 +1697,155 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
   emitHeap()
   emitViews()
   blank()
+
+  // ---- peephole 15: tighten the branch expansion ----------------------------
+  //
+  // `jumpIf` always emits three lines, because a forward branch cannot be
+  // measured while it is being written. This runs over the finished output and
+  // takes the expansion back wherever the target is provably in reach:
+  //
+  //       jae     .L1                 ; unsigned <              jb      target
+  //       jmp     target                              ->
+  //     .L1:
+  //
+  // 3 bytes, and 12 clocks off the fall-through path: a taken jcc costs 16 where
+  // an untaken one costs 4, so the common direction stops paying for the jump it
+  // was only skipping. The comment survives because it describes the SOURCE
+  // comparison rather than the mnemonic - `jae ... ; unsigned <` is already a
+  // spelling the output uses today.
+  //
+  // **Reach is decided by an upper bound, never by an exact size table.** Two
+  // buckets are enough: an instruction touching memory can reach 7 bytes
+  // (opcode, modrm, disp16, imm16 and a segment prefix) and one that does not
+  // reaches 3 on this subset, where 4 is used for margin. There is deliberately
+  // no per-mnemonic table: DESIGN §1's table is meant to be the only record of
+  // the subset, and a second one that has to agree with it byte for byte is
+  // exactly the duplicate that has been got wrong here before.
+  //
+  // **What an under-estimate costs is honesty, not correctness.** NASM does this
+  // expansion itself - `jz far` under `cpu 8086` assembles to `jnz $+3` plus a
+  // near `jmp`, silently, on its default -Ox - so an out-of-reach jcc would
+  // still build and still run. The bound exists so that the `.asm` says what
+  // gets assembled: one line here means one instruction there. That matters
+  // because counting instructions in the emitted text is how performance is
+  // reasoned about in this project (§21), DOSBox being unable to measure it.
+  //
+  // Anything unrecognised between a jump and its target aborts that inversion
+  // rather than being guessed at. `align 2` before the heap is why the rule is
+  // "bail out" and not "assume 4".
+  const branchBound = (line: string): number | null => {
+    if (line === '' || line.startsWith(';')) return 0
+    if (/^[.\w]+:$/.test(line)) return 0
+
+    // Instructions are the only lines the emitter indents.
+    if (!line.startsWith('        ')) return null
+
+    const text = line.replace(/;.*$/, '').trim()
+    if (/^(align|cpu|org|bits|section)\b/.test(text)) return null
+
+    return text.includes('[') ? 7 : 4
+  }
+
+  const tightenBranches = () => {
+    // A label is only safe to delete if the jcc above it is the one thing that
+    // names it. `jumpIf` allocates a fresh `.LN` per branch so this always
+    // holds, but it is checked rather than assumed.
+    const named = new Map<string, number>()
+    for (const line of lines) {
+      const reference = line.replace(/;.*$/, '').trim().match(/^(?:j[a-z]+|call)\s+([.\w]+)$/)
+      if (!reference) continue
+      named.set(reference[1], (named.get(reference[1]) ?? 0) + 1)
+    }
+
+    // The set of expansions to consider is fixed HERE, before anything moves,
+    // and collapsing never adds to it.
+    //
+    // Cascading was tried and reverted. Collapsing one expansion can leave a
+    // second one in its place, and taking that too is a real further saving -
+    // but whether the three lines end up adjacent depends on whether a
+    // `; ---- source` comment happens to fall between them, and that depends on
+    // the source text rather than on the program. The desugar round trip caught
+    // it immediately: `if( done ) break` puts the `break` on the `if`'s own line
+    // so its quote is suppressed and the cascade fires, while the printed copy
+    // puts it on a line of its own so the comment blocks it. Same program, same
+    // instructions, different output.
+    //
+    // Fixing the set up front makes the pass a function of the instruction
+    // stream alone. It costs 48 of 562 collapses - 144 bytes across every
+    // committed program - and buys back an output that cannot depend on how the
+    // source was laid out. Comments are the product here, so the alternative
+    // (matching across them, and stranding a `; ---- break` above unrelated
+    // code) was worse for more than it was better.
+    const expansions = new Set<string>()
+    for (let i = 0; i + 2 < lines.length; i += 1) {
+      const conditional = lines[i].replace(/;.*$/, '').trim().match(/^(j[a-z]+)\s+([.\w]+)$/)
+      if (!conditional || invertedJump[conditional[1]] === undefined) continue
+      if (!/^jmp\s+[.\w]+$/.test(lines[i + 1].replace(/;.*$/, '').trim())) continue
+      const over = lines[i + 2].match(/^([.\w]+):$/)
+      if (over && over[1] === conditional[2]) expansions.add(over[1])
+    }
+
+    // Collapsing shortens regions, which can bring further branches into reach,
+    // so this repeats until nothing more moves. Every pass only ever removes
+    // lines, so it terminates.
+    for (;;) {
+      let collapsed = false
+
+      for (let i = 0; i + 2 < lines.length; i += 1) {
+        const conditional = lines[i].replace(/;.*$/, '').trim().match(/^(j[a-z]+)\s+([.\w]+)$/)
+        if (!conditional) continue
+        if (conditional[1] === 'jmp') continue
+        if (invertedJump[conditional[1]] === undefined) continue
+
+        const unconditional = lines[i + 1].replace(/;.*$/, '').trim().match(/^jmp\s+([.\w]+)$/)
+        if (!unconditional) continue
+
+        const over = lines[i + 2].match(/^([.\w]+):$/)
+        if (!over) continue
+        if (over[1] !== conditional[2]) continue
+        if (!expansions.has(over[1])) continue
+        if (named.get(over[1]) !== 1) continue
+
+        const target = lines.findIndex((line) => line === `${unconditional[1]}:`)
+        if (target === -1) continue
+
+        // Everything between the inverted jump and its new target. Forward means
+        // the label is below; backward is measured the same way and negated.
+        const from = Math.min(i + 3, target)
+        const to = Math.max(i + 3, target)
+
+        let bytes = 0
+        let measurable = true
+
+        for (let k = from; k < to; k += 1) {
+          const bound = branchBound(lines[k])
+          if (bound === null) {
+            measurable = false
+            break
+          }
+          bytes += bound
+        }
+
+        if (!measurable) continue
+        if (target < i && -bytes < -128) continue
+        if (target > i && bytes > 127) continue
+
+        const comment = lines[i].match(/;\s*(.*)$/)
+        const taken = invertedJump[conditional[1]]
+
+        lines.splice(i, 3)
+        const body = `        ${taken.padEnd(7)} ${unconditional[1]}`
+        lines.splice(i, 0, comment ? `${body.padEnd(44)}; ${comment[1]}` : body)
+
+        named.delete(over[1])
+        collapsed = true
+      }
+
+      if (!collapsed) break
+    }
+  }
+
+  tightenBranches()
 
   return { assembly: lines.join('\r\n'), temporaries }
 }

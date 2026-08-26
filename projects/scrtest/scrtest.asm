@@ -42,7 +42,6 @@ __entry:
         mov     ax, [readCellAt__ret]
         mov     [cell], ax
 ; ---- putNumber(lo(cell))             // 88 = 'X'
-        mov     ax, [cell]
         xor     ah, ah                      ; cast to u8
         mov     [putNumber__n], ax
         call    putNumber
@@ -65,7 +64,6 @@ __entry:
         mov     ax, [readCellAt__ret]
         mov     [cell], ax
 ; ---- putNumber(lo(cell))             // 35 = '#'
-        mov     ax, [cell]
         xor     ah, ah                      ; cast to u8
         mov     [putNumber__n], ax
         call    putNumber
@@ -88,7 +86,6 @@ __entry:
         mov     ax, [readCellAt__ret]
         mov     [cell], ax
 ; ---- putNumber(lo(cell))             // 32 = space
-        mov     ax, [cell]
         xor     ah, ah                      ; cast to u8
         mov     [putNumber__n], ax
         call    putNumber
@@ -138,9 +135,7 @@ putNumber:
 ; ---- if (n == 0) {
         mov     ax, [putNumber__n]
         test    ax, ax
-        je      .L3                         ; unsigned ==
-        jmp     .L1
-.L3:
+        jne     .L1                         ; unsigned ==
 ; ---- putChar(ioZeroChar)
         mov     byte [putChar__c], 48
         call    putChar
@@ -152,9 +147,7 @@ putNumber:
 .L4:
         mov     ax, [putNumber__n]
         test    ax, ax
-        ja      .L7                         ; unsigned >
-        jmp     .L6
-.L7:
+        jbe     .L6                         ; unsigned >
 ; ---- digits[i] = u8(n % ioBase) + ioZeroChar
         mov     ax, [putNumber__n]
         mov     bx, 10
@@ -183,9 +176,7 @@ putNumber:
 .L8:
         mov     al, [putNumber__i]
         test    al, al
-        ja      .L11                        ; unsigned >
-        jmp     .L10
-.L11:
+        jbe     .L10                        ; unsigned >
 ; ---- putChar(digits[i - 1])
         mov     al, [putNumber__i]
         xor     ah, ah                      ; u8 -> u16

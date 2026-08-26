@@ -80,9 +80,7 @@ __entry:
         mov     ax, [ticks__ret]
         mov     bx, [start]
         cmp     ax, bx
-        je      .L4                         ; unsigned ==
-        jmp     .L3
-.L4:
+        jne     .L3                         ; unsigned ==
 .L2:
         jmp     .L1
 .L3:
@@ -100,9 +98,7 @@ __entry:
         mov     ax, [ticks__ret]
         mov     bx, [start]
         cmp     ax, bx
-        je      .L8                         ; unsigned ==
-        jmp     .L7
-.L8:
+        jne     .L7                         ; unsigned ==
 ; ---- nowIn = in8( 0x3DA ) & 8
         mov     dx, 986
         in      al, dx
@@ -110,17 +106,12 @@ __entry:
         and     ax, 8
         mov     [nowIn], al                 ; narrowed to u8
 ; ---- if ( nowIn != 0 ) {
-        mov     al, [nowIn]
         test    al, al
-        jne     .L11                        ; unsigned !=
-        jmp     .L9
-.L11:
+        je      .L9                         ; unsigned !=
 ; ---- if ( !wasIn ) retraces++
         mov     al, [wasIn]
         test    al, al
-        jz      .L14
-        jmp     .L12
-.L14:
+        jnz     .L12
         inc     word [retraces]
 .L12:
 ; ---- wasIn = true
@@ -136,14 +127,10 @@ __entry:
 ; ---- putNumber( retraces >= 2 && retraces <= 6 ? 1 : 0 )
         mov     ax, [retraces]
         cmp     ax, 2
-        jae     .L17                        ; unsigned >=
-        jmp     .L15
-.L17:
+        jb      .L15                        ; unsigned >=
         mov     ax, [retraces]
         cmp     ax, 6
-        jbe     .L18                        ; unsigned <=
-        jmp     .L15
-.L18:
+        ja      .L15                        ; unsigned <=
         mov     ax, 1
         jmp     .L16
 .L15:
@@ -187,9 +174,7 @@ putNumber:
 ; ---- if (n == 0) {
         mov     ax, [putNumber__n]
         test    ax, ax
-        je      .L21                        ; unsigned ==
-        jmp     .L19
-.L21:
+        jne     .L19                        ; unsigned ==
 ; ---- putChar(ioZeroChar)
         mov     byte [putChar__c], 48
         call    putChar
@@ -201,9 +186,7 @@ putNumber:
 .L22:
         mov     ax, [putNumber__n]
         test    ax, ax
-        ja      .L25                        ; unsigned >
-        jmp     .L24
-.L25:
+        jbe     .L24                        ; unsigned >
 ; ---- digits[i] = u8(n % ioBase) + ioZeroChar
         mov     ax, [putNumber__n]
         mov     bx, 10
@@ -232,9 +215,7 @@ putNumber:
 .L26:
         mov     al, [putNumber__i]
         test    al, al
-        ja      .L29                        ; unsigned >
-        jmp     .L28
-.L29:
+        jbe     .L28                        ; unsigned >
 ; ---- putChar(digits[i - 1])
         mov     al, [putNumber__i]
         xor     ah, ah                      ; u8 -> u16

@@ -20,17 +20,13 @@ __entry:
 .L1:
         mov     ax, [i]
         cmp     ax, 100
-        jb      .L4                         ; unsigned <
-        jmp     .L3
-.L4:
+        jae     .L3                         ; unsigned <
 ; ---- if (composite[i]) continue
         mov     ax, [i]
         mov     bx, ax
         mov     al, [composite + bx]
         test    al, al
-        jnz     .L7
-        jmp     .L5
-.L7:
+        jz      .L5
         jmp     .L2
 .L5:
 ; ---- putNumber(i)
@@ -88,9 +84,7 @@ putNumber:
 ; ---- if (n == 0) {
         mov     ax, [putNumber__n]
         test    ax, ax
-        je      .L10                        ; unsigned ==
-        jmp     .L8
-.L10:
+        jne     .L8                         ; unsigned ==
 ; ---- putChar(ioZeroChar)
         mov     byte [putChar__c], 48
         call    putChar
@@ -102,9 +96,7 @@ putNumber:
 .L11:
         mov     ax, [putNumber__n]
         test    ax, ax
-        ja      .L14                        ; unsigned >
-        jmp     .L13
-.L14:
+        jbe     .L13                        ; unsigned >
 ; ---- digits[i] = u8(n % ioBase) + ioZeroChar
         mov     ax, [putNumber__n]
         mov     bx, 10
@@ -133,9 +125,7 @@ putNumber:
 .L15:
         mov     al, [putNumber__i]
         test    al, al
-        ja      .L18                        ; unsigned >
-        jmp     .L17
-.L18:
+        jbe     .L17                        ; unsigned >
 ; ---- putChar(digits[i - 1])
         mov     al, [putNumber__i]
         xor     ah, ah                      ; u8 -> u16
@@ -168,9 +158,7 @@ runSieve:
         mov     bx, ax
         mov     al, [composite + bx]
         test    al, al
-        jnz     .L25
-        jmp     .L23
-.L25:
+        jz      .L23
         jmp     .L20
 .L23:
 ; ---- for (j = i * i; j < limit; j += i) {
@@ -181,9 +169,7 @@ runSieve:
 .L26:
         mov     ax, [j]
         cmp     ax, 100
-        jb      .L29                        ; unsigned <
-        jmp     .L28
-.L29:
+        jae     .L28                        ; unsigned <
 ; ---- composite[j] = 1
         mov     ax, [j]
         mov     bx, ax

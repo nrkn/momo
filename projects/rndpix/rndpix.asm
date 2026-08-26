@@ -24,9 +24,7 @@ __entry:
 .L1:
         mov     ax, [i]
         cmp     ax, 64000
-        jb      .L4                         ; unsigned <
-        jmp     .L3
-.L4:
+        jae     .L3                         ; unsigned <
 ; ---- pixels[i] = u8( nextRandom() )
         call    nextRandom
         mov     ax, [nextRandom__ret]
@@ -82,7 +80,6 @@ nextRandom:
         xor     ax, bx
         mov     [rand__randomSeed], ax
 ; ---- randomSeed = randomSeed ^ (randomSeed >> 9)
-        mov     ax, [rand__randomSeed]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [rand__randomSeed]
         mov     cl, 9                       ; 8086 has no shift-by-immediate
@@ -92,7 +89,6 @@ nextRandom:
         xor     ax, bx
         mov     [rand__randomSeed], ax
 ; ---- randomSeed = randomSeed ^ (randomSeed << 8)
-        mov     ax, [rand__randomSeed]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [rand__randomSeed]
         mov     cl, 8                       ; 8086 has no shift-by-immediate
@@ -102,7 +98,6 @@ nextRandom:
         xor     ax, bx
         mov     [rand__randomSeed], ax
 ; ---- return randomSeed
-        mov     ax, [rand__randomSeed]
         mov     [nextRandom__ret], ax
         ret
 

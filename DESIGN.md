@@ -675,8 +675,8 @@ optimisation, because 8086 has no `setcc`. `&&`/`||` short-circuit to shared
 labels; `!` is a label swap. Value context is the fallback for
 `bool b = x < y`, which costs a branch.
 
-**All conditional jumps are emitted expanded**, because 8086 `jcc` is +/-127 only
-and there is no near form until the 386:
+**Conditional jumps are emitted expanded where they have to be**, because 8086
+`jcc` is +/-127 only and there is no near form until the 386:
 
 ```nasm
         jbe     .for1_body              ; inverted
@@ -684,10 +684,13 @@ and there is no near form until the 386:
 .for1_body:
 ```
 
-Costs 2 bytes and a label per branch; always correct. A later refinement can
-count emitted instructions and use the tight form when the skipped region is
-provably short. This is not theoretical - several bodies in the reference file
-exceed 128 bytes under this codegen.
+Costs 2 bytes and a label per branch; always correct. `jumpIf` still emits this
+shape for every branch, because at the moment a forward jump is written there is
+nothing yet between it and its target to measure - and peephole 15 then takes it
+back wherever the target turns out to be in reach. 542 of 636 branches across the
+committed programs end up as a single `jcc`. The expanded form is what remains
+where the body really is long, which is not theoretical: several bodies in the
+reference file exceed 128 bytes under this codegen.
 
 **Peepholes:**
 
@@ -764,6 +767,117 @@ exceed 128 bytes under this codegen.
     sees a `CallExpression` and stops, so `maptest` and `simplerl` each keep a
     dead `xor ah, ah`. That gap is older than this peephole and sits in 4 as
     much as here - `ch = tileAt( x, y )` pays it too.
+
+14. **A load of what the line above just stored is dead** - the register already
+    holds it.
+
+    ```nasm
+            mov     [handle], ax
+            mov     ax, [handle]        ; gone: AX has not been touched
+            mov     [closeFile__handle], ax
+    ```
+
+    126 instructions and 401 bytes across the committed programs (103 direct
+    loads at 3 bytes, 23 indexed at 4), and roughly 10 clocks each. The shape is
+    `handle = _ax` followed by `closeFile( handle )`, so it is a
+    **statement-boundary** artefact rather than a hole in any of 1-13: each
+    statement is compiled correctly on its own, and only the seam is wasteful.
+    That is also why it needed a peephole rather than a fix - nothing in the
+    expression path can see across the boundary.
+
+    The safety argument is one sentence: the two are adjacent, so nothing can
+    have touched the register in between. It looks at the previous instruction
+    rather than tracking liveness, and the scan skips source quotes and blank
+    lines because they emit nothing. **A label stops it**, because another path
+    can arrive there with the register holding anything.
+
+    **`far` is excluded.** An `es:` operand may be video memory or the BIOS data
+    area, where the bytes can change between two instructions without this
+    program writing them - the 8086 takes interrupts between instructions, so a
+    reload from there is not provably the same value. Our own segment has no
+    other writer while §24's handlers stay unbuilt, which is the assumption this
+    rests on and the thing to revisit when they are built.
+
+    **The largest single beneficiary is `nextRandom`**, which loses three loads
+    per call - one per xorshift step, plus the `return`. That is the routine
+    whose own comment in `std/rand.momo` says two thirds of its cost over the
+    LCG is codegen rather than algorithm, so the peephole lands exactly where
+    that note was pointing.
+
+    **The teeth were checked by breaking it.** Letting the backward scan cross a
+    label - the one protection above - makes `qsort` sort wrongly and `momolo`
+    hang. Two things are worth recording about that. Tier 1 said nothing, because
+    the golden files had been regenerated, which is the stash-and-rebuild trap
+    wearing a different hat: adopting output and then testing it proves only that
+    the compiler is self-consistent. And tier 2 caught `qsort` cleanly on its
+    numbers but caught `momolo` only by hanging - `e2e.ts` has no timeout, so a
+    non-terminating program waits for a human to close the window rather than
+    failing. Worth knowing before trusting an unattended run.
+
+15. **The branch expansion is taken back where the target is in reach** - the
+    single most valuable one here, and the refinement the paragraph above spent
+    the whole project deferring.
+
+    ```nasm
+            jae     .L1     ; unsigned <              jb      target
+            jmp     target                    ->
+    .L1:
+    ```
+
+    **542 of 636 branches**, 542 fewer instructions and 542 fewer labels, 1,626
+    bytes. The cycle win is the bigger half: a taken `jcc` costs 16 clocks and an
+    untaken one 4, so the fall-through direction stops paying 12 clocks for a
+    jump it was only stepping over, and the other direction saves 3. In a loop
+    that is per iteration.
+
+    It runs as a pass over the finished output rather than inside `jumpIf`,
+    because a forward branch cannot be measured while it is being written.
+    Reach uses a two-bucket upper bound - 7 bytes for an instruction touching
+    memory, 4 for one that does not - rather than a per-mnemonic size table,
+    which would be a second record of §1's table and is the kind of duplicate
+    that has been got wrong here before. It costs 25 inversions an exact table
+    would find, or 75 bytes.
+
+    **Cascading was tried and reverted, and the round trip is why.** Collapsing
+    one expansion can leave another in its place, which is a real further
+    saving - but whether the three lines end up adjacent depends on whether a
+    `; ---- source` comment falls between them, and that depends on the source
+    text rather than the program. `if( done ) break` keeps the `break` on the
+    `if`'s line so its quote is suppressed and the cascade fires; the printed
+    copy puts it on its own line and the comment blocks it. Same program, same
+    instructions, different output - which is exactly what the desugar round trip
+    exists to catch, and it caught it on the first run. The candidate set is now
+    fixed before anything moves, so the pass is a function of the instruction
+    stream alone. 48 collapses, 144 bytes.
+
+    **NASM does this expansion itself, which was not known when the deferral
+    above was written.** `jz far` under `cpu 8086` assembles to `jnz $+3` and a
+    near `jmp` - silently, on NASM's default `-Ox`, using 8086 instructions - so
+    an out-of-reach `jcc` builds and runs correctly rather than being rejected.
+    Two consequences, and they pull in opposite directions:
+
+    - The bound is not protecting correctness. It is protecting the claim that
+      one line of emitted assembly is one instruction, which is what makes
+      counting the `.asm` a valid way to reason about speed (§21) on a machine
+      DOSBox cannot time.
+    - Emitting the tight form *always* and letting NASM expand what does not
+      reach would be optimal by construction, delete this pass and the expansion
+      in `jumpIf`, and take 636 labels out of the output. Measured against the
+      24 tier 2 programs it is **38 bytes** better - 29,828 against 29,866.
+
+    **That option was considered and declined.** Peephole 15 already captures 98%
+    of it, so the question was never really about code size: it was whether the
+    emitted assembly may contain a line that is not the instruction that runs.
+    It may not. One line is one instruction, the reader can count what they see,
+    and §21's tables mean what they say - on a machine DOSBox cannot time, that
+    correspondence is the whole of how performance is reasoned about here, and it
+    is what "the output is the product, not an intermediate" (§1) is asserting.
+    38 bytes is not a price worth paying for it, and the expanded form stays
+    wherever the branch genuinely cannot reach.
+
+    The `-Ox` behaviour is still worth knowing, because it means this pass can
+    never break a build - the worst an under-estimate can do is leave NASM to
+    expand a branch, which costs the honesty above and nothing else.
 
 4 and 5 were listed here as built, for a long time, and were not. That is the
 argument for the golden `.asm` tier (§14): a claim about generated output that

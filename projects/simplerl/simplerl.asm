@@ -44,12 +44,9 @@ __entry:
         mov     ax, [readKey__ret]
         mov     [lastKey], ax
 ; ---- if( lo( lastKey ) == keyEsc ) break
-        mov     ax, [lastKey]
         xor     ah, ah                      ; cast to u8
         cmp     ax, 27
-        je      .L6                         ; unsigned ==
-        jmp     .L4
-.L6:
+        jne     .L4                         ; unsigned ==
         jmp     .L3
 .L4:
 ; ---- oldPx = playerX
@@ -64,14 +61,10 @@ __entry:
         mov     al, [isMove__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jnz     .L9
-        jmp     .L7
-.L9:
+        jz      .L7
         mov     al, [playerY]
         test    al, al
-        ja      .L10                        ; unsigned >
-        jmp     .L7
-.L10:
+        jbe     .L7                         ; unsigned >
 ; ---- playerY--
         dec     byte [playerY]
         jmp     .L8
@@ -82,14 +75,10 @@ __entry:
         mov     al, [isMove__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jnz     .L13
-        jmp     .L11
-.L13:
+        jz      .L11
         mov     al, [playerY]
         cmp     al, 9                       ; byte operands, no widening
-        jb      .L14                        ; unsigned <
-        jmp     .L11
-.L14:
+        jae     .L11                        ; unsigned <
 ; ---- playerY++
         inc     byte [playerY]
         jmp     .L12
@@ -100,14 +89,10 @@ __entry:
         mov     al, [isMove__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jnz     .L17
-        jmp     .L15
-.L17:
+        jz      .L15
         mov     al, [playerX]
         test    al, al
-        ja      .L18                        ; unsigned >
-        jmp     .L15
-.L18:
+        jbe     .L15                        ; unsigned >
 ; ---- playerX--
         dec     byte [playerX]
         jmp     .L16
@@ -118,14 +103,10 @@ __entry:
         mov     al, [isMove__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jnz     .L21
-        jmp     .L19
-.L21:
+        jz      .L19
         mov     al, [playerX]
         cmp     al, 19                      ; byte operands, no widening
-        jb      .L22                        ; unsigned <
-        jmp     .L19
-.L22:
+        jae     .L19                        ; unsigned <
 ; ---- playerX++
         inc     byte [playerX]
 .L19:
@@ -144,9 +125,7 @@ __entry:
         mov     al, [map + bx]
         xor     ah, ah                      ; u8 -> u16
         cmp     ax, 35
-        je      .L25                        ; unsigned ==
-        jmp     .L23
-.L25:
+        jne     .L23                        ; unsigned ==
 ; ---- playerX = oldPx
         mov     al, [oldPx]
         mov     [playerX], al               ; u8 -> u8, no widening
@@ -327,9 +306,7 @@ isMove:
         mov     ax, [lastKey]
         xor     ah, ah                      ; cast to u8
         test    ax, ax
-        je      .L28                        ; unsigned ==
-        jmp     .L26
-.L28:
+        jne     .L26                        ; unsigned ==
         mov     ax, [lastKey]
         mov     cl, 8                       ; 8086 has no shift-by-immediate
         shr     ax, cl                      ; unsigned >>
@@ -337,9 +314,7 @@ isMove:
         mov     bl, [isMove__key]
         xor     bh, bh                      ; u8 -> u16
         cmp     ax, bx
-        je      .L29                        ; unsigned ==
-        jmp     .L26
-.L29:
+        jne     .L26                        ; unsigned ==
         mov     ax, 1
         jmp     .L27
 .L26:
@@ -380,11 +355,8 @@ draw:
         xor     ah, ah                      ; u8 -> u16
         mov     [draw__ch], al              ; narrowed to u8
 ; ---- if( ch == '#') ch = solidBlock
-        mov     al, [draw__ch]
         cmp     al, 35                      ; byte operands, no widening
-        je      .L40                        ; unsigned ==
-        jmp     .L38
-.L40:
+        jne     .L38                        ; unsigned ==
         mov     byte [draw__ch], 219
 .L38:
 ; ---- writeAt( x, y, ch, defAttr )

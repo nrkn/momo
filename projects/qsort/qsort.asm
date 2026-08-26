@@ -29,9 +29,7 @@ __entry:
 .L1:
         mov     ax, [i]
         cmp     ax, 20
-        jb      .L4                         ; unsigned <
-        jmp     .L3
-.L4:
+        jae     .L3                         ; unsigned <
 ; ---- if (values[i - 1] > values[i]) tmp++
         mov     ax, [i]
         dec     ax
@@ -46,9 +44,7 @@ __entry:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        ja      .L7                         ; unsigned >
-        jmp     .L5
-.L7:
+        jbe     .L5                         ; unsigned >
         inc     word [tmp]
 .L5:
 .L2:
@@ -95,9 +91,7 @@ putNumber:
 ; ---- if (n == 0) {
         mov     ax, [putNumber__n]
         test    ax, ax
-        je      .L10                        ; unsigned ==
-        jmp     .L8
-.L10:
+        jne     .L8                         ; unsigned ==
 ; ---- putChar(ioZeroChar)
         mov     byte [putChar__c], 48
         call    putChar
@@ -109,9 +103,7 @@ putNumber:
 .L11:
         mov     ax, [putNumber__n]
         test    ax, ax
-        ja      .L14                        ; unsigned >
-        jmp     .L13
-.L14:
+        jbe     .L13                        ; unsigned >
 ; ---- digits[i] = u8(n % ioBase) + ioZeroChar
         mov     ax, [putNumber__n]
         mov     bx, 10
@@ -140,9 +132,7 @@ putNumber:
 .L15:
         mov     al, [putNumber__i]
         test    al, al
-        ja      .L18                        ; unsigned >
-        jmp     .L17
-.L18:
+        jbe     .L17                        ; unsigned >
 ; ---- putChar(digits[i - 1])
         mov     al, [putNumber__i]
         xor     ah, ah                      ; u8 -> u16
@@ -163,9 +153,7 @@ seedRandom:
 ; ---- sub seedRandom(u16 s) => randomSeed = s == 0 ? 1 : s
         mov     ax, [seedRandom__s]
         test    ax, ax
-        je      .L21                        ; unsigned ==
-        jmp     .L19
-.L21:
+        jne     .L19                        ; unsigned ==
         mov     ax, 1
         jmp     .L20
 .L19:
@@ -188,7 +176,6 @@ nextRandom:
         xor     ax, bx
         mov     [rand__randomSeed], ax
 ; ---- randomSeed = randomSeed ^ (randomSeed >> 9)
-        mov     ax, [rand__randomSeed]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [rand__randomSeed]
         mov     cl, 9                       ; 8086 has no shift-by-immediate
@@ -198,7 +185,6 @@ nextRandom:
         xor     ax, bx
         mov     [rand__randomSeed], ax
 ; ---- randomSeed = randomSeed ^ (randomSeed << 8)
-        mov     ax, [rand__randomSeed]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [rand__randomSeed]
         mov     cl, 8                       ; 8086 has no shift-by-immediate
@@ -208,7 +194,6 @@ nextRandom:
         xor     ax, bx
         mov     [rand__randomSeed], ax
 ; ---- return randomSeed
-        mov     ax, [rand__randomSeed]
         mov     [nextRandom__ret], ax
         ret
 
@@ -259,7 +244,6 @@ popRange:
         sub     ax, 2
         mov     [sp_], ax
 ; ---- lo = ranges[sp]
-        mov     ax, [sp_]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [ranges + bx]
@@ -281,9 +265,7 @@ fill:
 .L22:
         mov     ax, [i]
         cmp     ax, 20
-        jb      .L25                        ; unsigned <
-        jmp     .L24
-.L25:
+        jae     .L24                        ; unsigned <
 ; ---- values[i] = randomBelow(100)
         mov     word [randomBelow__n], 100
         call    randomBelow
@@ -308,9 +290,7 @@ show:
 .L26:
         mov     ax, [i]
         cmp     ax, 20
-        jb      .L29                        ; unsigned <
-        jmp     .L28
-.L29:
+        jae     .L28                        ; unsigned <
 ; ---- putNumber(values[i])
         mov     ax, [i]
         shl     ax, 1                       ; word elements
@@ -356,7 +336,6 @@ quicksort:
         mov     ax, [hi]
         mov     [fromHi], ax
 ; ---- pivot = values[fromHi]
-        mov     ax, [fromHi]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [values + bx]
@@ -381,9 +360,7 @@ quicksort:
         mov     ax, [values + bx]
         mov     bx, [pivot]
         cmp     ax, bx
-        jb      .L40                        ; unsigned <
-        jmp     .L38
-.L40:
+        jae     .L38                        ; unsigned <
 ; ---- tmp = values[i]
         mov     ax, [i]
         shl     ax, 1                       ; word elements
@@ -445,12 +422,9 @@ quicksort:
         mov     ax, [i]
         mov     [pivotAt], ax
 ; ---- if (pivotAt > fromLo) {
-        mov     ax, [pivotAt]
         mov     bx, [fromLo]
         cmp     ax, bx
-        ja      .L43                        ; unsigned >
-        jmp     .L41
-.L43:
+        jbe     .L41                        ; unsigned >
 ; ---- lo = fromLo
         mov     ax, [fromLo]
         mov     [lo], ax
@@ -465,9 +439,7 @@ quicksort:
         mov     ax, [pivotAt]
         mov     bx, [fromHi]
         cmp     ax, bx
-        jb      .L46                        ; unsigned <
-        jmp     .L44
-.L46:
+        jae     .L44                        ; unsigned <
 ; ---- lo = pivotAt + 1
         mov     ax, [pivotAt]
         inc     ax

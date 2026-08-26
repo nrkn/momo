@@ -13,9 +13,7 @@ __entry:
 ; ---- putNumber(_hsize > 60000 ? 1 : 0)
         mov     ax, [_hsize]
         cmp     ax, 60000
-        ja      .L3                         ; unsigned >
-        jmp     .L1
-.L3:
+        jbe     .L1                         ; unsigned >
         mov     ax, 1
         jmp     .L2
 .L1:
@@ -38,9 +36,7 @@ __entry:
 .L4:
         mov     ax, [i]
         cmp     ax, 8
-        jb      .L7                         ; unsigned <
-        jmp     .L6
-.L7:
+        jae     .L6                         ; unsigned <
 ; ---- _heapw[block + i] = i * i
         mov     ax, [i]
         mov     bx, [i]
@@ -64,9 +60,7 @@ __entry:
 .L8:
         mov     ax, [i]
         cmp     ax, 8
-        jb      .L11                        ; unsigned <
-        jmp     .L10
-.L11:
+        jae     .L10                        ; unsigned <
 ; ---- total += _heapw[block + i]
         mov     ax, [total]
         push    ax                          ; save lhs: rhs is not a leaf
@@ -130,9 +124,7 @@ putNumber:
 ; ---- if (n == 0) {
         mov     ax, [putNumber__n]
         test    ax, ax
-        je      .L14                        ; unsigned ==
-        jmp     .L12
-.L14:
+        jne     .L12                        ; unsigned ==
 ; ---- putChar(ioZeroChar)
         mov     byte [putChar__c], 48
         call    putChar
@@ -144,9 +136,7 @@ putNumber:
 .L15:
         mov     ax, [putNumber__n]
         test    ax, ax
-        ja      .L18                        ; unsigned >
-        jmp     .L17
-.L18:
+        jbe     .L17                        ; unsigned >
 ; ---- digits[i] = u8(n % ioBase) + ioZeroChar
         mov     ax, [putNumber__n]
         mov     bx, 10
@@ -175,9 +165,7 @@ putNumber:
 .L19:
         mov     al, [putNumber__i]
         test    al, al
-        ja      .L22                        ; unsigned >
-        jmp     .L21
-.L22:
+        jbe     .L21                        ; unsigned >
 ; ---- putChar(digits[i - 1])
         mov     al, [putNumber__i]
         xor     ah, ah                      ; u8 -> u16

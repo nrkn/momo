@@ -127,7 +127,6 @@ __entry:
         mov     ax, [strFind__ret]
         mov     [found], ax
 ; ---- putNumber( found - addr( path ) )           // 5
-        mov     ax, [found]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, path                    ; link-time constant
         mov     bx, ax
@@ -155,7 +154,6 @@ __entry:
         mov     ax, [strFind__ret]
         mov     [found], ax
 ; ---- putNumber( found - addr( path ) )           // 8
-        mov     ax, [found]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, path                    ; link-time constant
         mov     bx, ax
@@ -262,9 +260,7 @@ putNumber:
 ; ---- if (n == 0) {
         mov     ax, [putNumber__n]
         test    ax, ax
-        je      .L3                         ; unsigned ==
-        jmp     .L1
-.L3:
+        jne     .L1                         ; unsigned ==
 ; ---- putChar(ioZeroChar)
         mov     byte [putChar__c], 48
         call    putChar
@@ -276,9 +272,7 @@ putNumber:
 .L4:
         mov     ax, [putNumber__n]
         test    ax, ax
-        ja      .L7                         ; unsigned >
-        jmp     .L6
-.L7:
+        jbe     .L6                         ; unsigned >
 ; ---- digits[i] = u8(n % ioBase) + ioZeroChar
         mov     ax, [putNumber__n]
         mov     bx, 10
@@ -307,9 +301,7 @@ putNumber:
 .L8:
         mov     al, [putNumber__i]
         test    al, al
-        ja      .L11                        ; unsigned >
-        jmp     .L10
-.L11:
+        jbe     .L10                        ; unsigned >
 ; ---- putChar(digits[i - 1])
         mov     al, [putNumber__i]
         xor     ah, ah                      ; u8 -> u16
@@ -337,9 +329,7 @@ strLen:
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
         cmp     al, 36                      ; byte operands, no widening
-        jne     .L15                        ; unsigned !=
-        jmp     .L14
-.L15:
+        je      .L14                        ; unsigned !=
 ; ---- n++
         inc     word [strLen__n]
 .L13:
@@ -375,9 +365,7 @@ strCopy:
 ; ---- if ( ch == strEnd ) break
         mov     al, [strCopy__ch]
         cmp     al, 36                      ; byte operands, no widening
-        je      .L21                        ; unsigned ==
-        jmp     .L19
-.L21:
+        jne     .L19                        ; unsigned ==
         jmp     .L18
 .L19:
 ; ---- i++
@@ -411,9 +399,7 @@ strCmp:
 ; ---- if ( ca != cb ) return i16( ca ) - i16( cb )
         mov     al, [strCmp__ca]
         cmp     al, [strCmp__cb]            ; byte operands, no widening
-        jne     .L27                        ; unsigned !=
-        jmp     .L25
-.L27:
+        je      .L25                        ; unsigned !=
         mov     al, [strCmp__ca]
         xor     ah, ah                      ; u8 -> u16
         push    ax                          ; save lhs: rhs is not a leaf
@@ -428,9 +414,7 @@ strCmp:
 ; ---- if ( ca == strEnd ) return 0
         mov     al, [strCmp__ca]
         cmp     al, 36                      ; byte operands, no widening
-        je      .L30                        ; unsigned ==
-        jmp     .L28
-.L30:
+        jne     .L28                        ; unsigned ==
         mov     word [strCmp__ret], 0
         ret
 .L28:
@@ -456,11 +440,8 @@ strFind:
         mov     al, [bx]                    ; peek8 - unchecked, by design
         mov     [strFind__c], al            ; u8 -> u8, no widening
 ; ---- if ( c == ch ) return at + i
-        mov     al, [strFind__c]
         cmp     al, [strFind__ch]           ; byte operands, no widening
-        je      .L36                        ; unsigned ==
-        jmp     .L34
-.L36:
+        jne     .L34                        ; unsigned ==
         mov     ax, [strFind__at]
         mov     bx, [strFind__i]
         add     ax, bx
@@ -470,9 +451,7 @@ strFind:
 ; ---- if ( c == strEnd ) return 0
         mov     al, [strFind__c]
         cmp     al, 36                      ; byte operands, no widening
-        je      .L39                        ; unsigned ==
-        jmp     .L37
-.L39:
+        jne     .L37                        ; unsigned ==
         mov     word [strFind__ret], 0
         ret
 .L37:
@@ -492,9 +471,7 @@ memCopy:
         mov     ax, [memCopy__i]
         mov     bx, [memCopy__count]
         cmp     ax, bx
-        jb      .L43                        ; unsigned <
-        jmp     .L42
-.L43:
+        jae     .L42                        ; unsigned <
 ; ---- poke8( to + i, peek8( from + i ) )
         mov     ax, [memCopy__to]
         mov     bx, [memCopy__i]
@@ -522,9 +499,7 @@ memFill:
         mov     ax, [memFill__i]
         mov     bx, [memFill__count]
         cmp     ax, bx
-        jb      .L47                        ; unsigned <
-        jmp     .L46
-.L47:
+        jae     .L46                        ; unsigned <
 ; ---- poke8( at + i, value )
         mov     ax, [memFill__at]
         mov     bx, [memFill__i]

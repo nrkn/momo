@@ -150,9 +150,7 @@ putNumber:
 ; ---- if (n == 0) {
         mov     ax, [putNumber__n]
         test    ax, ax
-        je      .L3                         ; unsigned ==
-        jmp     .L1
-.L3:
+        jne     .L1                         ; unsigned ==
 ; ---- putChar(ioZeroChar)
         mov     byte [putChar__c], 48
         call    putChar
@@ -164,9 +162,7 @@ putNumber:
 .L4:
         mov     ax, [putNumber__n]
         test    ax, ax
-        ja      .L7                         ; unsigned >
-        jmp     .L6
-.L7:
+        jbe     .L6                         ; unsigned >
 ; ---- digits[i] = u8(n % ioBase) + ioZeroChar
         mov     ax, [putNumber__n]
         mov     bx, 10
@@ -195,9 +191,7 @@ putNumber:
 .L8:
         mov     al, [putNumber__i]
         test    al, al
-        ja      .L11                        ; unsigned >
-        jmp     .L10
-.L11:
+        jbe     .L10                        ; unsigned >
 ; ---- putChar(digits[i - 1])
         mov     al, [putNumber__i]
         xor     ah, ah                      ; u8 -> u16
@@ -225,9 +219,7 @@ strLen:
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
         cmp     al, 36                      ; byte operands, no widening
-        jne     .L15                        ; unsigned !=
-        jmp     .L14
-.L15:
+        je      .L14                        ; unsigned !=
 ; ---- n++
         inc     word [strLen__n]
 .L13:
@@ -244,9 +236,7 @@ setSize:
 ; ---- if ( xAxis ) {
         mov     al, [setSize__xAxis]
         test    al, al
-        jnz     .L18
-        jmp     .L16
-.L18:
+        jz      .L16
 ; ---- el[i].w = v
         mov     ax, [setSize__v]
         push    ax                          ; save value while computing the index
@@ -274,9 +264,7 @@ setOverflow:
 ; ---- if ( xAxis ) {
         mov     al, [setOverflow__xAxis]
         test    al, al
-        jnz     .L21
-        jmp     .L19
-.L21:
+        jz      .L19
 ; ---- el[i].overflowX = true
         mov     ax, [setOverflow__i]
         mov     bx, ax
@@ -569,9 +557,7 @@ build__attachToParent:
 ; ---- if ( openDepth == 0 ) return          // the root has no parent
         mov     ax, [openDepth]
         test    ax, ax
-        je      .L24                        ; unsigned ==
-        jmp     .L22
-.L24:
+        jne     .L22                        ; unsigned ==
         ret
 .L22:
 ; ---- p = openStack[ openDepth - 1 ]
@@ -582,7 +568,6 @@ build__attachToParent:
         mov     ax, [openStack + bx]
         mov     [build__attachToParent__p], ax
 ; ---- el[p].childCount++
-        mov     ax, [build__attachToParent__p]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         inc     word [el__childCount + bx]
@@ -606,7 +591,6 @@ openBox:
         mov     ax, [build__pushElement__ret]
         mov     [openBox__i], ax
 ; ---- openStack[ openDepth ] = i
-        mov     ax, [openBox__i]
         push    ax                          ; save value while computing the index
         mov     ax, [openDepth]
         shl     ax, 1                       ; word elements
@@ -626,9 +610,7 @@ closeBox:
 ; ---- if ( openDepth == 0 ) return
         mov     ax, [openDepth]
         test    ax, ax
-        je      .L27                        ; unsigned ==
-        jmp     .L25
-.L27:
+        jne     .L25                        ; unsigned ==
         ret
 .L25:
 ; ---- openDepth--
@@ -640,7 +622,6 @@ closeBox:
         mov     ax, [openStack + bx]
         mov     [closeBox__i], ax
 ; ---- n = el[i].childCount
-        mov     ax, [closeBox__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [el__childCount + bx]
@@ -664,9 +645,7 @@ closeBox:
         mov     ax, [closeBox__k]
         mov     bx, [closeBox__n]
         cmp     ax, bx
-        jb      .L31                        ; unsigned <
-        jmp     .L30
-.L31:
+        jae     .L30                        ; unsigned <
 ; ---- childList[ childListLen ] = childBuf[ base + k ]
         mov     ax, [closeBox__base]
         mov     bx, [closeBox__k]
@@ -707,7 +686,6 @@ leaf:
         mov     ax, [build__pushElement__ret]
         mov     [leaf__i], ax
 ; ---- insetX = el[i].insetL + el[i].insetR
-        mov     ax, [leaf__i]
         mov     bx, ax
         mov     al, [el__insetL + bx]
         xor     ah, ah                      ; u8 -> u16
@@ -738,9 +716,7 @@ leaf:
         mov     ax, [leaf__minW]
         mov     bx, [leaf__w]
         cmp     ax, bx
-        jb      .L34                        ; unsigned <
-        jmp     .L32
-.L34:
+        jae     .L32                        ; unsigned <
         mov     ax, [leaf__minW]
         jmp     .L33
 .L32:
@@ -751,9 +727,7 @@ leaf:
         mov     ax, [leaf__minH]
         mov     bx, [leaf__h]
         cmp     ax, bx
-        jb      .L37                        ; unsigned <
-        jmp     .L35
-.L37:
+        jae     .L35                        ; unsigned <
         mov     ax, [leaf__minH]
         jmp     .L36
 .L35:
@@ -772,9 +746,7 @@ leaf:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L40                        ; unsigned <
-        jmp     .L38
-.L40:
+        jae     .L38                        ; unsigned <
         mov     ax, [leaf__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -792,9 +764,7 @@ leaf:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        ja      .L43                        ; unsigned >
-        jmp     .L41
-.L43:
+        jbe     .L41                        ; unsigned >
         mov     ax, [leaf__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -824,9 +794,7 @@ leaf:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L46                        ; unsigned <
-        jmp     .L44
-.L46:
+        jae     .L44                        ; unsigned <
         mov     ax, [leaf__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -844,9 +812,7 @@ leaf:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        ja      .L49                        ; unsigned >
-        jmp     .L47
-.L49:
+        jbe     .L47                        ; unsigned >
         mov     ax, [leaf__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -876,9 +842,7 @@ leaf:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L52                        ; unsigned <
-        jmp     .L50
-.L52:
+        jae     .L50                        ; unsigned <
         mov     ax, [leaf__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -896,9 +860,7 @@ leaf:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        ja      .L55                        ; unsigned >
-        jmp     .L53
-.L55:
+        jbe     .L53                        ; unsigned >
         mov     ax, [leaf__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -928,9 +890,7 @@ leaf:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L58                        ; unsigned <
-        jmp     .L56
-.L58:
+        jae     .L56                        ; unsigned <
         mov     ax, [leaf__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -948,9 +908,7 @@ leaf:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        ja      .L61                        ; unsigned >
-        jmp     .L59
-.L61:
+        jbe     .L59                        ; unsigned >
         mov     ax, [leaf__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -1022,7 +980,6 @@ setLeafHeight:
         add     ax, bx
         mov     [setLeafHeight__insetY], ax
 ; ---- el[i].h = clamp( insetY + h, el[i].hMin, el[i].hMax )
-        mov     ax, [setLeafHeight__insetY]
         mov     bx, [setLeafHeight__h]
         add     ax, bx
         push    ax                          ; save lhs: rhs is not a leaf
@@ -1033,9 +990,7 @@ setLeafHeight:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L64                        ; unsigned <
-        jmp     .L62
-.L64:
+        jae     .L62                        ; unsigned <
         mov     ax, [setLeafHeight__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -1053,9 +1008,7 @@ setLeafHeight:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        ja      .L67                        ; unsigned >
-        jmp     .L65
-.L67:
+        jbe     .L65                        ; unsigned >
         mov     ax, [setLeafHeight__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -1085,9 +1038,7 @@ setLeafHeight:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L70                        ; unsigned <
-        jmp     .L68
-.L70:
+        jae     .L68                        ; unsigned <
         mov     ax, [setLeafHeight__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -1105,9 +1056,7 @@ setLeafHeight:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        ja      .L73                        ; unsigned >
-        jmp     .L71
-.L73:
+        jbe     .L71                        ; unsigned >
         mov     ax, [setLeafHeight__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -1188,7 +1137,6 @@ boxOpen:
         mov     ax, [openBox__ret]
         mov     [boxOpen__i], ax
 ; ---- stClear( i )
-        mov     ax, [boxOpen__i]
         mov     [mopaint__stClear__i], ax
         call    mopaint__stClear
         ret
@@ -1201,7 +1149,6 @@ panelOpen:
         mov     ax, [openBox__ret]
         mov     [panelOpen__i], ax
 ; ---- stClear( i )
-        mov     ax, [panelOpen__i]
         mov     [mopaint__stClear__i], ax
         call    mopaint__stClear
 ; ---- st[i].bg = bg
@@ -1249,7 +1196,6 @@ panelFramed:
         mov     ax, [openBox__ret]
         mov     [panelFramed__i], ax
 ; ---- stClear( i )
-        mov     ax, [panelFramed__i]
         mov     [mopaint__stClear__i], ax
         call    mopaint__stClear
 ; ---- st[i].bg = bg
@@ -1285,7 +1231,6 @@ labelPaint:
         mov     ax, [strLen__ret]
         mov     [labelPaint__n], ax
 ; ---- i = leaf( n, lineHeight, n, lineHeight )
-        mov     ax, [labelPaint__n]
         mov     [leaf__w], ax
         mov     word [leaf__h], 1
         mov     ax, [labelPaint__n]
@@ -1295,7 +1240,6 @@ labelPaint:
         mov     ax, [leaf__ret]
         mov     [labelPaint__i], ax
 ; ---- stClear( i )
-        mov     ax, [labelPaint__i]
         mov     [mopaint__stClear__i], ax
         call    mopaint__stClear
 ; ---- st[i].text = at
@@ -1332,7 +1276,6 @@ paraPaint:
         mov     ax, [strLen__ret]
         mov     [paraPaint__n], ax
 ; ---- i = leaf( n, lineHeight, minW, lineHeight )
-        mov     ax, [paraPaint__n]
         mov     [leaf__w], ax
         mov     word [leaf__h], 1
         mov     ax, [paraPaint__minW]
@@ -1342,7 +1285,6 @@ paraPaint:
         mov     ax, [leaf__ret]
         mov     [paraPaint__i], ax
 ; ---- stClear( i )
-        mov     ax, [paraPaint__i]
         mov     [mopaint__stClear__i], ax
         call    mopaint__stClear
 ; ---- st[i].text = at
@@ -1385,9 +1327,7 @@ mopaint__wrapInto:
 ; ---- lim = limit < 1 ? 1 : limit
         mov     ax, [mopaint__wrapInto__limit]
         cmp     ax, 1
-        jb      .L76                        ; unsigned <
-        jmp     .L74
-.L76:
+        jae     .L74                        ; unsigned <
         mov     ax, 1
         jmp     .L75
 .L74:
@@ -1414,11 +1354,8 @@ mopaint__wrapInto:
         mov     al, [bx]                    ; peek8 - unchecked, by design
         mov     [mopaint__wrapInto__ch], al ; u8 -> u8, no widening
 ; ---- if ( ch != 32 ) break
-        mov     al, [mopaint__wrapInto__ch]
         cmp     al, 32                      ; byte operands, no widening
-        jne     .L85                        ; unsigned !=
-        jmp     .L83
-.L85:
+        je      .L83                        ; unsigned !=
         jmp     .L82
 .L83:
 ; ---- i++
@@ -1433,9 +1370,7 @@ mopaint__wrapInto:
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
         cmp     al, 36                      ; byte operands, no widening
-        je      .L88                        ; unsigned ==
-        jmp     .L86
-.L88:
+        jne     .L86                        ; unsigned ==
         jmp     .L79
 .L86:
 ; ---- wordStart = i
@@ -1451,19 +1386,14 @@ mopaint__wrapInto:
         mov     al, [bx]                    ; peek8 - unchecked, by design
         mov     [mopaint__wrapInto__ch], al ; u8 -> u8, no widening
 ; ---- if ( ch == strEnd ) break
-        mov     al, [mopaint__wrapInto__ch]
         cmp     al, 36                      ; byte operands, no widening
-        je      .L94                        ; unsigned ==
-        jmp     .L92
-.L94:
+        jne     .L92                        ; unsigned ==
         jmp     .L91
 .L92:
 ; ---- if ( ch == 32 ) break
         mov     al, [mopaint__wrapInto__ch]
         cmp     al, 32                      ; byte operands, no widening
-        je      .L97                        ; unsigned ==
-        jmp     .L95
-.L97:
+        jne     .L95                        ; unsigned ==
         jmp     .L91
 .L95:
 ; ---- i++
@@ -1479,9 +1409,7 @@ mopaint__wrapInto:
 ; ---- candidate = lineLength == 0 ? wordLen : lineLength + 1 + wordLen
         mov     ax, [mopaint__wrapInto__lineLength]
         test    ax, ax
-        je      .L100                       ; unsigned ==
-        jmp     .L98
-.L100:
+        jne     .L98                        ; unsigned ==
         mov     ax, [mopaint__wrapInto__wordLen]
         jmp     .L99
 .L98:
@@ -1492,18 +1420,13 @@ mopaint__wrapInto:
 .L99:
         mov     [mopaint__wrapInto__candidate], ax
 ; ---- if ( candidate <= lim ) {
-        mov     ax, [mopaint__wrapInto__candidate]
         mov     bx, [mopaint__wrapInto__lim]
         cmp     ax, bx
-        jbe     .L103                       ; unsigned <=
-        jmp     .L101
-.L103:
+        ja      .L101                       ; unsigned <=
 ; ---- if ( lineLength == 0 ) lineStart = wordStart
         mov     ax, [mopaint__wrapInto__lineLength]
         test    ax, ax
-        je      .L106                       ; unsigned ==
-        jmp     .L104
-.L106:
+        jne     .L104                       ; unsigned ==
         mov     ax, [mopaint__wrapInto__wordStart]
         mov     [mopaint__wrapInto__lineStart], ax
 .L104:
@@ -1516,9 +1439,7 @@ mopaint__wrapInto:
 ; ---- if ( lineLength > 0 ) {
         mov     ax, [mopaint__wrapInto__lineLength]
         test    ax, ax
-        ja      .L109                       ; unsigned >
-        jmp     .L107
-.L109:
+        jbe     .L107                       ; unsigned >
 ; ---- lineAt[lineTop] = at + lineStart
         mov     ax, [mopaint__wrapInto__at]
         mov     bx, [mopaint__wrapInto__lineStart]
@@ -1554,9 +1475,7 @@ mopaint__wrapInto:
 ; ---- if ( lineLength > 0 ) {
         mov     ax, [mopaint__wrapInto__lineLength]
         test    ax, ax
-        ja      .L112                       ; unsigned >
-        jmp     .L110
-.L112:
+        jbe     .L110                       ; unsigned >
 ; ---- lineAt[lineTop] = at + lineStart
         mov     ax, [mopaint__wrapInto__at]
         mov     bx, [mopaint__wrapInto__lineStart]
@@ -1583,9 +1502,7 @@ mopaint__wrapInto:
 ; ---- if ( n == 0 ) {
         mov     ax, [mopaint__wrapInto__n]
         test    ax, ax
-        je      .L115                       ; unsigned ==
-        jmp     .L113
-.L115:
+        jne     .L113                       ; unsigned ==
 ; ---- lineAt[lineTop] = at
         mov     ax, [mopaint__wrapInto__at]
         push    ax                          ; save value while computing the index
@@ -1727,9 +1644,7 @@ fitSize:
 ; ---- gaps = n == 0 ? 0 : el[i].gap * ( n - 1 )
         mov     ax, [fitSize__n]
         test    ax, ax
-        je      .L122                       ; unsigned ==
-        jmp     .L120
-.L122:
+        jne     .L120                       ; unsigned ==
         xor     ax, ax                      ; 0
         jmp     .L121
 .L120:
@@ -1813,9 +1728,7 @@ fitSize:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        ja      .L132                       ; unsigned >
-        jmp     .L130
-.L132:
+        jbe     .L130                       ; unsigned >
         mov     ax, [fitSize__contentW]
         jmp     .L131
 .L130:
@@ -1835,9 +1748,7 @@ fitSize:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        ja      .L135                       ; unsigned >
-        jmp     .L133
-.L135:
+        jbe     .L133                       ; unsigned >
         mov     ax, [fitSize__minContentW]
         jmp     .L134
 .L133:
@@ -1915,9 +1826,7 @@ fitSize:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        ja      .L142                       ; unsigned >
-        jmp     .L140
-.L142:
+        jbe     .L140                       ; unsigned >
         mov     ax, [fitSize__contentH]
         jmp     .L141
 .L140:
@@ -1937,9 +1846,7 @@ fitSize:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        ja      .L145                       ; unsigned >
-        jmp     .L143
-.L145:
+        jbe     .L143                       ; unsigned >
         mov     ax, [fitSize__minContentH]
         jmp     .L144
 .L143:
@@ -1976,9 +1883,7 @@ fitSize:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L148                       ; unsigned <
-        jmp     .L146
-.L148:
+        jae     .L146                       ; unsigned <
         mov     ax, [fitSize__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -1996,9 +1901,7 @@ fitSize:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        ja      .L151                       ; unsigned >
-        jmp     .L149
-.L151:
+        jbe     .L149                       ; unsigned >
         mov     ax, [fitSize__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -2028,9 +1931,7 @@ fitSize:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L154                       ; unsigned <
-        jmp     .L152
-.L154:
+        jae     .L152                       ; unsigned <
         mov     ax, [fitSize__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -2048,9 +1949,7 @@ fitSize:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        ja      .L157                       ; unsigned >
-        jmp     .L155
-.L157:
+        jbe     .L155                       ; unsigned >
         mov     ax, [fitSize__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -2080,9 +1979,7 @@ fitSize:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L160                       ; unsigned <
-        jmp     .L158
-.L160:
+        jae     .L158                       ; unsigned <
         mov     ax, [fitSize__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -2100,9 +1997,7 @@ fitSize:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        ja      .L163                       ; unsigned >
-        jmp     .L161
-.L163:
+        jbe     .L161                       ; unsigned >
         mov     ax, [fitSize__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -2132,9 +2027,7 @@ fitSize:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L166                       ; unsigned <
-        jmp     .L164
-.L166:
+        jae     .L164                       ; unsigned <
         mov     ax, [fitSize__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -2152,9 +2045,7 @@ fitSize:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        ja      .L169                       ; unsigned >
-        jmp     .L167
-.L169:
+        jbe     .L167                       ; unsigned >
         mov     ax, [fitSize__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -2185,9 +2076,7 @@ size__candRemove:
         inc     ax
         mov     bx, [size__candLen]
         cmp     ax, bx
-        jb      .L173                       ; unsigned <
-        jmp     .L172
-.L173:
+        jae     .L172                       ; unsigned <
 ; ---- cand[j] = cand[j + 1]
         mov     ax, [size__candRemove__j]
         inc     ax
@@ -2250,9 +2139,7 @@ size__growInto:
 ; ---- s = sizeOf( ci, xAxis )
         mov     al, [size__growInto__xAxis]
         test    al, al
-        jnz     .L185
-        jmp     .L183
-.L185:
+        jz      .L183
         mov     ax, [size__growInto__ci]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -2266,12 +2153,9 @@ size__growInto:
 .L184:
         mov     [size__growInto__s], ax
 ; ---- if ( s < smallest ) {
-        mov     ax, [size__growInto__s]
         mov     bx, [size__growInto__smallest]
         cmp     ax, bx
-        jb      .L188                       ; unsigned <
-        jmp     .L186
-.L188:
+        jae     .L186                       ; unsigned <
 ; ---- second = smallest
         mov     ax, [size__growInto__smallest]
         mov     [size__growInto__second], ax
@@ -2286,9 +2170,7 @@ size__growInto:
         mov     ax, [size__growInto__s]
         mov     bx, [size__growInto__smallest]
         cmp     ax, bx
-        je      .L191                       ; unsigned ==
-        jmp     .L189
-.L191:
+        jne     .L189                       ; unsigned ==
 ; ---- countAtSmallest++
         inc     word [size__growInto__countAtSmallest]
         jmp     .L190
@@ -2297,9 +2179,7 @@ size__growInto:
         mov     ax, [size__growInto__s]
         mov     bx, [size__growInto__second]
         cmp     ax, bx
-        jb      .L194                       ; unsigned <
-        jmp     .L192
-.L194:
+        jae     .L192                       ; unsigned <
 ; ---- second = s
         mov     ax, [size__growInto__s]
         mov     [size__growInto__second], ax
@@ -2322,9 +2202,7 @@ size__growInto:
         sub     ax, bx
         mov     bx, [size__growInto__even]
         cmp     ax, bx
-        jb      .L197                       ; unsigned <
-        jmp     .L195
-.L197:
+        jae     .L195                       ; unsigned <
         mov     ax, [size__growInto__second]
         mov     bx, [size__growInto__smallest]
         sub     ax, bx
@@ -2334,7 +2212,6 @@ size__growInto:
 .L196:
         mov     [size__growInto__add], ax
 ; ---- if ( add == 0 ) {
-        mov     ax, [size__growInto__add]
         test    ax, ax
         je      .L200                       ; unsigned ==
         jmp     .L198
@@ -2351,9 +2228,7 @@ size__growInto:
 ; ---- if ( remaining == 0 ) break
         mov     ax, [size__growInto__remaining]
         test    ax, ax
-        je      .L207                       ; unsigned ==
-        jmp     .L205
-.L207:
+        jne     .L205                       ; unsigned ==
         jmp     .L203
 .L205:
 ; ---- ci = cand[j]
@@ -2365,9 +2240,7 @@ size__growInto:
 ; ---- if ( sizeOf( ci, xAxis ) != smallest ) continue
         mov     al, [size__growInto__xAxis]
         test    al, al
-        jnz     .L212
-        jmp     .L210
-.L212:
+        jz      .L210
         mov     ax, [size__growInto__ci]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -2381,9 +2254,7 @@ size__growInto:
 .L211:
         mov     bx, [size__growInto__smallest]
         cmp     ax, bx
-        jne     .L213                       ; unsigned !=
-        jmp     .L208
-.L213:
+        je      .L208                       ; unsigned !=
         jmp     .L202
 .L208:
 ; ---- if ( smallest + 1 > maxOf( ci, xAxis ) ) continue
@@ -2392,9 +2263,7 @@ size__growInto:
         push    ax                          ; save lhs: rhs is not a leaf
         mov     al, [size__growInto__xAxis]
         test    al, al
-        jnz     .L218
-        jmp     .L216
-.L218:
+        jz      .L216
         mov     ax, [size__growInto__ci]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -2409,9 +2278,7 @@ size__growInto:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        ja      .L219                       ; unsigned >
-        jmp     .L214
-.L219:
+        jbe     .L214                       ; unsigned >
         jmp     .L202
 .L214:
 ; ---- setSize( ci, xAxis, smallest + 1 )
@@ -2451,9 +2318,7 @@ size__growInto:
 ; ---- if ( sizeOf( ci, xAxis ) != smallest ) continue
         mov     al, [size__growInto__xAxis]
         test    al, al
-        jnz     .L228
-        jmp     .L226
-.L228:
+        jz      .L226
         mov     ax, [size__growInto__ci]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -2467,17 +2332,13 @@ size__growInto:
 .L227:
         mov     bx, [size__growInto__smallest]
         cmp     ax, bx
-        jne     .L229                       ; unsigned !=
-        jmp     .L224
-.L229:
+        je      .L224                       ; unsigned !=
         jmp     .L221
 .L224:
 ; ---- cap = maxOf( ci, xAxis )
         mov     al, [size__growInto__xAxis]
         test    al, al
-        jnz     .L232
-        jmp     .L230
-.L232:
+        jz      .L230
         mov     ax, [size__growInto__ci]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -2499,9 +2360,7 @@ size__growInto:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L235                       ; unsigned <
-        jmp     .L233
-.L235:
+        jae     .L233                       ; unsigned <
         mov     ax, [size__growInto__add]
         jmp     .L234
 .L233:
@@ -2531,9 +2390,7 @@ size__growInto:
         add     ax, bx
         mov     bx, [size__growInto__cap]
         cmp     ax, bx
-        jae     .L238                       ; unsigned >=
-        jmp     .L236
-.L238:
+        jb      .L236                       ; unsigned >=
         mov     ax, [size__growInto__j]
         dec     ax
         mov     [size__candRemove__at], ax
@@ -2590,9 +2447,7 @@ size__shrinkFrom:
 ; ---- s = sizeOf( ci, xAxis )
         mov     al, [size__shrinkFrom__xAxis]
         test    al, al
-        jnz     .L250
-        jmp     .L248
-.L250:
+        jz      .L248
         mov     ax, [size__shrinkFrom__ci]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -2606,18 +2461,13 @@ size__shrinkFrom:
 .L249:
         mov     [size__shrinkFrom__s], ax
 ; ---- if ( s > largest ) {
-        mov     ax, [size__shrinkFrom__s]
         mov     bx, [size__shrinkFrom__largest]
         cmp     ax, bx
-        ja      .L253                       ; unsigned >
-        jmp     .L251
-.L253:
+        jbe     .L251                       ; unsigned >
 ; ---- if ( countAtLargest > 0 ) second = largest
         mov     ax, [size__shrinkFrom__countAtLargest]
         test    ax, ax
-        ja      .L256                       ; unsigned >
-        jmp     .L254
-.L256:
+        jbe     .L254                       ; unsigned >
         mov     ax, [size__shrinkFrom__largest]
         mov     [size__shrinkFrom__second], ax
 .L254:
@@ -2632,9 +2482,7 @@ size__shrinkFrom:
         mov     ax, [size__shrinkFrom__s]
         mov     bx, [size__shrinkFrom__largest]
         cmp     ax, bx
-        je      .L259                       ; unsigned ==
-        jmp     .L257
-.L259:
+        jne     .L257                       ; unsigned ==
 ; ---- countAtLargest++
         inc     word [size__shrinkFrom__countAtLargest]
         jmp     .L258
@@ -2643,9 +2491,7 @@ size__shrinkFrom:
         mov     ax, [size__shrinkFrom__s]
         mov     bx, [size__shrinkFrom__second]
         cmp     ax, bx
-        ja      .L262                       ; unsigned >
-        jmp     .L260
-.L262:
+        jbe     .L260                       ; unsigned >
 ; ---- second = s
         mov     ax, [size__shrinkFrom__s]
         mov     [size__shrinkFrom__second], ax
@@ -2668,9 +2514,7 @@ size__shrinkFrom:
         sub     ax, bx
         mov     bx, [size__shrinkFrom__even]
         cmp     ax, bx
-        jb      .L265                       ; unsigned <
-        jmp     .L263
-.L265:
+        jae     .L263                       ; unsigned <
         mov     ax, [size__shrinkFrom__largest]
         mov     bx, [size__shrinkFrom__second]
         sub     ax, bx
@@ -2680,7 +2524,6 @@ size__shrinkFrom:
 .L264:
         mov     [size__shrinkFrom__step], ax
 ; ---- if ( step == 0 ) {
-        mov     ax, [size__shrinkFrom__step]
         test    ax, ax
         je      .L268                       ; unsigned ==
         jmp     .L266
@@ -2697,9 +2540,7 @@ size__shrinkFrom:
 ; ---- if ( excess == 0 ) break
         mov     ax, [size__shrinkFrom__excess]
         test    ax, ax
-        je      .L275                       ; unsigned ==
-        jmp     .L273
-.L275:
+        jne     .L273                       ; unsigned ==
         jmp     .L271
 .L273:
 ; ---- ci = cand[j]
@@ -2711,9 +2552,7 @@ size__shrinkFrom:
 ; ---- if ( sizeOf( ci, xAxis ) != largest ) continue
         mov     al, [size__shrinkFrom__xAxis]
         test    al, al
-        jnz     .L280
-        jmp     .L278
-.L280:
+        jz      .L278
         mov     ax, [size__shrinkFrom__ci]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -2727,9 +2566,7 @@ size__shrinkFrom:
 .L279:
         mov     bx, [size__shrinkFrom__largest]
         cmp     ax, bx
-        jne     .L281                       ; unsigned !=
-        jmp     .L276
-.L281:
+        je      .L276                       ; unsigned !=
         jmp     .L270
 .L276:
 ; ---- if ( largest <= minOf( ci, xAxis ) ) continue
@@ -2737,9 +2574,7 @@ size__shrinkFrom:
         push    ax                          ; save lhs: rhs is not a leaf
         mov     al, [size__shrinkFrom__xAxis]
         test    al, al
-        jnz     .L286
-        jmp     .L284
-.L286:
+        jz      .L284
         mov     ax, [size__shrinkFrom__ci]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -2754,9 +2589,7 @@ size__shrinkFrom:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jbe     .L287                       ; unsigned <=
-        jmp     .L282
-.L287:
+        ja      .L282                       ; unsigned <=
         jmp     .L270
 .L282:
 ; ---- setSize( ci, xAxis, largest - 1 )
@@ -2798,9 +2631,7 @@ size__shrinkFrom:
 ; ---- if ( sizeOf( ci, xAxis ) != largest ) continue
         mov     al, [size__shrinkFrom__xAxis]
         test    al, al
-        jnz     .L296
-        jmp     .L294
-.L296:
+        jz      .L294
         mov     ax, [size__shrinkFrom__ci]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -2814,17 +2645,13 @@ size__shrinkFrom:
 .L295:
         mov     bx, [size__shrinkFrom__largest]
         cmp     ax, bx
-        jne     .L297                       ; unsigned !=
-        jmp     .L292
-.L297:
+        je      .L292                       ; unsigned !=
         jmp     .L289
 .L292:
 ; ---- floorAt = minOf( ci, xAxis )
         mov     al, [size__shrinkFrom__xAxis]
         test    al, al
-        jnz     .L300
-        jmp     .L298
-.L300:
+        jz      .L298
         mov     ax, [size__shrinkFrom__ci]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -2846,9 +2673,7 @@ size__shrinkFrom:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L303                       ; unsigned <
-        jmp     .L301
-.L303:
+        jae     .L301                       ; unsigned <
         mov     ax, [size__shrinkFrom__step]
         jmp     .L302
 .L301:
@@ -2878,9 +2703,7 @@ size__shrinkFrom:
         sub     ax, bx
         mov     bx, [size__shrinkFrom__floorAt]
         cmp     ax, bx
-        jbe     .L306                       ; unsigned <=
-        jmp     .L304
-.L306:
+        ja      .L304                       ; unsigned <=
         mov     ax, [size__shrinkFrom__j]
         dec     ax
         mov     [size__candRemove__at], ax
@@ -2921,17 +2744,13 @@ sizeAxis:
         mov     ax, [size__bfs + bx]
         mov     [sizeAxis__i], ax
 ; ---- n = el[i].childCount
-        mov     ax, [sizeAxis__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [el__childCount + bx]
         mov     [sizeAxis__n], ax
 ; ---- if ( n == 0 ) continue
-        mov     ax, [sizeAxis__n]
         test    ax, ax
-        je      .L313                       ; unsigned ==
-        jmp     .L311
-.L313:
+        jne     .L311                       ; unsigned ==
         jmp     .L308
 .L311:
 ; ---- for ( k = 0; k < n; k++ ) {
@@ -2955,14 +2774,11 @@ sizeAxis:
         mov     ax, [childList + bx]
         mov     [sizeAxis__ci], ax
 ; ---- if ( el[ci].childCount > 0 ) {
-        mov     ax, [sizeAxis__ci]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [el__childCount + bx]
         test    ax, ax
-        ja      .L320                       ; unsigned >
-        jmp     .L318
-.L320:
+        jbe     .L318                       ; unsigned >
 ; ---- bfs[bfsLen] = ci
         mov     ax, [sizeAxis__ci]
         push    ax                          ; save value while computing the index
@@ -2981,16 +2797,12 @@ sizeAxis:
 ; ---- along = xAxis ? !el[i].isCol : el[i].isCol
         mov     al, [sizeAxis__xAxis]
         test    al, al
-        jnz     .L323
-        jmp     .L321
-.L323:
+        jz      .L321
         mov     ax, [sizeAxis__i]
         mov     bx, ax
         mov     al, [el__isCol + bx]
         test    al, al
-        jz      .L326
-        jmp     .L324
-.L326:
+        jnz     .L324
         mov     ax, 1
         jmp     .L325
 .L324:
@@ -3007,9 +2819,7 @@ sizeAxis:
 ; ---- insetAxis = xAxis ? el[i].insetL + el[i].insetR : el[i].insetT + el[i].insetB
         mov     al, [sizeAxis__xAxis]
         test    al, al
-        jnz     .L329
-        jmp     .L327
-.L329:
+        jz      .L327
         mov     ax, [sizeAxis__i]
         mov     bx, ax
         mov     al, [el__insetL + bx]
@@ -3041,9 +2851,7 @@ sizeAxis:
 ; ---- avail = sizeOf( i, xAxis )
         mov     al, [sizeAxis__xAxis]
         test    al, al
-        jnz     .L332
-        jmp     .L330
-.L332:
+        jz      .L330
         mov     ax, [sizeAxis__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -3057,12 +2865,9 @@ sizeAxis:
 .L331:
         mov     [sizeAxis__avail], ax
 ; ---- avail = avail > insetAxis ? avail - insetAxis : 0
-        mov     ax, [sizeAxis__avail]
         mov     bx, [sizeAxis__insetAxis]
         cmp     ax, bx
-        ja      .L335                       ; unsigned >
-        jmp     .L333
-.L335:
+        jbe     .L333                       ; unsigned >
         mov     ax, [sizeAxis__avail]
         mov     bx, [sizeAxis__insetAxis]
         sub     ax, bx
@@ -3100,9 +2905,7 @@ sizeAxis:
 ; ---- if ( growsOn( ci, xAxis ) ) {
         mov     al, [sizeAxis__xAxis]
         test    al, al
-        jnz     .L347
-        jmp     .L345
-.L347:
+        jz      .L345
         mov     ax, [sizeAxis__ci]
         mov     bx, ax
         mov     al, [el__wGrow + bx]
@@ -3127,9 +2930,7 @@ sizeAxis:
         push    ax                          ; save lhs: rhs is not a leaf
         mov     al, [sizeAxis__xAxis]
         test    al, al
-        jnz     .L353
-        jmp     .L351
-.L353:
+        jz      .L351
         mov     ax, [sizeAxis__ci]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -3144,17 +2945,13 @@ sizeAxis:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L354                       ; unsigned <
-        jmp     .L349
-.L354:
+        jae     .L349                       ; unsigned <
         mov     ax, [sizeAxis__avail]
         jmp     .L350
 .L349:
         mov     al, [sizeAxis__xAxis]
         test    al, al
-        jnz     .L357
-        jmp     .L355
-.L357:
+        jz      .L355
         mov     ax, [sizeAxis__ci]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -3173,9 +2970,7 @@ sizeAxis:
 ; ---- fitted = min( sizeOf( ci, xAxis ), avail )
         mov     al, [sizeAxis__xAxis]
         test    al, al
-        jnz     .L362
-        jmp     .L360
-.L362:
+        jz      .L360
         mov     ax, [sizeAxis__ci]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -3189,14 +2984,10 @@ sizeAxis:
 .L361:
         mov     bx, [sizeAxis__avail]
         cmp     ax, bx
-        jb      .L363                       ; unsigned <
-        jmp     .L358
-.L363:
+        jae     .L358                       ; unsigned <
         mov     al, [sizeAxis__xAxis]
         test    al, al
-        jnz     .L366
-        jmp     .L364
-.L366:
+        jz      .L364
         mov     ax, [sizeAxis__ci]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -3222,9 +3013,7 @@ sizeAxis:
         push    ax                          ; save lhs: rhs is not a leaf
         mov     al, [sizeAxis__xAxis]
         test    al, al
-        jnz     .L371
-        jmp     .L369
-.L371:
+        jz      .L369
         mov     ax, [sizeAxis__ci]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -3239,17 +3028,13 @@ sizeAxis:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        ja      .L372                       ; unsigned >
-        jmp     .L367
-.L372:
+        jbe     .L367                       ; unsigned >
         mov     ax, [sizeAxis__fitted]
         jmp     .L368
 .L367:
         mov     al, [sizeAxis__xAxis]
         test    al, al
-        jnz     .L375
-        jmp     .L373
-.L375:
+        jz      .L373
         mov     ax, [sizeAxis__ci]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -3267,9 +3052,7 @@ sizeAxis:
 ; ---- if ( sizeOf( ci, xAxis ) > avail ) setOverflow( i, xAxis )
         mov     al, [sizeAxis__xAxis]
         test    al, al
-        jnz     .L380
-        jmp     .L378
-.L380:
+        jz      .L378
         mov     ax, [sizeAxis__ci]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -3283,9 +3066,7 @@ sizeAxis:
 .L379:
         mov     bx, [sizeAxis__avail]
         cmp     ax, bx
-        ja      .L381                       ; unsigned >
-        jmp     .L376
-.L381:
+        jbe     .L376                       ; unsigned >
         mov     ax, [sizeAxis__i]
         mov     [setOverflow__i], ax
         mov     al, [sizeAxis__xAxis]
@@ -3336,9 +3117,7 @@ sizeAxis:
         push    ax                          ; save lhs: rhs is not a leaf
         mov     al, [sizeAxis__xAxis]
         test    al, al
-        jnz     .L388
-        jmp     .L386
-.L388:
+        jz      .L386
         mov     ax, [sizeAxis__ci]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -3362,9 +3141,7 @@ sizeAxis:
         mov     ax, [sizeAxis__avail]
         mov     bx, [sizeAxis__inner]
         cmp     ax, bx
-        je      .L391                       ; unsigned ==
-        jmp     .L389
-.L391:
+        jne     .L389                       ; unsigned ==
         jmp     .L308
 .L389:
 ; ---- if ( avail < inner ) {
@@ -3399,9 +3176,7 @@ sizeAxis:
 ; ---- if ( sizeOf( ci, xAxis ) > minOf( ci, xAxis ) ) {
         mov     al, [sizeAxis__xAxis]
         test    al, al
-        jnz     .L403
-        jmp     .L401
-.L403:
+        jz      .L401
         mov     ax, [sizeAxis__ci]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -3416,9 +3191,7 @@ sizeAxis:
         push    ax                          ; save lhs: rhs is not a leaf
         mov     al, [sizeAxis__xAxis]
         test    al, al
-        jnz     .L406
-        jmp     .L404
-.L406:
+        jz      .L404
         mov     ax, [sizeAxis__ci]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -3433,9 +3206,7 @@ sizeAxis:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        ja      .L407                       ; unsigned >
-        jmp     .L399
-.L407:
+        jbe     .L399                       ; unsigned >
 ; ---- cand[candLen] = ci
         mov     ax, [sizeAxis__ci]
         push    ax                          ; save value while computing the index
@@ -3454,9 +3225,7 @@ sizeAxis:
 ; ---- if ( candLen > 0 ) {
         mov     ax, [size__candLen]
         test    ax, ax
-        ja      .L410                       ; unsigned >
-        jmp     .L408
-.L410:
+        jbe     .L408                       ; unsigned >
 ; ---- spilled = shrinkFrom( xAxis, inner - avail )
         mov     al, [sizeAxis__xAxis]
         mov     [size__shrinkFrom__xAxis], al; bool -> bool, no widening
@@ -3478,9 +3247,7 @@ sizeAxis:
 ; ---- if ( spilled > 0 ) setOverflow( i, xAxis )
         mov     ax, [sizeAxis__spilled]
         test    ax, ax
-        ja      .L413                       ; unsigned >
-        jmp     .L411
-.L413:
+        jbe     .L411                       ; unsigned >
         mov     ax, [sizeAxis__i]
         mov     [setOverflow__i], ax
         mov     al, [sizeAxis__xAxis]
@@ -3515,9 +3282,7 @@ sizeAxis:
 ; ---- if ( growsOn( ci, xAxis ) ) {
         mov     al, [sizeAxis__xAxis]
         test    al, al
-        jnz     .L422
-        jmp     .L420
-.L422:
+        jz      .L420
         mov     ax, [sizeAxis__ci]
         mov     bx, ax
         mov     al, [el__wGrow + bx]
@@ -3530,9 +3295,7 @@ sizeAxis:
         xor     ah, ah                      ; bool -> u16
 .L421:
         test    ax, ax
-        jnz     .L423
-        jmp     .L418
-.L423:
+        jz      .L418
 ; ---- cand[candLen] = ci
         mov     ax, [sizeAxis__ci]
         push    ax                          ; save value while computing the index
@@ -3551,9 +3314,7 @@ sizeAxis:
 ; ---- if ( candLen > 0 ) growInto( xAxis, avail - inner )
         mov     ax, [size__candLen]
         test    ax, ax
-        ja      .L426                       ; unsigned >
-        jmp     .L424
-.L426:
+        jbe     .L424                       ; unsigned >
         mov     al, [sizeAxis__xAxis]
         mov     [size__growInto__xAxis], al ; bool -> bool, no widening
         mov     ax, [sizeAxis__avail]
@@ -3605,7 +3366,6 @@ refitY:
         dec     ax
         mov     [refitY__top], ax
 ; ---- if ( !rfSeen[top] ) {
-        mov     ax, [refitY__top]
         mov     bx, ax
         mov     al, [refit__rfSeen + bx]
         test    al, al
@@ -3634,9 +3394,7 @@ refitY:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L437                       ; unsigned <
-        jmp     .L436
-.L437:
+        jae     .L436                       ; unsigned <
 ; ---- ci = childAt( i, k )
         mov     ax, [refitY__i]
         shl     ax, 1                       ; word elements
@@ -3649,7 +3407,6 @@ refitY:
         mov     ax, [childList + bx]
         mov     [refitY__ci], ax
 ; ---- rfI[rfTop] = ci
-        mov     ax, [refitY__ci]
         push    ax                          ; save value while computing the index
         mov     ax, [refit__rfTop]
         shl     ax, 1                       ; word elements
@@ -3678,17 +3435,13 @@ refitY:
         mov     ax, [refit__rfI + bx]
         mov     [refitY__i], ax
 ; ---- n = el[i].childCount
-        mov     ax, [refitY__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [el__childCount + bx]
         mov     [refitY__n], ax
 ; ---- if ( n == 0 ) continue        // a leaf keeps whatever the caller last gave it
-        mov     ax, [refitY__n]
         test    ax, ax
-        je      .L440                       ; unsigned ==
-        jmp     .L438
-.L440:
+        jne     .L438                       ; unsigned ==
         jmp     .L428
 .L438:
 ; ---- gaps = el[i].gap * ( n - 1 )
@@ -3803,9 +3556,7 @@ refitY:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        ja      .L454                       ; unsigned >
-        jmp     .L452
-.L454:
+        jbe     .L452                       ; unsigned >
         mov     ax, [refitY__contentH]
         jmp     .L453
 .L452:
@@ -3825,9 +3576,7 @@ refitY:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        ja      .L457                       ; unsigned >
-        jmp     .L455
-.L457:
+        jbe     .L455                       ; unsigned >
         mov     ax, [refitY__minContentH]
         jmp     .L456
 .L455:
@@ -3857,7 +3606,6 @@ refitY:
         add     ax, bx
         mov     [refitY__insetY], ax
 ; ---- el[i].h = clamp( insetY + contentH, el[i].hMin, el[i].hMax )
-        mov     ax, [refitY__insetY]
         mov     bx, [refitY__contentH]
         add     ax, bx
         push    ax                          ; save lhs: rhs is not a leaf
@@ -3868,9 +3616,7 @@ refitY:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L460                       ; unsigned <
-        jmp     .L458
-.L460:
+        jae     .L458                       ; unsigned <
         mov     ax, [refitY__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -3888,9 +3634,7 @@ refitY:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        ja      .L463                       ; unsigned >
-        jmp     .L461
-.L463:
+        jbe     .L461                       ; unsigned >
         mov     ax, [refitY__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -3920,9 +3664,7 @@ refitY:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L466                       ; unsigned <
-        jmp     .L464
-.L466:
+        jae     .L464                       ; unsigned <
         mov     ax, [refitY__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -3940,9 +3682,7 @@ refitY:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        ja      .L469                       ; unsigned >
-        jmp     .L467
-.L469:
+        jbe     .L467                       ; unsigned >
         mov     ax, [refitY__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -4020,11 +3760,8 @@ place:
         mov     ax, [el__childCount + bx]
         mov     [place__n], ax
 ; ---- if ( n == 0 ) continue
-        mov     ax, [place__n]
         test    ax, ax
-        je      .L476                       ; unsigned ==
-        jmp     .L474
-.L476:
+        jne     .L474                       ; unsigned ==
         jmp     .L471
 .L474:
 ; ---- row = !el[i].isCol
@@ -4032,9 +3769,7 @@ place:
         mov     bx, ax
         mov     al, [el__isCol + bx]
         test    al, al
-        jz      .L479
-        jmp     .L477
-.L479:
+        jnz     .L477
         mov     ax, 1
         jmp     .L478
 .L477:
@@ -4042,7 +3777,6 @@ place:
 .L478:
         mov     [place__row], al            ; narrowed to bool
 ; ---- if ( row ) {
-        mov     al, [place__row]
         test    al, al
         jnz     .L482
         jmp     .L480
@@ -4134,9 +3868,7 @@ place:
         mov     ax, [place__inner]
         mov     bx, [place__insetMain]
         cmp     ax, bx
-        ja      .L485                       ; unsigned >
-        jmp     .L483
-.L485:
+        jbe     .L483                       ; unsigned >
         mov     ax, [place__inner]
         mov     bx, [place__insetMain]
         sub     ax, bx
@@ -4149,9 +3881,7 @@ place:
         mov     ax, [place__crossInner]
         mov     bx, [place__insetCross]
         cmp     ax, bx
-        ja      .L488                       ; unsigned >
-        jmp     .L486
-.L488:
+        jbe     .L486                       ; unsigned >
         mov     ax, [place__crossInner]
         mov     bx, [place__insetCross]
         sub     ax, bx
@@ -4197,9 +3927,7 @@ place:
         push    ax                          ; save lhs: rhs is not a leaf
         mov     al, [place__row]
         test    al, al
-        jnz     .L495
-        jmp     .L493
-.L495:
+        jz      .L493
         mov     ax, [place__ci]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -4223,9 +3951,7 @@ place:
         mov     ax, [place__inner]
         mov     bx, [place__content]
         cmp     ax, bx
-        ja      .L498                       ; unsigned >
-        jmp     .L496
-.L498:
+        jbe     .L496                       ; unsigned >
         mov     ax, [place__inner]
         mov     bx, [place__content]
         sub     ax, bx
@@ -4237,9 +3963,7 @@ place:
 ; ---- cursor = ( row ? el[i].insetL : el[i].insetT ) + leadFor( el[i].alignMain, slack )
         mov     al, [place__row]
         test    al, al
-        jnz     .L501
-        jmp     .L499
-.L501:
+        jz      .L499
         mov     ax, [place__i]
         mov     bx, ax
         mov     al, [el__insetL + bx]
@@ -4256,9 +3980,7 @@ place:
         mov     bx, ax
         mov     al, [el__alignMain + bx]
         test    al, al
-        je      .L504                       ; unsigned ==
-        jmp     .L502
-.L504:
+        jne     .L502                       ; unsigned ==
         xor     ax, ax                      ; 0
         jmp     .L503
 .L502:
@@ -4266,9 +3988,7 @@ place:
         mov     bx, ax
         mov     al, [el__alignMain + bx]
         cmp     al, 1                       ; byte operands, no widening
-        je      .L507                       ; unsigned ==
-        jmp     .L505
-.L507:
+        jne     .L505                       ; unsigned ==
         mov     ax, [place__slack]
         shr     ax, 1                       ; unsigned >>
         jmp     .L506
@@ -4311,9 +4031,7 @@ place:
 ; ---- room = row ? el[ci].h : el[ci].w
         mov     al, [place__row]
         test    al, al
-        jnz     .L514
-        jmp     .L512
-.L514:
+        jz      .L512
         mov     ax, [place__ci]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -4330,9 +4048,7 @@ place:
         mov     ax, [place__crossInner]
         mov     bx, [place__room]
         cmp     ax, bx
-        ja      .L517                       ; unsigned >
-        jmp     .L515
-.L517:
+        jbe     .L515                       ; unsigned >
         mov     ax, [place__crossInner]
         mov     bx, [place__room]
         sub     ax, bx
@@ -4344,9 +4060,7 @@ place:
 ; ---- cross = ( row ? el[i].insetT : el[i].insetL ) + leadFor( el[i].alignCross, room )
         mov     al, [place__row]
         test    al, al
-        jnz     .L520
-        jmp     .L518
-.L520:
+        jz      .L518
         mov     ax, [place__i]
         mov     bx, ax
         mov     al, [el__insetT + bx]
@@ -4363,9 +4077,7 @@ place:
         mov     bx, ax
         mov     al, [el__alignCross + bx]
         test    al, al
-        je      .L523                       ; unsigned ==
-        jmp     .L521
-.L523:
+        jne     .L521                       ; unsigned ==
         xor     ax, ax                      ; 0
         jmp     .L522
 .L521:
@@ -4373,9 +4085,7 @@ place:
         mov     bx, ax
         mov     al, [el__alignCross + bx]
         cmp     al, 1                       ; byte operands, no widening
-        je      .L526                       ; unsigned ==
-        jmp     .L524
-.L526:
+        jne     .L524                       ; unsigned ==
         mov     ax, [place__room]
         shr     ax, 1                       ; unsigned >>
         jmp     .L525
@@ -4406,9 +4116,7 @@ place:
 ; ---- stkX[slot] = row ? el[i].x + cursor : el[i].x + cross
         mov     al, [place__row]
         test    al, al
-        jnz     .L529
-        jmp     .L527
-.L529:
+        jz      .L527
         mov     ax, [place__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -4433,9 +4141,7 @@ place:
 ; ---- stkY[slot] = row ? el[i].y + cross : el[i].y + cursor
         mov     al, [place__row]
         test    al, al
-        jnz     .L532
-        jmp     .L530
-.L532:
+        jz      .L530
         mov     ax, [place__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -4462,9 +4168,7 @@ place:
         push    ax                          ; save lhs: rhs is not a leaf
         mov     al, [place__row]
         test    al, al
-        jnz     .L535
-        jmp     .L533
-.L535:
+        jz      .L533
         mov     ax, [place__ci]
         shl     ax, 1                       ; word elements
         mov     bx, ax

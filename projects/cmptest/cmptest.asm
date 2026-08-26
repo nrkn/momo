@@ -14,9 +14,7 @@ __entry:
         mov     ax, [a]
         mov     bx, [b]
         cmp     ax, bx
-        jl      .L3                         ; signed <
-        jmp     .L1
-.L3:
+        jge     .L1                         ; signed <
         mov     ax, 1
         jmp     .L2
 .L1:
@@ -28,9 +26,7 @@ __entry:
         mov     ax, [a]
         mov     bx, [b]
         cmp     ax, bx
-        jle     .L6                         ; signed <=
-        jmp     .L4
-.L6:
+        jg      .L4                         ; signed <=
         mov     ax, 1
         jmp     .L5
 .L4:
@@ -42,9 +38,7 @@ __entry:
         mov     ax, [a]
         mov     bx, [b]
         cmp     ax, bx
-        jg      .L9                         ; signed >
-        jmp     .L7
-.L9:
+        jle     .L7                         ; signed >
         mov     ax, 1
         jmp     .L8
 .L7:
@@ -56,9 +50,7 @@ __entry:
         mov     ax, [a]
         mov     bx, [b]
         cmp     ax, bx
-        jge     .L12                        ; signed >=
-        jmp     .L10
-.L12:
+        jl      .L10                        ; signed >=
         mov     ax, 1
         jmp     .L11
 .L10:
@@ -72,9 +64,7 @@ __entry:
         mov     ax, [a]
         mov     bx, [b]
         cmp     ax, bx
-        jl      .L15                        ; signed <
-        jmp     .L13
-.L15:
+        jge     .L13                        ; signed <
         mov     byte [putChar__c], 49
         call    putChar
         jmp     .L14
@@ -86,9 +76,7 @@ __entry:
         mov     ax, [a]
         mov     bx, [b]
         cmp     ax, bx
-        jle     .L18                        ; signed <=
-        jmp     .L16
-.L18:
+        jg      .L16                        ; signed <=
         mov     byte [putChar__c], 49
         call    putChar
         jmp     .L17
@@ -100,9 +88,7 @@ __entry:
         mov     ax, [a]
         mov     bx, [b]
         cmp     ax, bx
-        jg      .L21                        ; signed >
-        jmp     .L19
-.L21:
+        jle     .L19                        ; signed >
         mov     byte [putChar__c], 49
         call    putChar
         jmp     .L20
@@ -114,9 +100,7 @@ __entry:
         mov     ax, [a]
         mov     bx, [b]
         cmp     ax, bx
-        jge     .L24                        ; signed >=
-        jmp     .L22
-.L24:
+        jl      .L22                        ; signed >=
         mov     byte [putChar__c], 49
         call    putChar
         jmp     .L23
@@ -134,9 +118,7 @@ __entry:
         mov     ax, [x]
         mov     bx, [y]
         cmp     ax, bx
-        jb      .L27                        ; unsigned <
-        jmp     .L25
-.L27:
+        jae     .L25                        ; unsigned <
         mov     ax, 1
         jmp     .L26
 .L25:
@@ -148,9 +130,7 @@ __entry:
         mov     ax, [x]
         mov     bx, [y]
         cmp     ax, bx
-        jbe     .L30                        ; unsigned <=
-        jmp     .L28
-.L30:
+        ja      .L28                        ; unsigned <=
         mov     ax, 1
         jmp     .L29
 .L28:
@@ -162,9 +142,7 @@ __entry:
         mov     ax, [x]
         mov     bx, [y]
         cmp     ax, bx
-        ja      .L33                        ; unsigned >
-        jmp     .L31
-.L33:
+        jbe     .L31                        ; unsigned >
         mov     ax, 1
         jmp     .L32
 .L31:
@@ -176,9 +154,7 @@ __entry:
         mov     ax, [x]
         mov     bx, [y]
         cmp     ax, bx
-        jae     .L36                        ; unsigned >=
-        jmp     .L34
-.L36:
+        jb      .L34                        ; unsigned >=
         mov     ax, 1
         jmp     .L35
 .L34:
@@ -192,9 +168,7 @@ __entry:
         mov     ax, [x]
         mov     bx, [y]
         cmp     ax, bx
-        jb      .L39                        ; unsigned <
-        jmp     .L37
-.L39:
+        jae     .L37                        ; unsigned <
         mov     byte [putChar__c], 49
         call    putChar
         jmp     .L38
@@ -206,9 +180,7 @@ __entry:
         mov     ax, [x]
         mov     bx, [y]
         cmp     ax, bx
-        jbe     .L42                        ; unsigned <=
-        jmp     .L40
-.L42:
+        ja      .L40                        ; unsigned <=
         mov     byte [putChar__c], 49
         call    putChar
         jmp     .L41
@@ -220,9 +192,7 @@ __entry:
         mov     ax, [x]
         mov     bx, [y]
         cmp     ax, bx
-        ja      .L45                        ; unsigned >
-        jmp     .L43
-.L45:
+        jbe     .L43                        ; unsigned >
         mov     byte [putChar__c], 49
         call    putChar
         jmp     .L44
@@ -234,9 +204,7 @@ __entry:
         mov     ax, [x]
         mov     bx, [y]
         cmp     ax, bx
-        jae     .L48                        ; unsigned >=
-        jmp     .L46
-.L48:
+        jb      .L46                        ; unsigned >=
         mov     byte [putChar__c], 49
         call    putChar
         jmp     .L47
@@ -254,9 +222,7 @@ __entry:
         mov     ax, [a]
         mov     bx, [b]
         cmp     ax, bx
-        jl      .L51                        ; signed <
-        jmp     .L49
-.L51:
+        jge     .L49                        ; signed <
         mov     ax, 1
         jmp     .L50
 .L49:
@@ -268,9 +234,7 @@ __entry:
         mov     ax, [a]
         mov     bx, [b]
         cmp     ax, bx
-        jle     .L54                        ; signed <=
-        jmp     .L52
-.L54:
+        jg      .L52                        ; signed <=
         mov     ax, 1
         jmp     .L53
 .L52:
@@ -282,9 +246,7 @@ __entry:
         mov     ax, [a]
         mov     bx, [b]
         cmp     ax, bx
-        jg      .L57                        ; signed >
-        jmp     .L55
-.L57:
+        jle     .L55                        ; signed >
         mov     ax, 1
         jmp     .L56
 .L55:
@@ -296,9 +258,7 @@ __entry:
         mov     ax, [a]
         mov     bx, [b]
         cmp     ax, bx
-        jge     .L60                        ; signed >=
-        jmp     .L58
-.L60:
+        jl      .L58                        ; signed >=
         mov     ax, 1
         jmp     .L59
 .L58:
@@ -310,9 +270,7 @@ __entry:
         mov     ax, [a]
         mov     bx, [b]
         cmp     ax, bx
-        je      .L63                        ; signed ==
-        jmp     .L61
-.L63:
+        jne     .L61                        ; signed ==
         mov     ax, 1
         jmp     .L62
 .L61:
@@ -324,9 +282,7 @@ __entry:
         mov     ax, [a]
         mov     bx, [b]
         cmp     ax, bx
-        jne     .L66                        ; signed !=
-        jmp     .L64
-.L66:
+        je      .L64                        ; signed !=
         mov     ax, 1
         jmp     .L65
 .L64:
@@ -340,9 +296,7 @@ __entry:
         mov     ax, [a]
         mov     bx, [b]
         cmp     ax, bx
-        jle     .L69                        ; signed <=
-        jmp     .L67
-.L69:
+        jg      .L67                        ; signed <=
         mov     byte [putChar__c], 49
         call    putChar
         jmp     .L68
@@ -354,9 +308,7 @@ __entry:
         mov     ax, [a]
         mov     bx, [b]
         cmp     ax, bx
-        jge     .L72                        ; signed >=
-        jmp     .L70
-.L72:
+        jl      .L70                        ; signed >=
         mov     byte [putChar__c], 49
         call    putChar
         jmp     .L71
@@ -372,9 +324,7 @@ __entry:
         mov     ax, [a]
         mov     bx, [b]
         cmp     ax, bx
-        je      .L75                        ; signed ==
-        jmp     .L73
-.L75:
+        jne     .L73                        ; signed ==
         mov     ax, 1
         jmp     .L74
 .L73:
@@ -386,9 +336,7 @@ __entry:
         mov     ax, [a]
         mov     bx, [b]
         cmp     ax, bx
-        jne     .L78                        ; signed !=
-        jmp     .L76
-.L78:
+        je      .L76                        ; signed !=
         mov     ax, 1
         jmp     .L77
 .L76:
@@ -405,14 +353,10 @@ __entry:
 ; ---- bit( zero || one )                                                // 1
         mov     al, [zero]
         test    al, al
-        jz      .L82
-        jmp     .L81
-.L82:
+        jnz     .L81
         mov     al, [one]
         test    al, al
-        jnz     .L83
-        jmp     .L79
-.L83:
+        jz      .L79
 .L81:
         mov     ax, 1
         jmp     .L80
@@ -424,14 +368,10 @@ __entry:
 ; ---- bit( zero && one )                                                // 0
         mov     al, [zero]
         test    al, al
-        jnz     .L86
-        jmp     .L84
-.L86:
+        jz      .L84
         mov     al, [one]
         test    al, al
-        jnz     .L87
-        jmp     .L84
-.L87:
+        jz      .L84
         mov     ax, 1
         jmp     .L85
 .L84:
@@ -442,14 +382,10 @@ __entry:
 ; ---- if ( zero || one ) { putChar( '1' ) } else { putChar( '0' ) }
         mov     al, [zero]
         test    al, al
-        jz      .L91
-        jmp     .L90
-.L91:
+        jnz     .L90
         mov     al, [one]
         test    al, al
-        jnz     .L92
-        jmp     .L88
-.L92:
+        jz      .L88
 .L90:
         mov     byte [putChar__c], 49
         call    putChar
@@ -494,9 +430,7 @@ bit:
 ; ---- if ( v ) {
         mov     al, [bit__v]
         test    al, al
-        jnz     .L95
-        jmp     .L93
-.L95:
+        jz      .L93
 ; ---- putChar( '1' )
         mov     byte [putChar__c], 49
         call    putChar

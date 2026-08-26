@@ -60,9 +60,7 @@ putNumber:
 ; ---- if (n == 0) {
         mov     ax, [putNumber__n]
         test    ax, ax
-        je      .L3                         ; unsigned ==
-        jmp     .L1
-.L3:
+        jne     .L1                         ; unsigned ==
 ; ---- putChar(ioZeroChar)
         mov     byte [putChar__c], 48
         call    putChar
@@ -74,9 +72,7 @@ putNumber:
 .L4:
         mov     ax, [putNumber__n]
         test    ax, ax
-        ja      .L7                         ; unsigned >
-        jmp     .L6
-.L7:
+        jbe     .L6                         ; unsigned >
 ; ---- digits[i] = u8(n % ioBase) + ioZeroChar
         mov     ax, [putNumber__n]
         mov     bx, 10
@@ -105,9 +101,7 @@ putNumber:
 .L8:
         mov     al, [putNumber__i]
         test    al, al
-        ja      .L11                        ; unsigned >
-        jmp     .L10
-.L11:
+        jbe     .L10                        ; unsigned >
 ; ---- putChar(digits[i - 1])
         mov     al, [putNumber__i]
         xor     ah, ah                      ; u8 -> u16
@@ -247,7 +241,6 @@ solve:
         dec     ax
         mov     [solve__top], ax
 ; ---- n = frameGet(top, fN)
-        mov     ax, [solve__top]
         mov     [frameGet__frame], ax
         mov     word [frameGet__field], 0
         call    frameGet
@@ -277,9 +270,7 @@ solve:
 ; ---- if (n == 1) {
         mov     ax, [solve__n]
         cmp     ax, 1
-        je      .L18                        ; unsigned ==
-        jmp     .L16
-.L18:
+        jne     .L16                        ; unsigned ==
 ; ---- reportMove(from, to)
         mov     ax, [solve__from]
         mov     [reportMove__from], ax
@@ -294,9 +285,7 @@ solve:
 ; ---- if (stage == 0) {
         mov     ax, [solve__stage]
         test    ax, ax
-        je      .L21                        ; unsigned ==
-        jmp     .L19
-.L21:
+        jne     .L19                        ; unsigned ==
 ; ---- frameSet(top, fStage, 1)
         mov     ax, [solve__top]
         mov     [frameSet__frame], ax

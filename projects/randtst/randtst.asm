@@ -18,9 +18,7 @@ __entry:
 .L1:
         mov     ax, [i]
         cmp     ax, 6
-        jb      .L4                         ; unsigned <
-        jmp     .L3
-.L4:
+        jae     .L3                         ; unsigned <
 ; ---- putNumber(randomBelow(100))
         mov     word [randomBelow__n], 100
         call    randomBelow
@@ -44,9 +42,7 @@ __entry:
 .L5:
         mov     ax, [i]
         cmp     ax, 6
-        jb      .L8                         ; unsigned <
-        jmp     .L7
-.L8:
+        jae     .L7                         ; unsigned <
 ; ---- putNumber(randomBetween(10, 19))
         mov     word [randomBetween__low], 10
         mov     word [randomBetween__high], 19
@@ -97,9 +93,7 @@ putNumber:
 ; ---- if (n == 0) {
         mov     ax, [putNumber__n]
         test    ax, ax
-        je      .L11                        ; unsigned ==
-        jmp     .L9
-.L11:
+        jne     .L9                         ; unsigned ==
 ; ---- putChar(ioZeroChar)
         mov     byte [putChar__c], 48
         call    putChar
@@ -111,9 +105,7 @@ putNumber:
 .L12:
         mov     ax, [putNumber__n]
         test    ax, ax
-        ja      .L15                        ; unsigned >
-        jmp     .L14
-.L15:
+        jbe     .L14                        ; unsigned >
 ; ---- digits[i] = u8(n % ioBase) + ioZeroChar
         mov     ax, [putNumber__n]
         mov     bx, 10
@@ -142,9 +134,7 @@ putNumber:
 .L16:
         mov     al, [putNumber__i]
         test    al, al
-        ja      .L19                        ; unsigned >
-        jmp     .L18
-.L19:
+        jbe     .L18                        ; unsigned >
 ; ---- putChar(digits[i - 1])
         mov     al, [putNumber__i]
         xor     ah, ah                      ; u8 -> u16
@@ -165,9 +155,7 @@ seedRandom:
 ; ---- sub seedRandom(u16 s) => randomSeed = s == 0 ? 1 : s
         mov     ax, [seedRandom__s]
         test    ax, ax
-        je      .L22                        ; unsigned ==
-        jmp     .L20
-.L22:
+        jne     .L20                        ; unsigned ==
         mov     ax, 1
         jmp     .L21
 .L20:
@@ -190,7 +178,6 @@ nextRandom:
         xor     ax, bx
         mov     [rand__randomSeed], ax
 ; ---- randomSeed = randomSeed ^ (randomSeed >> 9)
-        mov     ax, [rand__randomSeed]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [rand__randomSeed]
         mov     cl, 9                       ; 8086 has no shift-by-immediate
@@ -200,7 +187,6 @@ nextRandom:
         xor     ax, bx
         mov     [rand__randomSeed], ax
 ; ---- randomSeed = randomSeed ^ (randomSeed << 8)
-        mov     ax, [rand__randomSeed]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [rand__randomSeed]
         mov     cl, 8                       ; 8086 has no shift-by-immediate
@@ -210,7 +196,6 @@ nextRandom:
         xor     ax, bx
         mov     [rand__randomSeed], ax
 ; ---- return randomSeed
-        mov     ax, [rand__randomSeed]
         mov     [nextRandom__ret], ax
         ret
 

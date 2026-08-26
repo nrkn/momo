@@ -45,9 +45,7 @@ __entry:
         mov     bx, [start]
         sub     ax, bx
         cmp     ax, 3
-        jae     .L3                         ; unsigned >=
-        jmp     .L1
-.L3:
+        jb      .L1                         ; unsigned >=
         mov     ax, 1
         jmp     .L2
 .L1:
@@ -75,18 +73,14 @@ __entry:
         mov     bx, [start]
         sub     ax, bx
         cmp     ax, 60000
-        jae     .L8                         ; unsigned >=
-        jmp     .L6
-.L8:
+        jb      .L6                         ; unsigned >=
         mov     ax, 1
         jmp     .L7
 .L6:
         xor     ax, ax
 .L7:
         test    ax, ax
-        jnz     .L9
-        jmp     .L4
-.L9:
+        jz      .L4
         mov     ax, 1
         jmp     .L5
 .L4:
@@ -130,9 +124,7 @@ putNumber:
 ; ---- if (n == 0) {
         mov     ax, [putNumber__n]
         test    ax, ax
-        je      .L12                        ; unsigned ==
-        jmp     .L10
-.L12:
+        jne     .L10                        ; unsigned ==
 ; ---- putChar(ioZeroChar)
         mov     byte [putChar__c], 48
         call    putChar
@@ -144,9 +136,7 @@ putNumber:
 .L13:
         mov     ax, [putNumber__n]
         test    ax, ax
-        ja      .L16                        ; unsigned >
-        jmp     .L15
-.L16:
+        jbe     .L15                        ; unsigned >
 ; ---- digits[i] = u8(n % ioBase) + ioZeroChar
         mov     ax, [putNumber__n]
         mov     bx, 10
@@ -175,9 +165,7 @@ putNumber:
 .L17:
         mov     al, [putNumber__i]
         test    al, al
-        ja      .L20                        ; unsigned >
-        jmp     .L19
-.L20:
+        jbe     .L19                        ; unsigned >
 ; ---- putChar(digits[i - 1])
         mov     al, [putNumber__i]
         xor     ah, ah                      ; u8 -> u16
@@ -217,9 +205,7 @@ waitTicks:
         sub     ax, bx
         mov     bx, [waitTicks__n]
         cmp     ax, bx
-        jb      .L24                        ; unsigned <
-        jmp     .L23
-.L24:
+        jae     .L23                        ; unsigned <
 .L22:
         jmp     .L21
 .L23:

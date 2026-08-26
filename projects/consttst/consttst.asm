@@ -41,9 +41,7 @@ __entry:
 .L1:
         mov     ax, [i]
         cmp     ax, 6
-        jb      .L4                         ; unsigned <
-        jmp     .L3
-.L4:
+        jae     .L3                         ; unsigned <
 ; ---- putNumber(squares[i])
         mov     ax, [i]
         shl     ax, 1                       ; word elements
@@ -136,9 +134,7 @@ putNumber:
 ; ---- if (n == 0) {
         mov     ax, [putNumber__n]
         test    ax, ax
-        je      .L7                         ; unsigned ==
-        jmp     .L5
-.L7:
+        jne     .L5                         ; unsigned ==
 ; ---- putChar(ioZeroChar)
         mov     byte [putChar__c], 48
         call    putChar
@@ -150,9 +146,7 @@ putNumber:
 .L8:
         mov     ax, [putNumber__n]
         test    ax, ax
-        ja      .L11                        ; unsigned >
-        jmp     .L10
-.L11:
+        jbe     .L10                        ; unsigned >
 ; ---- digits[i] = u8(n % ioBase) + ioZeroChar
         mov     ax, [putNumber__n]
         mov     bx, 10
@@ -181,9 +175,7 @@ putNumber:
 .L12:
         mov     al, [putNumber__i]
         test    al, al
-        ja      .L15                        ; unsigned >
-        jmp     .L14
-.L15:
+        jbe     .L14                        ; unsigned >
 ; ---- putChar(digits[i - 1])
         mov     al, [putNumber__i]
         xor     ah, ah                      ; u8 -> u16

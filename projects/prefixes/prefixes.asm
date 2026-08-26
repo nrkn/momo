@@ -58,7 +58,6 @@ __entry:
         add     ax, bx
         mov     [total], ax
 ; ---- total = total + a32() + o16() + o32() + xacquire() + xrelease() + bnd() + nobnd()
-        mov     ax, [total]
         push    ax                          ; save lhs: rhs is not a leaf
         call    a32_
         mov     ax, [a32___ret]
@@ -103,7 +102,6 @@ __entry:
         add     ax, bx
         mov     [total], ax
 ; ---- putNumber( total )
-        mov     ax, [total]
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- newline()
@@ -137,7 +135,6 @@ __entry:
         add     ax, bx
         mov     [total], ax
 ; ---- putNumber( total )
-        mov     ax, [total]
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- newline()
@@ -180,7 +177,6 @@ __entry:
         add     ax, bx
         mov     [total], ax
 ; ---- total = total + pop[0] + pop[1] + cmp[2] + push
-        mov     ax, [total]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [pop]
         mov     bx, ax
@@ -199,7 +195,6 @@ __entry:
         add     ax, 256
         mov     [total], ax
 ; ---- total = total + ret[0].dec + ret[1].dec + nop
-        mov     ax, [total]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [ret__dec]
         mov     bx, ax
@@ -214,7 +209,6 @@ __entry:
         add     ax, bx
         mov     [total], ax
 ; ---- putNumber( total )
-        mov     ax, [total]
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- newline()
@@ -253,9 +247,7 @@ putNumber:
 ; ---- if (n == 0) {
         mov     ax, [putNumber__n]
         test    ax, ax
-        je      .L3                         ; unsigned ==
-        jmp     .L1
-.L3:
+        jne     .L1                         ; unsigned ==
 ; ---- putChar(ioZeroChar)
         mov     byte [putChar__c], 48
         call    putChar
@@ -267,9 +259,7 @@ putNumber:
 .L4:
         mov     ax, [putNumber__n]
         test    ax, ax
-        ja      .L7                         ; unsigned >
-        jmp     .L6
-.L7:
+        jbe     .L6                         ; unsigned >
 ; ---- digits[i] = u8(n % ioBase) + ioZeroChar
         mov     ax, [putNumber__n]
         mov     bx, 10
@@ -298,9 +288,7 @@ putNumber:
 .L8:
         mov     al, [putNumber__i]
         test    al, al
-        ja      .L11                        ; unsigned >
-        jmp     .L10
-.L11:
+        jbe     .L10                        ; unsigned >
 ; ---- putChar(digits[i - 1])
         mov     al, [putNumber__i]
         xor     ah, ah                      ; u8 -> u16

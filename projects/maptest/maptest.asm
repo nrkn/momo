@@ -17,17 +17,13 @@ __entry:
 .L1:
         mov     ax, [y]
         cmp     ax, 5
-        jb      .L4                         ; unsigned <
-        jmp     .L3
-.L4:
+        jae     .L3                         ; unsigned <
 ; ---- for (x = 0; x < mapWidth; x++) {
         mov     word [x], 0
 .L5:
         mov     ax, [x]
         cmp     ax, 8
-        jb      .L8                         ; unsigned <
-        jmp     .L7
-.L8:
+        jae     .L7                         ; unsigned <
 ; ---- putChar(tileAt(x, y))
         mov     ax, [y]
         mov     cl, 3                       ; 8086 has no shift-by-immediate
@@ -56,17 +52,13 @@ __entry:
 .L9:
         mov     ax, [y]
         cmp     ax, 5
-        jb      .L12                        ; unsigned <
-        jmp     .L11
-.L12:
+        jae     .L11                        ; unsigned <
 ; ---- for (x = 0; x < mapWidth; x++) {
         mov     word [x], 0
 .L13:
         mov     ax, [x]
         cmp     ax, 8
-        jb      .L16                        ; unsigned <
-        jmp     .L15
-.L16:
+        jae     .L15                        ; unsigned <
 ; ---- if (tileAt(x, y) == '#') walls++
         mov     ax, [y]
         mov     cl, 3                       ; 8086 has no shift-by-immediate
@@ -77,9 +69,7 @@ __entry:
         mov     al, [map + bx]
         xor     ah, ah                      ; u8 -> u16
         cmp     ax, 35
-        je      .L19                        ; unsigned ==
-        jmp     .L17
-.L19:
+        jne     .L17                        ; unsigned ==
         inc     word [walls]
 .L17:
 .L14:
@@ -135,9 +125,7 @@ putNumber:
 ; ---- if (n == 0) {
         mov     ax, [putNumber__n]
         test    ax, ax
-        je      .L22                        ; unsigned ==
-        jmp     .L20
-.L22:
+        jne     .L20                        ; unsigned ==
 ; ---- putChar(ioZeroChar)
         mov     byte [putChar__c], 48
         call    putChar
@@ -149,9 +137,7 @@ putNumber:
 .L23:
         mov     ax, [putNumber__n]
         test    ax, ax
-        ja      .L26                        ; unsigned >
-        jmp     .L25
-.L26:
+        jbe     .L25                        ; unsigned >
 ; ---- digits[i] = u8(n % ioBase) + ioZeroChar
         mov     ax, [putNumber__n]
         mov     bx, 10
@@ -180,9 +166,7 @@ putNumber:
 .L27:
         mov     al, [putNumber__i]
         test    al, al
-        ja      .L30                        ; unsigned >
-        jmp     .L29
-.L30:
+        jbe     .L29                        ; unsigned >
 ; ---- putChar(digits[i - 1])
         mov     al, [putNumber__i]
         xor     ah, ah                      ; u8 -> u16

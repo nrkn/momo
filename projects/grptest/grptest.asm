@@ -65,18 +65,14 @@ __entry:
 .L5:
         mov     al, [i]
         cmp     al, 4                       ; byte operands, no widening
-        jb      .L8                         ; unsigned <
-        jmp     .L7
-.L8:
+        jae     .L7                         ; unsigned <
 ; ---- if( mob[i].alive ){
         mov     al, [i]
         xor     ah, ah                      ; u8 -> u16
         mov     bx, ax
         mov     al, [mob__alive + bx]
         test    al, al
-        jnz     .L11
-        jmp     .L9
-.L11:
+        jz      .L9
 ; ---- total += mob[i].hp
         mov     ax, [total]
         push    ax                          ; save lhs: rhs is not a leaf
@@ -116,9 +112,7 @@ __entry:
 .L12:
         mov     al, [i]
         cmp     al, 4                       ; byte operands, no widening
-        jb      .L15                        ; unsigned <
-        jmp     .L14
-.L15:
+        jae     .L14                        ; unsigned <
 ; ---- putNumber( mob[i].x )
         mov     al, [i]
         xor     ah, ah                      ; u8 -> u16
@@ -170,9 +164,7 @@ putNumber:
 ; ---- if (n == 0) {
         mov     ax, [putNumber__n]
         test    ax, ax
-        je      .L18                        ; unsigned ==
-        jmp     .L16
-.L18:
+        jne     .L16                        ; unsigned ==
 ; ---- putChar(ioZeroChar)
         mov     byte [putChar__c], 48
         call    putChar
@@ -184,9 +176,7 @@ putNumber:
 .L19:
         mov     ax, [putNumber__n]
         test    ax, ax
-        ja      .L22                        ; unsigned >
-        jmp     .L21
-.L22:
+        jbe     .L21                        ; unsigned >
 ; ---- digits[i] = u8(n % ioBase) + ioZeroChar
         mov     ax, [putNumber__n]
         mov     bx, 10
@@ -215,9 +205,7 @@ putNumber:
 .L23:
         mov     al, [putNumber__i]
         test    al, al
-        ja      .L26                        ; unsigned >
-        jmp     .L25
-.L26:
+        jbe     .L25                        ; unsigned >
 ; ---- putChar(digits[i - 1])
         mov     al, [putNumber__i]
         xor     ah, ah                      ; u8 -> u16

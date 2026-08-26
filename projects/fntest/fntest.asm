@@ -72,9 +72,7 @@ __entry:
 .L1:
         mov     ax, [i]
         cmp     ax, 5
-        jbe     .L4                         ; unsigned <=
-        jmp     .L3
-.L4:
+        ja      .L3                         ; unsigned <=
 ; ---- acc = add(acc, i * i)
         mov     ax, [acc]
         mov     [add__a], ax
@@ -139,9 +137,7 @@ putNumber:
 ; ---- if (n == 0) {
         mov     ax, [putNumber__n]
         test    ax, ax
-        je      .L7                         ; unsigned ==
-        jmp     .L5
-.L7:
+        jne     .L5                         ; unsigned ==
 ; ---- putChar(ioZeroChar)
         mov     byte [putChar__c], 48
         call    putChar
@@ -153,9 +149,7 @@ putNumber:
 .L8:
         mov     ax, [putNumber__n]
         test    ax, ax
-        ja      .L11                        ; unsigned >
-        jmp     .L10
-.L11:
+        jbe     .L10                        ; unsigned >
 ; ---- digits[i] = u8(n % ioBase) + ioZeroChar
         mov     ax, [putNumber__n]
         mov     bx, 10
@@ -184,9 +178,7 @@ putNumber:
 .L12:
         mov     al, [putNumber__i]
         test    al, al
-        ja      .L15                        ; unsigned >
-        jmp     .L14
-.L15:
+        jbe     .L14                        ; unsigned >
 ; ---- putChar(digits[i - 1])
         mov     al, [putNumber__i]
         xor     ah, ah                      ; u8 -> u16
@@ -217,9 +209,7 @@ absolute_:
 ; ---- if (v < 0) {
         mov     ax, [absolute___v]
         test    ax, ax
-        jl      .L18                        ; signed <
-        jmp     .L16
-.L18:
+        jge     .L16                        ; signed <
 ; ---- return -v
         mov     ax, [absolute___v]
         neg     ax
@@ -260,9 +250,7 @@ smaller:
 ; ---- if (a < b) {
         mov     al, [smaller__a]
         cmp     al, [smaller__b]            ; byte operands, no widening
-        jb      .L21                        ; unsigned <
-        jmp     .L19
-.L21:
+        jae     .L19                        ; unsigned <
 ; ---- return a
         mov     al, [smaller__a]
         mov     [smaller__ret], al          ; u8 -> u8, no widening

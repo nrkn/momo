@@ -14,7 +14,6 @@ __entry:
         mov     ax, bytes                   ; link-time constant
         mov     [at_], ax
 ; ---- poke8( at + 3, 42 )
-        mov     ax, [at_]
         add     ax, 3
         mov     bx, ax
         mov     byte [bx], 42
@@ -41,7 +40,6 @@ __entry:
         mov     ax, words                   ; link-time constant
         mov     [at_], ax
 ; ---- poke16( at, 1000 )
-        mov     ax, [at_]
         mov     bx, ax
         mov     word [bx], 1000
 ; ---- putNumber( words[0] )                 // 1000
@@ -73,7 +71,6 @@ __entry:
         mov     ax, bytes                   ; link-time constant
         mov     [at_], ax
 ; ---- poke16( at + 1, 0x1234 )
-        mov     ax, [at_]
         inc     ax
         mov     bx, ax
         mov     word [bx], 4660
@@ -104,7 +101,6 @@ __entry:
         mov     ax, scratch                 ; link-time constant
         mov     [at_], ax
 ; ---- poke8( at, 77 )
-        mov     ax, [at_]
         mov     bx, ax
         mov     byte [bx], 77
 ; ---- putNumber( scratch )                  // 77
@@ -122,9 +118,7 @@ __entry:
 .L1:
         mov     ax, [i]
         cmp     ax, 8
-        jb      .L4                         ; unsigned <
-        jmp     .L3
-.L4:
+        jae     .L3                         ; unsigned <
 ; ---- poke8( at + i, u8( i * 2 + 1 ) )
         mov     ax, [at_]
         mov     bx, [i]
@@ -147,9 +141,7 @@ __entry:
 .L5:
         mov     ax, [i]
         cmp     ax, 8
-        jb      .L8                         ; unsigned <
-        jmp     .L7
-.L8:
+        jae     .L7                         ; unsigned <
 ; ---- total += peek8( at + i )
         mov     ax, [total]
         push    ax                          ; save lhs: rhs is not a leaf
@@ -178,9 +170,7 @@ __entry:
 .L9:
         mov     ax, [i]
         cmp     ax, 4
-        jb      .L12                        ; unsigned <
-        jmp     .L11
-.L12:
+        jae     .L11                        ; unsigned <
 ; ---- poke8( addr( words ) + i, peek8( addr( bytes ) + i ) )
         mov     ax, words                   ; link-time constant
         mov     bx, [i]
@@ -274,9 +264,7 @@ putNumber:
 ; ---- if (n == 0) {
         mov     ax, [putNumber__n]
         test    ax, ax
-        je      .L15                        ; unsigned ==
-        jmp     .L13
-.L15:
+        jne     .L13                        ; unsigned ==
 ; ---- putChar(ioZeroChar)
         mov     byte [putChar__c], 48
         call    putChar
@@ -288,9 +276,7 @@ putNumber:
 .L16:
         mov     ax, [putNumber__n]
         test    ax, ax
-        ja      .L19                        ; unsigned >
-        jmp     .L18
-.L19:
+        jbe     .L18                        ; unsigned >
 ; ---- digits[i] = u8(n % ioBase) + ioZeroChar
         mov     ax, [putNumber__n]
         mov     bx, 10
@@ -319,9 +305,7 @@ putNumber:
 .L20:
         mov     al, [putNumber__i]
         test    al, al
-        ja      .L23                        ; unsigned >
-        jmp     .L22
-.L23:
+        jbe     .L22                        ; unsigned >
 ; ---- putChar(digits[i - 1])
         mov     al, [putNumber__i]
         xor     ah, ah                      ; u8 -> u16

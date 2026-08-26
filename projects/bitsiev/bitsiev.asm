@@ -23,9 +23,7 @@ __entry:
 .L1:
         mov     ax, [i]
         cmp     ax, 1000
-        jb      .L4                         ; unsigned <
-        jmp     .L3
-.L4:
+        jae     .L3                         ; unsigned <
 ; ---- if (isComposite(i)) continue
         mov     ax, [i]
         mov     [isComposite__n], ax
@@ -33,9 +31,7 @@ __entry:
         mov     al, [isComposite__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jnz     .L7
-        jmp     .L5
-.L7:
+        jz      .L5
         jmp     .L2
 .L5:
 ; ---- count++
@@ -84,9 +80,7 @@ putNumber:
 ; ---- if (n == 0) {
         mov     ax, [putNumber__n]
         test    ax, ax
-        je      .L10                        ; unsigned ==
-        jmp     .L8
-.L10:
+        jne     .L8                         ; unsigned ==
 ; ---- putChar(ioZeroChar)
         mov     byte [putChar__c], 48
         call    putChar
@@ -98,9 +92,7 @@ putNumber:
 .L11:
         mov     ax, [putNumber__n]
         test    ax, ax
-        ja      .L14                        ; unsigned >
-        jmp     .L13
-.L14:
+        jbe     .L13                        ; unsigned >
 ; ---- digits[i] = u8(n % ioBase) + ioZeroChar
         mov     ax, [putNumber__n]
         mov     bx, 10
@@ -129,9 +121,7 @@ putNumber:
 .L15:
         mov     al, [putNumber__i]
         test    al, al
-        ja      .L18                        ; unsigned >
-        jmp     .L17
-.L18:
+        jbe     .L17                        ; unsigned >
 ; ---- putChar(digits[i - 1])
         mov     al, [putNumber__i]
         xor     ah, ah                      ; u8 -> u16
@@ -168,9 +158,7 @@ isComposite:
         pop     ax
         and     ax, bx
         test    ax, ax
-        jne     .L21                        ; unsigned !=
-        jmp     .L19
-.L21:
+        je      .L19                        ; unsigned !=
         mov     ax, 1
         jmp     .L20
 .L19:
@@ -218,9 +206,7 @@ clearBits:
 .L22:
         mov     ax, [i]
         cmp     ax, 126
-        jb      .L25                        ; unsigned <
-        jmp     .L24
-.L25:
+        jae     .L24                        ; unsigned <
 ; ---- _heap[i] = 0
         mov     ax, [i]
         mov     bx, ax
@@ -251,9 +237,7 @@ runSieve:
         mov     al, [isComposite__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jnz     .L32
-        jmp     .L30
-.L32:
+        jz      .L30
         jmp     .L27
 .L30:
 ; ---- for (j = i * i; j < limit; j += i) {
@@ -264,9 +248,7 @@ runSieve:
 .L33:
         mov     ax, [j]
         cmp     ax, 1000
-        jb      .L36                        ; unsigned <
-        jmp     .L35
-.L36:
+        jae     .L35                        ; unsigned <
 ; ---- markComposite(j)
         mov     ax, [j]
         mov     [markComposite__n], ax

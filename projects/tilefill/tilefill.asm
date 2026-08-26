@@ -52,9 +52,7 @@ __entry:
         add     ax, bx
         and     ax, 1
         test    ax, ax
-        je      .L11                        ; unsigned ==
-        jmp     .L9
-.L11:
+        jne     .L9                         ; unsigned ==
 ; ---- blit( 0, tx, ty )
         mov     word [blit__from], 0
         mov     al, [tx]
@@ -150,9 +148,7 @@ blit:
 .L16:
         mov     ax, [blit__col]
         cmp     ax, 8
-        jb      .L19                        ; unsigned <
-        jmp     .L18
-.L19:
+        jae     .L18                        ; unsigned <
 ; ---- pixels[ dest + col ] = tiles[ src + col ]
         mov     ax, [blit__src]
         mov     bx, [blit__col]

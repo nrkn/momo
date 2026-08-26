@@ -30,9 +30,7 @@ __entry:
 ; ---- if (bigByte > smallByte) {          // unsigned: 200 > 100
         mov     al, [bigByte]
         cmp     al, [smallByte]             ; byte operands, no widening
-        ja      .L3                         ; unsigned >
-        jmp     .L1
-.L3:
+        jbe     .L1                         ; unsigned >
 ; ---- char = 'u'
         mov     byte [char], 117
 ; ---- putChar()
@@ -41,9 +39,7 @@ __entry:
 ; ---- if (negByte < posByte) {            // signed: -5 < 100, though 0xFB > 0x64 unsigned
         mov     al, [negByte]
         cmp     al, [posByte]               ; byte operands, no widening
-        jl      .L6                         ; signed <
-        jmp     .L4
-.L6:
+        jge     .L4                         ; signed <
 ; ---- char = 'i'
         mov     byte [char], 105
 ; ---- putChar()
@@ -114,9 +110,7 @@ putSpaces:
 .L7:
         mov     al, [spaceCount]
         test    al, al
-        ja      .L10                        ; unsigned >
-        jmp     .L9
-.L10:
+        jbe     .L9                         ; unsigned >
 ; ---- char = ' '
         mov     byte [char], 32
 ; ---- putChar()
@@ -144,9 +138,7 @@ putBar:
 .L12:
         mov     al, [putBar__n]
         cmp     al, 3                       ; byte operands, no widening
-        jae     .L14                        ; unsigned <
-        jmp     .L11
-.L14:
+        jb      .L11                        ; unsigned <
 .L13:
         ret
 
@@ -157,11 +149,8 @@ putNumber:
         mov     ax, [value]
         mov     [putNumber__n], ax
 ; ---- if (n == 0) {
-        mov     ax, [putNumber__n]
         test    ax, ax
-        je      .L17                        ; unsigned ==
-        jmp     .L15
-.L17:
+        jne     .L15                        ; unsigned ==
 ; ---- char = zeroChar
         mov     byte [char], 48
 ; ---- putChar()
@@ -174,9 +163,7 @@ putNumber:
 .L18:
         mov     ax, [putNumber__n]
         test    ax, ax
-        ja      .L21                        ; unsigned >
-        jmp     .L20
-.L21:
+        jbe     .L20                        ; unsigned >
 ; ---- digits[i] = u8(n % base) + zeroChar
         mov     ax, [putNumber__n]
         mov     bx, 10
@@ -205,9 +192,7 @@ putNumber:
 .L22:
         mov     al, [putNumber__i]
         test    al, al
-        ja      .L25                        ; unsigned >
-        jmp     .L24
-.L25:
+        jbe     .L24                        ; unsigned >
 ; ---- char = digits[i - 1]
         mov     al, [putNumber__i]
         xor     ah, ah                      ; u8 -> u16
@@ -233,9 +218,7 @@ isDivisible:
         div     bx
         mov     ax, dx                      ; remainder
         test    ax, ax
-        je      .L28                        ; unsigned ==
-        jmp     .L26
-.L28:
+        jne     .L26                        ; unsigned ==
         mov     ax, 1
         jmp     .L27
 .L26:
@@ -258,17 +241,13 @@ run:
 ; ---- if (value == 13) continue
         mov     ax, [value]
         cmp     ax, 13
-        je      .L35                        ; unsigned ==
-        jmp     .L33
-.L35:
+        jne     .L33                        ; unsigned ==
         jmp     .L30
 .L33:
 ; ---- if (value > 17) break
         mov     ax, [value]
         cmp     ax, 17
-        ja      .L38                        ; unsigned >
-        jmp     .L36
-.L38:
+        jbe     .L36                        ; unsigned >
         jmp     .L31
 .L36:
 ; ---- putNumber()
@@ -288,11 +267,8 @@ run:
         mov     al, [divResult]
         mov     [done], al                  ; bool -> bool, no widening
 ; ---- if (done) {
-        mov     al, [done]
         test    al, al
-        jnz     .L41
-        jmp     .L39
-.L41:
+        jz      .L39
 ; ---- strAddr = addr(fizz)
         mov     ax, fizz                    ; link-time constant
         mov     [strAddr], ax
@@ -306,9 +282,7 @@ run:
 ; ---- if (divResult) {
         mov     al, [divResult]
         test    al, al
-        jnz     .L44
-        jmp     .L42
-.L44:
+        jz      .L42
 ; ---- strAddr = addr(buzz)
         mov     ax, buzz                    ; link-time constant
         mov     [strAddr], ax
@@ -320,14 +294,10 @@ run:
 ; ---- value < 9                     // terminator while bracket depth > 0
         mov     ax, [value]
         cmp     ax, 3
-        ja      .L47                        ; unsigned >
-        jmp     .L45
-.L47:
+        jbe     .L45                        ; unsigned >
         mov     ax, [value]
         cmp     ax, 9
-        jb      .L48                        ; unsigned <
-        jmp     .L45
-.L48:
+        jae     .L45                        ; unsigned <
 ; ---- char = squares[value - 3] + zeroChar
         mov     ax, [value]
         sub     ax, 3
@@ -342,9 +312,7 @@ run:
 ; ---- if (value < 5) {
         mov     ax, [value]
         cmp     ax, 5
-        jb      .L51                        ; unsigned <
-        jmp     .L49
-.L51:
+        jae     .L49                        ; unsigned <
 ; ---- char = 'a'
         mov     byte [char], 97
         jmp     .L50
@@ -352,9 +320,7 @@ run:
 ; ---- } else if (value < 10) {
         mov     ax, [value]
         cmp     ax, 10
-        jb      .L54                        ; unsigned <
-        jmp     .L52
-.L54:
+        jae     .L52                        ; unsigned <
 ; ---- char = 'b'
         mov     byte [char], 98
         jmp     .L53
@@ -368,29 +334,21 @@ run:
 ; ---- if (!done || value == limit) {
         mov     al, [done]
         test    al, al
-        jnz     .L58
-        jmp     .L57
-.L58:
+        jz      .L57
         mov     ax, [value]
         cmp     ax, 20
-        je      .L59                        ; unsigned ==
-        jmp     .L55
-.L59:
+        jne     .L55                        ; unsigned ==
 .L57:
 ; ---- char = done ? '*' : value > 10 ? '#' : '.'   // nested, right-assoc
         mov     al, [done]
         test    al, al
-        jnz     .L62
-        jmp     .L60
-.L62:
+        jz      .L60
         mov     ax, 42
         jmp     .L61
 .L60:
         mov     ax, [value]
         cmp     ax, 10
-        ja      .L65                        ; unsigned >
-        jmp     .L63
-.L65:
+        jbe     .L63                        ; unsigned >
         mov     ax, 35
         jmp     .L64
 .L63:
@@ -414,9 +372,7 @@ run:
         mov     bx, ax
         mov     al, [partial + bx]
         test    al, al
-        jnz     .L68
-        jmp     .L66
-.L68:
+        jz      .L66
 ; ---- char = '+'
         mov     byte [char], 43
 ; ---- putChar()
@@ -458,9 +414,7 @@ checksum:
 ; ---- if (i == maxDigits - 1) break
         mov     al, [checksum__i]
         cmp     al, 4                       ; byte operands, no widening
-        je      .L74                        ; unsigned ==
-        jmp     .L72
-.L74:
+        jne     .L72                        ; unsigned ==
         jmp     .L71
 .L72:
 .L70:
@@ -473,28 +427,23 @@ checksum:
         and     ax, 127
         mov     [hash], al                  ; narrowed to u8
 ; ---- hash |= 0x20
-        mov     al, [hash]
         xor     ah, ah                      ; u8 -> u16
         or      ax, 32
         mov     [hash], al                  ; narrowed to u8
 ; ---- hash ^= 0x01
-        mov     al, [hash]
         xor     ah, ah                      ; u8 -> u16
         xor     ax, 1
         mov     [hash], al                  ; narrowed to u8
 ; ---- hash >>= 1                        // u8 -> shr
-        mov     al, [hash]
         xor     ah, ah                      ; u8 -> u16
         shr     ax, 1                       ; unsigned >>
         mov     [hash], al                  ; narrowed to u8
 ; ---- hash = u8(~hash)
-        mov     al, [hash]
         xor     ah, ah                      ; u8 -> u16
         not     ax
         xor     ah, ah                      ; cast to u8
         mov     [hash], al                  ; narrowed to u8
 ; ---- hash = u8(hash + table[1])
-        mov     al, [hash]
         xor     ah, ah                      ; u8 -> u16
         push    ax                          ; save lhs: rhs is not a leaf
         mov     al, [table + 1]
@@ -505,7 +454,6 @@ checksum:
         xor     ah, ah                      ; cast to u8
         mov     [hash], al                  ; narrowed to u8
 ; ---- hash = u8((hash & mask) | (i * 2))  // bare & | * (compound forms above)
-        mov     al, [hash]
         xor     ah, ah                      ; u8 -> u16
         and     ax, 127
         push    ax                          ; save lhs: rhs is not a leaf
@@ -518,7 +466,6 @@ checksum:
         xor     ah, ah                      ; cast to u8
         mov     [hash], al                  ; narrowed to u8
 ; ---- hash = u8(hash ^ stripe)
-        mov     al, [hash]
         xor     ah, ah                      ; u8 -> u16
         xor     ax, 170
         xor     ah, ah                      ; cast to u8
@@ -528,12 +475,10 @@ checksum:
         dec     ax
         mov     [signedAcc], ax
 ; ---- signedAcc >>= 2                   // i16 -> sar, not shr
-        mov     ax, [signedAcc]
         sar     ax, 1                       ; signed >>
         sar     ax, 1
         mov     [signedAcc], ax
 ; ---- signedAcc += delta                // i16 += i8
-        mov     ax, [signedAcc]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     al, [delta]
         cbw                                 ; i8 -> i16
@@ -542,20 +487,15 @@ checksum:
         add     ax, bx
         mov     [signedAcc], ax
 ; ---- signedAcc -= 2
-        mov     ax, [signedAcc]
         sub     ax, 2
         mov     [signedAcc], ax
 ; ---- signedAcc *= 3
-        mov     ax, [signedAcc]
         mov     bx, 3
         mul     bx                          ; low 16 bits are sign-agnostic
         mov     [signedAcc], ax
 ; ---- if (signedAcc < 0) signedAcc = -signedAcc
-        mov     ax, [signedAcc]
         test    ax, ax
-        jl      .L77                        ; signed <
-        jmp     .L75
-.L77:
+        jge     .L75                        ; signed <
         mov     ax, [signedAcc]
         neg     ax
         mov     [signedAcc], ax
@@ -564,32 +504,25 @@ checksum:
         mov     ax, [signedAcc]
         mov     [value], ax
 ; ---- value %= 100
-        mov     ax, [value]
         mov     bx, 100
         xor     dx, dx                      ; clear high half for div
         div     bx
         mov     ax, dx                      ; remainder
         mov     [value], ax
 ; ---- value <<= 1
-        mov     ax, [value]
         shl     ax, 1
         mov     [value], ax
 ; ---- value = value / 2 + 1               // bare /
-        mov     ax, [value]
         shr     ax, 1                       ; / 2 is >> 1
         inc     ax
         mov     [value], ax
 ; ---- if (delta != 0 && signedAcc >= 0) {
         mov     al, [delta]
         test    al, al
-        jne     .L80                        ; signed !=
-        jmp     .L78
-.L80:
+        je      .L78                        ; signed !=
         mov     ax, [signedAcc]
         test    ax, ax
-        jge     .L81                        ; signed >=
-        jmp     .L78
-.L81:
+        jl      .L78                        ; signed >=
 ; ---- putNumber()
         call    putNumber
 ; ---- newline()
