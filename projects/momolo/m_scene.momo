@@ -1,0 +1,433 @@
+// m_scene.momo - the scenes, and the pass sequence a caller drives.
+//
+// Six scenes, every one the same tree as a demo in the clay-study's gallery, so
+// the numbers they produce can be held against the study's own. See PORT.md.
+//
+// This is not the engine. It sits above the line with the study's src/demos.ts,
+// and like that file it writes the pass order out longhand rather than hiding it
+// behind an end() - the caller drives momolo, and momolo never calls out.
+//
+// Shared by two projects: `momolo` dumps the resolved boxes as numbers for the
+// cross-check, and `mlodemo` draws one of them on a text mode screen. They build
+// the same trees, so the picture is made of the tree the numbers verified.
+//
+// Colours come from std/screen.momo, which names the CGA sixteen exactly as the
+// study's src/palette.ts does. That was not an accident.
+
+include "mopaint.momo"
+include "momolo/fit.momo"
+include "momolo/size.momo"
+include "momolo/refit.momo"
+include "momolo/place.momo"
+
+// One unit is one character cell, which mopaint decides rather than the scene.
+const u = cellW
+
+// The study derives this as max(1, u >> 3), so it is one cell here and two
+// pixels there.
+const border = 1
+
+// ---- the content ----------------------------------------------------------
+
+const u8[] sMomolo   = "momolo$"
+const u8[] sGeometry = "geometry$"
+const u8[] sNew      = "New$"
+const u8[] sOpen     = "Open$"
+const u8[] sSave     = "Save$"
+const u8[] sQuit     = "Quit$"
+const u8[] sBody     = "wrapped text in a narrow column$"
+const u8[] sCentred  = "centred on both axes$"
+const u8[] sA        = "a$"
+const u8[] sB        = "bbbb$"
+const u8[] sC        = "cc$"
+const u8[] sLeft     = "squeezed left column$"
+const u8[] sRight    = "squeezed right column$"
+const u8[] sReady    = "ready$"
+
+const u8[] sAbc      = "abc$"
+const u8[] sDe       = "de$"
+const u8[] sFghi     = "fghi$"
+const u8[] sCapFit   = "fit() - as wide as the words$"
+const u8[] sCapGrow  = "grow() - converge on a common width$"
+const u8[] sCapMixed = "fixed(6), grow(0, 8) capped, grow()$"
+
+const u8[] sAlpha    = "alpha beta$"
+const u8[] sGamma    = "gamma delta$"
+const u8[] sTrack26  = "track of 26$"
+const u8[] sTrack22  = "track of 22$"
+const u8[] sTrack14  = "track of 14$"
+const u8[] sTrack8   = "track of 8$"
+
+const u8[] sAa       = "aa$"
+const u8[] sBb       = "bb$"
+const u8[] sCc       = "cc$"
+const u8[] sDd       = "dd$"
+
+const u8[] sWider    = "wider$"
+const u8[] sThan     = "than$"
+const u8[] sThis     = "this$"
+
+// The nine alignment combinations, named for their main and cross alignment.
+const u8[] sAlSs     = "ss$"
+const u8[] sAlCs     = "cs$"
+const u8[] sAlEs     = "es$"
+const u8[] sAlSc     = "sc$"
+const u8[] sAlCc     = "cc$"
+const u8[] sAlEc     = "ec$"
+const u8[] sAlSe     = "se$"
+const u8[] sAlCe     = "ce$"
+const u8[] sAlEe     = "ee$"
+
+// A paragraph's minimum width is its longest word, and that one number is the
+// whole of what makes it a paragraph rather than a label. In a Momo program it
+// is a compile-time constant because the string is.
+const bodyMinW     = 7          // "wrapped"
+const squeezedMinW = 8          // "squeezed"
+const trackMinW    = 5          // "alpha", and "gamma" is the same length
+
+// ---- the pass sequence ----------------------------------------------------
+//
+// Written out rather than hidden, because the reflow in the middle is the whole
+// point: widths are final after sizeX, paint breaks its paragraphs into lines and
+// says how tall they came out, and refitY carries that up the tree before heights
+// are settled.
+//
+// That is Clay's pass order with its measure callback turned inside out - the
+// engine offers a sequence point and never calls out.
+
+sub runPasses {
+  sizeX()
+  reflowAll()
+  refitY()
+  sizeY()
+  place()
+}
+
+// ---- shared scene pieces --------------------------------------------------
+//
+// The study writes these as functions taking a closure. Momo has no closures, so
+// a wrapper becomes an open/close pair and the caller writes the body between
+// them - which is what PORT.md meant by "the openBox/closeBox pair is what ports,
+// and the closure is a TypeScript convenience only".
+
+// A caption above a strip of content.
+sub stripOpen( u16 caption ) {
+  cfgCol()
+  cfgGrowW()
+  boxOpen()
+
+    labelPaint( caption, lightGray, black )
+
+    cfgGrowW()
+    cfg.gap = u
+    boxOpen()
+}
+
+sub stripClose {
+  closeBox()                    // the row of content
+  closeBox()                    // the captioned column
+}
+
+// A centred label on a coloured panel. The width is whatever the caller left in
+// cfg, which works because cfg is not spent until the box opens - so the four
+// wrappers below differ only in how they set it.
+local sub swatchBody( u16 at, u8 bg ) {
+  cfgInsetX( u )
+  cfg.alignMain = alignCenter
+  panelOpen( bg )
+    labelPaint( at, black, bg )
+  closeBox()
+}
+
+sub swatchFit( u16 at, u8 bg ) => swatchBody( at, bg )
+
+sub swatchGrow( u16 at, u8 bg ) {
+  cfgGrowW()
+  swatchBody( at, bg )
+}
+
+sub swatchFixed( u16 at, u8 bg, u16 n ) {
+  cfgFixedW( n )
+  swatchBody( at, bg )
+}
+
+// A grow with a ceiling, so the candidate drops out of the convergence loop when
+// it reaches it.
+sub swatchCapped( u16 at, u8 bg, u16 n ) {
+  cfgGrowW()
+  cfg.wMax = n
+  swatchBody( at, bg )
+}
+
+// ---- scene: shell ---------------------------------------------------------
+//
+// An application frame: fixed sidebar, growing pane, borders, a spacer, wrapping
+// and squeezing together. 80x25, because that is a text mode screen.
+
+sub buildShell {
+  cfgCol()
+  cfgGrowW()
+  cfgGrowH()
+  panelOpen( blue )
+
+    // ---- title bar. The empty grow box between the two labels is a spacer -
+    // it is how you push something to the far end without a dedicated alignment
+    // rule for it.
+    cfgGrowW()
+    cfgFixedH( lineHeight )
+    cfgInsetX( u )
+    panelOpen( cyan )
+      labelPaint( addr( sMomolo ), black, cyan )
+
+      // The gap on a childless box is deliberate and does nothing - there are no
+      // gaps between no children. It is here so that `gap * (n - 1)` without a
+      // guard reads 65535 and says so; see momolo/fit.momo.
+      cfgGrowW()
+      cfg.gap = u
+      boxOpen()
+      closeBox()
+
+      labelPaint( addr( sGeometry ), black, cyan )
+    closeBox()
+
+    // ---- body: a fixed sidebar and a growing pane
+    cfgGrowW()
+    cfgGrowH()
+    cfgInset( u )
+    cfg.gap = u
+    boxOpen()
+
+      // ---- sidebar. The frame's width is added to the inset by panelFramed,
+      // so the engine is told a bigger inset and never hears the word border.
+      cfgCol()
+      cfgFixedW( 16 * u )
+      cfgGrowH()
+      cfgInset( u )
+      panelFramed( darkGray, border, white )
+        labelPaint( addr( sNew ), white, darkGray )
+        labelPaint( addr( sOpen ), white, darkGray )
+        labelPaint( addr( sSave ), white, darkGray )
+        labelPaint( addr( sQuit ), white, darkGray )
+
+        cfgFixedH( lineHeight )
+        boxOpen()
+        closeBox()
+
+        paraPaint( addr( sBody ), bodyMinW, yellow, darkGray )
+      closeBox()
+
+      // ---- main pane
+      cfgCol()
+      cfgGrowW()
+      cfgGrowH()
+      cfgInset( u )
+      cfg.gap = u
+      cfg.alignMain = alignCenter
+      cfg.alignCross = alignCenter
+      panelFramed( black, border, lightGray )
+        labelPaint( addr( sCentred ), yellow, black )
+
+        cfgGrowW()
+        cfg.gap = u
+        boxOpen()
+          swatchGrow( addr( sA ), darkGray )
+          swatchGrow( addr( sB ), darkGray )
+          swatchGrow( addr( sC ), darkGray )
+        closeBox()
+
+        cfgFixedW( 24 * u )
+        cfg.gap = u
+        boxOpen()
+          paraPaint( addr( sLeft ), squeezedMinW, white, darkGray )
+          paraPaint( addr( sRight ), squeezedMinW, white, darkGray )
+        closeBox()
+      closeBox()
+
+    closeBox()
+
+    // ---- status bar
+    cfgGrowW()
+    cfgFixedH( lineHeight )
+    cfgInsetX( u )
+    panelOpen( lightGray )
+      labelPaint( addr( sReady ), black, lightGray )
+    closeBox()
+
+  closeBox()
+}
+
+// ---- scene: sizing --------------------------------------------------------
+//
+// Two kinds and a clamp. fit hugs its content, grow shares what is left over,
+// and fixed is a fit whose minimum and maximum are equal. The third strip is the
+// one the port needed: a capped grow that stops at 8 while its neighbour keeps
+// taking.
+
+sub buildSizing {
+  cfgCol()
+  cfgGrowW()
+  cfgGrowH()
+  cfgInset( u )
+  cfg.gap = u
+  panelOpen( black )
+
+    stripOpen( addr( sCapFit ) )
+      swatchFit( addr( sAbc ), cyan )
+      swatchFit( addr( sDe ), green )
+      swatchFit( addr( sFghi ), yellow )
+    stripClose()
+
+    stripOpen( addr( sCapGrow ) )
+      swatchGrow( addr( sAbc ), cyan )
+      swatchGrow( addr( sDe ), green )
+      swatchGrow( addr( sFghi ), yellow )
+    stripClose()
+
+    stripOpen( addr( sCapMixed ) )
+      swatchFixed( addr( sAbc ), cyan, 6 * u )
+      swatchCapped( addr( sDe ), green, 8 * u )
+      swatchGrow( addr( sFghi ), yellow )
+    stripClose()
+
+  closeBox()
+}
+
+// ---- scene: capped --------------------------------------------------------
+//
+// Four growing swatches in a fixed track, the second capped. It reaches its
+// ceiling partway through the distribution and drops out, and the two units left
+// over are handed to the survivors in order.
+//
+// This is the scene written for the port rather than ported to it. Every other
+// scene removes a candidate from the end of the list, so shift-down and
+// swap-with-last agree and candRemove's whole reason for being goes unchecked.
+// Removing the second of four is the smallest shape that tells them apart - with
+// three, removing the middle of [A,B,C] leaves [A,C] either way. Widths come to
+// 7, 5, 7, 6.
+
+sub buildCapped {
+  cfgCol()
+  cfgGrowW()
+  cfgGrowH()
+  cfgInset( u )
+  panelOpen( black )
+
+    cfgFixedW( 28 * u )
+    cfg.gap = u
+    boxOpen()
+      swatchGrow( addr( sAa ), cyan )
+      swatchCapped( addr( sBb ), green, 5 * u )
+      swatchGrow( addr( sCc ), yellow )
+      swatchGrow( addr( sDd ), magenta )
+    closeBox()
+
+  closeBox()
+}
+
+// ---- scene: squeeze -------------------------------------------------------
+//
+// The same pair of paragraphs in shrinking tracks. They converge downward, and
+// once both reach their longest word the rest overflows rather than crushing
+// them.
+
+sub squeezeTrack( u16 caption, u16 width ) {
+  stripOpen( caption )
+
+    cfgFixedW( width )
+    cfg.gap = u
+    panelOpen( darkGray )
+      paraPaint( addr( sAlpha ), trackMinW, black, magenta )
+      paraPaint( addr( sGamma ), trackMinW, black, red )
+    closeBox()
+
+  stripClose()
+}
+
+sub buildSqueeze {
+  cfgCol()
+  cfgGrowW()
+  cfgGrowH()
+  cfgInset( u )
+  cfg.gap = u
+  panelOpen( black )
+
+    squeezeTrack( addr( sTrack26 ), 26 * u )
+    squeezeTrack( addr( sTrack22 ), 22 * u )
+    squeezeTrack( addr( sTrack14 ), 14 * u )
+    squeezeTrack( addr( sTrack8 ), 8 * u )
+
+  closeBox()
+}
+
+// ---- scene: overflow ------------------------------------------------------
+//
+// Three labels that will not fit and cannot be squeezed. A label refuses to be
+// narrowed, so shrink has nothing to reclaim and the excess spills - the engine
+// raises a flag and stops there, because clipping and truncating are decisions
+// above the line. The track is centred, which is the point: aligning content
+// larger than its container is the one place the arithmetic has to answer "no
+// room" rather than a negative number.
+
+sub buildOverflow {
+  cfgCol()
+  cfgGrowW()
+  cfgGrowH()
+  cfgInset( u )
+  panelOpen( black )
+
+    cfgFixedW( 10 * u )
+    cfg.gap = u
+    cfg.alignMain = alignCenter
+    panelOpen( darkGray )
+      labelPaint( addr( sWider ), black, darkGray )
+      labelPaint( addr( sThan ), black, darkGray )
+      labelPaint( addr( sThis ), black, darkGray )
+    closeBox()
+
+  closeBox()
+}
+
+// ---- scene: alignment -----------------------------------------------------
+//
+// Nine combinations of alignMain and alignCross, relative to the layout axis
+// rather than absolute - one concept instead of two, and the divergence from
+// Clay the study argued hardest for. Each cell is a row, so main is x and cross
+// is y, and each is labelled with the first letter of each.
+//
+// Ported because `end` appears nowhere else: without this scene leadFor's third
+// branch never runs on either axis.
+
+sub alignCell( u16 at, u8 main, u8 cross ) {
+  cfgFixedW( 12 * u )
+  cfgFixedH( 3 * lineHeight )
+  cfg.alignMain = main
+  cfg.alignCross = cross
+  panelOpen( darkGray )
+    labelPaint( at, yellow, darkGray )
+  closeBox()
+}
+
+sub alignRow( u16 a, u16 b, u16 c, u8 cross ) {
+  cfgGrowW()
+  cfg.gap = u
+  boxOpen()
+    alignCell( a, alignStart, cross )
+    alignCell( b, alignCenter, cross )
+    alignCell( c, alignEnd, cross )
+  closeBox()
+}
+
+sub buildAlignment {
+  cfgCol()
+  cfgGrowW()
+  cfgGrowH()
+  cfgInset( u )
+  cfg.gap = u
+  panelOpen( black )
+
+    alignRow( addr( sAlSs ), addr( sAlCs ), addr( sAlEs ), alignStart )
+    alignRow( addr( sAlSc ), addr( sAlCc ), addr( sAlEc ), alignCenter )
+    alignRow( addr( sAlSe ), addr( sAlCe ), addr( sAlEe ), alignEnd )
+
+  closeBox()
+}

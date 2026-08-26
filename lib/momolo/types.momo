@@ -1,0 +1,132 @@
+// types.momo - the element array, the builder's scratch stacks, and the one
+// accessor pass 1 needs.
+//
+// Port of src/momolo/types.ts from the clay-study. See PORT.md there.
+//
+// momolo's `Element` is a flat record of integers with no nesting, which is
+// exactly what makes it a Momo `group`: each field becomes its own array
+// (DESIGN §18), so `el[i].w` is `el__w[i]` - no multiply for the index, no mixed
+// -width wart, and one element type per field.
+//
+// Field types and polarities are chosen so that every momolo default is zero,
+// because `group` has no field initialisers and an array zero-fills only at
+// load. `isCol` is false for momolo's default `row`; `wGrow` is false for its
+// default `fit`; `alignStart` is 0. The only fields whose default is not zero
+// are `wMax` and `hMax`, and cfgReset writes them.
+//
+// That polarity is not a nicety, it is the reason `pushElement` can be trusted:
+// elements are reused between frames, so a field left unwritten holds the
+// previous frame's value.
+
+const maxElements = 64
+const maxDepth    = 16
+
+// "No upper bound". u16 max, and layout units never come near it, so the
+// arithmetic never needs an infinity - which is why momolo avoided one on the
+// TypeScript side too, against this port.
+const unbounded = 65535
+
+// Alignment is relative to the layout axis rather than absolute - one concept
+// instead of two, and the one divergence from Clay this study argued for. Three
+// values, so this is the only small union that stays an integer; `Dir` and
+// `SizeKind` have two each and became bools above.
+//
+// Only alignStart is referenced until pass 3 lands; the other two are declared
+// with it because they are one set, and a scalar const emits an `equ` and costs
+// no storage.
+const alignStart  = 0
+const alignCenter = 1
+const alignEnd    = 2
+
+group el[maxElements] {
+  bool isCol
+  u8   insetL
+  u8   insetR
+  u8   insetT
+  u8   insetB
+  u8   gap
+  u8   alignMain
+  u8   alignCross
+  bool wGrow
+  u16  wMin
+  u16  wMax
+  bool hGrow
+  u16  hMin
+  u16  hMax
+  u16  childStart
+  u16  childCount
+  // Resolved by the passes. After pass 3, x and y are absolute.
+  u16  w
+  u16  h
+  // The smallest this element can be without its own content overflowing.
+  u16  minW
+  u16  minH
+  u16  x
+  u16  y
+  // Raised by pass 2 when content did not fit and the excess was left to spill.
+  // momolo only reports it - clipping, truncating and scrolling are all
+  // decisions above the line.
+  bool overflowX
+  bool overflowY
+}
+
+// Elements in creation order, which for an immediate-mode builder is pre-order,
+// so this is already paint order and there is no command list.
+u16 elCount
+
+// Elements currently open, innermost last.
+u16[maxDepth] openStack
+u16           openDepth
+
+// Closed children of open elements, awaiting collection by their parent.
+u16[maxElements] childBuf
+u16              childBufLen
+
+// Permanent flat child lists; each element owns one contiguous run.
+u16[maxElements] childList
+u16              childListLen
+
+// The child of a parent, by position in that parent's run - an index rather than
+// an element, since there is no record for Momo to return.
+//
+// A parameterised const, so no call is emitted at all. The doubly nested index
+// this expands to - an array read inside an array index - was probed before
+// being relied on rather than reasoned about: it costs thirteen instructions
+// with no stack traffic, BX being reused as each index is consumed. PORT.md had
+// advised splitting it across two statements on the grounds that the codegen was
+// unknown. It is known now, and it is fine.
+const u16 childAt( u16 p, u16 k ) = childList[ el[p].childStart + k ]
+
+// ---- axis accessors --------------------------------------------------------
+//
+// Pass 2 is written once and run twice, once per axis, and these are what let
+// that work: `xAxis` picks which set of fields the pass is looking at. They live
+// with the data rather than with the pass that uses them, because being able to
+// write a pass once is a property of the data model.
+//
+// The readers are parameterised consts, so no call is emitted - a pass that
+// mentions `sizeOf` thirty times pays nothing for it. The writers have to be
+// subs, since assignment is a statement in Momo (§6) and a const is an
+// expression.
+
+const u16  sizeOf ( u16 i, bool xAxis ) = xAxis ? el[i].w    : el[i].h
+const u16  minOf  ( u16 i, bool xAxis ) = xAxis ? el[i].minW : el[i].minH
+const u16  maxOf  ( u16 i, bool xAxis ) = xAxis ? el[i].wMax : el[i].hMax
+const bool growsOn( u16 i, bool xAxis ) = xAxis ? el[i].wGrow : el[i].hGrow
+
+sub setSize( u16 i, bool xAxis, u16 v ) {
+  if ( xAxis ) {
+    el[i].w = v
+  } else {
+    el[i].h = v
+  }
+}
+
+// Only ever raised, never lowered, so it takes no value.
+sub setOverflow( u16 i, bool xAxis ) {
+  if ( xAxis ) {
+    el[i].overflowX = true
+  } else {
+    el[i].overflowY = true
+  }
+}

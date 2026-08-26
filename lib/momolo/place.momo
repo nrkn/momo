@@ -1,0 +1,131 @@
+// place.momo - pass 3: place. Turn sizes into positions.
+//
+// Port of src/momolo/place.ts. Depth-first over an explicit stack, writing
+// absolute x and y onto every element. Sizes are final by now, so this pass only
+// ever reads them - which is what lets it run before pass 2 exists and still be
+// checked against something (PORT.md, stage `place`).
+//
+// There is no command list. Elements are pushed on open, so `el` is already in
+// pre-order, which is paint order - a caller draws by walking it front to back.
+// Clay needs a separate list because it reorders for z-index, culls offscreen
+// elements and emits several commands per element; momolo does none of those,
+// and without them the command list is just the element array again.
+//
+// Three parallel stacks rather than a stack of records, which was the shape this
+// study chose on the TypeScript side precisely because it is what `group`
+// produces anyway. Here they are three plain arrays and one depth, and no
+// translation was needed at all.
+
+include "std/math.momo"
+
+// Every element is pushed exactly once, so the stacks can never hold more than
+// the element array does. Private to this pass: nothing outside it has any
+// business in momolo's traversal order.
+local u16[maxElements] stkI
+local u16[maxElements] stkX
+local u16[maxElements] stkY
+local u16              stkTop
+
+// Where the content starts inside the slack: hard against the near edge, halved,
+// or hard against the far edge. `slack >> 1` rather than a divide, as in the
+// TypeScript - and alignment is relative to the layout axis rather than
+// absolute, which is why one function serves both axes.
+local const u16 leadFor( u8 align, u16 slack ) =
+  align == alignStart ? 0 : ( align == alignCenter ? slack >> 1 : slack )
+
+sub place {
+  u16  i
+  u16  n
+  u16  k
+  u16  ci
+  bool row
+  u16  insetMain
+  u16  insetCross
+  u16  inner
+  u16  crossInner
+  u16  content
+  u16  slack
+  u16  cursor
+  u16  base
+  u16  room
+  u16  cross
+  u16  slot
+
+  stkI[0] = 0
+  stkX[0] = 0
+  stkY[0] = 0
+  stkTop = 1
+
+  while ( stkTop > 0 ) {
+    stkTop--
+
+    i = stkI[stkTop]
+    el[i].x = stkX[stkTop]
+    el[i].y = stkY[stkTop]
+
+    n = el[i].childCount
+    if ( n == 0 ) continue
+
+    row = !el[i].isCol
+
+    // The layout axis and the one across it, resolved once. Everything below is
+    // written in terms of main and cross rather than x and y, which is what lets
+    // one body serve a row and a column.
+    if ( row ) {
+      insetMain = el[i].insetL + el[i].insetR
+      insetCross = el[i].insetT + el[i].insetB
+      inner = el[i].w
+      crossInner = el[i].h
+    } else {
+      insetMain = el[i].insetT + el[i].insetB
+      insetCross = el[i].insetL + el[i].insetR
+      inner = el[i].h
+      crossInner = el[i].w
+    }
+
+    // Both guarded: a fixed box smaller than its own inset would underflow u16,
+    // where the TypeScript merely goes negative and is caught by a later max().
+    // See PORT.md, "Unsigned subtraction".
+    inner = inner > insetMain ? inner - insetMain : 0
+    crossInner = crossInner > insetCross ? crossInner - insetCross : 0
+
+    // n is at least 1 here, so `n - 1` needs no guard - unlike the same
+    // expression in fit.momo, which is reached with no children.
+    content = el[i].gap * ( n - 1 )
+    for ( k = 0; k < n; k++ ) {
+      ci = childAt( i, k )
+      content += row ? el[ci].w : el[ci].h
+    }
+
+    // Alignment along the layout axis: measure the children, offset by the slack.
+    slack = inner > content ? inner - content : 0
+    cursor = ( row ? el[i].insetL : el[i].insetT ) + leadFor( el[i].alignMain, slack )
+
+    // Reserve n slots, then fill them backwards while walking children forwards.
+    // Clay's trick: the cursor accumulates in order, but the stack still pops in
+    // order, so elements resolve front to back. Without it this needs either a
+    // temporary array or a quadratic re-scan.
+    //
+    // Nothing is written into the reserved slots first, as the TypeScript does
+    // with its pushes - the loop below assigns every one of base .. base + n - 1
+    // exactly once, since `n - 1 - k` covers n - 1 down to 0.
+    base = stkTop
+    stkTop += n
+
+    for ( k = 0; k < n; k++ ) {
+      ci = childAt( i, k )
+
+      // Alignment across the layout axis is per child, since each may differ.
+      room = row ? el[ci].h : el[ci].w
+      room = crossInner > room ? crossInner - room : 0
+      cross = ( row ? el[i].insetT : el[i].insetL ) + leadFor( el[i].alignCross, room )
+
+      slot = base + n - 1 - k
+      stkI[slot] = ci
+      stkX[slot] = row ? el[i].x + cursor : el[i].x + cross
+      stkY[slot] = row ? el[i].y + cross : el[i].y + cursor
+
+      cursor += ( row ? el[ci].w : el[ci].h ) + el[i].gap
+    }
+  }
+}

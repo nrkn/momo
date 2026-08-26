@@ -1,0 +1,350 @@
+// size.momo - pass 2: size. Settle every child's extent along one axis.
+//
+// Port of src/momolo/size.ts. Breadth-first from the root, run once per axis. A
+// parent's size is final before its children are considered, which is what makes
+// one top-down sweep enough.
+//
+// Along the layout axis there is either space left over or not enough, and the
+// two cases are mirror images. Surplus is handed out smallest-first, so grow
+// siblings converge upward on a common size instead of each keeping its head
+// start. A deficit is taken back largest-first, so siblings converge downward.
+// Either way a child that reaches its own limit drops out and the rest carry on
+// without it.
+//
+// The two walks are written out separately rather than unified behind a sign. A
+// unified version is about half the lines and every comparison in it reads
+// backwards half the time, which is the wrong trade for the one function here
+// that is genuinely intricate.
+
+include "std/math.momo"
+
+// Breadth-first queue. Read by index and never popped, so it needs room for
+// every element that has children - bounded by the element array itself.
+local u16[maxElements] bfs
+local u16              bfsLen
+
+// The children of one parent that may take a share. Sized by maxElements rather
+// than by a guess at the widest box, because a parent cannot have more children
+// than there are elements and Momo does not bounds-check a variable index.
+local u16[maxElements] cand
+local u16              candLen
+
+// Remove one entry, keeping the rest in order.
+//
+// Order is load-bearing: the remainder branch below hands out single units in
+// list order, so which child gets the odd unit depends on it. Swap-with-last is
+// the obvious answer and it is the wrong one. This is the `indices.splice(i, 1)`
+// of the TypeScript, and the only structure in momolo with a hole in the middle.
+local sub candRemove( u16 at ) {
+  u16 j
+
+  for ( j = at; j + 1 < candLen; j++ ) {
+    cand[j] = cand[j + 1]
+  }
+
+  candLen--
+}
+
+// Hand `surplus` out to the candidates, smallest first.
+local sub growInto( bool xAxis, u16 surplus ) {
+  u16 remaining
+  u16 smallest
+  u16 second
+  u16 countAtSmallest
+  u16 j
+  u16 ci
+  u16 s
+  u16 even
+  u16 add
+  u16 cap
+  u16 take
+
+  remaining = surplus
+
+  while ( remaining > 0 && candLen > 0 ) {
+    // The smallest candidate, how many share that size, and the next size up -
+    // the point at which they would stop being the smallest.
+    //
+    // The TypeScript carries a `none = -1` sentinel and tests for it three
+    // times. Unsigned, `unbounded` is the sentinel and every one of those tests
+    // collapses into the comparison next to it: any real size is below 65535.
+    smallest = unbounded
+    second = unbounded
+    countAtSmallest = 0
+
+    for ( j = 0; j < candLen; j++ ) {
+      ci = cand[j]
+      s = sizeOf( ci, xAxis )
+
+      if ( s < smallest ) {
+        second = smallest
+        smallest = s
+        countAtSmallest = 1
+      } else if ( s == smallest ) {
+        countAtSmallest++
+      } else if ( s < second ) {
+        second = s
+      }
+    }
+
+    // countAtSmallest is at least 1 whenever candLen is, which the while
+    // guarantees, so this divide cannot be by zero.
+    even = remaining / countAtSmallest
+
+    // The fourth sentinel test, and the one that collapses most usefully: with
+    // no second size, `second - smallest` is 65535 minus something small, so
+    // min() picks `even` - exactly what `second === none ? even : ...` says.
+    // shrink's mirror of this line does NOT collapse; see PORT.md, "Sentinels".
+    add = min( second - smallest, even )
+
+    if ( add == 0 ) {
+      // An integer remainder smaller than the number of claimants. Hand out one
+      // unit each until it is gone; float Clay leaves this as epsilon dust.
+      for ( j = 0; j < candLen; j++ ) {
+        if ( remaining == 0 ) break
+        ci = cand[j]
+        if ( sizeOf( ci, xAxis ) != smallest ) continue
+        if ( smallest + 1 > maxOf( ci, xAxis ) ) continue
+        setSize( ci, xAxis, smallest + 1 )
+        remaining--
+      }
+
+      // The TypeScript breaks out of its outer loop here; nothing follows, so a
+      // return says the same thing.
+      return
+    }
+
+    // Walked backwards so a child that reaches its maximum can be removed
+    // without disturbing the entries still to be visited. `j - 1` rather than a
+    // descending index, because `j >= 0` is always true unsigned - see PORT.md.
+    for ( j = candLen; j > 0; j-- ) {
+      ci = cand[j - 1]
+      if ( sizeOf( ci, xAxis ) != smallest ) continue
+
+      cap = maxOf( ci, xAxis )
+      take = min( add, cap - smallest )
+      setSize( ci, xAxis, smallest + take )
+      remaining -= take
+
+      if ( smallest + take >= cap ) candRemove( j - 1 )
+    }
+  }
+}
+
+// Take `deficit` back off the candidates, largest first. Returns whatever it
+// could not reclaim, which is exactly the amount that will overflow.
+//
+// The mirror of growInto, and the sentinel collapses here too - which PORT.md
+// predicted it would not, and which is worth the four lines to explain.
+//
+// The prediction was that `largest - second` against a 0 sentinel is `largest`,
+// so min( largest, even ) differs from `even` whenever even exceeds largest, and
+// an explicit haveSecond would be needed where grow needed none. The first half
+// is true. The second does not follow, because `give` on the next line clamps to
+// `largest - floorAt`, and `largest` is never below that:
+//
+//   min( min( largest, even ), largest - floorAt )  ==  min( even, largest - floorAt )
+//
+// So the two spellings cannot produce a different `give`, and `step == 0` holds
+// in one exactly when it holds in the other. The flag was written, and then
+// removing it changed nothing in any of the three scenes - which is what sent the
+// argument back for a second look rather than being taken as coverage.
+//
+// In the TypeScript the check IS load-bearing, and that is the asymmetry: `none`
+// is -1 there, so `second - smallest` goes negative and drives the remainder
+// branch by mistake. Unsigned it cannot. The sentinel analysis was right about
+// grow, right about the arithmetic, and wrong about the conclusion.
+local u16 shrinkFrom( bool xAxis, u16 deficit ) {
+  u16  excess
+  u16  largest
+  u16  second
+  u16  countAtLargest
+  u16  j
+  u16  ci
+  u16  s
+  u16  even
+  u16  step
+  u16  floorAt
+  u16  give
+
+  excess = deficit
+
+  while ( excess > 0 && candLen > 0 ) {
+    // The largest candidate, how many share that size, and the next size down.
+    largest = 0
+    second = 0
+    countAtLargest = 0
+
+    for ( j = 0; j < candLen; j++ ) {
+      ci = cand[j]
+      s = sizeOf( ci, xAxis )
+
+      if ( s > largest ) {
+        // countAtLargest is the "have we seen one yet" test that `largest !==
+        // none` is in the TypeScript, since 0 is a legal size rather than a
+        // sentinel here.
+        if ( countAtLargest > 0 ) second = largest
+        largest = s
+        countAtLargest = 1
+      } else if ( s == largest ) {
+        countAtLargest++
+      } else if ( s > second ) {
+        second = s
+      }
+    }
+
+    even = excess / countAtLargest
+    step = min( largest - second, even )
+
+    if ( step == 0 ) {
+      // The mirror of the remainder case in growInto: take one unit each until
+      // it is gone.
+      for ( j = 0; j < candLen; j++ ) {
+        if ( excess == 0 ) break
+        ci = cand[j]
+        if ( sizeOf( ci, xAxis ) != largest ) continue
+
+        // The TypeScript says `largest - 1 < minOf(...)`. Spelled as `largest <=
+        // min` instead: the two agree for every size this can actually see, and
+        // this one is also safe if `largest` were ever 0, where `largest - 1`
+        // would be 65535 and sail past the guard. PORT.md asked for that case to
+        // be asserted rather than assumed; it cannot be asserted in Momo, so it
+        // is made harmless instead.
+        if ( largest <= minOf( ci, xAxis ) ) continue
+
+        setSize( ci, xAxis, largest - 1 )
+        excess--
+      }
+
+      return excess
+    }
+
+    for ( j = candLen; j > 0; j-- ) {
+      ci = cand[j - 1]
+      if ( sizeOf( ci, xAxis ) != largest ) continue
+
+      floorAt = minOf( ci, xAxis )
+      give = min( step, largest - floorAt )
+      setSize( ci, xAxis, largest - give )
+      excess -= give
+
+      if ( largest - give <= floorAt ) candRemove( j - 1 )
+    }
+  }
+
+  return excess
+}
+
+sub sizeAxis( bool xAxis ) {
+  u16  qi
+  u16  i
+  u16  n
+  u16  k
+  u16  ci
+  bool along
+  u16  insetAxis
+  u16  avail
+  u16  inner
+  u16  fitted
+  u16  spilled
+
+  bfs[0] = 0
+  bfsLen = 1
+
+  // bfsLen grows inside the loop, and the condition is re-read each time - which
+  // is what makes this breadth-first rather than a fixed sweep.
+  for ( qi = 0; qi < bfsLen; qi++ ) {
+    i = bfs[qi]
+    n = el[i].childCount
+    if ( n == 0 ) continue
+
+    for ( k = 0; k < n; k++ ) {
+      ci = childAt( i, k )
+      if ( el[ci].childCount > 0 ) {
+        bfs[bfsLen] = ci
+        bfsLen++
+      }
+    }
+
+    along = xAxis ? !el[i].isCol : el[i].isCol
+    insetAxis = xAxis ? el[i].insetL + el[i].insetR : el[i].insetT + el[i].insetB
+
+    avail = sizeOf( i, xAxis )
+    avail = avail > insetAxis ? avail - insetAxis : 0
+
+    if ( !along ) {
+      for ( k = 0; k < n; k++ ) {
+        ci = childAt( i, k )
+
+        // A grow child takes the parent's inner size outright.
+        if ( growsOn( ci, xAxis ) ) {
+          setSize( ci, xAxis, min( avail, maxOf( ci, xAxis ) ) )
+        }
+
+        // Then every child, grown or not, is held inside the parent - but never
+        // squeezed past what its own content needs. Clay does the same at
+        // clay.h:2497. It is what lets a paragraph in a narrow column be narrow.
+        fitted = min( sizeOf( ci, xAxis ), avail )
+        setSize( ci, xAxis, max( fitted, minOf( ci, xAxis ) ) )
+
+        // Held inside, unless its own minimum would not let it in.
+        if ( sizeOf( ci, xAxis ) > avail ) setOverflow( i, xAxis )
+      }
+
+      continue
+    }
+
+    // On-axis: measure what the children already occupy. n is at least 1 here,
+    // so `n - 1` needs no guard.
+    inner = el[i].gap * ( n - 1 )
+    for ( k = 0; k < n; k++ ) {
+      ci = childAt( i, k )
+      inner += sizeOf( ci, xAxis )
+    }
+
+    if ( avail == inner ) continue
+
+    if ( avail < inner ) {
+      // Any child with room above its own minimum may give some back, whatever
+      // its sizing kind. A fixed child has a minimum equal to its size, so it is
+      // excluded by arithmetic rather than by a special case - which is where
+      // this parts company with Clay, whose resizable buffer names the kinds it
+      // must skip.
+      candLen = 0
+      for ( k = 0; k < n; k++ ) {
+        ci = childAt( i, k )
+        if ( sizeOf( ci, xAxis ) > minOf( ci, xAxis ) ) {
+          cand[candLen] = ci
+          candLen++
+        }
+      }
+
+      // Whatever shrink could not reclaim is what spills, and with nothing
+      // compressible the whole shortfall does. Either way the container is
+      // marked so a caller can clip, truncate or offer to scroll it.
+      if ( candLen > 0 ) {
+        spilled = shrinkFrom( xAxis, inner - avail )
+      } else {
+        spilled = inner - avail
+      }
+
+      if ( spilled > 0 ) setOverflow( i, xAxis )
+      continue
+    }
+
+    // Only children that asked to grow may take the surplus.
+    candLen = 0
+    for ( k = 0; k < n; k++ ) {
+      ci = childAt( i, k )
+      if ( growsOn( ci, xAxis ) ) {
+        cand[candLen] = ci
+        candLen++
+      }
+    }
+
+    if ( candLen > 0 ) growInto( xAxis, avail - inner )
+  }
+}
+
+sub sizeX => sizeAxis( true )
+sub sizeY => sizeAxis( false )

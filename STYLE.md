@@ -138,3 +138,20 @@ than every time by a writer.
 - Types: `PascalCase`.
 - DOS-visible filenames must be **8.3** - project directories and entry files
   are limited to 8 characters, letters/digits/underscore, starting with a letter.
+- **A multi-file project prefixes its parts**, one letter and an underscore, from
+  the project's own name: `projects/tennis/` has `t_cfg.momo` and `t_scr.momo`
+  beside `tennis.momo`, and `projects/momolo/` has `m_scene.momo` beside
+  `momolo.momo`. The prefix exists to separate the parts from the entry file,
+  which DOS requires to be named after the directory - so a reader can tell at a
+  glance which file the program starts in.
+
+  **Library files take no prefix**, because there is no entry file to be
+  separated from. `lib/momolo/` is `types.momo`, `build.momo`, `fit.momo` and so
+  on; a `m_` on each would be repeating the directory. The engine was written
+  under `projects/` first and moved, and the prefixes came with it before this
+  was noticed.
+
+  Both halves of that rule were established by `tennis` and then by the momolo
+  port, and neither was written down until the second one needed it - which is
+  why it is here rather than being inferred from whichever project you happened
+  to read first.

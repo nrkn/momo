@@ -1,0 +1,90 @@
+// refit.momo - the reflow pass: re-accumulate heights after a caller has
+// changed some.
+//
+// Port of src/momolo/refit.ts. Pass 1 sized every container from children that
+// had not been laid out yet. If a caller reflows between sizeX and sizeY -
+// because its content got taller once its width was known - those container
+// heights are stale, and every ancestor of the changed element stays wrong until
+// they are added up again.
+//
+// Clay does the same thing at clay.h:2645, under "Propagate effect of text
+// wrapping ... on height of parents". The difference is that Clay reaches out to
+// a measure callback to do the wrapping; momolo has no idea any wrapping
+// happened and only re-adds what it is told.
+//
+// Heights only. Widths were settled by sizeX and must not move, or the reflow
+// that produced these heights would no longer be the one that applies.
+
+include "std/math.momo"
+
+// Post-order over two parallel stacks: a container is recomputed only once every
+// child below it has been. The `seen` flag is what makes one stack do the work
+// of a recursive descent, which Momo has no other way to express.
+local u16[maxElements]  rfI
+local bool[maxElements] rfSeen
+local u16               rfTop
+
+sub refitY {
+  u16 top
+  u16 i
+  u16 n
+  u16 k
+  u16 ci
+  u16 gaps
+  u16 contentH
+  u16 minContentH
+  u16 insetY
+
+  rfI[0] = 0
+  rfSeen[0] = false
+  rfTop = 1
+
+  while ( rfTop > 0 ) {
+    top = rfTop - 1
+
+    if ( !rfSeen[top] ) {
+      rfSeen[top] = true
+
+      i = rfI[top]
+      for ( k = 0; k < el[i].childCount; k++ ) {
+        ci = childAt( i, k )
+        rfI[rfTop] = ci
+        rfSeen[rfTop] = false
+        rfTop++
+      }
+
+      continue
+    }
+
+    rfTop--
+    i = rfI[rfTop]
+
+    n = el[i].childCount
+    if ( n == 0 ) continue        // a leaf keeps whatever the caller last gave it
+
+    // n is at least 1 here, so `n - 1` needs no guard.
+    gaps = el[i].gap * ( n - 1 )
+    contentH = 0
+    minContentH = 0
+
+    if ( el[i].isCol ) {
+      for ( k = 0; k < n; k++ ) {
+        ci = childAt( i, k )
+        contentH += el[ci].h
+        minContentH += el[ci].minH
+      }
+      contentH += gaps
+      minContentH += gaps
+    } else {
+      for ( k = 0; k < n; k++ ) {
+        ci = childAt( i, k )
+        contentH = max( contentH, el[ci].h )
+        minContentH = max( minContentH, el[ci].minH )
+      }
+    }
+
+    insetY = el[i].insetT + el[i].insetB
+    el[i].h = clamp( insetY + contentH, el[i].hMin, el[i].hMax )
+    el[i].minH = clamp( insetY + minContentH, el[i].hMin, el[i].hMax )
+  }
+}
