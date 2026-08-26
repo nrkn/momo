@@ -124,3 +124,28 @@ sub fillPath( u16 pathIndex, bool tidy ) {
   sortCrossings()
   walkSpans( tidy )
 }
+
+// Both at once: boundary pixels and interior spans, from one walk.
+//
+// This is the claim the whole design rests on, and it is nearly free because the
+// walks were always identical. The playground's own fill.ts says why in its header
+// - the crossing x values ARE the Bresenham boundary pixels - it simply had no
+// reason to emit both. Here `drawLine` and `drawQuad` already take `wantPixels`
+// and `wantEdges`, so this is calling them with both true and nothing else.
+//
+// The two outputs are asymmetric in time and that is not incidental. Pixels come
+// out as they are found, because a stroke has no ordering requirement. Spans cannot
+// come out until the walk is over, because the nonzero rule needs every crossing on
+// a scanline before it can say what is inside it. So a caller sees an interleaving
+// per path, not two independent streams.
+//
+// **It draws more than a stroke, never fewer.** A fill needs every subpath closed
+// and a stroke must not close, so the closing segment's pixels appear here and not
+// in `strokePath`. The study asserts exactly that: never fewer, and never a
+// different pixel where the two overlap.
+sub strokeAndFillPath( u16 pathIndex, bool tidy ) {
+  clearCrossings()
+  walkPath( pathIndex, true, true, true )
+  sortCrossings()
+  walkSpans( tidy )
+}

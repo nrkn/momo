@@ -28,6 +28,7 @@
 //   sorted   y x dir      the same crossings, after the sort
 //   spans    y x0 x1      the nonzero walk, raw
 //   fill     x y          every pixel the tidied spans cover
+//   both     interleaved  one walk per path: its pixels, then its spans
 
 include "std/io.momo"
 include "std/math.momo"
@@ -156,6 +157,23 @@ spanMode = modeFill
 for ( s = 0; s < len( sceneFirstPath ); s++ ) {
   for ( p = 0; p < scenePathCount[ s ]; p++ ) {
     fillPath( sceneFirstPath[ s ] + p, true )
+  }
+}
+
+// ---- the combined stage ----
+//
+// One walk per path, emitting its boundary pixels and then its spans. The
+// INTERLEAVING is the point: pixels come out during the walk and spans only after
+// the sort, so this order is something two separate passes could not produce. It is
+// the order itself that says one walk did both.
+//
+// Raw spans rather than tidied, matching the `spans` stage, so the only difference
+// from those two stages is where the numbers came from.
+spanMode = modeSpans
+
+for ( s = 0; s < len( sceneFirstPath ); s++ ) {
+  for ( p = 0; p < scenePathCount[ s ]; p++ ) {
+    strokeAndFillPath( sceneFirstPath[ s ] + p, false )
   }
 }
 
