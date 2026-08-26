@@ -14,7 +14,12 @@
 // The arrays this reads - opKind, px, py, pathOpStart, pathOpCount,
 // pathPointStart - are defined by the PROGRAM, not here. See types.momo.
 
-include "momovec/subdiv.momo"
+// `drawLine` comes from here. `drawQuadAny` does NOT - it binds late, by name, and
+// the program chooses the implementation by including either
+// `momovec/subdiv.momo`, which subdivides an arbitrary quadratic, or
+// `momovec/quadflat.momo`, which cannot draw one and says so. A level 2 program
+// picking the second drops drawQuad and the subdivision stack entirely.
+include "momovec/line.momo"
 
 sub walkPath(
   u16 pathIndex, bool wantPixels, bool wantEdges, bool closeSubpaths

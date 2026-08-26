@@ -39,6 +39,7 @@ include "std/io.momo"
 include "std/math.momo"
 include "momovec/types.momo"
 include "momovec/edges.momo"
+include "momovec/quadflat.momo"
 include "momovec/path.momo"
 include "momovec/fill.momo"
 
@@ -132,4 +133,15 @@ if ( crossingsOverflowed ) {
   newline()
 }
 
+// This renderer cannot draw a curve - it includes momovec/quadflat.momo, not the
+// subdivider. The study's level validator refuses to emit a Q into level 2 data, so
+// this is the second check on the same invariant: one at build time and one at run
+// time, which is the right number for an invariant that has already been violated
+// once.
+if ( curveInFlatData ) {
+  putStr( addr( hadCurve ) )
+  newline()
+}
+
 const u8[] overflowed = "CROSSING LIST OVERFLOWED$"
+const u8[] hadCurve = "CURVE IN LEVEL 2 DATA$"

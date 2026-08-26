@@ -1,0 +1,54 @@
+// The lines-only renderer: `drawQuadAny` for data that has no curves in it.
+//
+// **Include this OR `momovec/subdiv.momo`, never both.** They define the same
+// routine, and which one a program includes decides whether it can draw a curve at
+// all. That is the fourth use of late binding by name in this port - `plot`,
+// `emitSpan` and `strokeScene` work the same way - and the first where the choice
+// removes code rather than supplying it.
+//
+// `walkPath` calls `drawQuadAny` for every `opQuad` it meets. Level 2 data contains
+// no `opQuad`, so nothing here is ever reached - which is exactly the point. With
+// this file included instead of the subdivider, `drawQuad`, `drawQuadAny`'s
+// subdivision loop, `quadSpan`, `quadLimited`, `oppositeOrZero` and the six
+// sixteen-entry stack arrays all become unreferenced, and 11 takes them out.
+//
+// Measured on the tiger at level 2:
+//
+//   with momovec/subdiv.momo    code 5,095   arrays 41,244 (28)   image 46,618
+//   with momovec/quadflat.momo  code 3,008   arrays 41,052 (22)   image 44,218
+//
+// So 2,400 bytes of image, and the six arrays that vanish are the subdivision stack.
+// Against level 1 the whole saving is 53,286 to 44,218 - 17% - and heap free goes
+// from 11,712 bytes to 20,790.
+//
+// **And it says so if it is ever wrong.** A curve reaching this routine is a program
+// whose data does not match the renderer it chose, and drawing the chord silently is
+// exactly the failure the stroker gave us for a whole commit - four quadratics over
+// the audited span, finished as straight chords with no marker, and nothing noticed.
+// So this draws the chord, which is the best it can do, and sets a flag that says a
+// curve was asked for and not delivered. `crossingsOverflowed` and `subdivOverflowed`
+// are there for the same reason: a capacity or conformance problem must not look like
+// a geometry bug.
+//
+// The study's level validator refuses to emit a `Q` in level 2 data, so this should
+// never fire. That is two independent checks on the same invariant, one at build time
+// and one at run time, which is the right number for an invariant that has already
+// been violated once.
+
+include "momovec/types.momo"
+include "momovec/line.momo"
+
+// Set if a quadratic reached a renderer that cannot draw one.
+bool curveInFlatData
+
+sub drawQuadAny(
+  i16 x0, i16 y0, i16 x1, i16 y1, i16 x2, i16 y2,
+  bool wantPixels, bool wantEdges
+) {
+  curveInFlatData = true
+
+  // The chord: wrong for a curve, and the only thing available. Emitted rather than
+  // dropped so a fill still closes and the picture is recognisably wrong rather than
+  // silently holed.
+  drawLine( x0, y0, x2, y2, wantPixels, wantEdges, 0 )
+}

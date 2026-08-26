@@ -35,6 +35,7 @@ include "std/key.momo"
 include "std/math.momo"
 include "momovec/types.momo"
 include "momovec/edges.momo"
+include "momovec/subdiv.momo"
 include "momovec/path.momo"
 include "momovec/fill.momo"
 

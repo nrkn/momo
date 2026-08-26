@@ -11,9 +11,6 @@ screenW:        equ     320
 screenH:        equ     200
 xMax:           equ     319
 yMax:           equ     199
-maxSpan:        equ     15
-chordFloor:     equ     1
-maxSubdivDepth: equ     16
 opMove:         equ     0
 opLine:         equ     1
 maxPaths:       equ     138
@@ -179,6 +176,17 @@ __entry:
 ; ---- newline()
         call    newline
 .L27:
+; ---- if ( curveInFlatData ) {
+        mov     al, [curveInFlatData]
+        test    al, al
+        jz      .L30
+; ---- putStr( addr( hadCurve ) )
+        mov     ax, hadCurve                ; link-time constant
+        mov     [putStr__at], ax
+        call    putStr
+; ---- newline()
+        call    newline
+.L30:
 
 ; ---- implicit exit ----
         mov     word [_ax], 0x4C00          ; DOS terminate, exit code 0
@@ -233,19 +241,19 @@ putNumber:
 ; ---- if (n == 0) {
         mov     ax, [putNumber__n]
         test    ax, ax
-        jne     .L30                        ; unsigned ==
+        jne     .L33                        ; unsigned ==
 ; ---- putChar(ioZeroChar)
         mov     byte [putChar__c], 48
         call    putChar
 ; ---- return
         ret
-.L30:
+.L33:
 ; ---- for (i = 0; n > 0; i++) {
         mov     byte [putNumber__i], 0
-.L33:
+.L36:
         mov     ax, [putNumber__n]
         test    ax, ax
-        jbe     .L35                        ; unsigned >
+        jbe     .L38                        ; unsigned >
 ; ---- digits[i] = u8(n % ioBase) + ioZeroChar
         mov     ax, [putNumber__n]
         mov     bx, 10
@@ -266,15 +274,15 @@ putNumber:
         xor     dx, dx                      ; clear high half for div
         div     bx
         mov     [putNumber__n], ax
-.L34:
-        inc     byte [putNumber__i]
-        jmp     .L33
-.L35:
-; ---- for (; i > 0; i--) {
 .L37:
+        inc     byte [putNumber__i]
+        jmp     .L36
+.L38:
+; ---- for (; i > 0; i--) {
+.L40:
         mov     al, [putNumber__i]
         test    al, al
-        jbe     .L39                        ; unsigned >
+        jbe     .L42                        ; unsigned >
 ; ---- putChar(digits[i - 1])
         mov     al, [putNumber__i]
         xor     ah, ah                      ; u8 -> u16
@@ -283,10 +291,10 @@ putNumber:
         mov     al, [putNumber__digits + bx]
         mov     [putChar__c], al            ; u8 -> u8, no widening
         call    putChar
-.L38:
+.L41:
         dec     byte [putNumber__i]
-        jmp     .L37
-.L39:
+        jmp     .L40
+.L42:
         ret
 
 ; ============================================== sub clearCrossings ====
@@ -302,24 +310,24 @@ addCrossing:
 ; ---- if ( y < 0 ) return
         mov     ax, [addCrossing__y]
         test    ax, ax
-        jge     .L41                        ; signed <
+        jge     .L44                        ; signed <
         ret
-.L41:
+.L44:
 ; ---- if ( y >= screenH ) return
         mov     ax, [addCrossing__y]
         cmp     ax, 200
-        jl      .L44                        ; signed >=
+        jl      .L47                        ; signed >=
         ret
-.L44:
+.L47:
 ; ---- if ( crossingCount >= maxCrossings ) {
         mov     ax, [crossingCount]
         cmp     ax, 1024
-        jb      .L47                        ; unsigned >=
+        jb      .L50                        ; unsigned >=
 ; ---- crossingsOverflowed = true
         mov     byte [crossingsOverflowed], 1
 ; ---- return
         ret
-.L47:
+.L50:
 ; ---- cy[ crossingCount ] = u8( y )
         mov     ax, [addCrossing__y]
         xor     ah, ah                      ; cast to u8
@@ -355,31 +363,31 @@ sortCrossings:
 ; ---- if ( crossingCount < 2 ) return
         mov     ax, [crossingCount]
         cmp     ax, 2
-        jae     .L50                        ; unsigned <
+        jae     .L53                        ; unsigned <
         ret
-.L50:
+.L53:
 ; ---- for ( y = 0; y < screenH; y++ ) {
         mov     word [sortCrossings__y], 0
-.L53:
+.L56:
         mov     ax, [sortCrossings__y]
         cmp     ax, 200
-        jae     .L55                        ; unsigned <
+        jae     .L58                        ; unsigned <
 ; ---- rowCount[y] = 0
         mov     ax, [sortCrossings__y]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     word [rowCount + bx], 0
-.L54:
+.L57:
         inc     word [sortCrossings__y]
-        jmp     .L53
-.L55:
+        jmp     .L56
+.L58:
 ; ---- for ( i = 0; i < crossingCount; i++ ) {
         mov     word [sortCrossings__i], 0
-.L57:
+.L60:
         mov     ax, [sortCrossings__i]
         mov     bx, [crossingCount]
         cmp     ax, bx
-        jae     .L59                        ; unsigned <
+        jae     .L62                        ; unsigned <
 ; ---- rowCount[ cy[i] ] += 1
         mov     ax, [sortCrossings__i]
         mov     bx, ax
@@ -398,18 +406,18 @@ sortCrossings:
         mov     bx, ax
         pop     ax
         mov     [rowCount + bx], ax
-.L58:
+.L61:
         inc     word [sortCrossings__i]
-        jmp     .L57
-.L59:
+        jmp     .L60
+.L62:
 ; ---- running = 0
         mov     word [sortCrossings__running], 0
 ; ---- for ( y = 0; y < screenH; y++ ) {
         mov     word [sortCrossings__y], 0
-.L61:
+.L64:
         mov     ax, [sortCrossings__y]
         cmp     ax, 200
-        jae     .L63                        ; unsigned <
+        jae     .L66                        ; unsigned <
 ; ---- runStart[y] = running
         mov     ax, [sortCrossings__running]
         push    ax                          ; save value while computing the index
@@ -429,37 +437,37 @@ sortCrossings:
         pop     ax
         add     ax, bx
         mov     [sortCrossings__running], ax
-.L62:
+.L65:
         inc     word [sortCrossings__y]
-        jmp     .L61
-.L63:
+        jmp     .L64
+.L66:
 ; ---- runStart[screenH] = running
         mov     ax, [sortCrossings__running]
         mov     [runStart + 400], ax
 ; ---- for ( y = 0; y < screenH; y++ ) {
         mov     word [sortCrossings__y], 0
-.L65:
+.L68:
         mov     ax, [sortCrossings__y]
         cmp     ax, 200
-        jae     .L67                        ; unsigned <
+        jae     .L70                        ; unsigned <
 ; ---- rowCount[y] = 0
         mov     ax, [sortCrossings__y]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     word [rowCount + bx], 0
-.L66:
+.L69:
         inc     word [sortCrossings__y]
-        jmp     .L65
-.L67:
+        jmp     .L68
+.L70:
 ; ---- for ( i = 0; i < crossingCount; i++ ) {
         mov     word [sortCrossings__i], 0
-.L69:
+.L72:
         mov     ax, [sortCrossings__i]
         mov     bx, [crossingCount]
         cmp     ax, bx
-        jb      .L72                        ; unsigned <
-        jmp     .L71
-.L72:
+        jb      .L75                        ; unsigned <
+        jmp     .L74
+.L75:
 ; ---- y = cy[i]
         mov     ax, [sortCrossings__i]
         mov     bx, ax
@@ -520,18 +528,18 @@ sortCrossings:
         mov     bx, ax
         pop     ax
         mov     [rowCount + bx], ax
-.L70:
+.L73:
         inc     word [sortCrossings__i]
-        jmp     .L69
-.L71:
+        jmp     .L72
+.L74:
 ; ---- for ( y = 0; y < screenH; y++ ) {
         mov     word [sortCrossings__y], 0
-.L73:
+.L76:
         mov     ax, [sortCrossings__y]
         cmp     ax, 200
-        jb      .L76                        ; unsigned <
-        jmp     .L75
-.L76:
+        jb      .L79                        ; unsigned <
+        jmp     .L78
+.L79:
 ; ---- from = runStart[y]
         mov     ax, [sortCrossings__y]
         shl     ax, 1                       ; word elements
@@ -549,13 +557,13 @@ sortCrossings:
         mov     ax, [sortCrossings__from]
         inc     ax
         mov     [sortCrossings__i], ax
-.L77:
+.L80:
         mov     ax, [sortCrossings__i]
         mov     bx, [sortCrossings__to]
         cmp     ax, bx
-        jb      .L80                        ; unsigned <
-        jmp     .L79
-.L80:
+        jb      .L83                        ; unsigned <
+        jmp     .L82
+.L83:
 ; ---- keyX = sx_[i]
         mov     ax, [sortCrossings__i]
         shl     ax, 1                       ; word elements
@@ -571,13 +579,13 @@ sortCrossings:
         mov     ax, [sortCrossings__i]
         mov     [sortCrossings__k], ax
 ; ---- while ( k > from && sx_[k - 1] > keyX ) {
-.L81:
+.L84:
         mov     ax, [sortCrossings__k]
         mov     bx, [sortCrossings__from]
         cmp     ax, bx
-        ja      .L84                        ; unsigned >
-        jmp     .L83
-.L84:
+        ja      .L87                        ; unsigned >
+        jmp     .L86
+.L87:
         mov     ax, [sortCrossings__k]
         dec     ax
         shl     ax, 1                       ; word elements
@@ -585,7 +593,7 @@ sortCrossings:
         mov     ax, [sx_ + bx]
         mov     bx, [sortCrossings__keyX]
         cmp     ax, bx
-        jle     .L83                        ; signed >
+        jle     .L86                        ; signed >
 ; ---- sx_[k] = sx_[k - 1]
         mov     ax, [sortCrossings__k]
         dec     ax
@@ -612,9 +620,9 @@ sortCrossings:
         mov     ax, [sortCrossings__k]
         dec     ax
         mov     [sortCrossings__k], ax
-.L82:
-        jmp     .L81
-.L83:
+.L85:
+        jmp     .L84
+.L86:
 ; ---- sx_[k] = keyX
         mov     ax, [sortCrossings__keyX]
         push    ax                          ; save value while computing the index
@@ -630,23 +638,23 @@ sortCrossings:
         mov     bx, ax
         pop     ax
         mov     [sd_ + bx], al
-.L78:
+.L81:
         inc     word [sortCrossings__i]
-        jmp     .L77
-.L79:
-.L74:
+        jmp     .L80
+.L82:
+.L77:
         inc     word [sortCrossings__y]
-        jmp     .L73
-.L75:
+        jmp     .L76
+.L78:
 ; ---- for ( i = 0; i < crossingCount; i++ ) {
         mov     word [sortCrossings__i], 0
-.L86:
+.L89:
         mov     ax, [sortCrossings__i]
         mov     bx, [crossingCount]
         cmp     ax, bx
-        jb      .L89                        ; unsigned <
-        jmp     .L88
-.L89:
+        jb      .L92                        ; unsigned <
+        jmp     .L91
+.L92:
 ; ---- cy[i] = sy_[i]
         mov     ax, [sortCrossings__i]
         mov     bx, ax
@@ -676,10 +684,10 @@ sortCrossings:
         mov     bx, ax
         pop     ax
         mov     [cdir + bx], al
-.L87:
+.L90:
         inc     word [sortCrossings__i]
-        jmp     .L86
-.L88:
+        jmp     .L89
+.L91:
         ret
 
 ; ============================================== sub drawLine ====
@@ -690,50 +698,39 @@ drawLine:
         mov     bx, [drawLine__x0]
         sub     ax, bx
         test    ax, ax
-        jge     .L90                        ; signed <
+        jge     .L93                        ; signed <
         mov     ax, [drawLine__x1]
         mov     bx, [drawLine__x0]
         sub     ax, bx
         neg     ax
-        jmp     .L91
-.L90:
+        jmp     .L94
+.L93:
         mov     ax, [drawLine__x1]
         mov     bx, [drawLine__x0]
         sub     ax, bx
-.L91:
+.L94:
         mov     [drawLine__dx], ax
 ; ---- dy = -iabs( y1 - y0 )
         mov     ax, [drawLine__y1]
         mov     bx, [drawLine__y0]
         sub     ax, bx
         test    ax, ax
-        jge     .L93                        ; signed <
+        jge     .L96                        ; signed <
         mov     ax, [drawLine__y1]
         mov     bx, [drawLine__y0]
         sub     ax, bx
         neg     ax
-        jmp     .L94
-.L93:
+        jmp     .L97
+.L96:
         mov     ax, [drawLine__y1]
         mov     bx, [drawLine__y0]
         sub     ax, bx
-.L94:
+.L97:
         neg     ax
         mov     [drawLine__dy], ax
 ; ---- sx = x0 < x1 ? 1 : -1
         mov     ax, [drawLine__x0]
         mov     bx, [drawLine__x1]
-        cmp     ax, bx
-        jge     .L96                        ; signed <
-        mov     ax, 1
-        jmp     .L97
-.L96:
-        mov     ax, -1
-.L97:
-        mov     [drawLine__sx], ax
-; ---- sy = y0 < y1 ? 1 : -1
-        mov     ax, [drawLine__y0]
-        mov     bx, [drawLine__y1]
         cmp     ax, bx
         jge     .L99                        ; signed <
         mov     ax, 1
@@ -741,6 +738,17 @@ drawLine:
 .L99:
         mov     ax, -1
 .L100:
+        mov     [drawLine__sx], ax
+; ---- sy = y0 < y1 ? 1 : -1
+        mov     ax, [drawLine__y0]
+        mov     bx, [drawLine__y1]
+        cmp     ax, bx
+        jge     .L102                       ; signed <
+        mov     ax, 1
+        jmp     .L103
+.L102:
+        mov     ax, -1
+.L103:
         mov     [drawLine__sy], ax
 ; ---- err = dx + dy
         mov     ax, [drawLine__dx]
@@ -750,17 +758,17 @@ drawLine:
 ; ---- dir = forceDir != 0 ? forceDir : i8( sy )
         mov     al, [drawLine__forceDir]
         test    al, al
-        je      .L102                       ; signed !=
+        je      .L105                       ; signed !=
         mov     al, [drawLine__forceDir]
         cbw                                 ; i8 -> i16
-        jmp     .L103
-.L102:
+        jmp     .L106
+.L105:
         mov     ax, [drawLine__sy]
         cbw                                 ; cast to i8
-.L103:
+.L106:
         mov     [drawLine__dir], al         ; narrowed to i8
 ; ---- for ( ;; ) {
-.L105:
+.L108:
 ; ---- curX = x0
         mov     ax, [drawLine__x0]
         mov     [drawLine__curX], ax
@@ -770,13 +778,13 @@ drawLine:
 ; ---- if ( wantPixels ) plot( curX, curY )
         mov     al, [drawLine__wantPixels]
         test    al, al
-        jz      .L108
+        jz      .L111
         mov     ax, [drawLine__curX]
         mov     [plot__x], ax
         mov     ax, [drawLine__curY]
         mov     [plot__y], ax
         call    plot
-.L108:
+.L111:
 ; ---- e2 = 2 * err
         mov     ax, [drawLine__err]
         shl     ax, 1                       ; * 2 is << 1
@@ -784,14 +792,14 @@ drawLine:
 ; ---- if ( e2 >= dy ) {
         mov     bx, [drawLine__dy]
         cmp     ax, bx
-        jl      .L111                       ; signed >=
+        jl      .L114                       ; signed >=
 ; ---- if ( x0 == x1 ) break
         mov     ax, [drawLine__x0]
         mov     bx, [drawLine__x1]
         cmp     ax, bx
-        jne     .L114                       ; signed ==
-        jmp     .L107
-.L114:
+        jne     .L117                       ; signed ==
+        jmp     .L110
+.L117:
 ; ---- err += dy
         mov     ax, [drawLine__err]
         mov     bx, [drawLine__dy]
@@ -802,29 +810,29 @@ drawLine:
         mov     bx, [drawLine__sx]
         add     ax, bx
         mov     [drawLine__x0], ax
-.L111:
+.L114:
 ; ---- if ( e2 <= dx ) {
         mov     ax, [drawLine__e2]
         mov     bx, [drawLine__dx]
         cmp     ax, bx
-        jle     .L119                       ; signed <=
-        jmp     .L117
-.L119:
+        jle     .L122                       ; signed <=
+        jmp     .L120
+.L122:
 ; ---- if ( y0 == y1 ) break
         mov     ax, [drawLine__y0]
         mov     bx, [drawLine__y1]
         cmp     ax, bx
-        jne     .L120                       ; signed ==
-        jmp     .L107
-.L120:
+        jne     .L123                       ; signed ==
+        jmp     .L110
+.L123:
 ; ---- if ( wantEdges ) {
         mov     al, [drawLine__wantEdges]
         test    al, al
-        jz      .L123
+        jz      .L126
 ; ---- if ( sy > 0 ) {
         mov     ax, [drawLine__sy]
         test    ax, ax
-        jle     .L126                       ; signed >
+        jle     .L129                       ; signed >
 ; ---- addCrossing( curY, curX, dir )
         mov     ax, [drawLine__curY]
         mov     [addCrossing__y], ax
@@ -833,8 +841,8 @@ drawLine:
         mov     al, [drawLine__dir]
         mov     [addCrossing__dir], al      ; i8 -> i8, no widening
         call    addCrossing
-        jmp     .L127
-.L126:
+        jmp     .L130
+.L129:
 ; ---- addCrossing( curY + sy, x0, dir )
         mov     ax, [drawLine__curY]
         mov     bx, [drawLine__sy]
@@ -845,8 +853,8 @@ drawLine:
         mov     al, [drawLine__dir]
         mov     [addCrossing__dir], al      ; i8 -> i8, no widening
         call    addCrossing
-.L127:
-.L123:
+.L130:
+.L126:
 ; ---- err += dx
         mov     ax, [drawLine__err]
         mov     bx, [drawLine__dx]
@@ -857,712 +865,25 @@ drawLine:
         mov     bx, [drawLine__sy]
         add     ax, bx
         mov     [drawLine__y0], ax
-.L117:
-.L106:
-        jmp     .L105
-.L107:
-        ret
-
-; ============================================== sub drawQuad ====
-
-drawQuad:
-; ---- windDir = y0 < y2 ? 1 : -1
-        mov     ax, [drawQuad__y0]
-        mov     bx, [drawQuad__y2]
-        cmp     ax, bx
-        jge     .L129                       ; signed <
-        mov     ax, 1
-        jmp     .L130
-.L129:
-        mov     ax, -1
-.L130:
-        mov     [drawQuad__windDir], al     ; narrowed to i8
-; ---- sx = x2 - x1
-        mov     ax, [drawQuad__x2]
-        mov     bx, [drawQuad__x1]
-        sub     ax, bx
-        mov     [drawQuad__sx], ax
-; ---- sy = y2 - y1
-        mov     ax, [drawQuad__y2]
-        mov     bx, [drawQuad__y1]
-        sub     ax, bx
-        mov     [drawQuad__sy], ax
-; ---- xx = x0 - x1
-        mov     ax, [drawQuad__x0]
-        mov     bx, [drawQuad__x1]
-        sub     ax, bx
-        mov     [drawQuad__xx], ax
-; ---- yy = y0 - y1
-        mov     ax, [drawQuad__y0]
-        mov     bx, [drawQuad__y1]
-        sub     ax, bx
-        mov     [drawQuad__yy], ax
-; ---- cur = xx * sy - yy * sx
-        mov     ax, [drawQuad__xx]
-        mov     bx, [drawQuad__sy]
-        mul     bx                          ; low 16 bits are sign-agnostic
-        push    ax                          ; save lhs: rhs is not a leaf
-        mov     ax, [drawQuad__yy]
-        mov     bx, [drawQuad__sx]
-        mul     bx                          ; low 16 bits are sign-agnostic
-        mov     bx, ax
-        pop     ax
-        sub     ax, bx
-        mov     [drawQuad__cur], ax
-; ---- if ( sx * sx + sy * sy > xx * xx + yy * yy ) {
-        mov     ax, [drawQuad__sx]
-        mov     bx, [drawQuad__sx]
-        mul     bx                          ; low 16 bits are sign-agnostic
-        push    ax                          ; save lhs: rhs is not a leaf
-        mov     ax, [drawQuad__sy]
-        mov     bx, [drawQuad__sy]
-        mul     bx                          ; low 16 bits are sign-agnostic
-        mov     bx, ax
-        pop     ax
-        add     ax, bx
-        push    ax                          ; save lhs: rhs is not a leaf
-        mov     ax, [drawQuad__xx]
-        mov     bx, [drawQuad__xx]
-        mul     bx                          ; low 16 bits are sign-agnostic
-        push    ax                          ; save lhs: rhs is not a leaf
-        mov     ax, [drawQuad__yy]
-        mov     bx, [drawQuad__yy]
-        mul     bx                          ; low 16 bits are sign-agnostic
-        mov     bx, ax
-        pop     ax
-        add     ax, bx
-        mov     bx, ax
-        pop     ax
-        cmp     ax, bx
-        jle     .L132                       ; signed >
-; ---- x2 = x0
-        mov     ax, [drawQuad__x0]
-        mov     [drawQuad__x2], ax
-; ---- x0 = sx + x1
-        mov     ax, [drawQuad__sx]
-        mov     bx, [drawQuad__x1]
-        add     ax, bx
-        mov     [drawQuad__x0], ax
-; ---- y2 = y0
-        mov     ax, [drawQuad__y0]
-        mov     [drawQuad__y2], ax
-; ---- y0 = sy + y1
-        mov     ax, [drawQuad__sy]
-        mov     bx, [drawQuad__y1]
-        add     ax, bx
-        mov     [drawQuad__y0], ax
-; ---- cur = -cur
-        mov     ax, [drawQuad__cur]
-        neg     ax
-        mov     [drawQuad__cur], ax
-.L132:
-; ---- if ( cur != 0 ) {
-        mov     ax, [drawQuad__cur]
-        test    ax, ax
-        jne     .L137                       ; signed !=
-        jmp     .L135
-.L137:
-; ---- xx += sx
-        mov     ax, [drawQuad__xx]
-        mov     bx, [drawQuad__sx]
-        add     ax, bx
-        mov     [drawQuad__xx], ax
-; ---- sx = x0 < x2 ? 1 : -1
-        mov     ax, [drawQuad__x0]
-        mov     bx, [drawQuad__x2]
-        cmp     ax, bx
-        jge     .L138                       ; signed <
-        mov     ax, 1
-        jmp     .L139
-.L138:
-        mov     ax, -1
-.L139:
-        mov     [drawQuad__sx], ax
-; ---- xx *= sx
-        mov     ax, [drawQuad__xx]
-        mov     bx, [drawQuad__sx]
-        mul     bx                          ; low 16 bits are sign-agnostic
-        mov     [drawQuad__xx], ax
-; ---- yy += sy
-        mov     ax, [drawQuad__yy]
-        mov     bx, [drawQuad__sy]
-        add     ax, bx
-        mov     [drawQuad__yy], ax
-; ---- sy = y0 < y2 ? 1 : -1
-        mov     ax, [drawQuad__y0]
-        mov     bx, [drawQuad__y2]
-        cmp     ax, bx
-        jge     .L141                       ; signed <
-        mov     ax, 1
-        jmp     .L142
-.L141:
-        mov     ax, -1
-.L142:
-        mov     [drawQuad__sy], ax
-; ---- yy *= sy
-        mov     ax, [drawQuad__yy]
-        mov     bx, [drawQuad__sy]
-        mul     bx                          ; low 16 bits are sign-agnostic
-        mov     [drawQuad__yy], ax
-; ---- xy = 2 * xx * yy
-        mov     ax, [drawQuad__xx]
-        shl     ax, 1                       ; * 2 is << 1
-        mov     bx, [drawQuad__yy]
-        mul     bx                          ; low 16 bits are sign-agnostic
-        mov     [drawQuad__xy], ax
-; ---- xx *= xx
-        mov     ax, [drawQuad__xx]
-        mov     bx, [drawQuad__xx]
-        mul     bx                          ; low 16 bits are sign-agnostic
-        mov     [drawQuad__xx], ax
-; ---- yy *= yy
-        mov     ax, [drawQuad__yy]
-        mov     bx, [drawQuad__yy]
-        mul     bx                          ; low 16 bits are sign-agnostic
-        mov     [drawQuad__yy], ax
-; ---- if ( cur * sx * sy < 0 ) {
-        mov     ax, [drawQuad__cur]
-        mov     bx, [drawQuad__sx]
-        mul     bx                          ; low 16 bits are sign-agnostic
-        mov     bx, [drawQuad__sy]
-        mul     bx                          ; low 16 bits are sign-agnostic
-        test    ax, ax
-        jge     .L144                       ; signed <
-; ---- xx = -xx
-        mov     ax, [drawQuad__xx]
-        neg     ax
-        mov     [drawQuad__xx], ax
-; ---- yy = -yy
-        mov     ax, [drawQuad__yy]
-        neg     ax
-        mov     [drawQuad__yy], ax
-; ---- xy = -xy
-        mov     ax, [drawQuad__xy]
-        neg     ax
-        mov     [drawQuad__xy], ax
-; ---- cur = -cur
-        mov     ax, [drawQuad__cur]
-        neg     ax
-        mov     [drawQuad__cur], ax
-.L144:
-; ---- dx = 4 * sy * cur * ( x1 - x0 ) + xx - xy
-        mov     ax, [drawQuad__sy]
-        shl     ax, 1                       ; * 4 is << 2
-        shl     ax, 1
-        mov     bx, [drawQuad__cur]
-        mul     bx                          ; low 16 bits are sign-agnostic
-        push    ax                          ; save lhs: rhs is not a leaf
-        mov     ax, [drawQuad__x1]
-        mov     bx, [drawQuad__x0]
-        sub     ax, bx
-        mov     bx, ax
-        pop     ax
-        mul     bx                          ; low 16 bits are sign-agnostic
-        mov     bx, [drawQuad__xx]
-        add     ax, bx
-        mov     bx, [drawQuad__xy]
-        sub     ax, bx
-        mov     [drawQuad__dx], ax
-; ---- dy = 4 * sx * cur * ( y0 - y1 ) + yy - xy
-        mov     ax, [drawQuad__sx]
-        shl     ax, 1                       ; * 4 is << 2
-        shl     ax, 1
-        mov     bx, [drawQuad__cur]
-        mul     bx                          ; low 16 bits are sign-agnostic
-        push    ax                          ; save lhs: rhs is not a leaf
-        mov     ax, [drawQuad__y0]
-        mov     bx, [drawQuad__y1]
-        sub     ax, bx
-        mov     bx, ax
-        pop     ax
-        mul     bx                          ; low 16 bits are sign-agnostic
-        mov     bx, [drawQuad__yy]
-        add     ax, bx
-        mov     bx, [drawQuad__xy]
-        sub     ax, bx
-        mov     [drawQuad__dy], ax
-; ---- xx += xx
-        mov     ax, [drawQuad__xx]
-        mov     bx, [drawQuad__xx]
-        add     ax, bx
-        mov     [drawQuad__xx], ax
-; ---- yy += yy
-        mov     ax, [drawQuad__yy]
-        mov     bx, [drawQuad__yy]
-        add     ax, bx
-        mov     [drawQuad__yy], ax
-; ---- err = dx + dy + xy
-        mov     ax, [drawQuad__dx]
-        mov     bx, [drawQuad__dy]
-        add     ax, bx
-        mov     bx, [drawQuad__xy]
-        add     ax, bx
-        mov     [drawQuad__err], ax
-; ---- do {
-.L147:
-; ---- curX = x0
-        mov     ax, [drawQuad__x0]
-        mov     [drawQuad__curX], ax
-; ---- curY = y0
-        mov     ax, [drawQuad__y0]
-        mov     [drawQuad__curY], ax
-; ---- if ( wantPixels ) plot( curX, curY )
-        mov     al, [drawQuad__wantPixels]
-        test    al, al
-        jz      .L150
-        mov     ax, [drawQuad__curX]
-        mov     [plot__x], ax
-        mov     ax, [drawQuad__curY]
-        mov     [plot__y], ax
-        call    plot
-.L150:
-; ---- if ( x0 == x2 && y0 == y2 ) return
-        mov     ax, [drawQuad__x0]
-        mov     bx, [drawQuad__x2]
-        cmp     ax, bx
-        jne     .L153                       ; signed ==
-        mov     ax, [drawQuad__y0]
-        mov     bx, [drawQuad__y2]
-        cmp     ax, bx
-        jne     .L153                       ; signed ==
-        ret
-.L153:
-; ---- stepY = 2 * err < dx
-        mov     ax, [drawQuad__err]
-        shl     ax, 1                       ; * 2 is << 1
-        mov     bx, [drawQuad__dx]
-        cmp     ax, bx
-        jge     .L157                       ; signed <
-        mov     ax, 1
-        jmp     .L158
-.L157:
-        xor     ax, ax
-.L158:
-        mov     [drawQuad__stepY], al       ; narrowed to bool
-; ---- if ( 2 * err > dy ) {
-        mov     ax, [drawQuad__err]
-        shl     ax, 1                       ; * 2 is << 1
-        mov     bx, [drawQuad__dy]
-        cmp     ax, bx
-        jle     .L160                       ; signed >
-; ---- x0 += sx
-        mov     ax, [drawQuad__x0]
-        mov     bx, [drawQuad__sx]
-        add     ax, bx
-        mov     [drawQuad__x0], ax
-; ---- dx -= xy
-        mov     ax, [drawQuad__dx]
-        mov     bx, [drawQuad__xy]
-        sub     ax, bx
-        mov     [drawQuad__dx], ax
-; ---- dy += yy
-        mov     ax, [drawQuad__dy]
-        mov     bx, [drawQuad__yy]
-        add     ax, bx
-        mov     [drawQuad__dy], ax
-; ---- err += dy
-        mov     ax, [drawQuad__err]
-        mov     bx, [drawQuad__dy]
-        add     ax, bx
-        mov     [drawQuad__err], ax
-.L160:
-; ---- if ( stepY ) {
-        mov     al, [drawQuad__stepY]
-        test    al, al
-        jnz     .L165
-        jmp     .L163
-.L165:
-; ---- if ( wantEdges ) {
-        mov     al, [drawQuad__wantEdges]
-        test    al, al
-        jz      .L166
-; ---- if ( sy > 0 ) {
-        mov     ax, [drawQuad__sy]
-        test    ax, ax
-        jle     .L169                       ; signed >
-; ---- addCrossing( curY, curX, windDir )
-        mov     ax, [drawQuad__curY]
-        mov     [addCrossing__y], ax
-        mov     ax, [drawQuad__curX]
-        mov     [addCrossing__x], ax
-        mov     al, [drawQuad__windDir]
-        mov     [addCrossing__dir], al      ; i8 -> i8, no widening
-        call    addCrossing
-        jmp     .L170
-.L169:
-; ---- addCrossing( curY + sy, x0, windDir )
-        mov     ax, [drawQuad__curY]
-        mov     bx, [drawQuad__sy]
-        add     ax, bx
-        mov     [addCrossing__y], ax
-        mov     ax, [drawQuad__x0]
-        mov     [addCrossing__x], ax
-        mov     al, [drawQuad__windDir]
-        mov     [addCrossing__dir], al      ; i8 -> i8, no widening
-        call    addCrossing
-.L170:
-.L166:
-; ---- y0 += sy
-        mov     ax, [drawQuad__y0]
-        mov     bx, [drawQuad__sy]
-        add     ax, bx
-        mov     [drawQuad__y0], ax
-; ---- dy -= xy
-        mov     ax, [drawQuad__dy]
-        mov     bx, [drawQuad__xy]
-        sub     ax, bx
-        mov     [drawQuad__dy], ax
-; ---- dx += xx
-        mov     ax, [drawQuad__dx]
-        mov     bx, [drawQuad__xx]
-        add     ax, bx
-        mov     [drawQuad__dx], ax
-; ---- err += dx
-        mov     ax, [drawQuad__err]
-        mov     bx, [drawQuad__dx]
-        add     ax, bx
-        mov     [drawQuad__err], ax
-.L163:
-.L148:
-        mov     ax, [drawQuad__dy]
-        test    ax, ax
-        jge     .L172                       ; signed <
-        mov     ax, [drawQuad__dx]
-        test    ax, ax
-        jle     .L174                       ; signed >
-        jmp     .L147
-.L174:
-.L172:
-.L149:
-.L135:
-; ---- drawLine( x0, y0, x2, y2, wantPixels, wantEdges, windDir )
-        mov     ax, [drawQuad__x0]
-        mov     [drawLine__x0], ax
-        mov     ax, [drawQuad__y0]
-        mov     [drawLine__y0], ax
-        mov     ax, [drawQuad__x2]
-        mov     [drawLine__x1], ax
-        mov     ax, [drawQuad__y2]
-        mov     [drawLine__y1], ax
-        mov     al, [drawQuad__wantPixels]
-        mov     [drawLine__wantPixels], al  ; bool -> bool, no widening
-        mov     al, [drawQuad__wantEdges]
-        mov     [drawLine__wantEdges], al   ; bool -> bool, no widening
-        mov     al, [drawQuad__windDir]
-        mov     [drawLine__forceDir], al    ; i8 -> i8, no widening
-        call    drawLine
-        ret
-
-; ============================================== i16 quadSpan ====
-
-quadSpan:
-; ---- lo = x0
-        mov     ax, [quadSpan__x0]
-        mov     [quadSpan__lo], ax
-; ---- hi = x0
-        mov     ax, [quadSpan__x0]
-        mov     [quadSpan__hi], ax
-; ---- if ( x1 < lo ) lo = x1
-        mov     ax, [quadSpan__x1]
-        mov     bx, [quadSpan__lo]
-        cmp     ax, bx
-        jge     .L175                       ; signed <
-        mov     ax, [quadSpan__x1]
-        mov     [quadSpan__lo], ax
-.L175:
-; ---- if ( x1 > hi ) hi = x1
-        mov     ax, [quadSpan__x1]
-        mov     bx, [quadSpan__hi]
-        cmp     ax, bx
-        jle     .L178                       ; signed >
-        mov     ax, [quadSpan__x1]
-        mov     [quadSpan__hi], ax
-.L178:
-; ---- if ( x2 < lo ) lo = x2
-        mov     ax, [quadSpan__x2]
-        mov     bx, [quadSpan__lo]
-        cmp     ax, bx
-        jge     .L181                       ; signed <
-        mov     ax, [quadSpan__x2]
-        mov     [quadSpan__lo], ax
-.L181:
-; ---- if ( x2 > hi ) hi = x2
-        mov     ax, [quadSpan__x2]
-        mov     bx, [quadSpan__hi]
-        cmp     ax, bx
-        jle     .L184                       ; signed >
-        mov     ax, [quadSpan__x2]
-        mov     [quadSpan__hi], ax
-.L184:
-; ---- wide = hi - lo
-        mov     ax, [quadSpan__hi]
-        mov     bx, [quadSpan__lo]
-        sub     ax, bx
-        mov     [quadSpan__wide], ax
-; ---- lo = y0
-        mov     ax, [quadSpan__y0]
-        mov     [quadSpan__lo], ax
-; ---- hi = y0
-        mov     ax, [quadSpan__y0]
-        mov     [quadSpan__hi], ax
-; ---- if ( y1 < lo ) lo = y1
-        mov     ax, [quadSpan__y1]
-        mov     bx, [quadSpan__lo]
-        cmp     ax, bx
-        jge     .L187                       ; signed <
-        mov     ax, [quadSpan__y1]
-        mov     [quadSpan__lo], ax
-.L187:
-; ---- if ( y1 > hi ) hi = y1
-        mov     ax, [quadSpan__y1]
-        mov     bx, [quadSpan__hi]
-        cmp     ax, bx
-        jle     .L190                       ; signed >
-        mov     ax, [quadSpan__y1]
-        mov     [quadSpan__hi], ax
-.L190:
-; ---- if ( y2 < lo ) lo = y2
-        mov     ax, [quadSpan__y2]
-        mov     bx, [quadSpan__lo]
-        cmp     ax, bx
-        jge     .L193                       ; signed <
-        mov     ax, [quadSpan__y2]
-        mov     [quadSpan__lo], ax
-.L193:
-; ---- if ( y2 > hi ) hi = y2
-        mov     ax, [quadSpan__y2]
-        mov     bx, [quadSpan__hi]
-        cmp     ax, bx
-        jle     .L196                       ; signed >
-        mov     ax, [quadSpan__y2]
-        mov     [quadSpan__hi], ax
-.L196:
-; ---- tall = hi - lo
-        mov     ax, [quadSpan__hi]
-        mov     bx, [quadSpan__lo]
-        sub     ax, bx
-        mov     [quadSpan__tall], ax
-; ---- return wide > tall ? wide : tall
-        mov     ax, [quadSpan__wide]
-        mov     bx, [quadSpan__tall]
-        cmp     ax, bx
-        jle     .L199                       ; signed >
-        mov     ax, [quadSpan__wide]
-        jmp     .L200
-.L199:
-        mov     ax, [quadSpan__tall]
-.L200:
-        mov     [quadSpan__ret], ax
-        ret
-
-; ============================================== bool oppositeOrZero ====
-
-oppositeOrZero:
-; ---- if ( a == 0 ) return true
-        mov     ax, [oppositeOrZero__a]
-        test    ax, ax
-        jne     .L202                       ; signed ==
-        mov     byte [oppositeOrZero__ret], 1
-        ret
-.L202:
-; ---- if ( b == 0 ) return true
-        mov     ax, [oppositeOrZero__b]
-        test    ax, ax
-        jne     .L205                       ; signed ==
-        mov     byte [oppositeOrZero__ret], 1
-        ret
-.L205:
-; ---- if ( a > 0 && b < 0 ) return true
-        mov     ax, [oppositeOrZero__a]
-        test    ax, ax
-        jle     .L208                       ; signed >
-        mov     ax, [oppositeOrZero__b]
-        test    ax, ax
-        jge     .L208                       ; signed <
-        mov     byte [oppositeOrZero__ret], 1
-        ret
-.L208:
-; ---- if ( a < 0 && b > 0 ) return true
-        mov     ax, [oppositeOrZero__a]
-        test    ax, ax
-        jge     .L212                       ; signed <
-        mov     ax, [oppositeOrZero__b]
-        test    ax, ax
-        jle     .L212                       ; signed >
-        mov     byte [oppositeOrZero__ret], 1
-        ret
-.L212:
-; ---- return false
-        mov     byte [oppositeOrZero__ret], 0
-        ret
-
-; ============================================== bool quadLimited ====
-
-quadLimited:
-; ---- if ( !oppositeOrZero( x0 - x1, x2 - x1 ) ) return false
-        mov     ax, [quadLimited__x0]
-        mov     bx, [quadLimited__x1]
-        sub     ax, bx
-        mov     [oppositeOrZero__a], ax
-        mov     ax, [quadLimited__x2]
-        mov     bx, [quadLimited__x1]
-        sub     ax, bx
-        mov     [oppositeOrZero__b], ax
-        call    oppositeOrZero
-        mov     al, [oppositeOrZero__ret]
-        xor     ah, ah                      ; bool -> u16
-        test    ax, ax
-        jnz     .L216
-        mov     byte [quadLimited__ret], 0
-        ret
-.L216:
-; ---- if ( !oppositeOrZero( y0 - y1, y2 - y1 ) ) return false
-        mov     ax, [quadLimited__y0]
-        mov     bx, [quadLimited__y1]
-        sub     ax, bx
-        mov     [oppositeOrZero__a], ax
-        mov     ax, [quadLimited__y2]
-        mov     bx, [quadLimited__y1]
-        sub     ax, bx
-        mov     [oppositeOrZero__b], ax
-        call    oppositeOrZero
-        mov     al, [oppositeOrZero__ret]
-        xor     ah, ah                      ; bool -> u16
-        test    ax, ax
-        jnz     .L219
-        mov     byte [quadLimited__ret], 0
-        ret
-.L219:
-; ---- return true
-        mov     byte [quadLimited__ret], 1
+.L120:
+.L109:
+        jmp     .L108
+.L110:
         ret
 
 ; ============================================== sub drawQuadAny ====
 
 drawQuadAny:
-; ---- subX0[0] = x0
+; ---- curveInFlatData = true
+        mov     byte [curveInFlatData], 1
+; ---- drawLine( x0, y0, x2, y2, wantPixels, wantEdges, 0 )
         mov     ax, [drawQuadAny__x0]
-        mov     [subX0], ax
-; ---- subY0[0] = y0
+        mov     [drawLine__x0], ax
         mov     ax, [drawQuadAny__y0]
-        mov     [subY0], ax
-; ---- subX1[0] = x1
-        mov     ax, [drawQuadAny__x1]
-        mov     [subX1], ax
-; ---- subY1[0] = y1
-        mov     ax, [drawQuadAny__y1]
-        mov     [subY1], ax
-; ---- subX2[0] = x2
+        mov     [drawLine__y0], ax
         mov     ax, [drawQuadAny__x2]
-        mov     [subX2], ax
-; ---- subY2[0] = y2
+        mov     [drawLine__x1], ax
         mov     ax, [drawQuadAny__y2]
-        mov     [subY2], ax
-; ---- subTop = 1
-        mov     word [subTop], 1
-; ---- while ( subTop > 0 ) {
-.L222:
-        mov     ax, [subTop]
-        test    ax, ax
-        ja      .L225                       ; unsigned >
-        jmp     .L224
-.L225:
-; ---- subTop -= 1
-        mov     ax, [subTop]
-        dec     ax
-        mov     [subTop], ax
-; ---- px0 = subX0[ subTop ]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        mov     ax, [subX0 + bx]
-        mov     [drawQuadAny__px0], ax
-; ---- py0 = subY0[ subTop ]
-        mov     ax, [subTop]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        mov     ax, [subY0 + bx]
-        mov     [drawQuadAny__py0], ax
-; ---- px1 = subX1[ subTop ]
-        mov     ax, [subTop]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        mov     ax, [subX1 + bx]
-        mov     [drawQuadAny__px1], ax
-; ---- py1 = subY1[ subTop ]
-        mov     ax, [subTop]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        mov     ax, [subY1 + bx]
-        mov     [drawQuadAny__py1], ax
-; ---- px2 = subX2[ subTop ]
-        mov     ax, [subTop]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        mov     ax, [subX2 + bx]
-        mov     [drawQuadAny__px2], ax
-; ---- py2 = subY2[ subTop ]
-        mov     ax, [subTop]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        mov     ax, [subY2 + bx]
-        mov     [drawQuadAny__py2], ax
-; ---- span = quadSpan( px0, py0, px1, py1, px2, py2 )
-        mov     ax, [drawQuadAny__px0]
-        mov     [quadSpan__x0], ax
-        mov     ax, [drawQuadAny__py0]
-        mov     [quadSpan__y0], ax
-        mov     ax, [drawQuadAny__px1]
-        mov     [quadSpan__x1], ax
-        mov     ax, [drawQuadAny__py1]
-        mov     [quadSpan__y1], ax
-        mov     ax, [drawQuadAny__px2]
-        mov     [quadSpan__x2], ax
-        mov     ax, [drawQuadAny__py2]
-        mov     [quadSpan__y2], ax
-        call    quadSpan
-        mov     ax, [quadSpan__ret]
-        mov     [drawQuadAny__span], ax
-; ---- if ( span <= maxSpan && quadLimited( px0, py0, px1, py1, px2, py2 ) ) {
-        cmp     ax, 15
-        jle     .L228                       ; signed <=
-        jmp     .L226
-.L228:
-        mov     ax, [drawQuadAny__px0]
-        mov     [quadLimited__x0], ax
-        mov     ax, [drawQuadAny__py0]
-        mov     [quadLimited__y0], ax
-        mov     ax, [drawQuadAny__px1]
-        mov     [quadLimited__x1], ax
-        mov     ax, [drawQuadAny__py1]
-        mov     [quadLimited__y1], ax
-        mov     ax, [drawQuadAny__px2]
-        mov     [quadLimited__x2], ax
-        mov     ax, [drawQuadAny__py2]
-        mov     [quadLimited__y2], ax
-        call    quadLimited
-        mov     al, [quadLimited__ret]
-        xor     ah, ah                      ; bool -> u16
-        test    ax, ax
-        jnz     .L229
-        jmp     .L226
-.L229:
-; ---- if ( px1 == px0 && py1 == py0 ) {
-        mov     ax, [drawQuadAny__px1]
-        mov     bx, [drawQuadAny__px0]
-        cmp     ax, bx
-        jne     .L230                       ; signed ==
-        mov     ax, [drawQuadAny__py1]
-        mov     bx, [drawQuadAny__py0]
-        cmp     ax, bx
-        jne     .L230                       ; signed ==
-; ---- drawLine( px0, py0, px2, py2, wantPixels, wantEdges, 0 )
-        mov     ax, [drawQuadAny__px0]
-        mov     [drawLine__x0], ax
-        mov     ax, [drawQuadAny__py0]
-        mov     [drawLine__y0], ax
-        mov     ax, [drawQuadAny__px2]
-        mov     [drawLine__x1], ax
-        mov     ax, [drawQuadAny__py2]
         mov     [drawLine__y1], ax
         mov     al, [drawQuadAny__wantPixels]
         mov     [drawLine__wantPixels], al  ; bool -> bool, no widening
@@ -1570,259 +891,6 @@ drawQuadAny:
         mov     [drawLine__wantEdges], al   ; bool -> bool, no widening
         mov     byte [drawLine__forceDir], 0
         call    drawLine
-        jmp     .L231
-.L230:
-; ---- } else if ( px1 == px2 && py1 == py2 ) {
-        mov     ax, [drawQuadAny__px1]
-        mov     bx, [drawQuadAny__px2]
-        cmp     ax, bx
-        jne     .L234                       ; signed ==
-        mov     ax, [drawQuadAny__py1]
-        mov     bx, [drawQuadAny__py2]
-        cmp     ax, bx
-        jne     .L234                       ; signed ==
-; ---- drawLine( px0, py0, px2, py2, wantPixels, wantEdges, 0 )
-        mov     ax, [drawQuadAny__px0]
-        mov     [drawLine__x0], ax
-        mov     ax, [drawQuadAny__py0]
-        mov     [drawLine__y0], ax
-        mov     ax, [drawQuadAny__px2]
-        mov     [drawLine__x1], ax
-        mov     ax, [drawQuadAny__py2]
-        mov     [drawLine__y1], ax
-        mov     al, [drawQuadAny__wantPixels]
-        mov     [drawLine__wantPixels], al  ; bool -> bool, no widening
-        mov     al, [drawQuadAny__wantEdges]
-        mov     [drawLine__wantEdges], al   ; bool -> bool, no widening
-        mov     byte [drawLine__forceDir], 0
-        call    drawLine
-        jmp     .L235
-.L234:
-; ---- drawQuad( px0, py0, px1, py1, px2, py2, wantPixels, wantEdges )
-        mov     ax, [drawQuadAny__px0]
-        mov     [drawQuad__x0], ax
-        mov     ax, [drawQuadAny__py0]
-        mov     [drawQuad__y0], ax
-        mov     ax, [drawQuadAny__px1]
-        mov     [drawQuad__x1], ax
-        mov     ax, [drawQuadAny__py1]
-        mov     [drawQuad__y1], ax
-        mov     ax, [drawQuadAny__px2]
-        mov     [drawQuad__x2], ax
-        mov     ax, [drawQuadAny__py2]
-        mov     [drawQuad__y2], ax
-        mov     al, [drawQuadAny__wantPixels]
-        mov     [drawQuad__wantPixels], al  ; bool -> bool, no widening
-        mov     al, [drawQuadAny__wantEdges]
-        mov     [drawQuad__wantEdges], al   ; bool -> bool, no widening
-        call    drawQuad
-.L235:
-.L231:
-        jmp     .L227
-.L226:
-; ---- } else if ( span <= chordFloor ) {
-        mov     ax, [drawQuadAny__span]
-        cmp     ax, 1
-        jg      .L238                       ; signed <=
-; ---- drawLine( px0, py0, px2, py2, wantPixels, wantEdges, 0 )
-        mov     ax, [drawQuadAny__px0]
-        mov     [drawLine__x0], ax
-        mov     ax, [drawQuadAny__py0]
-        mov     [drawLine__y0], ax
-        mov     ax, [drawQuadAny__px2]
-        mov     [drawLine__x1], ax
-        mov     ax, [drawQuadAny__py2]
-        mov     [drawLine__y1], ax
-        mov     al, [drawQuadAny__wantPixels]
-        mov     [drawLine__wantPixels], al  ; bool -> bool, no widening
-        mov     al, [drawQuadAny__wantEdges]
-        mov     [drawLine__wantEdges], al   ; bool -> bool, no widening
-        mov     byte [drawLine__forceDir], 0
-        call    drawLine
-        jmp     .L239
-.L238:
-; ---- } else if ( subTop + 2 > maxSubdivDepth ) {
-        mov     ax, [subTop]
-        add     ax, 2
-        cmp     ax, 16
-        jbe     .L241                       ; unsigned >
-; ---- subdivOverflowed = true
-        mov     byte [subdivOverflowed], 1
-; ---- drawLine( px0, py0, px2, py2, wantPixels, wantEdges, 0 )
-        mov     ax, [drawQuadAny__px0]
-        mov     [drawLine__x0], ax
-        mov     ax, [drawQuadAny__py0]
-        mov     [drawLine__y0], ax
-        mov     ax, [drawQuadAny__px2]
-        mov     [drawLine__x1], ax
-        mov     ax, [drawQuadAny__py2]
-        mov     [drawLine__y1], ax
-        mov     al, [drawQuadAny__wantPixels]
-        mov     [drawLine__wantPixels], al  ; bool -> bool, no widening
-        mov     al, [drawQuadAny__wantEdges]
-        mov     [drawLine__wantEdges], al   ; bool -> bool, no widening
-        mov     byte [drawLine__forceDir], 0
-        call    drawLine
-        jmp     .L242
-.L241:
-; ---- ax = ( px0 + px1 ) / 2
-        mov     ax, [drawQuadAny__px0]
-        mov     bx, [drawQuadAny__px1]
-        add     ax, bx
-        mov     bx, 2
-        cwd                                 ; sign-extend AX into DX:AX
-        idiv    bx
-        mov     [drawQuadAny__ax], ax
-; ---- ay = ( py0 + py1 ) / 2
-        mov     ax, [drawQuadAny__py0]
-        mov     bx, [drawQuadAny__py1]
-        add     ax, bx
-        mov     bx, 2
-        cwd                                 ; sign-extend AX into DX:AX
-        idiv    bx
-        mov     [drawQuadAny__ay], ax
-; ---- bx = ( px1 + px2 ) / 2
-        mov     ax, [drawQuadAny__px1]
-        mov     bx, [drawQuadAny__px2]
-        add     ax, bx
-        mov     bx, 2
-        cwd                                 ; sign-extend AX into DX:AX
-        idiv    bx
-        mov     [drawQuadAny__bx], ax
-; ---- by = ( py1 + py2 ) / 2
-        mov     ax, [drawQuadAny__py1]
-        mov     bx, [drawQuadAny__py2]
-        add     ax, bx
-        mov     bx, 2
-        cwd                                 ; sign-extend AX into DX:AX
-        idiv    bx
-        mov     [drawQuadAny__by], ax
-; ---- mx = ( ax + bx ) / 2
-        mov     ax, [drawQuadAny__ax]
-        mov     bx, [drawQuadAny__bx]
-        add     ax, bx
-        mov     bx, 2
-        cwd                                 ; sign-extend AX into DX:AX
-        idiv    bx
-        mov     [drawQuadAny__mx], ax
-; ---- my = ( ay + by ) / 2
-        mov     ax, [drawQuadAny__ay]
-        mov     bx, [drawQuadAny__by]
-        add     ax, bx
-        mov     bx, 2
-        cwd                                 ; sign-extend AX into DX:AX
-        idiv    bx
-        mov     [drawQuadAny__my], ax
-; ---- subX0[ subTop ] = mx
-        mov     ax, [drawQuadAny__mx]
-        push    ax                          ; save value while computing the index
-        mov     ax, [subTop]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
-        mov     [subX0 + bx], ax
-; ---- subY0[ subTop ] = my
-        mov     ax, [drawQuadAny__my]
-        push    ax                          ; save value while computing the index
-        mov     ax, [subTop]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
-        mov     [subY0 + bx], ax
-; ---- subX1[ subTop ] = bx
-        mov     ax, [drawQuadAny__bx]
-        push    ax                          ; save value while computing the index
-        mov     ax, [subTop]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
-        mov     [subX1 + bx], ax
-; ---- subY1[ subTop ] = by
-        mov     ax, [drawQuadAny__by]
-        push    ax                          ; save value while computing the index
-        mov     ax, [subTop]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
-        mov     [subY1 + bx], ax
-; ---- subX2[ subTop ] = px2
-        mov     ax, [drawQuadAny__px2]
-        push    ax                          ; save value while computing the index
-        mov     ax, [subTop]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
-        mov     [subX2 + bx], ax
-; ---- subY2[ subTop ] = py2
-        mov     ax, [drawQuadAny__py2]
-        push    ax                          ; save value while computing the index
-        mov     ax, [subTop]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
-        mov     [subY2 + bx], ax
-; ---- subTop += 1
-        mov     ax, [subTop]
-        inc     ax
-        mov     [subTop], ax
-; ---- subX0[ subTop ] = px0
-        mov     ax, [drawQuadAny__px0]
-        push    ax                          ; save value while computing the index
-        mov     ax, [subTop]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
-        mov     [subX0 + bx], ax
-; ---- subY0[ subTop ] = py0
-        mov     ax, [drawQuadAny__py0]
-        push    ax                          ; save value while computing the index
-        mov     ax, [subTop]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
-        mov     [subY0 + bx], ax
-; ---- subX1[ subTop ] = ax
-        mov     ax, [drawQuadAny__ax]
-        push    ax                          ; save value while computing the index
-        mov     ax, [subTop]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
-        mov     [subX1 + bx], ax
-; ---- subY1[ subTop ] = ay
-        mov     ax, [drawQuadAny__ay]
-        push    ax                          ; save value while computing the index
-        mov     ax, [subTop]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
-        mov     [subY1 + bx], ax
-; ---- subX2[ subTop ] = mx
-        mov     ax, [drawQuadAny__mx]
-        push    ax                          ; save value while computing the index
-        mov     ax, [subTop]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
-        mov     [subX2 + bx], ax
-; ---- subY2[ subTop ] = my
-        mov     ax, [drawQuadAny__my]
-        push    ax                          ; save value while computing the index
-        mov     ax, [subTop]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
-        mov     [subY2 + bx], ax
-; ---- subTop += 1
-        mov     ax, [subTop]
-        inc     ax
-        mov     [subTop], ax
-.L242:
-.L239:
-.L227:
-.L223:
-        jmp     .L222
-.L224:
         ret
 
 ; ============================================== sub walkPath ====
@@ -1846,7 +914,7 @@ walkPath:
         mov     word [walkPath__curY], 0
 ; ---- for ( k = 0; k < pathOpCount[ pathIndex ]; k++ ) {
         mov     word [walkPath__k], 0
-.L244:
+.L132:
         mov     ax, [walkPath__k]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [walkPath__pathIndex]
@@ -1856,9 +924,9 @@ walkPath:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L247                       ; unsigned <
-        jmp     .L246
-.L247:
+        jb      .L135                       ; unsigned <
+        jmp     .L134
+.L135:
 ; ---- op = opKind[ pathOpStart[ pathIndex ] + k ]
         mov     ax, [walkPath__pathIndex]
         shl     ax, 1                       ; word elements
@@ -1872,30 +940,30 @@ walkPath:
         mov     [walkPath__op], ax
 ; ---- if ( op == opMove ) {
         test    ax, ax
-        je      .L250                       ; unsigned ==
-        jmp     .L248
-.L250:
+        je      .L138                       ; unsigned ==
+        jmp     .L136
+.L138:
 ; ---- if ( closeSubpaths && inSubpath ) {
         mov     al, [walkPath__closeSubpaths]
         test    al, al
-        jnz     .L253
-        jmp     .L251
-.L253:
+        jnz     .L141
+        jmp     .L139
+.L141:
         mov     al, [walkPath__inSubpath]
         test    al, al
-        jnz     .L254
-        jmp     .L251
-.L254:
+        jnz     .L142
+        jmp     .L139
+.L142:
 ; ---- if ( curX != startX || curY != startY ) {
         mov     ax, [walkPath__curX]
         mov     bx, [walkPath__startX]
         cmp     ax, bx
-        jne     .L257                       ; signed !=
+        jne     .L145                       ; signed !=
         mov     ax, [walkPath__curY]
         mov     bx, [walkPath__startY]
         cmp     ax, bx
-        je      .L255                       ; signed !=
-.L257:
+        je      .L143                       ; signed !=
+.L145:
 ; ---- drawLine( curX, curY, startX, startY, wantPixels, wantEdges, 0 )
         mov     ax, [walkPath__curX]
         mov     [drawLine__x0], ax
@@ -1911,8 +979,8 @@ walkPath:
         mov     [drawLine__wantEdges], al   ; bool -> bool, no widening
         mov     byte [drawLine__forceDir], 0
         call    drawLine
-.L255:
-.L251:
+.L143:
+.L139:
 ; ---- curX = px[ at ]
         mov     ax, [walkPath__at]
         shl     ax, 1                       ; word elements
@@ -1937,14 +1005,14 @@ walkPath:
         mov     [walkPath__startY], ax
 ; ---- inSubpath = true
         mov     byte [walkPath__inSubpath], 1
-        jmp     .L249
-.L248:
+        jmp     .L137
+.L136:
 ; ---- } else if ( op == opLine ) {
         mov     ax, [walkPath__op]
         cmp     ax, 1
-        je      .L262                       ; unsigned ==
-        jmp     .L260
-.L262:
+        je      .L150                       ; unsigned ==
+        jmp     .L148
+.L150:
 ; ---- toX = px[ at ]
         mov     ax, [walkPath__at]
         shl     ax, 1                       ; word elements
@@ -1982,8 +1050,8 @@ walkPath:
 ; ---- curY = toY
         mov     ax, [walkPath__toY]
         mov     [walkPath__curY], ax
-        jmp     .L261
-.L260:
+        jmp     .L149
+.L148:
 ; ---- ctlX = px[ at ]
         mov     ax, [walkPath__at]
         shl     ax, 1                       ; word elements
@@ -2038,33 +1106,33 @@ walkPath:
 ; ---- curY = toY
         mov     ax, [walkPath__toY]
         mov     [walkPath__curY], ax
-.L261:
-.L249:
-.L245:
+.L149:
+.L137:
+.L133:
         inc     word [walkPath__k]
-        jmp     .L244
-.L246:
+        jmp     .L132
+.L134:
 ; ---- if ( closeSubpaths && inSubpath ) {
         mov     al, [walkPath__closeSubpaths]
         test    al, al
-        jnz     .L265
-        jmp     .L263
-.L265:
+        jnz     .L153
+        jmp     .L151
+.L153:
         mov     al, [walkPath__inSubpath]
         test    al, al
-        jnz     .L266
-        jmp     .L263
-.L266:
+        jnz     .L154
+        jmp     .L151
+.L154:
 ; ---- if ( curX != startX || curY != startY ) {
         mov     ax, [walkPath__curX]
         mov     bx, [walkPath__startX]
         cmp     ax, bx
-        jne     .L269                       ; signed !=
+        jne     .L157                       ; signed !=
         mov     ax, [walkPath__curY]
         mov     bx, [walkPath__startY]
         cmp     ax, bx
-        je      .L267                       ; signed !=
-.L269:
+        je      .L155                       ; signed !=
+.L157:
 ; ---- drawLine( curX, curY, startX, startY, wantPixels, wantEdges, 0 )
         mov     ax, [walkPath__curX]
         mov     [drawLine__x0], ax
@@ -2080,8 +1148,8 @@ walkPath:
         mov     [drawLine__wantEdges], al   ; bool -> bool, no widening
         mov     byte [drawLine__forceDir], 0
         call    drawLine
-.L267:
-.L263:
+.L155:
+.L151:
         ret
 
 ; ============================================== sub strokePath ====
@@ -2124,13 +1192,13 @@ walkSpans:
 ; ---- pendHi = 0
         mov     word [walkSpans__pendHi], 0
 ; ---- while ( i < crossingCount ) {
-.L272:
+.L160:
         mov     ax, [walkSpans__i]
         mov     bx, [crossingCount]
         cmp     ax, bx
-        jb      .L275                       ; unsigned <
-        jmp     .L274
-.L275:
+        jb      .L163                       ; unsigned <
+        jmp     .L162
+.L163:
 ; ---- y = cy[i]
         mov     ax, [walkSpans__i]
         mov     bx, ax
@@ -2143,36 +1211,36 @@ walkSpans:
         mov     ax, [walkSpans__i]
         mov     [walkSpans__runEnd], ax
 ; ---- while ( runEnd < crossingCount && cy[runEnd] == y ) {
-.L276:
+.L164:
         mov     ax, [walkSpans__runEnd]
         mov     bx, [crossingCount]
         cmp     ax, bx
-        jae     .L278                       ; unsigned <
+        jae     .L166                       ; unsigned <
         mov     ax, [walkSpans__runEnd]
         mov     bx, ax
         mov     al, [cy + bx]
         xor     ah, ah                      ; u8 -> u16
         mov     bx, [walkSpans__y]
         cmp     ax, bx
-        jne     .L278                       ; unsigned ==
+        jne     .L166                       ; unsigned ==
 ; ---- runEnd += 1
         mov     ax, [walkSpans__runEnd]
         inc     ax
         mov     [walkSpans__runEnd], ax
-.L277:
-        jmp     .L276
-.L278:
+.L165:
+        jmp     .L164
+.L166:
 ; ---- k = i
         mov     ax, [walkSpans__i]
         mov     [walkSpans__k], ax
 ; ---- while ( k < runEnd ) {
-.L281:
+.L169:
         mov     ax, [walkSpans__k]
         mov     bx, [walkSpans__runEnd]
         cmp     ax, bx
-        jb      .L284                       ; unsigned <
-        jmp     .L283
-.L284:
+        jb      .L172                       ; unsigned <
+        jmp     .L171
+.L172:
 ; ---- x = cx[k]
         mov     ax, [walkSpans__k]
         shl     ax, 1                       ; word elements
@@ -2180,54 +1248,54 @@ walkSpans:
         mov     ax, [cx_ + bx]
         mov     [walkSpans__x], ax
 ; ---- while ( k < runEnd && cx[k] == x ) {
-.L285:
+.L173:
         mov     ax, [walkSpans__k]
         mov     bx, [walkSpans__runEnd]
         cmp     ax, bx
-        jae     .L287                       ; unsigned <
+        jae     .L175                       ; unsigned <
         mov     ax, [walkSpans__k]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [cx_ + bx]
         mov     bx, [walkSpans__x]
         cmp     ax, bx
-        jne     .L287                       ; signed ==
+        jne     .L175                       ; signed ==
 ; ---- if ( cdir[k] > 0 ) {
         mov     ax, [walkSpans__k]
         mov     bx, ax
         mov     al, [cdir + bx]
         test    al, al
-        jle     .L290                       ; signed >
+        jle     .L178                       ; signed >
 ; ---- winding += 1
         mov     ax, [walkSpans__winding]
         inc     ax
         mov     [walkSpans__winding], ax
-        jmp     .L291
-.L290:
+        jmp     .L179
+.L178:
 ; ---- winding -= 1
         mov     ax, [walkSpans__winding]
         dec     ax
         mov     [walkSpans__winding], ax
-.L291:
+.L179:
 ; ---- k += 1
         mov     ax, [walkSpans__k]
         inc     ax
         mov     [walkSpans__k], ax
-.L286:
-        jmp     .L285
-.L287:
+.L174:
+        jmp     .L173
+.L175:
 ; ---- if ( winding != 0 && k < runEnd ) {
         mov     ax, [walkSpans__winding]
         test    ax, ax
-        jne     .L295                       ; unsigned !=
-        jmp     .L293
-.L295:
+        jne     .L183                       ; unsigned !=
+        jmp     .L181
+.L183:
         mov     ax, [walkSpans__k]
         mov     bx, [walkSpans__runEnd]
         cmp     ax, bx
-        jb      .L296                       ; unsigned <
-        jmp     .L293
-.L296:
+        jb      .L184                       ; unsigned <
+        jmp     .L181
+.L184:
 ; ---- nextX = cx[k]
         mov     ax, [walkSpans__k]
         shl     ax, 1                       ; word elements
@@ -2237,44 +1305,44 @@ walkSpans:
 ; ---- if ( tidy ) {
         mov     al, [walkSpans__tidy]
         test    al, al
-        jnz     .L299
-        jmp     .L297
-.L299:
+        jnz     .L187
+        jmp     .L185
+.L187:
 ; ---- lo = x < 0 ? 0 : x
         mov     ax, [walkSpans__x]
         test    ax, ax
-        jge     .L300                       ; signed <
+        jge     .L188                       ; signed <
         xor     ax, ax                      ; 0
-        jmp     .L301
-.L300:
+        jmp     .L189
+.L188:
         mov     ax, [walkSpans__x]
-.L301:
+.L189:
         mov     [walkSpans__lo], ax
 ; ---- hi = nextX > xMax ? xMax : nextX
         mov     ax, [walkSpans__nextX]
         cmp     ax, 319
-        jle     .L303                       ; signed >
+        jle     .L191                       ; signed >
         mov     ax, 319
-        jmp     .L304
-.L303:
+        jmp     .L192
+.L191:
         mov     ax, [walkSpans__nextX]
-.L304:
+.L192:
         mov     [walkSpans__hi], ax
 ; ---- if ( lo <= hi ) {
         mov     ax, [walkSpans__lo]
         mov     bx, [walkSpans__hi]
         cmp     ax, bx
-        jle     .L308                       ; signed <=
-        jmp     .L306
-.L308:
+        jle     .L196                       ; signed <=
+        jmp     .L194
+.L196:
 ; ---- if ( pending && pendY == y && lo <= pendHi + 1 ) {
         mov     al, [walkSpans__pending]
         test    al, al
-        jz      .L309
+        jz      .L197
         mov     ax, [walkSpans__pendY]
         mov     bx, [walkSpans__y]
         cmp     ax, bx
-        jne     .L309                       ; unsigned ==
+        jne     .L197                       ; unsigned ==
         mov     ax, [walkSpans__lo]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [walkSpans__pendHi]
@@ -2282,21 +1350,21 @@ walkSpans:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jg      .L309                       ; signed <=
+        jg      .L197                       ; signed <=
 ; ---- if ( hi > pendHi ) pendHi = hi
         mov     ax, [walkSpans__hi]
         mov     bx, [walkSpans__pendHi]
         cmp     ax, bx
-        jle     .L314                       ; signed >
+        jle     .L202                       ; signed >
         mov     ax, [walkSpans__hi]
         mov     [walkSpans__pendHi], ax
-.L314:
-        jmp     .L310
-.L309:
+.L202:
+        jmp     .L198
+.L197:
 ; ---- if ( pending ) emitSpan( pendY, pendLo, pendHi )
         mov     al, [walkSpans__pending]
         test    al, al
-        jz      .L317
+        jz      .L205
         mov     ax, [walkSpans__pendY]
         mov     [emitSpan__y], ax
         mov     ax, [walkSpans__pendLo]
@@ -2304,7 +1372,7 @@ walkSpans:
         mov     ax, [walkSpans__pendHi]
         mov     [emitSpan__x1], ax
         call    emitSpan
-.L317:
+.L205:
 ; ---- pending = true
         mov     byte [walkSpans__pending], 1
 ; ---- pendY = y
@@ -2316,10 +1384,10 @@ walkSpans:
 ; ---- pendHi = hi
         mov     ax, [walkSpans__hi]
         mov     [walkSpans__pendHi], ax
-.L310:
-.L306:
-        jmp     .L298
-.L297:
+.L198:
+.L194:
+        jmp     .L186
+.L185:
 ; ---- emitSpan( y, x, nextX )
         mov     ax, [walkSpans__y]
         mov     [emitSpan__y], ax
@@ -2328,24 +1396,24 @@ walkSpans:
         mov     ax, [walkSpans__nextX]
         mov     [emitSpan__x1], ax
         call    emitSpan
-.L298:
-.L293:
-.L282:
-        jmp     .L281
-.L283:
+.L186:
+.L181:
+.L170:
+        jmp     .L169
+.L171:
 ; ---- i = runEnd
         mov     ax, [walkSpans__runEnd]
         mov     [walkSpans__i], ax
-.L273:
-        jmp     .L272
-.L274:
+.L161:
+        jmp     .L160
+.L162:
 ; ---- if ( tidy && pending ) emitSpan( pendY, pendLo, pendHi )
         mov     al, [walkSpans__tidy]
         test    al, al
-        jz      .L320
+        jz      .L208
         mov     al, [walkSpans__pending]
         test    al, al
-        jz      .L320
+        jz      .L208
         mov     ax, [walkSpans__pendY]
         mov     [emitSpan__y], ax
         mov     ax, [walkSpans__pendLo]
@@ -2353,7 +1421,7 @@ walkSpans:
         mov     ax, [walkSpans__pendHi]
         mov     [emitSpan__x1], ax
         call    emitSpan
-.L320:
+.L208:
         ret
 
 ; ============================================== sub fillPath ====
@@ -2377,21 +1445,21 @@ emitSpan:
 ; ---- for ( x = x0; x <= x1; x++ ) {
         mov     ax, [emitSpan__x0]
         mov     [emitSpan__x], ax
-.L324:
+.L212:
         mov     ax, [emitSpan__x]
         mov     bx, [emitSpan__x1]
         cmp     ax, bx
-        jg      .L326                       ; signed <=
+        jg      .L214                       ; signed <=
 ; ---- plot( x, i16( y ) )
         mov     ax, [emitSpan__x]
         mov     [plot__x], ax
         mov     ax, [emitSpan__y]
         mov     [plot__y], ax
         call    plot
-.L325:
+.L213:
         inc     word [emitSpan__x]
-        jmp     .L324
-.L326:
+        jmp     .L212
+.L214:
         ret
 
 ; ============================================== sub plot ====
@@ -2400,27 +1468,27 @@ plot:
 ; ---- if ( x < 0 ) return
         mov     ax, [plot__x]
         test    ax, ax
-        jge     .L328                       ; signed <
+        jge     .L216                       ; signed <
         ret
-.L328:
+.L216:
 ; ---- if ( y < 0 ) return
         mov     ax, [plot__y]
         test    ax, ax
-        jge     .L331                       ; signed <
+        jge     .L219                       ; signed <
         ret
-.L331:
+.L219:
 ; ---- if ( x > xMax ) return
         mov     ax, [plot__x]
         cmp     ax, 319
-        jle     .L334                       ; signed >
+        jle     .L222                       ; signed >
         ret
-.L334:
+.L222:
 ; ---- if ( y > yMax ) return
         mov     ax, [plot__y]
         cmp     ax, 199
-        jle     .L337                       ; signed >
+        jle     .L225                       ; signed >
         ret
-.L337:
+.L225:
 ; ---- ux = u16( x )
         mov     ax, [plot__x]
         mov     [plot__ux], ax
@@ -2528,33 +1596,7 @@ drawLine__y1:   dw      0        ; i16
 drawLine__wantPixels: db      0        ; bool
 drawLine__wantEdges: db      0        ; bool
 drawLine__forceDir: db      0        ; i8
-drawQuad__x0:   dw      0        ; i16
-drawQuad__y0:   dw      0        ; i16
-drawQuad__x1:   dw      0        ; i16
-drawQuad__y1:   dw      0        ; i16
-drawQuad__x2:   dw      0        ; i16
-drawQuad__y2:   dw      0        ; i16
-drawQuad__wantPixels: db      0        ; bool
-drawQuad__wantEdges: db      0        ; bool
-subTop:         dw      0        ; u16
-subdivOverflowed: db      0        ; bool
-quadSpan__x0:   dw      0        ; i16
-quadSpan__y0:   dw      0        ; i16
-quadSpan__x1:   dw      0        ; i16
-quadSpan__y1:   dw      0        ; i16
-quadSpan__x2:   dw      0        ; i16
-quadSpan__y2:   dw      0        ; i16
-quadSpan__ret:  dw      0        ; i16
-oppositeOrZero__a: dw      0        ; i16
-oppositeOrZero__b: dw      0        ; i16
-oppositeOrZero__ret: db      0        ; bool
-quadLimited__x0: dw      0        ; i16
-quadLimited__y0: dw      0        ; i16
-quadLimited__x1: dw      0        ; i16
-quadLimited__y1: dw      0        ; i16
-quadLimited__x2: dw      0        ; i16
-quadLimited__y2: dw      0        ; i16
-quadLimited__ret: db      0        ; bool
+curveInFlatData: db      0        ; bool
 drawQuadAny__x0: dw      0        ; i16
 drawQuadAny__y0: dw      0        ; i16
 drawQuadAny__x1: dw      0        ; i16
@@ -2600,36 +1642,6 @@ drawLine__e2:   dw      0        ; i16
 drawLine__curX: dw      0        ; i16
 drawLine__curY: dw      0        ; i16
 drawLine__dir:  db      0        ; i8
-drawQuad__sx:   dw      0        ; i16
-drawQuad__sy:   dw      0        ; i16
-drawQuad__xx:   dw      0        ; i16
-drawQuad__yy:   dw      0        ; i16
-drawQuad__xy:   dw      0        ; i16
-drawQuad__cur:  dw      0        ; i16
-drawQuad__dx:   dw      0        ; i16
-drawQuad__dy:   dw      0        ; i16
-drawQuad__err:  dw      0        ; i16
-drawQuad__curX: dw      0        ; i16
-drawQuad__curY: dw      0        ; i16
-drawQuad__windDir: db      0        ; i8
-drawQuad__stepY: db      0        ; bool
-quadSpan__lo:   dw      0        ; i16
-quadSpan__hi:   dw      0        ; i16
-quadSpan__wide: dw      0        ; i16
-quadSpan__tall: dw      0        ; i16
-drawQuadAny__px0: dw      0        ; i16
-drawQuadAny__py0: dw      0        ; i16
-drawQuadAny__px1: dw      0        ; i16
-drawQuadAny__py1: dw      0        ; i16
-drawQuadAny__px2: dw      0        ; i16
-drawQuadAny__py2: dw      0        ; i16
-drawQuadAny__ax: dw      0        ; i16
-drawQuadAny__ay: dw      0        ; i16
-drawQuadAny__bx: dw      0        ; i16
-drawQuadAny__by: dw      0        ; i16
-drawQuadAny__mx: dw      0        ; i16
-drawQuadAny__my: dw      0        ; i16
-drawQuadAny__span: dw      0        ; i16
 walkPath__k:    dw      0        ; u16
 walkPath__at:   dw      0        ; u16
 walkPath__op:   dw      0        ; u16
@@ -2668,12 +1680,6 @@ sx_:            times 1024 dw 0        ; i16[1024]
 sd_:            times 1024 db 0        ; i8[1024]
 rowCount:       times 200 dw 0        ; u16[200]
 runStart:       times 201 dw 0        ; u16[201]
-subX0:          times 16 dw 0        ; i16[16]
-subY0:          times 16 dw 0        ; i16[16]
-subX1:          times 16 dw 0        ; i16[16]
-subY1:          times 16 dw 0        ; i16[16]
-subX2:          times 16 dw 0        ; i16[16]
-subY2:          times 16 dw 0        ; i16[16]
 opKind:         db      0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,        ; u8[5942] const
                 db      1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1,
                 db      1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1,
@@ -3760,13 +2766,14 @@ rowPixels:      times 200 dw 0        ; u16[200]
 rowSumX:        times 200 dw 0        ; u16[200]
 pathPixels:     times 138 dw 0        ; u16[138]
 overflowed:     db      'CROSSING LIST OVERFLOWED$'        ; u8[25] const
+hadCurve:       db      'CURVE IN LEVEL 2 DATA$'        ; u8[22] const
 putNumber__digits: times 5 db 0        ; u8[5]
 
 ; ============================================================ heap ====
 ; No storage is emitted - a .COM owns everything past its image, so
 ; these are addresses and NASM does the arithmetic.
 
-_hstack:        equ     280        ; 24 worst-case + 256 interrupt reserve
+_hstack:        equ     272        ; 16 worst-case + 256 interrupt reserve
 _htop:          equ     0FFFEh - _hstack
 
 _hsize:         dw      _htop - _heap        ; NASM computes this
