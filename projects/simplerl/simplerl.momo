@@ -49,20 +49,22 @@ hideCursor()
 
 // tick
 
-u8 y
-u8 x
+// The main loop's own state - read by isMove and by the loop itself.
 u8 oldPx
 u8 oldPy
-u8 ch
 u16 lastKey
 
 bool isMove( u8 key ) => lo( lastKey ) == 0 && hi( lastKey ) == key
 
 sub draw {
+  u8 x
+  u8 y
+  u8 ch
+
   for( y = 0; y < mapH; y++ ){
     for( x = 0; x < mapW; x++ ){
       ch = tileAt( x, y )
-      
+
       if( ch == '#') ch = solidBlock
 
       writeAt( x, y, ch, defAttr )

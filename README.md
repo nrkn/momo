@@ -50,7 +50,7 @@ programs that work, not of features that exist.
 a small subset and work up.** Not by hiding the assembly - by shrinking it
 until it fits in your head. Most of the design falls out of that one idea:
 
-- **37 mnemonics**, with `cpu 8086` at the top of every emitted file so NASM
+- **39 mnemonics**, with `cpu 8086` at the top of every emitted file so NASM
   enforces the boundary on every build. There is no way to meet a 386
   instruction before you have met an 8086 one.
 - **DOS `.COM`, tiny model.** One 64KB segment, `org 100h`, no linker, no

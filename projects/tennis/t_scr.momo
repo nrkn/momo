@@ -49,11 +49,12 @@ sub mode13 {
 }
 
 local const screenWNext = screenW + 1
-local u16 at
 
 sub setPixel( u16 x, u16 y, u8 color ) {
-  // logical to screen
-  at = pxIndex( x << 1, y << 1 )
+  u16 at
+
+  // logical to screen - both unsigned, so * 2 reduces to the same shl
+  at = pxIndex( x * 2, y * 2 )
   
   // later this becomes two statements instead of four
   pixels[ at ] = color
@@ -65,16 +66,17 @@ sub setPixel( u16 x, u16 y, u8 color ) {
 // neither of these need to call pset - it's just easier for now - much more
 // efficient to write them by hand - fix later
 
-local u16 x
-local u16 y 
-
 sub drawLineHorizontal(  u8 y, u8 x1, u8 x2, u8 color ){
+  u16 x
+
   for( x = x1; x <= x2; x++ ){
     setPixel( x, y, color )
   }
 }
 
 sub drawLineVertical( u8 x, u8 y1, u8 y2, u8 color ){
+  u16 y
+
   for( y = y1; y <= y2; y++ ){
     setPixel( x, y, color )
   }

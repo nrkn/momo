@@ -2,7 +2,7 @@
 
 Syntax highlighting for `.momo` files.
 
-`syntaxes/momo.tmLanguage.json` is **generated** — do not edit it by hand. It is
+`syntaxes/momo.tmLanguage.json` is **generated** - do not edit it by hand. It is
 built from the compiler's own token tables, so highlighting cannot drift from the
 language:
 

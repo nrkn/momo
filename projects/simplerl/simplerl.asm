@@ -352,56 +352,56 @@ isMove:
 
 draw:
 ; ---- for( y = 0; y < mapH; y++ ){
-        mov     byte [y], 0
+        mov     byte [draw__y], 0
 .L30:
-        mov     al, [y]
+        mov     al, [draw__y]
         cmp     al, 10                      ; byte operands, no widening
         jb      .L33                        ; unsigned <
         jmp     .L32
 .L33:
 ; ---- for( x = 0; x < mapW; x++ ){
-        mov     byte [x], 0
+        mov     byte [draw__x], 0
 .L34:
-        mov     al, [x]
+        mov     al, [draw__x]
         cmp     al, 20                      ; byte operands, no widening
         jb      .L37                        ; unsigned <
         jmp     .L36
 .L37:
 ; ---- ch = tileAt( x, y )
-        mov     al, [y]
+        mov     al, [draw__y]
         xor     ah, ah                      ; u8 -> u16
         mov     bx, 20
         mul     bx                          ; low 16 bits are sign-agnostic
-        mov     bl, [x]
+        mov     bl, [draw__x]
         xor     bh, bh                      ; u8 -> u16
         add     ax, bx
         mov     bx, ax
         mov     al, [map + bx]
         xor     ah, ah                      ; u8 -> u16
-        mov     [ch_], al                   ; narrowed to u8
+        mov     [draw__ch], al              ; narrowed to u8
 ; ---- if( ch == '#') ch = solidBlock
-        mov     al, [ch_]
+        mov     al, [draw__ch]
         cmp     al, 35                      ; byte operands, no widening
         je      .L40                        ; unsigned ==
         jmp     .L38
 .L40:
-        mov     byte [ch_], 219
+        mov     byte [draw__ch], 219
 .L38:
 ; ---- writeAt( x, y, ch, defAttr )
-        mov     al, [x]
+        mov     al, [draw__x]
         mov     [writeAt__col], al          ; u8 -> u8, no widening
-        mov     al, [y]
+        mov     al, [draw__y]
         mov     [writeAt__row], al          ; u8 -> u8, no widening
-        mov     al, [ch_]
+        mov     al, [draw__ch]
         mov     [writeAt__ch], al           ; u8 -> u8, no widening
         mov     byte [writeAt__attr], 7
         call    writeAt
 .L35:
-        inc     byte [x]
+        inc     byte [draw__x]
         jmp     .L34
 .L36:
 .L31:
-        inc     byte [y]
+        inc     byte [draw__y]
         jmp     .L30
 .L32:
         ret
@@ -489,14 +489,14 @@ writeAt__attr:  db      0        ; u8
 readKey__ret:   dw      0        ; u16
 playerX:        db      9        ; u8 = 9
 playerY:        db      4        ; u8 = 4
-y:              db      0        ; u8
-x:              db      0        ; u8
 oldPx:          db      0        ; u8
 oldPy:          db      0        ; u8
-ch_:            db      0        ; u8
 lastKey:        dw      0        ; u16
 isMove__key:    db      0        ; u8
 isMove__ret:    db      0        ; bool
+draw__x:        db      0        ; u8
+draw__y:        db      0        ; u8
+draw__ch:       db      0        ; u8
 
 ; ---- arrays ----
 map:            db      '########    ##########....########....####................######............####  ##............##    ##............##  ####............######................####....########....##########    ########'        ; u8[200] const

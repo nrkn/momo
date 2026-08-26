@@ -1,3 +1,11 @@
+// player 0 is on the left, player 1 on the right. Here rather than in
+// tennis.momo because t_kbd.momo indexes by player too, and a module that
+// includes this one should not have to depend on its parent's declaration order.
+const playerCount = 2
+
+const leftPlayer = 0
+const rightPlayer = 1
+
 // pixel units
 const screenW = 320
 const screenH = 200
@@ -58,7 +66,7 @@ const netBallXSpan = netBallXMax - netBallXMin
 // halved for word, but scoreTop doubled for view doubling - cancels out
 const scoreTopWord = scoreTop * screenW 
 
-const screenWord = ( screenW * screenH ) >> 1
+const screenWord = ( screenW * screenH ) / 2
 
 // six equal zones and a wider flat one in the middle, so the table is
 // symmetric

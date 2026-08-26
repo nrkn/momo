@@ -29,9 +29,9 @@ __entry:
         mov     word [allocSize], 16
 ; ---- halloc()
         call    halloc
-; ---- block = allocPtr >> 1           // byte offset -> word index
+; ---- block = allocPtr / 2            // byte offset -> word index, and / 2 is the shr
         mov     ax, [allocPtr]
-        shr     ax, 1                       ; unsigned >>
+        shr     ax, 1                       ; / 2 is >> 1
         mov     [block], ax
 ; ---- for (i = 0; i < 8; i++) {
         mov     word [i], 0

@@ -1,6 +1,10 @@
 // std/key.momo - keyboard input via BIOS int 16h.
-
-include "std/math.momo"
+//
+// `lo()` and `hi()` from std/math.momo are how a caller splits what readKey
+// returns, and this file does NOT include math for them: a library that pulls in
+// what its callers might want makes the include invisible at the call site, and
+// stops a program's own include list from being an honest statement of what it
+// uses. Include std/math.momo yourself.
 
 // Scancodes, reported in the high byte for keys with no ASCII value.
 const keyUp     = 72

@@ -1,13 +1,29 @@
 // qsort.momo - quicksort with an explicit stack on the heap.
 //
 // Momo bans recursion, because locals are statically allocated. That costs
-// nothing: a recursive algorithm just carries its own stack. Here the values
-// live at _heapw[0..count-1] and the pending (lo, hi) ranges above them.
+// nothing: a recursive algorithm just carries its own stack.
+//
+// Two views name the two regions rather than spelling the arithmetic at every
+// access: the values, and the pending (lo, hi) ranges above them. That is what
+// `view` is for (DESIGN 17), and it also gets the indices bounds-checked, which
+// raw `_heapw` never is.
+//
+// The generator is std/rand rather than one written here. A local copy used to
+// live in this file, and it was the power-of-two-modulus LCG that std/rand
+// deliberately replaced - so the fixture was carrying the version the library
+// rejected, and reading it would have taught the wrong thing.
 
 include "std/io.momo"
+include "std/rand.momo"
 
 const count = 20                // values to sort
-const stackBase = count         // ranges start here, in words
+
+// Each pop pushes at most two ranges, and only one side of a partition can be
+// large - so `count` pairs is a ceiling this cannot reach.
+const maxRanges = count * 2     // in words
+
+view u16[count]     values = _heap[0]
+view u16[maxRanges] ranges = _heap[count * 2]
 
 u16 sp                          // stack depth, in words
 u16 lo
@@ -19,35 +35,28 @@ u16 tmp
 u16 pivotAt
 u16 fromLo
 u16 fromHi
-u16 seed = 7
-
-// 16-bit linear congruential generator.
-u16 nextRandom() {
-  seed = seed * 25173 + 13849
-  return seed >> 8
-}
 
 sub pushRange {
-  _heapw[stackBase + sp] = lo
-  _heapw[stackBase + sp + 1] = hi
+  ranges[sp] = lo
+  ranges[sp + 1] = hi
   sp += 2
 }
 
 sub popRange {
   sp -= 2
-  lo = _heapw[stackBase + sp]
-  hi = _heapw[stackBase + sp + 1]
+  lo = ranges[sp]
+  hi = ranges[sp + 1]
 }
 
 sub fill {
   for (i = 0; i < count; i++) {
-    _heapw[i] = nextRandom() % 100
+    values[i] = randomBelow(100)
   }
 }
 
 sub show {
   for (i = 0; i < count; i++) {
-    putNumber(_heapw[i])
+    putNumber(values[i])
     putChar(' ')
   }
   newline()
@@ -65,21 +74,21 @@ sub quicksort {
     fromHi = hi
 
     // Lomuto partition around the last element.
-    pivot = _heapw[fromHi]
+    pivot = values[fromHi]
     i = fromLo
 
     for (j = fromLo; j < fromHi; j++) {
-      if (_heapw[j] < pivot) {
-        tmp = _heapw[i]
-        _heapw[i] = _heapw[j]
-        _heapw[j] = tmp
+      if (values[j] < pivot) {
+        tmp = values[i]
+        values[i] = values[j]
+        values[j] = tmp
         i++
       }
     }
 
-    tmp = _heapw[i]
-    _heapw[i] = _heapw[fromHi]
-    _heapw[fromHi] = tmp
+    tmp = values[i]
+    values[i] = values[fromHi]
+    values[fromHi] = tmp
     pivotAt = i
 
     // Guarded so an empty side never underflows: these are u16.
@@ -99,6 +108,7 @@ sub quicksort {
 
 // ---- entry ----
 
+seedRandom(7)
 fill()
 show()
 quicksort()
@@ -107,7 +117,7 @@ show()
 // Verify: report the number of out-of-order pairs.
 tmp = 0
 for (i = 1; i < count; i++) {
-  if (_heapw[i - 1] > _heapw[i]) tmp++
+  if (values[i - 1] > values[i]) tmp++
 }
 putNumber(tmp)
 newline()

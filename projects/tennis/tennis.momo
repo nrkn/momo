@@ -17,12 +17,7 @@ bool isWinScreen
 // back to DOS when false
 bool isRunning = true
 
-// paddles - player 0 is on the left, player 1 on the right
-const playerCount = 2
-
-const leftPlayer = 0
-const rightPlayer = 1
-
+// paddles - playerCount, leftPlayer and rightPlayer are in t_cfg.momo
 group player[playerCount] {
   i16 y      
   i16 oldY   
@@ -37,17 +32,21 @@ const u16[] winColor = [ redW, blueW ]
 const i16[] serveX = [ 0, ballXMax ]
 const i16[] serveSpeedX = [ serveSpeed, -serveSpeed ]
 
-// ball
-i16 ballX
-i16 ballY
-i16 oBallX // old ball x
-i16 oBallY // old ball y
+// The ball. One instance, so this is namespacing rather than
+// structure-of-arrays - DESIGN 18 - and it is here for the reading: `oldX`
+// beside `x` says what it is, where the old name needed a comment to.
+group ball {
+  i16 x
+  i16 y
+  i16 oldX
+  i16 oldY
+  i16 speedX
+  i16 speedY
+  u8  player
+  u8  color
+}
 
-i16 ballSpeedX
-i16 ballSpeedY
-
-u8 ballPlayer
-u8 ballColor 
+// Volleys in the current rally, not a property of the ball.
 u8 volleyCount
 
 // -- start
@@ -59,21 +58,18 @@ keyboardBegin()
 
 // -- main
 
-u16 dy
-
 sub drawBackground( u16 color ) {
+  u16 dy
+
   // demos the word blitting we will use extensively later
   for( dy = 0; dy < scoreTopWord; dy++ ){
     pxwords[ dy ] = color
   }
-  
+
   for( dy = scoreTopWord; dy < screenWord; dy++ ){
     pxwords[ dy ] = blackW
   }
 }
-
-u8 net
-u8 netY
 
 // draw once at start
 sub drawPlayfield {
@@ -83,6 +79,9 @@ sub drawPlayfield {
 }
 
 sub drawNet {
+  u8 net
+  u8 netY
+
   // we should precompute this, it doesn't change, but this is fine for now
   for( net = 0; net < 5; net++ ){
     netY = playTop + 3 + net * 14
@@ -93,15 +92,14 @@ sub drawNet {
 
 // subgrid to pixels
 // playfield offset, eg playRight, playLeft, playTop etc 
-// object offset, eg ballX, ballY, player[ i ].y etc
+// object offset, eg ball.x, ball.y, player[ i ].y etc
+// `>> 2` and not `/ 4`: obj is i16, and a signed divide rounds toward zero
+// where the shift floors, so these are different answers for a negative offset.
+// Signed division deliberately does not strength-reduce - see projects/strred.
 const subgridToPx( i16 play, i16 obj ) = play + 1 + (obj >> 2)
 
-i16 subPxX
-i16 subPxY
-i16 subPxY2
-
 // clear at old, draw at new
-// note - ~~it flickers quite badly~~ fixed by vsync - on fast hardware at 
+// note - ~~it flickers quite badly~~ fixed by vsync - on fast hardware at
 // least
 // but wait until optimised blitting lands and see if we can live with it
 // otherwise, we might need better dirty tracking
@@ -116,6 +114,9 @@ i16 subPxY2
 // but still have to double rows!
 
 sub drawPaddle( u8 pi ) {
+  i16 subPxY
+  i16 subPxY2
+
   subPxY = subgridToPx( playTop, player[ pi ].y )
   subPxY2 = subPxY + paddleH - 1
 
@@ -123,6 +124,9 @@ sub drawPaddle( u8 pi ) {
 }
 
 sub clearPaddle( u8 pi ) {
+  i16 subPxY
+  i16 subPxY2
+
   subPxY = subgridToPx( playTop, player[ pi ].oldY )
   subPxY2 = subPxY + paddleH - 1
 
@@ -132,18 +136,26 @@ sub clearPaddle( u8 pi ) {
 // clear at old, draw at new
 
 sub drawBall {  
-  subPxX = subgridToPx( playLeft, ballX )
-  subPxY = subgridToPx( playTop, ballY )
+  i16 subPxX
+  i16 subPxY
+  i16 subPxY2
+
+  subPxX = subgridToPx( playLeft, ball.x )
+  subPxY = subgridToPx( playTop, ball.y )
   subPxY2 = subPxY + ballH - 1
 
-  drawLineVertical( subPxX, subPxY, subPxY2, ballColor )
-  drawLineVertical( subPxX + 1, subPxY, subPxY2, ballColor )
-  drawLineVertical( subPxX + 2, subPxY, subPxY2, ballColor )
+  drawLineVertical( subPxX, subPxY, subPxY2, ball.color )
+  drawLineVertical( subPxX + 1, subPxY, subPxY2, ball.color )
+  drawLineVertical( subPxX + 2, subPxY, subPxY2, ball.color )
 }
 
 sub clearBall {
-  subPxX = subgridToPx( playLeft, oBallX )
-  subPxY = subgridToPx( playTop, oBallY )
+  i16 subPxX
+  i16 subPxY
+  i16 subPxY2
+
+  subPxX = subgridToPx( playLeft, ball.oldX )
+  subPxY = subgridToPx( playTop, ball.oldY )
   subPxY2 = subPxY + ballH - 1
 
   drawLineVertical( subPxX, subPxY, subPxY2, lightGreen )
@@ -151,12 +163,13 @@ sub clearBall {
   drawLineVertical( subPxX + 2, subPxY, subPxY2, lightGreen )
 }
 
-u16 tile
-u8 i
-u8 j
 sub drawSprite( u8 index, u8 dx, u8 dy ){
+  u16 tile
+  u8  i
+  u8  j
+
   tile = index * spriteSize
-  
+
   for( j = 0; j < spriteH; j++ ){
     for( i = 0; i < spriteW; i++ ){
       setPixel( i + dx, j + dy, textSprites[ tile ] )
@@ -167,9 +180,10 @@ sub drawSprite( u8 index, u8 dx, u8 dy ){
 }
 
 // overdraws existing, no clear needed
-u8 digitTens
-u8 digitOnes
 sub drawScore( u8 pi ) {
+  u8 digitTens
+  u8 digitOnes
+
   if( player[ pi ].score < 10 ){
     digitTens = 0
     digitOnes = player[ pi ].score
@@ -182,10 +196,11 @@ sub drawScore( u8 pi ) {
   drawSprite( digitOnes, scoreXOnes[ pi ], scoreY )
 }
 
-sub movePaddle( u8 pi, bool up, bool down ) {
-  if ( up || down ) {
-    if ( up ) player[ pi ].y -= player[ pi ].speed
-    if ( down ) player[ pi ].y += player[ pi ].speed
+// The held flags are indexed by player too, so this takes the index alone.
+sub movePaddle( u8 pi ) {
+  if ( held[ pi ].up || held[ pi ].down ) {
+    if ( held[ pi ].up ) player[ pi ].y -= player[ pi ].speed
+    if ( held[ pi ].down ) player[ pi ].y += player[ pi ].speed
 
     if ( player[ pi ].y < 0 ) player[ pi ].y = 0
     if ( player[ pi ].y > paddleYMax ) player[ pi ].y = paddleYMax
@@ -209,26 +224,25 @@ sub input {
   } 
 
   if( isWinScreen ){
-    if( isLeft1 || isLeft2 || isRight1 || isRight2 ){
+    if( anyLeftRight() ){
       start()
     }
 
     return
   }
 
-
-  movePaddle( 0, isUp1, isDown1 )
-  movePaddle( 1, isUp2, isDown2 )
+  movePaddle( leftPlayer )
+  movePaddle( rightPlayer )
 }
 
 sub setBallSpeedY( i16 yOffset ) {
-  if ( yOffset < angleZone1 ) ballSpeedY = -ballSpeedY3
-  else if ( yOffset < angleZone2 ) ballSpeedY = -ballSpeedY2
-  else if ( yOffset < angleZone3 ) ballSpeedY = -ballSpeedY1
-  else if ( yOffset < angleZone4 ) ballSpeedY = 0
-  else if ( yOffset < angleZone5 ) ballSpeedY = ballSpeedY1
-  else if ( yOffset < angleZone6 ) ballSpeedY = ballSpeedY2
-  else ballSpeedY = ballSpeedY3
+  if ( yOffset < angleZone1 ) ball.speedY = -ballSpeedY3
+  else if ( yOffset < angleZone2 ) ball.speedY = -ballSpeedY2
+  else if ( yOffset < angleZone3 ) ball.speedY = -ballSpeedY1
+  else if ( yOffset < angleZone4 ) ball.speedY = 0
+  else if ( yOffset < angleZone5 ) ball.speedY = ballSpeedY1
+  else if ( yOffset < angleZone6 ) ball.speedY = ballSpeedY2
+  else ball.speedY = ballSpeedY3
 }
 
 // pi scored, so pi serves - unless that was the winning point
@@ -240,7 +254,7 @@ sub scorePoint( u8 pi ) {
   if ( player[ pi ].score == winScore ) {
     win( pi )
   } else {
-    ballPlayer = pi
+    ball.player = pi
 
     serve()
   }
@@ -250,7 +264,7 @@ sub scorePoint( u8 pi ) {
 sub hitPaddle( u8 pi ) {
   i16 yOffset
 
-  yOffset = ballY - player[ pi ].y + hitLead
+  yOffset = ball.y - player[ pi ].y + hitLead
   
   if ( yOffset < 0 || yOffset >= hitWindow ) {
     scorePoint( 1 - pi )
@@ -258,45 +272,45 @@ sub hitPaddle( u8 pi ) {
     return
   }
 
-  ballX = serveX[ pi ]
+  ball.x = serveX[ pi ]
   setBallSpeedY( yOffset )
 
   // three returns before the rally speeds up, to a ceiling
-  if ( iabs( ballSpeedX ) < ballSpeedXMax ) {
+  if ( iabs( ball.speedX ) < ballSpeedXMax ) {
     volleyCount++
   
     if ( volleyCount == volleyTarget ) {
       volleyCount = 0
 
-      if ( ballSpeedX > 0 ) ballSpeedX += ballSpeedStep
-      else ballSpeedX -= ballSpeedStep
+      if ( ball.speedX > 0 ) ball.speedX += ballSpeedStep
+      else ball.speedX -= ballSpeedStep
     }
   }
   
-  ballSpeedX = -ballSpeedX
-  ballPlayer = pi
-  ballColor = paddleColor[ pi ]
+  ball.speedX = -ball.speedX
+  ball.player = pi
+  ball.color = paddleColor[ pi ]
 }
 
 // recalculate state
 sub update {
   if( isWinScreen ) return
   
-  ballX += ballSpeedX
-  ballY += ballSpeedY
+  ball.x += ball.speedX
+  ball.y += ball.speedY
 
-  if( ballY < 0 ){
-    ballY = 0
-    ballSpeedY = -ballSpeedY
-  } else if( ballY > ballYMax ){
-    ballY = ballYMax
-    ballSpeedY = -ballSpeedY
+  if( ball.y < 0 ){
+    ball.y = 0
+    ball.speedY = -ball.speedY
+  } else if( ball.y > ballYMax ){
+    ball.y = ballYMax
+    ball.speedY = -ball.speedY
   }
   
   // only the side the ball is travelling toward can be reached
-  if( ballSpeedX > 0 && ballX >= ballXMax ){
+  if( ball.speedX > 0 && ball.x >= ballXMax ){
     hitPaddle( rightPlayer )
-  } else if ( ballSpeedX < 0 && ballX <= 0 ){
+  } else if ( ball.speedX < 0 && ball.x <= 0 ){
     hitPaddle( leftPlayer )
   }
 }
@@ -310,7 +324,7 @@ sub render {
   clearPaddle( leftPlayer )
   clearPaddle( rightPlayer )
 
-  if ( oBallX >= netBallXMin && oBallX <= netBallXMax ) drawNet()
+  if ( ball.oldX >= netBallXMin && ball.oldX <= netBallXMax ) drawNet()
 
   drawBall()
   drawPaddle( leftPlayer )
@@ -319,8 +333,8 @@ sub render {
   player[ leftPlayer ].oldY = player[ leftPlayer ].y
   player[ rightPlayer ].oldY = player[ rightPlayer ].y
 
-  oBallX = ballX
-  oBallY = ballY
+  ball.oldX = ball.x
+  ball.oldY = ball.y
 }
 
 // with a high typematic rate, the keyboard buffer can get very full, especially
@@ -355,13 +369,13 @@ sub win( u8 pi ) {
 }
 
 sub serve(){
-  ballSpeedY = 0
+  ball.speedY = 0
   volleyCount = 0
 
-  ballX = serveX[ ballPlayer ]
-  ballY = player[ ballPlayer ].y + ballServeOffset
-  ballSpeedX = serveSpeedX[ ballPlayer ]
-  ballColor = paddleColor[ ballPlayer ]
+  ball.x = serveX[ ball.player ]
+  ball.y = player[ ball.player ].y + ballServeOffset
+  ball.speedX = serveSpeedX[ ball.player ]
+  ball.color = paddleColor[ ball.player ]
 }
 
 // first time or new game after a win
@@ -381,7 +395,7 @@ sub start {
   player[ rightPlayer ].oldY = paddleYHome
 
   // an index into player, so 0 serves from the left
-  ballPlayer = randomBelow( len( player ) )
+  ball.player = randomBelow( len( player ) )
 
   waitFrame()
   drawBackground( lightGreenW )
@@ -391,8 +405,8 @@ sub start {
 
   serve()
 
-  oBallX = ballX
-  oBallY = ballY
+  ball.oldX = ball.x
+  ball.oldY = ball.y
 }
 
 start()

@@ -7,11 +7,13 @@
 ioBase:         equ     10
 ioZeroChar:     equ     48
 count:          equ     20
-stackBase:      equ     20
 
 ; =========================================================== entry ====
 
 __entry:
+; ---- seedRandom(7)
+        mov     word [seedRandom__s], 7
+        call    seedRandom
 ; ---- fill()
         call    fill
 ; ---- show()
@@ -30,17 +32,17 @@ __entry:
         jb      .L4                         ; unsigned <
         jmp     .L3
 .L4:
-; ---- if (_heapw[i - 1] > _heapw[i]) tmp++
+; ---- if (values[i - 1] > values[i]) tmp++
         mov     ax, [i]
         dec     ax
         shl     ax, 1                       ; word elements
         mov     bx, ax
-        mov     ax, [_heapw + bx]
+        mov     ax, [values + bx]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
-        mov     ax, [_heapw + bx]
+        mov     ax, [values + bx]
         mov     bx, ax
         pop     ax
         cmp     ax, bx
@@ -155,46 +157,94 @@ putNumber:
 .L17:
         ret
 
+; ============================================== sub seedRandom ====
+
+seedRandom:
+; ---- sub seedRandom(u16 s) => randomSeed = s == 0 ? 1 : s
+        mov     ax, [seedRandom__s]
+        test    ax, ax
+        je      .L21                        ; unsigned ==
+        jmp     .L19
+.L21:
+        mov     ax, 1
+        jmp     .L20
+.L19:
+        mov     ax, [seedRandom__s]
+.L20:
+        mov     [rand__randomSeed], ax
+        ret
+
 ; ============================================== u16 nextRandom ====
 
 nextRandom:
-; ---- seed = seed * 25173 + 13849
-        mov     ax, [seed]
-        mov     bx, 25173
-        mul     bx                          ; low 16 bits are sign-agnostic
-        add     ax, 13849
-        mov     [seed], ax
-; ---- return seed >> 8
-        mov     ax, [seed]
-        mov     cl, 8                       ; 8086 has no shift-by-immediate
+; ---- randomSeed = randomSeed ^ (randomSeed << 7)
+        mov     ax, [rand__randomSeed]
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [rand__randomSeed]
+        mov     cl, 7                       ; 8086 has no shift-by-immediate
+        shl     ax, cl
+        mov     bx, ax
+        pop     ax
+        xor     ax, bx
+        mov     [rand__randomSeed], ax
+; ---- randomSeed = randomSeed ^ (randomSeed >> 9)
+        mov     ax, [rand__randomSeed]
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [rand__randomSeed]
+        mov     cl, 9                       ; 8086 has no shift-by-immediate
         shr     ax, cl                      ; unsigned >>
+        mov     bx, ax
+        pop     ax
+        xor     ax, bx
+        mov     [rand__randomSeed], ax
+; ---- randomSeed = randomSeed ^ (randomSeed << 8)
+        mov     ax, [rand__randomSeed]
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [rand__randomSeed]
+        mov     cl, 8                       ; 8086 has no shift-by-immediate
+        shl     ax, cl
+        mov     bx, ax
+        pop     ax
+        xor     ax, bx
+        mov     [rand__randomSeed], ax
+; ---- return randomSeed
+        mov     ax, [rand__randomSeed]
         mov     [nextRandom__ret], ax
+        ret
+
+; ============================================== u16 randomBelow ====
+
+randomBelow:
+; ---- u16 randomBelow(u16 n) => nextRandom() % n
+        call    nextRandom
+        mov     ax, [nextRandom__ret]
+        mov     bx, [randomBelow__n]
+        xor     dx, dx                      ; clear high half for div
+        div     bx
+        mov     ax, dx                      ; remainder
+        mov     [randomBelow__ret], ax
         ret
 
 ; ============================================== sub pushRange ====
 
 pushRange:
-; ---- _heapw[stackBase + sp] = lo
+; ---- ranges[sp] = lo
         mov     ax, [lo]
         push    ax                          ; save value while computing the index
-        mov     ax, 20
-        mov     bx, [sp_]
-        add     ax, bx
+        mov     ax, [sp_]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         pop     ax
-        mov     [_heapw + bx], ax
-; ---- _heapw[stackBase + sp + 1] = hi
+        mov     [ranges + bx], ax
+; ---- ranges[sp + 1] = hi
         mov     ax, [hi]
         push    ax                          ; save value while computing the index
-        mov     ax, 20
-        mov     bx, [sp_]
-        add     ax, bx
+        mov     ax, [sp_]
         inc     ax
         shl     ax, 1                       ; word elements
         mov     bx, ax
         pop     ax
-        mov     [_heapw + bx], ax
+        mov     [ranges + bx], ax
 ; ---- sp += 2
         mov     ax, [sp_]
         add     ax, 2
@@ -208,22 +258,18 @@ popRange:
         mov     ax, [sp_]
         sub     ax, 2
         mov     [sp_], ax
-; ---- lo = _heapw[stackBase + sp]
-        mov     ax, 20
-        mov     bx, [sp_]
-        add     ax, bx
+; ---- lo = ranges[sp]
+        mov     ax, [sp_]
         shl     ax, 1                       ; word elements
         mov     bx, ax
-        mov     ax, [_heapw + bx]
+        mov     ax, [ranges + bx]
         mov     [lo], ax
-; ---- hi = _heapw[stackBase + sp + 1]
-        mov     ax, 20
-        mov     bx, [sp_]
-        add     ax, bx
+; ---- hi = ranges[sp + 1]
+        mov     ax, [sp_]
         inc     ax
         shl     ax, 1                       ; word elements
         mov     bx, ax
-        mov     ax, [_heapw + bx]
+        mov     ax, [ranges + bx]
         mov     [hi], ax
         ret
 
@@ -232,29 +278,26 @@ popRange:
 fill:
 ; ---- for (i = 0; i < count; i++) {
         mov     word [i], 0
-.L19:
+.L22:
         mov     ax, [i]
         cmp     ax, 20
-        jb      .L22                        ; unsigned <
-        jmp     .L21
-.L22:
-; ---- _heapw[i] = nextRandom() % 100
-        call    nextRandom
-        mov     ax, [nextRandom__ret]
-        mov     bx, 100
-        xor     dx, dx                      ; clear high half for div
-        div     bx
-        mov     ax, dx                      ; remainder
+        jb      .L25                        ; unsigned <
+        jmp     .L24
+.L25:
+; ---- values[i] = randomBelow(100)
+        mov     word [randomBelow__n], 100
+        call    randomBelow
+        mov     ax, [randomBelow__ret]
         push    ax                          ; save value while computing the index
         mov     ax, [i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         pop     ax
-        mov     [_heapw + bx], ax
-.L20:
+        mov     [values + bx], ax
+.L23:
         inc     word [i]
-        jmp     .L19
-.L21:
+        jmp     .L22
+.L24:
         ret
 
 ; ============================================== sub show ====
@@ -262,26 +305,26 @@ fill:
 show:
 ; ---- for (i = 0; i < count; i++) {
         mov     word [i], 0
-.L23:
+.L26:
         mov     ax, [i]
         cmp     ax, 20
-        jb      .L26                        ; unsigned <
-        jmp     .L25
-.L26:
-; ---- putNumber(_heapw[i])
+        jb      .L29                        ; unsigned <
+        jmp     .L28
+.L29:
+; ---- putNumber(values[i])
         mov     ax, [i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
-        mov     ax, [_heapw + bx]
+        mov     ax, [values + bx]
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- putChar(' ')
         mov     byte [putChar__c], 32
         call    putChar
-.L24:
+.L27:
         inc     word [i]
-        jmp     .L23
-.L25:
+        jmp     .L26
+.L28:
 ; ---- newline()
         call    newline
         ret
@@ -298,12 +341,12 @@ quicksort:
 ; ---- pushRange()
         call    pushRange
 ; ---- while (sp > 0) {
-.L27:
+.L30:
         mov     ax, [sp_]
         test    ax, ax
-        ja      .L30                        ; unsigned >
-        jmp     .L29
-.L30:
+        ja      .L33                        ; unsigned >
+        jmp     .L32
+.L33:
 ; ---- popRange()
         call    popRange
 ; ---- fromLo = lo
@@ -312,11 +355,11 @@ quicksort:
 ; ---- fromHi = hi
         mov     ax, [hi]
         mov     [fromHi], ax
-; ---- pivot = _heapw[fromHi]
+; ---- pivot = values[fromHi]
         mov     ax, [fromHi]
         shl     ax, 1                       ; word elements
         mov     bx, ax
-        mov     ax, [_heapw + bx]
+        mov     ax, [values + bx]
         mov     [pivot], ax
 ; ---- i = fromLo
         mov     ax, [fromLo]
@@ -324,80 +367,80 @@ quicksort:
 ; ---- for (j = fromLo; j < fromHi; j++) {
         mov     ax, [fromLo]
         mov     [j], ax
-.L31:
+.L34:
         mov     ax, [j]
         mov     bx, [fromHi]
         cmp     ax, bx
-        jb      .L34                        ; unsigned <
-        jmp     .L33
-.L34:
-; ---- if (_heapw[j] < pivot) {
+        jb      .L37                        ; unsigned <
+        jmp     .L36
+.L37:
+; ---- if (values[j] < pivot) {
         mov     ax, [j]
         shl     ax, 1                       ; word elements
         mov     bx, ax
-        mov     ax, [_heapw + bx]
+        mov     ax, [values + bx]
         mov     bx, [pivot]
         cmp     ax, bx
-        jb      .L37                        ; unsigned <
-        jmp     .L35
-.L37:
-; ---- tmp = _heapw[i]
+        jb      .L40                        ; unsigned <
+        jmp     .L38
+.L40:
+; ---- tmp = values[i]
         mov     ax, [i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
-        mov     ax, [_heapw + bx]
+        mov     ax, [values + bx]
         mov     [tmp], ax
-; ---- _heapw[i] = _heapw[j]
+; ---- values[i] = values[j]
         mov     ax, [j]
         shl     ax, 1                       ; word elements
         mov     bx, ax
-        mov     ax, [_heapw + bx]
+        mov     ax, [values + bx]
         push    ax                          ; save value while computing the index
         mov     ax, [i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         pop     ax
-        mov     [_heapw + bx], ax
-; ---- _heapw[j] = tmp
+        mov     [values + bx], ax
+; ---- values[j] = tmp
         mov     ax, [tmp]
         push    ax                          ; save value while computing the index
         mov     ax, [j]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         pop     ax
-        mov     [_heapw + bx], ax
+        mov     [values + bx], ax
 ; ---- i++
         inc     word [i]
+.L38:
 .L35:
-.L32:
         inc     word [j]
-        jmp     .L31
-.L33:
-; ---- tmp = _heapw[i]
+        jmp     .L34
+.L36:
+; ---- tmp = values[i]
         mov     ax, [i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
-        mov     ax, [_heapw + bx]
+        mov     ax, [values + bx]
         mov     [tmp], ax
-; ---- _heapw[i] = _heapw[fromHi]
+; ---- values[i] = values[fromHi]
         mov     ax, [fromHi]
         shl     ax, 1                       ; word elements
         mov     bx, ax
-        mov     ax, [_heapw + bx]
+        mov     ax, [values + bx]
         push    ax                          ; save value while computing the index
         mov     ax, [i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         pop     ax
-        mov     [_heapw + bx], ax
-; ---- _heapw[fromHi] = tmp
+        mov     [values + bx], ax
+; ---- values[fromHi] = tmp
         mov     ax, [tmp]
         push    ax                          ; save value while computing the index
         mov     ax, [fromHi]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         pop     ax
-        mov     [_heapw + bx], ax
+        mov     [values + bx], ax
 ; ---- pivotAt = i
         mov     ax, [i]
         mov     [pivotAt], ax
@@ -405,9 +448,9 @@ quicksort:
         mov     ax, [pivotAt]
         mov     bx, [fromLo]
         cmp     ax, bx
-        ja      .L40                        ; unsigned >
-        jmp     .L38
-.L40:
+        ja      .L43                        ; unsigned >
+        jmp     .L41
+.L43:
 ; ---- lo = fromLo
         mov     ax, [fromLo]
         mov     [lo], ax
@@ -417,14 +460,14 @@ quicksort:
         mov     [hi], ax
 ; ---- pushRange()
         call    pushRange
-.L38:
+.L41:
 ; ---- if (pivotAt < fromHi) {
         mov     ax, [pivotAt]
         mov     bx, [fromHi]
         cmp     ax, bx
-        jb      .L43                        ; unsigned <
-        jmp     .L41
-.L43:
+        jb      .L46                        ; unsigned <
+        jmp     .L44
+.L46:
 ; ---- lo = pivotAt + 1
         mov     ax, [pivotAt]
         inc     ax
@@ -434,10 +477,10 @@ quicksort:
         mov     [hi], ax
 ; ---- pushRange()
         call    pushRange
-.L41:
-.L28:
-        jmp     .L27
-.L29:
+.L44:
+.L31:
+        jmp     .L30
+.L32:
         ret
 
 ; ==================================================== int helpers ====
@@ -481,6 +524,11 @@ _di:            dw      0
 ; ---- variables ----
 putChar__c:     db      0        ; u8
 putNumber__n:   dw      0        ; u16
+rand__randomSeed: dw      42        ; u16 = 42
+seedRandom__s:  dw      0        ; u16
+nextRandom__ret: dw      0        ; u16
+randomBelow__n: dw      0        ; u16
+randomBelow__ret: dw      0        ; u16
 sp_:            dw      0        ; u16
 lo:             dw      0        ; u16
 hi:             dw      0        ; u16
@@ -491,8 +539,6 @@ tmp:            dw      0        ; u16
 pivotAt:        dw      0        ; u16
 fromLo:         dw      0        ; u16
 fromHi:         dw      0        ; u16
-seed:           dw      7        ; u16 = 7
-nextRandom__ret: dw      0        ; u16
 putNumber__i:   db      0        ; u8
 
 ; ---- arrays ----
@@ -502,10 +548,16 @@ putNumber__digits: times 5 db 0        ; u8[5]
 ; No storage is emitted - a .COM owns everything past its image, so
 ; these are addresses and NASM does the arithmetic.
 
-_hstack:        equ     266        ; 10 worst-case + 256 interrupt reserve
+_hstack:        equ     268        ; 12 worst-case + 256 interrupt reserve
 _htop:          equ     0FFFEh - _hstack
 
 _hsize:         dw      _htop - _heap        ; NASM computes this
         align   2                           ; keep the u16 view aligned
 _heap:
 _heapw:         equ     _heap        ; same bytes, u16 view
+
+; =========================================================== views ====
+; No storage: each is a name for an offset into something else.
+
+values:         equ     _heap        ; u16[20]
+ranges:         equ     _heap + 40        ; u16[40]

@@ -28,7 +28,7 @@ newline()
 
 allocSize = 16                  // 8 words
 halloc()
-block = allocPtr >> 1           // byte offset -> word index
+block = allocPtr / 2            // byte offset -> word index, and / 2 is the shr
 
 for (i = 0; i < 8; i++) {
   _heapw[block + i] = i * i

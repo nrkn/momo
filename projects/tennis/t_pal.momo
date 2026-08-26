@@ -2,8 +2,8 @@
   doesn't really need optimising as it runs once on startup
 */
 
-// 8bpp -> 6bpp
-local const u8 dac( u8 v ) = v >> 2
+// 8bpp -> 6bpp. Unsigned, so / 4 reduces to the same shr.
+local const u8 dac( u8 v ) = v / 4
 
 local sub setPaletteColor( u8 index, u8 r, u8 g, u8 b ) {
   _ax = 0x1010

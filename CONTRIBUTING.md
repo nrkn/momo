@@ -254,6 +254,20 @@ the display back, so none can have a `.expected` - tier 2 cannot run something
 that blocks. The golden tier still covers them, which is the regression coverage
 that matters for a compiler.
 
+`projects/tennis` is the other game and the largest program here - 790 lines over
+six files, mode 13h, sprites, a palette, and a keyboard reader that masks IRQ1 and
+talks to the 8042 directly. Most of `PITFALLS.md` was found in it, and found on
+86Box rather than under DOSBox. It blocks on input, so it is golden-tier only too.
+
+`lib/momolo/` is a layout engine ported from a TypeScript study, and it arrived
+with two projects rather than one. `projects/momolo` runs six scenes through it
+and prints every resolved box as bare numbers, compared against the numbers the
+original engine produces - two implementations agreeing on every integer, which
+is what makes it a tier 2 test rather than a demo. `projects/mlodemo` draws the
+same tree at 80x25 and waits for a key. Both go through `lib/mopaint.momo`, the
+colour, borders and wrapping layer that deliberately sits outside the engine, so
+what is untested is the painting rather than the layout.
+
 **`README.md` is provisional**, and knowing that is more useful than the file
 itself. It was written quickly to have something in place, in the register most
 language READMEs are written in - bolded claims, a feature list, a certain amount
@@ -271,5 +285,5 @@ The cost of waiting is that the first thing a visitor reads is the weakest
 document in the repo. That trade is made deliberately, and preferred to shipping a
 second draft in the same voice as the first.
 
-246 tier-1 assertions (143 compile tests, 27 golden `.asm`, 25 type, 48 round
-trip, 3 subset), 23 e2e programs, all green.
+248 tier-1 assertions (143 compile tests, 30 golden `.asm`, 25 type, 47 round
+trip, 3 subset), 24 e2e programs, all green.

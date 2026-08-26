@@ -1,4 +1,8 @@
 // Every std module compiles together, and the parameterised consts fold.
+// std/io and std/str arrive through std/screen, which genuinely uses both.
+// std/math has to be named: screen and key deliberately do not include it for
+// their callers, even though their own comments point at lo() and hi().
+include "std/math.momo"
 include "std/screen.momo"
 include "std/key.momo"
 include "std/rand.momo"

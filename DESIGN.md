@@ -208,9 +208,9 @@ Sign-agnostic in two's complement: `+ - * << & | ^ ~ == !=` and unary `-`.
 |  | `u8` | `i8` | `u16` | `i16` |
 |---|---|---|---|---|
 | **`u8`** | `u16` | `i16` | `u16` | `i16` |
-| **`i8`** | `i16` | `i16` | ❌ | `i16` |
-| **`u16`** | `u16` | ❌ | `u16` | ❌ |
-| **`i16`** | `i16` | `i16` | ❌ | `i16` |
+| **`i8`** | `i16` | `i16` | error | `i16` |
+| **`u16`** | `u16` | error | `u16` | error |
+| **`i16`** | `i16` | `i16` | error | `i16` |
 
 > **`u16` does not mix with signed types.** Everything else widens to the
 > smallest type that holds both.
@@ -282,7 +282,7 @@ widest value, or stated.
 
 `u8(expr)`, `i16(expr)` - function-style; type names are reserved words so there
 is no ambiguity. Pure truncate/reinterpret, no range check, no runtime cost.
-`u8(300)` is 44, `i8(200)` is −56.
+`u8(300)` is 44, `i8(200)` is -56.
 
 ---
 
@@ -665,8 +665,8 @@ temporary.
 
 ## 9. Codegen
 
-**Register contract:** `AX` accumulator · `BX` second operand / index ·
-`DX` scratch, clobbered by `mul`/`div`, never live · `CL` shift counts ·
+**Register contract:** `AX` accumulator; `BX` second operand / index;
+`DX` scratch, clobbered by `mul`/`div`, never live; `CL` shift counts;
 `SI`, `DI`, `BP` **unused** (available to the ABI, and a future register-allocation hook).
 
 **Conditions compile in control-flow context** - `emitCond(expr, trueLabel,
@@ -675,7 +675,7 @@ optimisation, because 8086 has no `setcc`. `&&`/`||` short-circuit to shared
 labels; `!` is a label swap. Value context is the fallback for
 `bool b = x < y`, which costs a branch.
 
-**All conditional jumps are emitted expanded**, because 8086 `jcc` is ±127 only
+**All conditional jumps are emitted expanded**, because 8086 `jcc` is +/-127 only
 and there is no near form until the 386:
 
 ```nasm
@@ -724,7 +724,7 @@ exceed 128 bytes under this codegen.
    8086 reader expects.
 8. **Byte operands compare in AL** - when both sides are bare byte loads of the
    same signedness, or one is a constant the byte's own range holds. The
-   signedness check is what makes it safe: 0xC8 is 200 as a u8 and −56 as an i8,
+   signedness check is what makes it safe: 0xC8 is 200 as a u8 and -56 as an i8,
    so mixed operands still widen - even for `==`, where the bytes comparing
    equal would be the wrong answer.
 9. **A constant stored through a runtime index skips the save** - the value is
@@ -1116,7 +1116,7 @@ footprint is known at compile time (`npm run memory -- <project>`):
   call level (longest path through the graph), plus expression temporaries.
   Counted from the pushes the emitter actually emits, not from a model of them.
 - **Code** - exact, but comes from NASM, so it needs a build. Since the `.COM`
-  file is code plus data and data is known, `code = fileSize − dataSize`.
+  file is code plus data and data is known, `code = fileSize - dataSize`.
 
 **Temporaries sum down the call path**, they are not maxed across it:
 
@@ -1282,7 +1282,13 @@ text cells; `tilefill` was checked the same way, five pixels covering both tiles
 two rows and a tile at a non-zero position to catch stride arithmetic.
 
 What it cannot cover is anything that waits for a key - tier 2 has no way to
-press one - so the three demos are golden-tier only.
+press one - so everything interactive is golden-tier only. That is six projects
+now: the three demos (`rndtext`, `rndpix`, `tilefill`), the two games (`simplerl`
+and `tennis`), and `mlodemo`, which draws a layout and waits. `mlodemo` is the
+case worth noting, because it is the only one whose *numbers* are covered
+elsewhere: `projects/momolo` runs the same scenes through the same engine and
+prints every resolved box, so only the drawing is untested rather than the whole
+program.
 
 **Comparison had eight jump mnemonics and no coverage.** `cmptest` fixes that, and
 its shape is worth copying: `-1` is `0xFFFF`, so every comparison in it answers the
@@ -1309,7 +1315,7 @@ their contract will not move. Everything else is tested end to end.
 **The desugar round trip is the only test of the parser.** `npm run desugar`
 prints a program back as Momo from its AST, by which point the parser has already
 lowered `=>`, `else if`, prefix and postfix `++` and adjacent string literals, and
-the loader has spliced every `include`. Tier 1 prints all 51 programs and compile
+the loader has spliced every `include`. Tier 1 prints all 60 programs and compile
 tests, compiles the printed copy, and requires the same code from both.
 
 It asserts nothing about how the AST is arranged - only that printing and parsing
@@ -1322,14 +1328,31 @@ by construction: no comments, different wrapping, sugar lowered. So the `; ---- 
 lines come out and everything else has to match - every instruction, every label,
 every inline comment about a widening or a jump choice.
 
-**`local` is the one thing it cannot round-trip**, and the test skips those six
-cases rather than weakening what it asserts for the other 45. Printing splices
+**`local` is the one thing it cannot round-trip**, and the test skips those 13
+cases rather than weakening what it asserts for the other 47. Printing splices
 every include into one file, and `local` names a file as its owner - so the
 boundary that gives a private its identity is exactly what printing destroys. A
 private from `rand.momo` comes back owned by the printed file, and two files that
 each declare `local u16 hidden` collide outright. Not a printer bug: the AST is
 faithful, and one file has no way to say which of several files a name belonged
 to.
+
+**The skip is transitive, which makes `local` in a library expensive.** A program
+is skipped if any statement it *loads* is private, so one `local` in a widely
+included file removes every consumer from the only test the parser has. That is
+why 13 cases are skipped where far fewer files use the keyword, and it is worth
+pricing before adding a private to `lib/`:
+
+- `local u16 randomSeed` in `std/rand.momo` costs the six programs that include
+  it, and pays for itself - it closes a hole where a program could write past the
+  guard that keeps the generator alive.
+- Marking `putNumber`'s three consts private in `std/io.momo` was tried and
+  reverted. 22 programs include that file, so it cost 19 of the 48 assertions -
+  most of the tier - to enforce something the `io` prefix already achieves for
+  three values nothing can write.
+
+The rule that falls out: a private in a library wants a correctness reason, not a
+tidiness one. `local` on a program's own file is free, because nothing includes it.
 
 `tests/compile/ok-precedence.momo` exists for it. Bracketing is where a printer
 goes wrong, and a program only catches that if it contains an expression whose
@@ -2252,6 +2275,35 @@ up, so where both fit, this is the more Momo-shaped answer.
 
   Codegen is trivial: roughly `mov bx, ax` / `mov al, [bx]`. It was - that is
   exactly what it emits.
+- **A direct-write path for `std/screen.momo`.** Every routine in it goes through
+  `int 10h`, which is an interrupt per cell. That was the only option when the
+  file was written; `far` (§16) and `view` (§17) have since made the B800:0000
+  text buffer ordinary memory, and `lib/mopaint.momo` writes it directly - so the
+  capability is built and demonstrated, and only the library has not moved.
+
+  What stops it being obvious is that the two have different obligations.
+  `std/screen` must not disturb ES, because any caller may be mid-`far` access;
+  `mopaint` owns its whole frame and can. So the question is not "is direct
+  writing faster" - it is whether one library can offer both without the fast
+  path quietly breaking the slow one's guarantee, or whether the honest answer is
+  that `mopaint`'s existence already *is* the answer and `std/screen` should stay
+  what it is. Nothing has needed it yet: the programs that want speed are the
+  ones that already reach for `far` themselves.
+
+- **A raw scancode reader in `std`.** `std/key.momo` is `int 16h`, which blocks
+  and reports one key at a time. `projects/tennis/t_kbd.momo` has the other
+  thing - IRQ1 masked, the 8042 polled directly, make and break tracked as level
+  state per player, plus the sticky latch a tap needs. Every hard-won entry in
+  `PITFALLS.md` came out of writing it, and none of that knowledge is in `lib/`.
+
+  Port I/O (§22) is what made it possible, and it landed after `std/key.momo` was
+  written, so this is a gap rather than a decision. Against moving it: a raw
+  reader is not a drop-in for a blocking one, it needs shutdown discipline the
+  BIOS version does not (unmasking with a key held puts a keystroke at the DOS
+  prompt), and one game is a thin basis for an interface. A second program that
+  wants held-key input is the thing to wait for, and §24's chained `int 9` would
+  change the shape again.
+
 - **`asm { }` passthrough** for hand-written NASM. Probably not needed for a long time.
 - **Strength reduction for powers of two** - **built; see §21.** `i * 4`
   emitted a `mul` (~120 cycles on an 8086) where two `shl` do, and `x / 8` a
@@ -2427,9 +2479,9 @@ cycles per pixel, and the misalignment adds 7 x 4 = 28.
 | per tile (64 pixels) | 8086 | 8088 |
 |---|---|---|
 | as built | ~13,400 | ~13,900 |
-| word views, 32 iterations | ~7,000 (−48%) | ~7,200 (−48%) |
-| aligned scalars only | ~11,600 (−13%) | no change |
-| both | ~6,100 (−55%) | ~7,200 (−48%) |
+| word views, 32 iterations | ~7,000 (-48%) | ~7,200 (-48%) |
+| aligned scalars only | ~11,600 (-13%) | no change |
+| both | ~6,100 (-55%) | ~7,200 (-48%) |
 
 **The word-view half is the prize, and it needs no compiler work at all.** §17
 already expresses it: `view u16[64] tileWords = tiles[0]` over the `u8[128]` set,
@@ -3083,7 +3135,7 @@ Tier 2 can write a register and read it back where the register is genuinely
 readable - the sequencer and graphics controller indices are - and that is worth
 having, but it tests DOSBox's emulation as much as Momo's codegen, and readback is
 not reliable on real hardware even where DOSBox permits it. A scrolling demo
-cannot be checked from stdout at all, so it joins the three existing demos as
+cannot be checked from stdout at all, so it joins the existing demos as
 golden-tier only. **The honest claim for an automated test here is "the right port
 instruction was emitted", not "the hardware agreed"** - and any test added should
 say so in its own comment rather than implying otherwise.

@@ -1,8 +1,9 @@
+include "t_cfg.momo"
+
 local const picMask = 0x21
 local const kbData = 0x60
 local const kbStatus = 0x64
 local const kbFull = 1
-local const kbAux = 1 << 5
 local const irqKbd = 1 << 1
 
 local const scEsc = 0x01
@@ -15,59 +16,71 @@ local const scLeft = 0x4b
 local const scRight = 0x4d
 local const scDown = 0x50
 
-bool isUp1
-bool isDown1
-bool isLeft1
-bool isRight1
-bool isUp2
-bool isDown2
-bool isLeft2
-bool isRight2
+// Level state - true while the key is down. Indexed by player, so nothing
+// downstream has to know that WASD is player 0 and the arrows are player 1.
+group held[playerCount] {
+  bool up
+  bool down
+  bool left
+  bool right
+}
+
 bool isEsc
 // sticky, or we can miss a fast tap
 bool wasEsc
 
-local u8 code
-
 sub keyboardBegin {
+  u8 code
+
   // stop bios seeing irq1
-  out8( picMask, in8( picMask ) | irqKbd )       
-  
+  out8( picMask, in8( picMask ) | irqKbd )
+
   // drop stale
-  while ( in8( kbStatus ) & kbFull ) { 
-    code = in8( kbData ) 
-  }   
+  while ( in8( kbStatus ) & kbFull ) {
+    code = in8( kbData )
+  }
 }
 
 local bool anyKeyDown() => (
-  isEsc ||  
-  isUp1 || isDown1 || isLeft1 || isRight1 ||
-  isUp2 || isDown2 || isLeft2 || isRight2 
+  isEsc ||
+  held[ leftPlayer ].up   || held[ leftPlayer ].down  ||
+  held[ leftPlayer ].left || held[ leftPlayer ].right ||
+  held[ rightPlayer ].up   || held[ rightPlayer ].down ||
+  held[ rightPlayer ].left || held[ rightPlayer ].right
+)
+
+// Either player asking to serve. Here rather than at the call site because this
+// file owns what the flags mean.
+bool anyLeftRight() => (
+  held[ leftPlayer ].left  || held[ leftPlayer ].right ||
+  held[ rightPlayer ].left || held[ rightPlayer ].right
 )
 
 sub keyboardEnd {
+  u8 code
+
   // consume any keys before exiting so we don't eg write ESC back to DOS
   // prompt while quitting
   while ( anyKeyDown() ) {
     pollKeyboard()
   }
 
-  while ( in8( kbStatus ) & kbFull ) { 
-    code = in8( kbData ) 
+  while ( in8( kbStatus ) & kbFull ) {
+    code = in8( kbData )
   }
-  
+
   out8( picMask, in8( picMask ) & ~irqKbd )
 }
 
 local sub applyKey( u8 key, bool pressed ) {
-  if ( key == scW ) isUp1 = pressed
-  else if ( key == scS ) isDown1 = pressed
-  else if ( key == scA ) isLeft1 = pressed
-  else if ( key == scD ) isRight1 = pressed
-  else if ( key == scUp ) isUp2 = pressed
-  else if ( key == scDown ) isDown2 = pressed
-  else if ( key == scLeft ) isLeft2 = pressed
-  else if ( key == scRight ) isRight2 = pressed
+  if ( key == scW ) held[ leftPlayer ].up = pressed
+  else if ( key == scS ) held[ leftPlayer ].down = pressed
+  else if ( key == scA ) held[ leftPlayer ].left = pressed
+  else if ( key == scD ) held[ leftPlayer ].right = pressed
+  else if ( key == scUp ) held[ rightPlayer ].up = pressed
+  else if ( key == scDown ) held[ rightPlayer ].down = pressed
+  else if ( key == scLeft ) held[ rightPlayer ].left = pressed
+  else if ( key == scRight ) held[ rightPlayer ].right = pressed
   else if ( key == scEsc ){ 
     isEsc = pressed
 
@@ -75,16 +88,17 @@ local sub applyKey( u8 key, bool pressed ) {
   }
 }
 
-local u8 status
-local bool down
-
 local sub ioDelay => out8( 0x80, 0 )
 
 sub pollKeyboard {
+  u8   status
+  u8   code
+  bool down
+
   while ( true ) {
     status = in8( kbStatus )
     ioDelay()
-    
+
     // byte is waiting
     if ( ( status & kbFull ) == 0 ) break
 
