@@ -13,6 +13,9 @@
 //   points  8014
 //   palette 39
 //   bytes   37874
+//   level   advanced
+
+const dataLevel = 1
 //
 // There is no cubic. Every curve here is a quadratic no wider than 15 pixels,
 // which is the range the study audited for the rasteriser.

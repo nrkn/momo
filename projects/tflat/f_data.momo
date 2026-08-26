@@ -20,6 +20,9 @@
 //   ops     5942
 //   points  5942
 //   bytes   29710   against 36377 curved
+//   level   simple
+
+const dataLevel = 2
 
 const opMove = 0
 const opLine = 1

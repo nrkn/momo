@@ -18,6 +18,9 @@
 //   paths   5
 //   ops     344
 //   points  412
+//   level   advanced
+
+const dataLevel = 1
 
 const opMove = 0
 const opLine = 1
