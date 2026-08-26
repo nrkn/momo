@@ -34,7 +34,9 @@
 // momovec includes: an array dimension is needed where the array is declared, so
 // unlike `plot` and `emitSpan` this cannot bind late.
 //
-// 1,024 against a measured worst single path of 232 over the eight ladder rungs.
+// 1,024 against a measured worst single path of 480 over the eleven ladder rungs.
+// It was 232 over eight until three curved rungs were added; `npm run emit` reports
+// the peak now, so the figure beside this constant cannot go stale silently again.
 const maxCrossings = 1024
 
 include "std/io.momo"
