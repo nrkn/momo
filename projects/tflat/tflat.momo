@@ -1,0 +1,135 @@
+// tigerflat.momo - the tiger at level 2, and what that costs.
+//
+//   npm start tflat
+//
+// The same 138 paths as `projects/tiger`, the same digest, and the same harness -
+// the only difference is the data. Every quadratic has been replaced by the line
+// segments that approximate it to half a pixel, so `opKind` contains no 2.
+//
+// **Level 2 is smaller, which was not the expected direction.** A `Q` costs one op
+// byte and two points, control and end, which is 9 bytes here. n lines cost n op
+// bytes and n points, or 5n. So one line saves four bytes, two cost one, three cost
+// six - the crossover is at two lines per quadratic. The tiger averages 1.54, with
+// 57.8% of its quadratics needing a single segment, so it has been storing control
+// points for curves that do not curve:
+//
+//   level 1   4,321 ops   8,014 points   36,377 bytes
+//   level 2   5,942 ops   5,942 points   29,710 bytes
+//
+// More ops, fewer points, 18% less data. And the picture is the same picture: worst
+// separation between the two renderings is 1.41 pixels - one diagonal step - with no
+// pixel in either unmatched in the other.
+//
+// **What it does not save is code, and that is worth stating.** `walkPath` still has
+// its `opQuad` branch, so `drawQuadAny`, `drawQuad` and the subdivision stack are all
+// still linked: the compiler cannot know the data never contains a 2. Getting the
+// code saving needs a walk with no quad branch, which is a separate question from
+// this one - measured here so the two are not confused.
+//
+// The interesting property of level 2 is not its size anyway. **It has no arithmetic
+// precondition.** `drawLine` has no products to overflow, which is why the
+// subdivider's chord fallback is safe at any size - so the 15-pixel span limit, the
+// 8,191 coordinate bound and the whole audit simply do not apply to data like this.
+
+// The crossing budget, measured by the study: peak 692, the same as the curved
+// tiger, because flattening does not change how often an outline crosses a scanline.
+const maxCrossings = 1024
+
+include "std/io.momo"
+include "std/math.momo"
+include "momovec/types.momo"
+include "momovec/edges.momo"
+include "momovec/path.momo"
+include "momovec/fill.momo"
+
+include "f_data.momo"
+
+u16[screenH] rowPixels
+u16[screenH] rowSumX
+u16[maxPaths] pathPixels
+u16 orderHash
+
+u16 currentPath
+
+sub emitSpan( u16 y, i16 x0, i16 x1 ) {
+  i16 x
+
+  for ( x = x0; x <= x1; x++ ) {
+    plot( x, i16( y ) )
+  }
+}
+
+sub plot( i16 x, i16 y ) {
+  u16 ux
+  u16 uy
+
+  if ( x < 0 ) return
+  if ( y < 0 ) return
+  if ( x > xMax ) return
+  if ( y > yMax ) return
+
+  ux = u16( x )
+  uy = u16( y )
+
+  rowPixels[ uy ] += 1
+  rowSumX[ uy ] += ux
+  pathPixels[ currentPath ] += 1
+
+  orderHash = orderHash * 31 + ux + uy
+}
+
+u16 i
+u16 p
+
+for ( i = 0; i < screenH; i++ ) {
+  rowPixels[i] = 0
+  rowSumX[i] = 0
+}
+
+for ( p = 0; p < maxPaths; p++ ) {
+  pathPixels[p] = 0
+}
+
+orderHash = 0
+
+for ( p = 0; p < maxPaths; p++ ) {
+  currentPath = p
+
+  if ( pathHasFill[p] != 0 ) {
+    fillPath( p, true )
+  }
+
+  if ( pathHasStroke[p] != 0 ) {
+    strokePath( p )
+  }
+}
+
+// ---- the digest ----
+
+for ( i = 0; i < screenH; i++ ) {
+  putNumber( i )
+  space()
+  putNumber( rowPixels[i] )
+  space()
+  putNumber( rowSumX[i] )
+  newline()
+}
+
+for ( p = 0; p < maxPaths; p++ ) {
+  putNumber( p )
+  space()
+  putNumber( pathFill[p] )
+  space()
+  putNumber( pathPixels[p] )
+  newline()
+}
+
+putNumber( orderHash )
+newline()
+
+if ( crossingsOverflowed ) {
+  putStr( addr( overflowed ) )
+  newline()
+}
+
+const u8[] overflowed = "CROSSING LIST OVERFLOWED$"
