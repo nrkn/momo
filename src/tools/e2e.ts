@@ -11,11 +11,12 @@
 // program. DOS is 8.3, so names are limited to 8 characters.
 
 import { spawn } from 'node:child_process'
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import {
+  allProjects,
   asmFor,
   buildRoot,
   confPath,
@@ -25,7 +26,6 @@ import {
   libRoot,
   nasmDir,
   projectDir,
-  projectsDir,
   root,
 } from './cli.js'
 import { compile } from '../momo/compile.js'
@@ -126,7 +126,7 @@ const main = async () => {
   const exe = loadToolchain(root).dosbox
   const only = process.argv.slice(2).find((arg) => !arg.startsWith('-'))
 
-  const projects = readdirSync(projectsDir).filter((name) => {
+  const projects = allProjects().filter((name) => {
     if (only && name !== only) return false
     return existsSync(expectedFor(name))
   })

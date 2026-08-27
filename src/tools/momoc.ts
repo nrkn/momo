@@ -5,10 +5,10 @@
 // Writes the generated assembly next to the source, so `npm start -- smoke`
 // picks it up and assembles it in DOSBox.
 
-import { existsSync, readdirSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
 
-import { asmFor, entryFor, fail, libRoot, projectsDir } from './cli.js'
+import { allProjects, asmFor, entryFor, fail, libRoot } from './cli.js'
 import { compile } from '../momo/compile.js'
 import { formatError, isMomoError } from '../momo/diagnostics.js'
 
@@ -45,7 +45,7 @@ const main = async () => {
   if (!all && !project) fail('usage: npm run momoc -- <project>   (or npm run momoc:all)')
 
   const projects = all
-    ? readdirSync(projectsDir).filter((name) => existsSync(entryFor(name)))
+    ? allProjects().filter((name) => existsSync(entryFor(name)))
     : [project]
 
   let failed = 0

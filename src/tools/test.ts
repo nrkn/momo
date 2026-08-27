@@ -19,12 +19,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import {
+  allProjects,
   asmFor,
   compileTestsDir as compileDir,
   designPath,
   entryFor,
   libRoot,
-  projectsDir,
 } from './cli.js'
 import { compile } from '../momo/compile.js'
 import { formatError, isMomoError } from '../momo/diagnostics.js'
@@ -285,9 +285,7 @@ const firstDifference = (actual: string, expected: string): string | null => {
 const goldenTests = (): number => {
   // Projects with no .momo are hand-written assembly, and have nothing to
   // compare against.
-  const projects = readdirSync(projectsDir)
-    .filter((name) => existsSync(entryFor(name)))
-    .sort()
+  const projects = allProjects().filter((name) => existsSync(entryFor(name)))
 
   for (const project of projects) {
     const goldenPath = asmFor(project)
@@ -336,7 +334,7 @@ const codeOnly = (assembly: string): string[] =>
 const roundTripTests = (): number => {
   const cases: { name: string; file: string }[] = []
 
-  for (const project of readdirSync(projectsDir).sort()) {
+  for (const project of allProjects()) {
     const file = entryFor(project)
     if (existsSync(file)) cases.push({ name: project, file })
   }
@@ -466,7 +464,7 @@ const subsetTests = (): number => {
   // the same subset, and they are part of what ships. The golden tier has just
   // checked that the generated ones match what the compiler emits today.
   const emitted = new Map<string, string>()
-  for (const project of readdirSync(projectsDir)) {
+  for (const project of allProjects()) {
     const file = asmFor(project)
     if (!existsSync(file)) continue
     for (const line of readFileSync(file, 'utf8').split(/\r?\n/)) {
