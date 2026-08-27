@@ -3695,8 +3695,13 @@ handlers, which IF makes safe.
 ## 25. Planned: fixed-point types
 
 Designed and not yet built. A type whose scale the compiler knows, so that it can
-insert the shifts and reject the mismatches - and **lowered entirely in the parser**,
-to Momo that could have been written by hand.
+insert the shifts and reject the mismatches, and **lowered to Momo that could have been
+written by hand**.
+
+An earlier draft of this section said "lowered entirely in the parser". That is wrong,
+and it is wrong in a way that reaches as far as which test tier can see the feature at
+all: `*` has three different outcomes depending on its operand types, and the parser has
+no symbol table. See "Where the lowering lives" below.
 
 ```momo
 i8.8 scale  = 1.5
@@ -3739,6 +3744,37 @@ the scale is preserved. The other reading promotes the `i16` to `i8.8` first, an
 two answers are 256x apart. Count is the useful one, and promotion is what a cast is
 for: `a * i8.8( n )`. §4 has no implicit promotion anywhere and this adds none.
 
+### Untyped constants are counts too, and this is the case that nearly got missed
+
+The table above has a row for every named type and none for `untyped`, which is the type
+a literal carries until something fixes it. That is not a gap in the writing; it is the
+commonest expression in real code. `combineOperands` decides by *range* rather than by
+name, so nothing above catches `scale * 2`: the ranges combine, the result is a plain
+`i16`, and the scale is gone. That is the 256x error this section exists to prevent,
+arriving through the mechanism §4 added for convenience.
+
+So the rule has to be stated rather than inherited. **An untyped integer constant is a
+count**, exactly as an `i16` is:
+
+```
+i8.8 * 2      ->  twice as big, no shift            i8.8
+i8.8 + 2      ->  error, 2 has no scale, needs a cast
+```
+
+`i8.8 + i8.8( 2 )` is the promotion, exactly as it is for an `i16`, so the cast carries
+the whole difference between "two units" and "two 256ths" and nothing has to be inferred
+from context.
+
+Assignment takes the matching rule, and it lives in a different place in the code from
+the operator table: `i8.8 x = someI16` is an error for the same reason `i8.8 + i16` is.
+Easy to leave out, because nothing about `checkAssignable` points at this section.
+
+**So `i8.8 x = 2` is an error and `i8.8 x = 2.0` is how it is written.** That looks
+pedantic beside §4, where a literal adapts to its target and `u8 y = 2` is ordinary. It
+is the count rule holding: `2` is a count everywhere, including here, and a count is not
+a value with a radix point. The decimal point is what says which was meant, and it costs
+one character.
+
 ### Spelling
 
 `i8.8` and `u8.8`. The signedness letter stays because §4's whole rule turns on it,
@@ -3771,23 +3807,146 @@ amounts. The valid set is finite and small.
 - **`i0.16` is allowed.** A pure fraction in [-1, 1) is genuinely useful: a normalised
   value, a sine table entry.
 
-### Lowered in the parser, and the round trip already proves it
+### Scale rides beside the storage type, and never reaches the emitter
 
-Literals scale at parse time and cost nothing at run time: `1.5` in 8.8 **is** the
-integer 384. `+`, `-` and comparison need no lowering at all. Only `*` and `/` lower,
-to a call:
+The obvious implementation is to add the spellings to `ValueType` - `'i8.8'` alongside
+`'u16'` - and it is the wrong one. Two reasons, and the second decides it.
+
+The valid set is 48, not five: eight signed and eight unsigned splits at one byte,
+sixteen of each at two. That is still finite and small, but it turns `rangeOf`,
+`isSigned`, `widthOf`, `promote` and `truncate` into tables.
+
+And **nothing would make a new member fail loudly.** Those five functions are `if` chains
+with unguarded fall-through - `rangeOf` ends by returning i16's range, `widthOf` returns
+1 for anything that is not `u16` or `i16`, `isSigned` returns false for anything that is
+not `i8` or `i16`. Adding `'i8.8'` produces no TypeScript error at all, and hands it
+i16's range, width 1, and unsigned comparisons. The emitter reads the same type through
+`typeOf`, with several sites keyed on exact equality with `'i8'` - the `cbw` widening and
+three peephole guards among them - so an `i4.4` would silently miss the sign extension a
+byte-stored signed value needs. Wrong instructions, no diagnostic, and only the golden
+tier or tier 2 could notice.
+
+So scale is **metadata beside the storage type**, not a member of it. Taking literally
+the claim above that `i12.4` *is* an `i16`: `Resolved` grows a fraction width, `frac: 0`
+means every existing site keeps working unchanged, and making the field required turns
+forgetting it into a compile error rather than a silent loss of scale - which matters for
+a feature whose whole purpose is catching silent losses of scale.
+
+The cost is real and worth naming. Four AST carriers hold a bare `TypeName` today and
+each needs the fraction width alongside; and any site that prints `resolved.type` raw
+will say `i16` where the source said `i8.8` until it is taught otherwise.
+
+**Promotion preserves the scale**, which falls out of this representation and would have
+been 48 table entries under the other one. All arithmetic happens in 16 bits, so `i4.4`
+computes as `i12.4`: the storage widens and the radix point does not move.
+
+**And the scale is erased before the emitter.** Every scale-dependent operation is either
+a call or an explicit shift, so `resolvedType` stamped on AST nodes stays a five-member
+`ValueType` and the emitter never learns the feature exists. That is what makes "no new
+codegen" a property rather than a hope.
+
+### Where the lowering lives, and what the round trip can actually see
+
+`+`, `-` and comparison need no lowering at all. Only `*` and `/` lower, to a call:
 
 ```momo
 i8.8 c = a * b        // lowers to
 i8.8 c = fixMul( a, b )
 ```
 
-`fixMul` is an ordinary hand-written `sub` in `lib/std/fixed.momo`. **Which means the
-desugar round trip in §14 verifies this feature without a new tier.** That test prints
-each program back as Momo with sugar already lowered, compiles the printed copy, and
-requires the same code from both - so the printed form *is* the hand-written Momo, and
-the round trip proves it. `=>`, `else if`, `++`, adjacent string literals, compound
-assignment and `group` all arrive this way already.
+`fixMul` is an ordinary hand-written `sub` in `lib/std/fixed.momo`, so the printed form
+*is* the hand-written Momo - the same route `=>`, `else if`, `++`, adjacent string
+literals, compound assignment and `group` all arrive by.
+
+But **the decision to lower needs the operand types**, and the parser has no symbol
+table. So this happens in the resolver, which today annotates and never rewrites - and
+both `npm run desugar` and the §14 round trip print the output of `load()`, so a
+resolver-side rewrite is invisible to both.
+
+Fixable cheaply, and cheaply for a specific reason: **print the post-resolve program
+instead.** Since the resolver only annotates today, the printed text comes out
+byte-identical for every existing round-trip case, so the change is a no-op that then
+covers the lowering.
+
+**Literals are the half that really is parse-time, and only where the scale is
+adjacent.** `i8.8 x = 1.5` has the type right there, so 1.5 becomes 384. `const k = 1.5`
+and `f( 1.5 )` do not, so a decimal has to stay an untyped fixed value carrying an exact
+rational until a scale appears. That is the `untyped` mechanism again rather than a
+parse-time constant, and it is the same rule as the count above seen from the other side.
+
+**"Exact" is a property of 1.5, not of the scheme**, and an earlier draft of this section
+said otherwise. 0.1 in 8.8 is 25.6, and most decimals anyone writes are not
+representable. So a literal **rounds to nearest, ties away from zero**. Ties are
+reachable rather than theoretical - 0.001953125 is half a unit in 8.8 and a finite
+decimal - and the cost of the choice is a small upward bias in magnitude that
+round-half-to-even would not have. It is the rule that is easiest to state and to check
+by hand, which is worth more here than the bias costs.
+
+Rejecting an inexact decimal was the alternative, and it would make the feature awkward
+in exactly the proportional cases it exists for. `0.1` is an ordinary thing to write.
+
+**And the round trip does not verify this feature.** An earlier draft of this section
+claimed it did, in those words, without a new tier. It cannot: the harness compiles the
+original and the printed copy and requires matching assembly, so it is symmetric. Lower
+`>> 7` where `>> 8` belongs and both copies get `>> 7`, the assembly matches, and the
+test passes. Its own comment says what it is - the only test of the parser. It proves
+the lowering is *representable*, which is worth having, and says nothing about whether it
+is *right*.
+
+So this feature needs tier 2 numbers. That was always going to be true of a section which
+goes on to say that signed magnitude-and-sign is where the bugs would live; claiming the
+round trip covered it was a sentence that sounded like a reason.
+
+### Casts across the scale boundary, and the reinterpret that has to exist
+
+Two conversions, and both read best as ordinary casts:
+
+```momo
+i16  pixels = i16( scaled )   // 30 from 30.0 - a shift right
+i8.8 three  = i8.8( 3 )       // 768 - a shift left
+```
+
+One rule - **a cast across the scale boundary preserves the value** - and not a new
+principle: Momo's casts are about values already, and `u8( 300 )` truncating is the
+documented failure mode rather than the intent.
+
+It does collide with what a cast does today. Everything arrives in AX widened to 16 bits,
+and the emitter has no branch for a `u16` or `i16` target, so a 16-to-16 cast is zero
+instructions - a pure reinterpret. `i16( scaled )` currently gives 7680, not 30. Adopting
+the rule means the resolver inserts an explicit shift, which is legal printable Momo and
+so sits inside the round trip's reach, and the emitter stays untouched. The constant fold
+has to insert the same shift, signed rounding included, or a constant and a runtime value
+give different answers for one source line.
+
+**Which spends the only bit-preserving spelling there is, and the lowering needs one.**
+`fixMul` is hand-written in plain 16-bit Momo, so its call site has to hand over the raw
+words and its body has to hand back a fixed result. Four conversions exist: the two
+value-preserving ones are the casts above, and the two bit-preserving ones have no
+spelling at all once `i16( fixed )` starts shifting.
+
+Two things nearly serve. `peek16( addr( x ) )` is bit-preserving today, but it costs an
+address and a memory read where a reinterpret should cost nothing, and its inverse
+`poke16` is a statement - so it does not compose inside an expression, which is the shape
+problem this section raises against 16.16 below. And `view` (§17) is a zero-instruction
+bit-preserving reinterpretation, proven enough that it retired the emitter's byte-alias
+arithmetic - but it needs an array to window onto rather than a scalar, and it is a
+declaration rather than an expression.
+
+**So a reinterpreting cast is part of the feature**, cast-shaped because it needs a target
+type. It fits an existing family: `peek`, `poke`, `in` and `out` are all deliberately
+unsafe and visibly so at every use, and this is that. The spelling is open. The cost is
+one token, a grammar regeneration, and the six files any language-surface addition
+touches - which measured 189 lines when §22 added four intrinsics at once, so this is not
+the cheap half of the feature.
+
+A parameterised const would have avoided it, and does not work. The unsigned kernel is a
+single expression, so one declaration with the shift as a parameter would fold for every
+scale at once. But the resolver rejects an argument that calls a fn when a parameter is
+used more than once, and the kernel uses each operand four times - so `a * b` with a call
+on either side would fail for a reason the programmer never wrote, and fixing that needs
+an invented temporary with storage and §12 accounting. Which is the exact cost this
+section rejects 16.16 for, arriving by a different road. The helper has to be a real
+`sub`.
 
 ### No new register pressure, which is the whole reason it is shaped this way
 
@@ -3810,8 +3969,38 @@ would live and wants predict-then-check rather than confidence.
 That 3x is a deliberate trade and it has an escape hatch that does not move the
 language. The sugar's *meaning* is defined by its lowering, so a faster implementation
 of the same meaning is an optimisation: the emitter can special-case the pattern, or a
-widening-multiply intrinsic can arrive, and no program changes. Ship the sugar, measure
-whether the 3x matters on something real, and only then spend anything on the back end.
+widening-multiply intrinsic can arrive, and no program changes. This section then said:
+*"Ship the sugar, measure whether the 3x matters on something real, and only then spend
+anything on the back end."*
+
+**Which has the difficulty backwards. The back end is simpler than the Momo kernel, not
+harder.** The four-mul synthesis exists only because §9 discards `DX`; an
+emitter-synthesised helper is a leaf that returns in AX, so nothing sees `DX` live across
+it. The emitter already emits helpers of exactly this shape, one per distinct interrupt
+with the literal baked in and pruned when unused. `(a*b) >> 8` out of `DX:AX` is then a
+byte extraction:
+
+```nasm
+        mul     bx
+        mov     al, ah
+        mov     ah, dl
+```
+
+Around 130 cycles and 8 bytes, against roughly 400 for four `mul`s. One helper per
+fractional width in use, which is one per distinct constant - the same rule the interrupt
+helpers already follow.
+
+**§1 anticipated this without knowing it.** `imul` is excluded there because "with no
+32-bit type we never read `DX`", and a fixed multiply reads `DX` - so that justification
+expires the moment this feature exists. Signed then costs one `imul` and the same two
+`mov`s, at 39 mnemonics becoming 40 and a §1 edit. Staying at 39 means magnitude-and-sign
+with `neg` around one `mul`, still several times faster than the kernel.
+
+None of which changes the order. **Build the Momo lowering first and the helper second**,
+because the helper is where the signed cases live and the Momo version is the reference it
+gets checked against. The other way round validates a magnitude-and-sign kernel against
+nothing, which is the wrong direction for the one part of this section already flagged as
+bug-prone. The escape hatch is worth holding in reserve rather than spending early.
 
 **This is why fixed point is the right shape and a 32-bit type is not.** §22 records
 what happened when port I/O assumed `DX` was free because §9 called it *"scratch and
@@ -3832,8 +4021,25 @@ and the quotient can exceed a word and fault.
 Two standard mitigations, and they are enough to start: division by a **constant**
 becomes a multiply by a reciprocal at compile time, which covers most real uses; and
 division by a **variable** is where a `mulDiv` intrinsic would first earn its place.
-So `/` is the natural first candidate if the back end ever gains anything, and until
-then it is the operation to use sparingly.
+So `/` is where a `mulDiv` intrinsic would first earn its place, behind the multiply
+helper above rather than ahead of it, and until then it is the operation to use sparingly.
+
+### Scope of the first build
+
+Every example in this section is 8.8, and so is the requirement that produced the
+feature. So the type checking takes all 48 spellings and **only 8.8 gets a multiply**: a
+scale with no helper is a clear "no multiply for this scale yet" rather than a wrong
+answer, and the choice between one helper per width and one taking the shift as a
+parameter then gets made against real callers instead of guessed at now.
+
+A shift parameter is not free. `mov cl, n` then `shl ax, cl` costs 8+4n where a folded
+constant of two or less unrolls to repeated `shl ax, 1`, and the kernel has two or three
+shifts in it - so somewhere between 20% and 40% on top of 400 cycles. That range is
+arithmetic on the timings rather than a measurement, and it is the kind of figure this
+project has been wrong about before, so predict it properly before adopting either shape.
+
+`i0.16` and `u0.16` want care whichever way that goes: a shift of 16 puts the entire
+product in `DX`, so the pure-fraction types are not one more row in the table.
 
 ### Why not 16.16
 
@@ -3857,9 +4063,12 @@ first is much cheaper here.
 The opportunity is not wider numbers, it is **proportions without overflow**, and there
 is more of that waiting than expected.
 
-- **`lib/std/rand.momo`** is a u16 LCG whose own header documents the damage: *"period
-  256"*, *"period 512 - a visible band every 1.6 scanlines"*. `rndpix` and `rndtext`
-  are the programs that would show an improvement.
+- **`lib/std/rand.momo`** was written up here as a u16 LCG, quoting its own header on
+  *"period 512 - a visible band every 1.6 scanlines"*. That header describes a generator
+  the file no longer has: the LCG was replaced with xorshift16 the day before this section
+  was written, and those lines are its account of what got retired. The file may still
+  want proportions - `randomBelow` is a `div` per call - but not for the reason given, and
+  nothing checked the quotation against the code it came from.
 - **`lib/momolo` has no proportional arithmetic at all**, and percent sizing was one of
   the things explicitly cut from the clay port. This is what it needs.
 - **`projects/tennis`** carries shifts documented as port fidelity - `obj >> 2` - which
