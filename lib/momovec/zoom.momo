@@ -1,0 +1,37 @@
+// momovec/zoom.momo - coordinates scaled about a centre as they are read.
+//
+// **`momovec/direct.momo` or `momovec/zoom.momo`, never both.** They define the
+// same two names and the program picks, exactly as `subdiv.momo` and
+// `quadflat.momo` do for quadratics.
+//
+// This is the transform that could not be baked. `projects/tpan` bakes its
+// translation into generated data, which works because a translation does not
+// change how many points there are - and a zoom does: the 3x tiger needs 13,982
+// points against 8,014, which came to 84,914 bytes against a 64 KB segment. It
+// built, ran, and printed zeros. So the scale has to be applied as the geometry is
+// read, which is what this file is, and the extra segments a curve flattens into
+// are then generated on the fly and never stored. See the study's CLIP.md.
+//
+// **The multiply is `fixMul`, and this is what DESIGN §25 was for.** One multiply
+// per coordinate, no new codegen, and `mulshr8` makes it about 181 cycles rather
+// than 901.
+//
+// Set all three before drawing. `zoomScale` is 8.8, so `1.0` is identity and `3.0`
+// is three times the size; the centre is the point that stays put.
+
+include "std/fixed.momo"
+
+i8.8 zoomScale
+i16  zoomCx
+i16  zoomCy
+
+// `raw i16( zoomScale )` hands `fixMul` the bits rather than the value, which is
+// what it wants: it multiplies two words and shifts the product down by eight, so
+// giving it a plain coordinate and an 8.8 scale returns a plain coordinate. That
+// pairing is the reason the reinterpreting cast exists.
+//
+// Truncation is toward zero, because that is what fixMul does - so a coordinate
+// left of the centre and one the same distance right of it round the same way,
+// which keeps the transform symmetric about the centre it names.
+const i16 mapX( u16 at ) = fixMul( px[ at ] - zoomCx, raw i16( zoomScale ) ) + zoomCx
+const i16 mapY( u16 at ) = fixMul( py[ at ] - zoomCy, raw i16( zoomScale ) ) + zoomCy
