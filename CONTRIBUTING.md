@@ -24,7 +24,8 @@ shared/              the include root: what more than one project reads
 shared/lib/std/      standard library, written in Momo
 shared/lib/momolo/   a layout engine, written in Momo
 shared/lib/momovec/  a vector rasteriser, written in Momo
-projects/            programs, as <name>/<name>.momo
+shared/scenes/       data read by more than one project
+projects/            programs, as <category>/<name>/<name>.momo
 tests/compile/       tier 1 tests
 editor/vscode/       generated syntax highlighting
 ```
@@ -32,6 +33,31 @@ editor/vscode/       generated syntax highlighting
 A project with more than one file prefixes its parts - `t_scr.momo` beside
 `tennis.momo` - and a library does not, because there is no entry file to
 separate them from. `STYLE.md` has the rule and why.
+
+`projects/` is grouped by **what is broken when a project fails**:
+
+```
+compiler/lang       one language feature each - if it fails, the compiler is wrong
+compiler/algo       real algorithms, proving the language carries one
+library/std         exercises a library in shared/lib/std
+library/vector      holds shared/lib/momovec against the study it was ported from
+library/layout      the same for shared/lib/momolo
+programs/games      the games
+programs/demos      draws, waits for a key, and cannot have a .expected
+toolchain/          hand-written .asm, checked before the compiler is involved
+```
+
+That axis was chosen over grouping by subject or by purpose because it is the one
+a red suite can act on: it says which half of the repo to open. Grouping by
+subject leaves `games` with nowhere to sit, and grouping by purpose puts 36 of the
+46 in one directory, which is the flat list again one level down.
+
+**A project is still addressed by its bare name** - `npm start tennis` - because
+where it sits is not part of its identity. Two projects sharing a name is an error
+rather than something a path disambiguates, `build/` stays flat, and
+`.vscode/tasks.json` passes a bare basename. It is also why this document writes
+`tennis` rather than a path: a path goes stale the first time anything is
+recategorised, and these documents have drifted before.
 
 ## Pipeline
 
@@ -265,31 +291,32 @@ A review can catch a bug. It cannot supply an understanding that was never forme
 
 ## Current state
 
-`projects/simplerl` is a roguelike at the "move `@` around a hard-coded
+`simplerl` is a roguelike at the "move `@` around a hard-coded
 map" stage, using dirty-tile redraw, and is **deliberately finished** - it is
 kept as the smallest thing that is recognisably a game, so anything further
 belongs in its own project. The name `rl` is reserved for a fuller one.
 
-Most of what else is under `projects/` is a test fixture or a demonstration
-of one language feature. Three are **demos**: `rndtext` fills the text buffer with
-random characters, `rndpix` fills a mode 13h frame with random pixels, and
-`tilefill` checkerboards two 8x8 tiles over one. All three wait for a key and put
-the display back, so none can have a `.expected` - tier 2 cannot run something
-that blocks. The golden tier still covers them, which is the regression coverage
-that matters for a compiler.
+What most of the rest are is now said by the tree rather than by this paragraph.
+What the tree cannot say is that **nothing checks `programs/demos`**: `rndtext`
+fills the text buffer with random characters, `rndpix` fills a mode 13h frame with
+random pixels, `tilefill` checkerboards two 8x8 tiles over one, and `tigerpic`,
+`mvpic` and `mlodemo` draw what the harnesses beside them digest. All six wait for
+a key and put the display back, so none can have a `.expected` - tier 2 cannot run
+something that blocks. The golden tier still covers them, which is the regression
+coverage that matters for a compiler.
 
-`projects/tennis` is the other game and the largest program here - 790 lines over
+`tennis` is the other game and the largest program here - 828 lines over
 six files, mode 13h, sprites, a palette, and a keyboard reader that masks IRQ1 and
 talks to the 8042 directly. Most of `PITFALLS.md` was found in it, and found on
 86Box rather than under DOSBox. It blocks on input, so it is golden-tier only too.
 
 `shared/lib/momovec/` is a vector rasteriser ported from a TypeScript study, and it also
-arrived with two projects. `projects/tiger` digests the Ghostscript tiger - 339
+arrived with two projects. `tiger` digests the Ghostscript tiger - 339
 numbers covering every scanline, every path and the order all 92,949 pixels were
-drawn in, held against the study - and `projects/tigerpic` draws it at 320x200 in
+drawn in, held against the study - and `tigerpic` draws it at 320x200 in
 mode 13h and waits for a key, so it is golden-tier only. The data is generated and
 lives once, at `shared/scenes/tiger.momo`, which all three of `tiger`, `tigerpic`
-and `tzoom` include by that one name. It used to live inside `projects/tiger` with
+and `tzoom` include by that one name. It used to live inside `tiger` with
 the other two reaching across by `../`, which made the include depend on where all
 three happened to sit.
 
@@ -299,25 +326,25 @@ file may call a routine the *program* defines, and it compiles to a direct `call
 That is what DESIGN §21's routine parameters would have been for, and it needed no
 language feature at all.
 
-`projects/tzoom` is the tiger zoomed by a transform applied as geometry is READ rather
+`tzoom` is the tiger zoomed by a transform applied as geometry is READ rather
 than baked into data, which is what `shared/lib/momovec/zoom.momo` exists for and what §25 was
-built for. It shares `projects/tiger`'s data unchanged - there is no second copy, because
+built for. It shares `tiger`'s data unchanged - there is no second copy, because
 the whole point is that a zoom cannot be stored: the 3x tiger is 84,914 bytes against a
 64 KB segment. Held against a digest the study derives independently.
 
 `shared/lib/std/fixed.momo` is the multiply behind `*` on a fixed-point type (§25), and it
 holds the same value twice: `fixMulU` over the `mulshr8` intrinsic, and `fixMulUParts`
 built from four multiplies in nothing but ordinary operators. The second is the
-specification and the first is the fast one, and `projects/fixmul` requires them to agree
-over 256 pairs on the target. `projects/fixed` is the language surface instead - every
+specification and the first is the fast one, and `fixmul` requires them to agree
+over 256 pairs on the target. `fixed` is the language surface instead - every
 fixed-point shape that compiles, held by the golden tier because the claim being made
 there is about emitted code.
 
 `shared/lib/momolo/` is a layout engine ported from a TypeScript study, and it arrived
-with two projects rather than one. `projects/momolo` runs six scenes through it
+with two projects rather than one. `momolo` runs six scenes through it
 and prints every resolved box as bare numbers, compared against the numbers the
 original engine produces - two implementations agreeing on every integer, which
-is what makes it a tier 2 test rather than a demo. `projects/mlodemo` draws the
+is what makes it a tier 2 test rather than a demo. `mlodemo` draws the
 same tree at 80x25 and waits for a key - literally the same, since both include
 `shared/scenes/shell.momo` rather than either owning it. Both go through `shared/lib/mopaint.momo`, the
 colour, borders and wrapping layer that deliberately sits outside the engine, so
@@ -330,7 +357,7 @@ of selling - which is not the voice of the three documents it links to. `STYLE.m
 describes the voice it should have.
 
 Rewriting it waits on two things. **Programs worth showing**, first: `simplerl` is
-deliberately the smallest thing that counts as a game, the three demos cannot be
+deliberately the smallest thing that counts as a game, the six demos cannot be
 tier-2 tested, and everything else under `projects/` is a fixture. A README
 that shows off wants something to show, and the text adventure (§15) or a scroller
 once §22 is built are the candidates. And second, a draft **written rather than
@@ -345,7 +372,7 @@ round trip, 3 subset), 35 e2e programs, all green.
 
 Both figures had drifted before they were last read, and the e2e one further than the
 other: it said 26 against an actual 33, and was then incremented three times from the
-wrong base. Counting `projects/*/*.expected` is the honest check, and `npm test` prints
+wrong base. Counting `projects/*/*/*.expected` is the honest check, and `npm test` prints
 the tier 1 breakdown so its parts can be added up. Neither number is enforced by
 anything.
 

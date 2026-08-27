@@ -191,7 +191,7 @@ for ( i = 0; i < 16; i++ ) {
   a = i * 4097
 ```
 
-Found while writing `projects/fixmul`, which compares two implementations over 256
+Found while writing `fixmul`, which compares two implementations over 256
 pairs - so the loop existed to be thorough and hung instead.
 
 ---
@@ -261,7 +261,7 @@ Fifteen names were affected - `wait`, `lock`, `rep`, `repe`, `repz`, `repne`,
 `repnz`, `a16`, `a32`, `o16`, `o32`, `xacquire`, `xrelease`, `bnd`, `nobnd` -
 established by assembling one sub per candidate rather than by reading a list,
 since assuming the category is what caused the bug in the first place. All are
-in the mangled set now, and `projects/prefixes` keeps them there.
+in the mangled set now, and `prefixes` keeps them there.
 
 **Then it happened again, in data - also fixed.** The paragraph above is right
 that `add:` assembles, and that is what made it misleading: only *routines* were

@@ -105,8 +105,9 @@ since the path is yours rather than the project's.
 npm start smoke                 # compile, assemble and run in DOSBox
 ```
 
-Write a program at `projects/<name>/<name>.momo` - the name must be 1-8
-characters, since DOS is 8.3 - then:
+Write a program at `projects/<category>/<name>/<name>.momo` - `programs/games`
+and `programs/demos` are the likely homes for something new, and the name must be
+1-8 characters, since DOS is 8.3. Then, by name and never by path:
 
 ```bash
 npm run momoc -- <name>         # .momo -> .asm
@@ -135,9 +136,11 @@ errors in the Problems panel.
 | **`CONTRIBUTING.md`** | Orientation: layout, scripts, the tooling traps, and the practices that keep this honest |
 | **`CLAUDE.md`** | The handful of things that differ when the contributor is an agent |
 
-**For worked examples, read the programs.** `projects/*` are real programs
-that the test suite compiles and runs, so none of them can drift out of step with
-the compiler. `viewtest` and `fartest` are written to be read - each writes
+**For worked examples, read the programs.** Everything under `projects/` is a real
+program that the test suite compiles and runs, so none of them can drift out of
+step with the compiler - and they are grouped by what is broken when one fails,
+so `compiler/lang` is the language a feature at a time and `library/vector` is the
+rasteriser held against the study it was ported from. `viewtest` and `fartest` are written to be read - each writes
 through one name and reads back through another, so every line says why it is
 true - and `smoke` is every construct in the language in one file.
 

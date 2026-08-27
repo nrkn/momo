@@ -660,7 +660,7 @@ failed for a reason the programmer never wrote.
 
 **And one consequence worth knowing:** a const's body is resolved when it is *expanded*,
 not when it is declared. So a const over names that do not exist compiles cleanly until
-something calls it - which is how `projects/subdiv` carried an include of
+something calls it - which is how `subdiv` carried an include of
 `momovec/direct.momo`, over `px` and `py` it does not have, for a whole commit without
 anything complaining.
 
@@ -1074,12 +1074,12 @@ Three decisions:
 
 **It is the carry from the most recent `int`, not from the one you care about.**
 Anything that prints goes through `int 21h` and replaces it, so read it out
-immediately - `projects/cftest` demonstrates both the reading and the trap.
+immediately - `cftest` demonstrates both the reading and the trap.
 
 **Emit one helper sub per distinct INT number**, not the sync inline at every
 call site. The literal is baked into the helper, so `int 0x21` becomes
 `call int21` - 3 bytes instead of ~40. The shape was proven by hand in
-`projects/keytest` before the transpiler depended on it; among compiled
+`keytest` before the transpiler depended on it; among compiled
 programs, `smoke` emits two helpers and runs under tier 2.
 
 **`addr(x)` builtin** returns a global's `u16` offset. In a `.COM` this is a
@@ -1132,7 +1132,7 @@ of shapes that already existed:
   the inner loop of `memCopy`.
 
 **The address is evaluated first**, which §7 requires of arguments generally and
-which nothing in the emitted code reveals. `projects/peektest` therefore calls
+which nothing in the emitted code reveals. `peektest` therefore calls
 a fn on both sides and prints the order it observed - the one case in that program
 that the golden tier structurally cannot check.
 
@@ -1285,7 +1285,7 @@ This makes the call graph load-bearing twice over - it decides what survives as
 well as what is legal - so anything that hides an edge from it deletes code the
 emitter still calls. Parameterised consts are the subtle case; see §7.
 
-`projects/heaptest` includes `std/io.momo` and uses three of its five subs;
+`heaptest` includes `std/io.momo` and uses three of its five subs;
 `putStr` and `space` do not appear in the output at all, and neither does
 `putStr`'s parameter slot `putStr__at`, which lives or dies with it.
 
@@ -1367,7 +1367,7 @@ does rather than as a line of NASM the emitter knew to write. It is still a
 builtin: the language spells a view's parent as an array with a length, and the
 heap has neither.
 
-Momo provides no allocator. `projects/heaptest` is a bump allocator written
+Momo provides no allocator. `heaptest` is a bump allocator written
 in Momo, which is the intended shape: the language supplies the memory, the
 programmer supplies the policy. **`view` (§17) is often the better answer** -
 `view u8[16] mapData = _heap[0]` partitions the heap into named, bounds-checked
@@ -1487,7 +1487,7 @@ press one - so everything interactive is golden-tier only. That is six projects
 now: the three demos (`rndtext`, `rndpix`, `tilefill`), the two games (`simplerl`
 and `tennis`), and `mlodemo`, which draws a layout and waits. `mlodemo` is the
 case worth noting, because it is the only one whose *numbers* are covered
-elsewhere: `projects/momolo` runs the same scenes through the same engine and
+elsewhere: `momolo` runs the same scenes through the same engine and
 prints every resolved box, so only the drawing is untested rather than the whole
 program.
 
@@ -1611,16 +1611,16 @@ Where that stands:
 
 | | |
 |---|---|
-| Hello world | `projects/hello` - hand-written asm, and trivial in Momo |
-| Fizzbuzz | inside `projects/smoke`, verified end to end |
+| Hello world | `hello` - hand-written asm, and trivial in Momo |
+| Fizzbuzz | inside `smoke`, verified end to end |
 | Arithmetic, arrays, loops, branches | `smoke` - every construct in one program |
 | A standard library | `shared/lib/std/io.momo` |
-| Dynamic allocation | `projects/heaptest` - a bump allocator in Momo |
-| Compile-time tables | `projects/consttst` |
-| Sieve of Eratosthenes | `projects/sieve`, and `projects/bitsiev` bit-packed on the heap |
-| Recursive algorithms | `projects/qsort` (quicksort) and `projects/hanoi` - explicit stacks on the heap |
-| Text-mode screen library | `shared/lib/std/screen.momo`, verified by `projects/scrtest` |
-| String library | `shared/lib/std/str.momo`, verified by `projects/strtest` |
+| Dynamic allocation | `heaptest` - a bump allocator in Momo |
+| Compile-time tables | `consttst` |
+| Sieve of Eratosthenes | `sieve`, and `bitsiev` bit-packed on the heap |
+| Recursive algorithms | `qsort` (quicksort) and `hanoi` - explicit stacks on the heap |
+| Text-mode screen library | `shared/lib/std/screen.momo`, verified by `scrtest` |
+| String library | `shared/lib/std/str.momo`, verified by `strtest` |
 | Text adventure | not yet attempted |
 
 **Only the text adventure is left**, and nothing in the language blocks it. The
@@ -1630,10 +1630,10 @@ Graphics is not blocked either - §16 is built, so the text buffer and mode 13h 
 both addressable as memory.
 
 Two things have since joined the list that were never on the original bar:
-`projects/grptest` for entity pools (§18), and `projects/cftest`,
+`grptest` for entity pools (§18), and `cftest`,
 which opens a file and notices when that fails - the first Momo program that
-could find out the machine said no. `projects/viewtest` (§17) and
-`projects/peektest` (§10) make four.
+could find out the machine said no. `viewtest` (§17) and
+`peektest` (§10) make four.
 
 **Dynamic allocation has an answer that is not an allocator.** `view` partitions
 the heap into named regions at compile time, so `heaptest`'s bump allocator is now
@@ -1663,7 +1663,7 @@ for.
 
 ## 16. `far` regions and ES
 
-**Built, except the hoisting below.** Every access reloads ES; `projects/fartest`
+**Built, except the hoisting below.** Every access reloads ES; `fartest`
 exercises it against the real text buffer, and is the worked example for this
 section (§14) - read it alongside the rules below.
 
@@ -1869,7 +1869,7 @@ Break-even is three accesses, or a loop of three-plus iterations inside the
 routine. It rewards a routine that does a block of work and penalises the
 per-pixel one, which is the shape most people reach for first.
 
-**And the blitter shape does not rescue it.** `projects/tilefill` is that
+**And the blitter shape does not rescue it.** `tilefill` is that
 shape - 64 far writes per call, one segment - and measured over a full screen of
 1000 tiles at ~19.7M cycles:
 
@@ -1990,7 +1990,7 @@ peephole in the emitter, and `push es`/`pop es` in the int helpers.
 
 ## 17. `view`
 
-**Built.** `projects/viewtest` exercises every shape, and one deliberately
+**Built.** `viewtest` exercises every shape, and one deliberately
 unused view, because pruning one is part of the feature. It is the worked example
 for this section (§14) and reads in the same order - every case below appears
 there, writing through one name and reading back through another. The one block
@@ -2158,7 +2158,7 @@ Static views stay sugar. That is the whole appeal.
 
 **Built.** Sugar over the **structure-of-arrays** pattern - an entity pool is the
 shape almost every game reaches for, which is why this was the first of §16-§19
-to be wanted. `projects/grptest` exercises it.
+to be wanted. `grptest` exercises it.
 
 ```momo
 const mobCount = 64
@@ -2492,7 +2492,7 @@ up, so where both fit, this is the more Momo-shaped answer.
   ones that already reach for `far` themselves.
 
 - **A raw scancode reader in `std`.** `std/key.momo` is `int 16h`, which blocks
-  and reports one key at a time. `projects/tennis/t_kbd.momo` has the other
+  and reports one key at a time. `tennis/t_kbd.momo` has the other
   thing - IRQ1 masked, the 8042 polled directly, make and break tracked as level
   state per player, plus the sticky latch a tap needs. Every hard-won entry in
   `PITFALLS.md` came out of writing it, and none of that knowledge is in `shared/lib/`.
@@ -2613,7 +2613,7 @@ Three tiers, with the cutoff between the first two:
   below asks for. Signed `*` **is** reduced - `shl` is bit-identical to a
   multiply in the low 16 bits, so the sign never enters into it.
 
-  Measured on `projects/tilefill`, which has two `* 8` per row: 8.5% off a
+  Measured on `tilefill`, which has two `* 8` per row: 8.5% off a
   full screen, ~4.13s to ~3.78s at 4.77MHz. The estimate beforehand was 9.7%,
   and the shortfall is entirely the first trap below - it assumed a shift of
   three cost ~6 cycles, where through CL it costs 20. Unrolling would recover
@@ -2998,7 +2998,7 @@ Almost nothing new, and less than when this was written. **`group` (§18), `len`
 (§5) and `_cf` (§10) are now built** - structure-of-arrays is how a token table
 or an AST wants to be held on this machine, and `_cf` means a failed read can be
 noticed. With `int 0x21` and `addr()` already working, file access is writable
-today; `projects/cftest` opens one.
+today; `cftest` opens one.
 
 What is still missing is §19's array parameters, for routines that take a buffer
 without one copy per call site.
@@ -3140,7 +3140,7 @@ addressing scheme entirely, not just a different instruction.
 
 ## 22. Port I/O
 
-**Built.** `projects/porttest` exercises all four builtins and is the worked
+**Built.** `porttest` exercises all four builtins and is the worked
 example for this section (§14) - read it alongside the rules below.
 
 It waited for the reason §20 gave: out of scope until a program wanted it, and
@@ -3764,13 +3764,13 @@ scale the compiler knows, so that it can insert the shifts and reject the mismat
 
 Built: the lexer, the 48 legal splits, the mixing rules, the count rule, comparison,
 same-scale `+` and `-`, `*` and `/` against a count, and casts of *constants* across the
-scale boundary. `projects/fixed` is all of it in one program, and it is a project rather
+scale boundary. `fixed` is all of it in one program, and it is a project rather
 than a compile test because the claim being made is about emitted code and the golden
 tier is the only one that watches that.
 
 Also built: decimal literals, which scale wherever a target scale is in view; `raw`, the
 reinterpreting cast; `*` between two same-scale values, which lowers to `fixMul` in
-`shared/lib/std/fixed.momo` and is checked on the 8086 by `projects/fixmul`; and `mulshr8`, the
+`shared/lib/std/fixed.momo` and is checked on the 8086 by `fixmul`; and `mulshr8`, the
 widening-multiply intrinsic this section held in reserve as its escape hatch.
 
 Not built: `/` between two fixed values, which wants the 24-bit numerator this section
@@ -4103,7 +4103,7 @@ anything on the back end."*
 **The intrinsic arrived, and it is `mulshr8( a, b )`** - the unsigned product of two
 words, shifted right by eight. `shared/lib/std/fixed.momo`'s `fixMulU` is one line over it, and
 the four-multiply version is kept beside it as `fixMulUParts`, which is the
-specification and the thing the intrinsic is tested against: `projects/fixmul` runs both
+specification and the thing the intrinsic is tested against: `fixmul` runs both
 over 256 pairs and requires agreement on every one.
 
 It needed **no new mnemonic**. The whole 32-bit product lives in `DX:AX` and is never
@@ -4115,7 +4115,7 @@ is named for the machine rather than for "read a byte".
 The honest caveat stands, in a smaller form: it was built before anything measured
 whether 5x mattered, which is the opposite of what the sentence above advises.
 
-**The consumer now exists** - `shared/lib/momovec/zoom.momo` and `projects/tzoom`, one `fixMul`
+**The consumer now exists** - `shared/lib/momovec/zoom.momo` and `tzoom`, one `fixMul`
 per coordinate applied as geometry is read - and what it says is that the multiply was
 never the constraint. The zoomed tiger fits in 63,454 bytes of a 64 KB segment where
 baking it needed 84,914, and what it actually costs is crossing-list capacity rather than
@@ -4232,7 +4232,7 @@ is more of that waiting than expected.
   nothing checked the quotation against the code it came from.
 - **`shared/lib/momolo` has no proportional arithmetic at all**, and percent sizing was one of
   the things explicitly cut from the clay port. This is what it needs.
-- **`projects/tennis`** carries shifts documented as port fidelity - `obj >> 2` - which
+- **`tennis`** carries shifts documented as port fidelity - `obj >> 2` - which
   a fixed type would express as what they mean rather than as what they do.
 - Gauges, aspect ratios, progress bars: the whole `(a*b)/c` family.
 

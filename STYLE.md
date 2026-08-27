@@ -51,7 +51,7 @@ Not `Error: validation failed`.
 
 ## Assembly (hand-written test programs)
 
-Hand-written `.asm` under `projects/` should read like transpiler output,
+Hand-written `.asm` under `projects/toolchain/` should read like transpiler output,
 so it doubles as a check on the codegen design:
 
 - `cpu 8086` at the top of every file. This makes NASM mechanically enforce the
@@ -138,9 +138,22 @@ than every time by a writer.
 - Types: `PascalCase`.
 - DOS-visible filenames must be **8.3** - project directories and entry files
   are limited to 8 characters, letters/digits/underscore, starting with a letter.
+  **Category directories are not DOS-visible** and are not limited: `run.ts`
+  copies a project's own files flat into `build/<name>/` and mounts that as `C:`,
+  so DOSBox never sees a category at all.
+- **A project is named, not pathed.** `npm start tennis`, `momoc -- tiger`,
+  `${fileBasenameNoExtension}` in the VS Code task: nothing spells the category,
+  and two projects sharing a name is an error rather than something a path
+  resolves. Prose follows the same rule - write `tennis`, not its path, or the
+  reference goes stale the next time anything is recategorised.
+- **`shared/scenes/` is for data read by more than one project**, and only that.
+  Data with a single reader lives beside its reader as an ordinary prefixed part
+  - `c_data.momo` in `tclip`, `s_corpus.momo` in `subdiv`. The three that moved
+  did so because their readers ended up in different categories, which made
+  `../` a path that depended on where all of them happened to sit.
 - **A multi-file project prefixes its parts**, one letter and an underscore, from
-  the project's own name: `projects/tennis/` has `t_cfg.momo` and `t_scr.momo`
-  beside `tennis.momo`, and `projects/momovec/` has `m_scene.momo` beside
+  the project's own name: `tennis/` has `t_cfg.momo` and `t_scr.momo`
+  beside `tennis.momo`, and `momovec/` has `m_scene.momo` beside
   `momovec.momo`. The prefix exists to separate the parts from the entry file,
   which DOS requires to be named after the directory - so a reader can tell at a
   glance which file the program starts in.
