@@ -4066,9 +4066,15 @@ one byte from each half - two `mov`s, no shift, because no 8086 shift reaches ac
 pair anyway. Named for the machine operation rather than for fixed point, the way `peek8`
 is named for the machine rather than for "read a byte".
 
-The honest caveat: it was built before anything measured whether 5x mattered, which is
-the opposite of what the sentence above advises. The zoom transform is still the first
-real consumer and it is not written yet.
+The honest caveat stands, in a smaller form: it was built before anything measured
+whether 5x mattered, which is the opposite of what the sentence above advises.
+
+**The consumer now exists** - `lib/momovec/zoom.momo` and `projects/tzoom`, one `fixMul`
+per coordinate applied as geometry is read - and what it says is that the multiply was
+never the constraint. The zoomed tiger fits in 63,454 bytes of a 64 KB segment where
+baking it needed 84,914, and what it actually costs is crossing-list capacity rather than
+cycles. So the intrinsic is still unmeasured against a real workload; it is just no
+longer unmeasured against a real *program*.
 
 **Which has the difficulty backwards. The back end is simpler than the Momo kernel, not
 harder.** The four-mul synthesis exists only because §9 discards `DX`; an

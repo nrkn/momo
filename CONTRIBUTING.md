@@ -283,6 +283,12 @@ file may call a routine the *program* defines, and it compiles to a direct `call
 That is what DESIGN §21's routine parameters would have been for, and it needed no
 language feature at all.
 
+`projects/tzoom` is the tiger zoomed by a transform applied as geometry is READ rather
+than baked into data, which is what `lib/momovec/zoom.momo` exists for and what §25 was
+built for. It shares `projects/tiger`'s data unchanged - there is no second copy, because
+the whole point is that a zoom cannot be stored: the 3x tiger is 84,914 bytes against a
+64 KB segment. Held against a digest the study derives independently.
+
 `lib/std/fixed.momo` is the multiply behind `*` on a fixed-point type (§25), and it
 holds the same value twice: `fixMulU` over the `mulshr8` intrinsic, and `fixMulUParts`
 built from four multiplies in nothing but ordinary operators. The second is the
@@ -317,8 +323,8 @@ The cost of waiting is that the first thing a visitor reads is the weakest
 document in the repo. That trade is made deliberately, and preferred to shipping a
 second draft in the same voice as the first.
 
-342 tier-1 assertions (173 compile tests, 43 golden `.asm`, 53 type, 11 lex, 59
-round trip, 3 subset), 27 e2e programs, all green.
+344 tier-1 assertions (173 compile tests, 44 golden `.asm`, 53 type, 11 lex, 60
+round trip, 3 subset), 28 e2e programs, all green.
 
 This figure had drifted to 253 against an actual 268 before it was last read -
 the golden and round-trip tiers both grew during the vector port and nothing

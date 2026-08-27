@@ -1,0 +1,165 @@
+// tzoom.momo - the tiger zoomed by a transform applied as the geometry is READ.
+//
+//   npm start tzoom
+//
+// **No data file, and that is the whole point.** This includes the tiger's
+// `t_data.momo` unchanged and scales each coordinate on its way out of the array.
+// `projects/tpan` bakes its translation, because a translation does not change how
+// many points there are - and a zoom does: the 3x tiger needs 13,982 points
+// against 8,014 and came to 84,914 bytes against a 64 KB segment. So the scale
+// happens on read, the extra segments a curve flattens into are generated and
+// thrown away, and the stored data is still the 1x tiger.
+//
+// One `fixMul` per coordinate, which is what DESIGN §25 was built for.
+//
+// **The scale is 0.5, and that is a limit rather than a preference.** Zooming out
+// shrinks every quadratic span, so the 8086 and the study rasterise the same
+// quadratics and the digest is a claim about the transform alone. Zooming IN makes
+// spans exceed the audited 15 pixels, at which point `drawQuadAny` subdivides on
+// the target and the study - which stores only limited quadratics and so never
+// needed to - does not. The two would then draw different pixels for a reason that
+// has nothing to do with the transform. `src/emit-zoom.ts` says the same thing from
+// the other side, and subdividing there is the next piece of work.
+//
+// The digest is the tiger's, line for line, so the two projects are directly
+// comparable: 200 scanlines, 138 paths, one order hash.
+
+// The crossing budget, sized by the study against THIS dataset - zoomed out, a path
+// covers fewer scanlines than at 1x.
+//
+// 512 against a measured worst single path of 346, at 0.5x.
+const maxCrossings = 512
+
+include "std/io.momo"
+include "std/math.momo"
+include "momovec/zoom.momo"
+include "momovec/types.momo"
+include "momovec/edges.momo"
+include "momovec/subdiv.momo"
+include "momovec/path.momo"
+include "momovec/fill.momo"
+
+// Included before the arrays below, because it declares the bounds they are sized
+// by - and those bounds are generated with the data rather than written here, so
+// nothing carries a hand-maintained count of 138.
+include "../tiger/t_data.momo"
+
+// Set before anything draws. 0.5 in 8.8 is 128, and the centre is the point that
+// stays put - the canvas middle, so the tiger shrinks toward the middle of the
+// screen rather than toward its top-left corner.
+
+// The digest, accumulated as pixels are emitted.
+u16[screenH] rowPixels
+u16[screenH] rowSumX
+u16[maxPaths] pathPixels
+u16 orderHash
+
+// Which path is being drawn, so its pixels can be counted against it. A global
+// rather than a parameter because `plot` is called by the library, which knows
+// nothing about paths.
+u16 currentPath
+
+// What a span means here: fill it. The library has no opinion - momovec's
+// emitSpan prints one instead, from the same rasteriser.
+//
+// Spans arrive already clipped to the canvas, so this loop needs no bounds test of
+// its own. That is the whole value of clipping at the span rather than the pixel:
+// it saves almost no writes and takes a compare and a branch out of the innermost
+// loop in the program.
+sub emitSpan( u16 y, i16 x0, i16 x1 ) {
+  i16 x
+
+  for ( x = x0; x <= x1; x++ ) {
+    plot( x, i16( y ) )
+  }
+}
+
+sub plot( i16 x, i16 y ) {
+  u16 ux
+  u16 uy
+
+  // Clipped here rather than in the rasteriser, so the digest counts what a screen
+  // would have received. The library hands over everything it draws.
+  if ( x < 0 ) return
+  if ( y < 0 ) return
+  if ( x > xMax ) return
+  if ( y > yMax ) return
+
+  ux = u16( x )
+  uy = u16( y )
+
+  rowPixels[ uy ] += 1
+  rowSumX[ uy ] += ux
+  pathPixels[ currentPath ] += 1
+
+  // Order-sensitive, which the counters above are not. 31 is arbitrary and shared
+  // with the study; what matters is that a different painting sequence gives a
+  // different number.
+  orderHash = orderHash * 31 + ux + uy
+}
+
+u16 i
+u16 p
+
+for ( i = 0; i < screenH; i++ ) {
+  rowPixels[i] = 0
+  rowSumX[i] = 0
+}
+
+for ( p = 0; p < maxPaths; p++ ) {
+  pathPixels[p] = 0
+}
+
+zoomScale = 0.5
+zoomCx = 160
+zoomCy = 100
+
+orderHash = 0
+
+// Paths in order, each filled then stroked. Array order IS declaration order for
+// an immediate-mode builder, so this is paint order and there is no command list
+// to sort - the same property momolo relied on.
+for ( p = 0; p < maxPaths; p++ ) {
+  currentPath = p
+
+  if ( pathHasFill[p] != 0 ) {
+    fillPath( p, true )
+  }
+
+  if ( pathHasStroke[p] != 0 ) {
+    strokePath( p )
+  }
+}
+
+// ---- the digest ----
+
+for ( i = 0; i < screenH; i++ ) {
+  putNumber( i )
+  space()
+  putNumber( rowPixels[i] )
+  space()
+  putNumber( rowSumX[i] )
+  newline()
+}
+
+for ( p = 0; p < maxPaths; p++ ) {
+  putNumber( p )
+  space()
+  putNumber( pathFill[p] )
+  space()
+  putNumber( pathPixels[p] )
+  newline()
+}
+
+putNumber( orderHash )
+newline()
+
+// A capacity problem must not look like a rasteriser bug. The tiger's worst single
+// path was measured at 692 crossings against a list of 1,024, so this should never
+// fire - and if it does, it says so rather than quietly drawing a wrong tiger.
+if ( crossingsOverflowed ) {
+  putStr( addr( overflowed ) )
+  newline()
+}
+
+const u8[] overflowed = "CROSSING LIST OVERFLOWED$"
