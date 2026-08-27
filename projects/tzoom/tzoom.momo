@@ -12,23 +12,28 @@
 //
 // One `fixMul` per coordinate, which is what DESIGN §25 was built for.
 //
-// **The scale is 0.5, and that is a limit rather than a preference.** Zooming out
-// shrinks every quadratic span, so the 8086 and the study rasterise the same
-// quadratics and the digest is a claim about the transform alone. Zooming IN makes
-// spans exceed the audited 15 pixels, at which point `drawQuadAny` subdivides on
-// the target and the study - which stores only limited quadratics and so never
-// needed to - does not. The two would then draw different pixels for a reason that
-// has nothing to do with the transform. `src/emit-zoom.ts` says the same thing from
-// the other side, and subdividing there is the next piece of work.
+// **The scale is 3.0, so this zooms IN**, which is the case that needs subdivision:
+// a 15-pixel span becomes 45, and `drawQuadAny` halves it until every piece is
+// inside the audited range. 1,127 of the tiger's quadratics get subdivided, into
+// 5,439 pieces, none of which is stored - they are produced and drawn and thrown
+// away, which is the whole reason a zoom fits.
+//
+// `src/emit-zoom.ts` subdivides the same way to predict this, using the model of
+// `drawQuadAny` that `projects/subdiv` already checks number for number. Run it with
+// `--scale=128` for a 0.5x zoom out, which needs no subdivision at all and was how
+// the transform was checked before this.
 //
 // The digest is the tiger's, line for line, so the two projects are directly
 // comparable: 200 scanlines, 138 paths, one order hash.
 
-// The crossing budget, sized by the study against THIS dataset - zoomed out, a path
-// covers fewer scanlines than at 1x.
+// The crossing budget, sized by the study against THIS dataset. Zoomed in, a path
+// covers three times the scanlines it does at 1x, so this is the one thing a zoom
+// really costs - see the study's LIMITS.md.
 //
-// 512 against a measured worst single path of 346, at 0.5x.
-const maxCrossings = 512
+// 1,536 against a measured worst single path of 1,122, at 3x. The tiger's own 1,024
+// is not enough and overflows, and the overflow is not benign: it draws spurious
+// spans rather than dropping real ones.
+const maxCrossings = 1536
 
 include "std/io.momo"
 include "std/math.momo"
@@ -44,9 +49,9 @@ include "momovec/fill.momo"
 // nothing carries a hand-maintained count of 138.
 include "../tiger/t_data.momo"
 
-// Set before anything draws. 0.5 in 8.8 is 128, and the centre is the point that
-// stays put - the canvas middle, so the tiger shrinks toward the middle of the
-// screen rather than toward its top-left corner.
+// Set before anything draws. 3.0 in 8.8 is 768, and the centre is the point that
+// stays put - the canvas middle, so the tiger grows about the middle of the screen
+// rather than about its top-left corner.
 
 // The digest, accumulated as pixels are emitted.
 u16[screenH] rowPixels
@@ -110,7 +115,7 @@ for ( p = 0; p < maxPaths; p++ ) {
   pathPixels[p] = 0
 }
 
-zoomScale = 0.5
+zoomScale = 3.0
 zoomCx = 160
 zoomCy = 100
 

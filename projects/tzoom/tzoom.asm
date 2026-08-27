@@ -4,7 +4,7 @@
         org     100h
 
 ; ---- constants: no storage, folded at assembly time ----
-maxCrossings:   equ     512
+maxCrossings:   equ     1536
 ioBase:         equ     10
 ioZeroChar:     equ     48
 screenW:        equ     320
@@ -58,8 +58,8 @@ __entry:
         inc     word [p]
         jmp     .L5
 .L7:
-; ---- zoomScale = 0.5
-        mov     word [zoomScale], 128
+; ---- zoomScale = 3.0
+        mov     word [zoomScale], 768
 ; ---- zoomCx = 160
         mov     word [zoomCx], 160
 ; ---- zoomCy = 100
@@ -417,7 +417,7 @@ addCrossing:
 .L62:
 ; ---- if ( crossingCount >= maxCrossings ) {
         mov     ax, [crossingCount]
-        cmp     ax, 512
+        cmp     ax, 1536
         jb      .L65                        ; unsigned >=
 ; ---- crossingsOverflowed = true
         mov     byte [crossingsOverflowed], 1
@@ -3302,12 +3302,12 @@ plot__ux:       dw      0        ; u16
 plot__uy:       dw      0        ; u16
 
 ; ---- arrays ----
-cy:             times 512 db 0        ; u8[512]
-cx_:            times 512 dw 0        ; i16[512]
-cdir:           times 512 db 0        ; i8[512]
-sy_:            times 512 db 0        ; u8[512]
-sx_:            times 512 dw 0        ; i16[512]
-sd_:            times 512 db 0        ; i8[512]
+cy:             times 1536 db 0        ; u8[1536]
+cx_:            times 1536 dw 0        ; i16[1536]
+cdir:           times 1536 db 0        ; i8[1536]
+sy_:            times 1536 db 0        ; u8[1536]
+sx_:            times 1536 dw 0        ; i16[1536]
+sd_:            times 1536 db 0        ; i8[1536]
 rowCount:       times 200 dw 0        ; u16[200]
 runStart:       times 201 dw 0        ; u16[201]
 subX0:          times 16 dw 0        ; i16[16]
