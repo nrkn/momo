@@ -178,6 +178,16 @@ data - which is not a number that can exist, and got written down anyway.
 when the code and image it just printed came from an earlier build.** Being careful
 was not working.
 
+**A "GENERATED - do not edit" file can be edited anyway, and the generator will
+not notice.** `mvdemo.momo` and `mvpic.momo` are emitted by the vector study, and
+both carried an `include "momovec/direct.momo"` that the study's emitter never
+wrote - added by hand on this side when `direct.momo` was extracted, and never
+taught to the generator. Regenerating would have silently removed it and
+`clip.momo` would have failed with `"mapX" is not declared`. Nothing said so for
+five commits, because nobody regenerated in between. **The check is to regenerate
+and diff**, and it is worth doing whenever either side of a generated file moves -
+it is the only thing that can tell you the two still agree.
+
 **`git status` can show a generated `.asm` as modified when `git diff` is empty.**
 The emitter writes CRLF, `core.autocrlf` is `input`, so the working tree and the
 stored blob differ in line endings while comparing identical after normalisation.
