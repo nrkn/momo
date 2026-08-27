@@ -174,6 +174,9 @@ export const printExpression = (node: Expression): string => {
         `( ${printExpression(node.argument)} )`
       )
 
+    case 'MulShrExpression':
+      return `mulshr8( ${printExpression(node.left)}, ${printExpression(node.right)} )`
+
     case 'AddrExpression':
       return `addr( ${node.target.name} )`
 

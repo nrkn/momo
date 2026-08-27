@@ -752,6 +752,16 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
       return
     }
 
+    if (node.type === 'MulShrExpression') {
+      emitOperands(node.left, node.right, true)
+      ins('mul', 'bx', 'DX:AX = the whole product')
+      // (a*b) >> 8 is bits 8..23, one byte out of each half. No 8086 shift
+      // reaches across DX:AX, and none is needed.
+      ins('mov', 'al, ah')
+      ins('mov', 'ah, dl', '(a*b) >> 8')
+      return
+    }
+
     if (node.type === 'InExpression') {
       emitIn(node, true)
       return

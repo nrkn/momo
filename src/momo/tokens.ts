@@ -74,6 +74,12 @@ export const keywords = [
   // grouped with the four above because it belongs to the same family: unsafe,
   // and visibly so at every use. See DESIGN.md §25.
   'raw',
+  // `mulshr8( a, b )` - the unsigned product of two words, shifted right by
+  // eight. Named for the machine operation rather than for fixed point, the way
+  // `peek8` is named for the machine rather than for "read a byte": the 32-bit
+  // product lives in DX:AX and is never named, so §9's accumulator model is
+  // untouched and no new mnemonic is needed. See DESIGN.md §25.
+  'mulshr8',
   'true',
   'false',
 ]

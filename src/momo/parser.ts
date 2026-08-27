@@ -391,6 +391,25 @@ export const parse = (tokens: Token[]): Program => {
         }
       }
 
+      // `mulshr8( a, b )` - two operands, so it takes a comma where peek and in
+      // take one expression.
+      if (token.text === 'mulshr8') {
+        advance()
+        expect('op', '(')
+        const left = parseExpression()
+        expect('op', ',')
+        const right = parseExpression()
+        expect('op', ')')
+        return {
+          type: 'MulShrExpression',
+          left,
+          right,
+          file: token.file,
+          line: token.line,
+          col: token.col,
+        }
+      }
+
       if (token.text === 'out8' || token.text === 'out16') {
         raise(
           token,

@@ -82,3 +82,61 @@ sub showU( u8.8 x, u8.8 y ) {
 
 showU( 1.5, 2.0 )             // 3.0    -> 768
 showU( 200.0, 1.0 )           // 200.0  -> 51200
+
+// The intrinsic against the four-multiply reference, over 256 pairs that cross
+// the byte boundary in both operands. This is what building the portable version
+// first was for: the fast one has something to be wrong against.
+//
+// Both figures are predictions, not observations. 16 values of each operand is
+// 256 pairs, and they must agree on every one.
+u16 checked
+u16 differ
+
+// Counted by index rather than by value, and deliberately: stepping `a` by 4097
+// until `a < 65535` fails never terminates, because 61455 + 4097 wraps to 16. A
+// u16 loop counter cannot be bounded by a value near the top of its own range.
+sub compare {
+  u16 i
+  u16 j
+  u16 a
+  u16 b
+
+  checked = 0
+  differ = 0
+
+  for ( i = 0; i < 16; i++ ) {
+    a = i * 4097
+    for ( j = 0; j < 16; j++ ) {
+      b = j * 4097
+      checked = checked + 1
+      if ( fixMulU( a, b ) != fixMulUParts( a, b ) ) {
+        differ = differ + 1
+      }
+    }
+  }
+}
+
+compare()
+putNumber( checked )          // 256 pairs, so the loop really ran
+newline()
+putNumber( differ )           // 0
+newline()
+
+// The fold against the instructions. `mulshr8` on two constants is computed by
+// the resolver and never reaches the emitter, so the two have to agree exactly or
+// one source line means two things depending on where its operands came from.
+// Nothing else in the suite calls it with two constants, so nothing else can tell.
+const folded = mulshr8( 384, 512 )
+
+u16 lhs
+u16 rhs
+u16 atRuntime
+
+lhs = 384
+rhs = 512
+atRuntime = mulshr8( lhs, rhs )
+
+putNumber( folded )           // 1.5 * 2.0, folded    -> 768
+newline()
+putNumber( atRuntime )        // the same, emitted    -> 768
+newline()

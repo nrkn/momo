@@ -166,6 +166,79 @@ to 285 at C8.
 
 ---
 
+## A loop counter stepped past its bound never leaves the loop
+
+**Symptom.** The program hangs. Tier 2 reports a timeout and nothing else, because
+a program that does not terminate prints nothing to compare.
+
+```momo
+for ( a = 0; a < 65535; a = a + 4097 ) {
+```
+
+`a` is a `u16`, and it goes 0, 4097, ... 61455 - and then 61455 + 4097 is 65552,
+which wraps to 16. The test never fails, so the loop never ends. Nothing warns:
+the wrap is exactly what 16-bit arithmetic is supposed to do, and `a < 65535` is a
+perfectly ordinary comparison.
+
+The trap is not the step or the bound on their own, it is that **the bound sits
+close enough to the top of the range that the step can jump over it**. Any step
+larger than one has this shape; a step of one only meets it at 65535 exactly.
+
+**What to do.** Count with an index and derive the value:
+
+```momo
+for ( i = 0; i < 16; i++ ) {
+  a = i * 4097
+```
+
+Found while writing `projects/fixmul`, which compares two implementations over 256
+pairs - so the loop existed to be thorough and hung instead.
+
+---
+
+## Adding a plain number to a fixed-point value is an error
+
+**Symptom.**
+
+```momo
+i8.8 scale
+scale = scale + 2
+              ^ error: cannot apply "+" to i8.8 and 2 - 2 is a count, not a value
+                with a radix point; write i8.8( 2 ) to promote it
+```
+
+This is deliberate and it is the whole point of the feature (DESIGN §25). An `i8.8`
+holds 256ths, so `2` could mean two units or two 256ths, and the two readings are
+256x apart. C cannot tell them apart and gives you the wrong one silently; Momo
+refuses and asks which you meant.
+
+**What to do.** `i8.8( 2 )` promotes a count, and `2.0` is the same thing written
+as a value. `scale * 2` needs neither, because multiplying by a count is
+"twice as big" and the scale survives - so the rule bites on `+`, `-` and
+comparison and leaves `*` and `/` alone.
+
+---
+
+## A negative fixed-point product is rounded toward zero, not down
+
+**Symptom.** `fixMul( -0.1, 0.1 )` gives -2 where an arithmetic shift of the same
+product would give -3.
+
+`lib/std/fixed.momo` takes the magnitude of both operands, multiplies, and negates
+the result - so the truncation happens on a positive number and rounds inward.
+`sar` would round toward negative infinity instead.
+
+The gain is symmetry: `fixMul( -a, b )` is exactly `-fixMul( a, b )`, which is the
+more useful property for a scale factor. The cost is that a negative result can sit
+one step closer to zero than the exact product.
+
+**What to do.** Nothing, usually. If a difference of 1/256 matters in a particular
+place, do the multiply on magnitudes yourself and apply the sign where you want it.
+And note the other end of the same routine: **-32768 has no magnitude in an `i16`**,
+so the most negative 8.8 value multiplies as though it were positive.
+
+---
+
 ## Some names compiled and then failed to assemble - fixed
 
 **Fixed.** The first entry here to be retired, and kept because the preamble says

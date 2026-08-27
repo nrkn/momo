@@ -283,6 +283,14 @@ file may call a routine the *program* defines, and it compiles to a direct `call
 That is what DESIGN §21's routine parameters would have been for, and it needed no
 language feature at all.
 
+`lib/std/fixed.momo` is the multiply behind `*` on a fixed-point type (§25), and it
+holds the same value twice: `fixMulU` over the `mulshr8` intrinsic, and `fixMulUParts`
+built from four multiplies in nothing but ordinary operators. The second is the
+specification and the first is the fast one, and `projects/fixmul` requires them to agree
+over 256 pairs on the target. `projects/fixed` is the language surface instead - every
+fixed-point shape that compiles, held by the golden tier because the claim being made
+there is about emitted code.
+
 `lib/momolo/` is a layout engine ported from a TypeScript study, and it arrived
 with two projects rather than one. `projects/momolo` runs six scenes through it
 and prints every resolved box as bare numbers, compared against the numbers the
@@ -309,7 +317,7 @@ The cost of waiting is that the first thing a visitor reads is the weakest
 document in the repo. That trade is made deliberately, and preferred to shipping a
 second draft in the same voice as the first.
 
-340 tier-1 assertions (171 compile tests, 43 golden `.asm`, 53 type, 11 lex, 59
+342 tier-1 assertions (173 compile tests, 43 golden `.asm`, 53 type, 11 lex, 59
 round trip, 3 subset), 27 e2e programs, all green.
 
 This figure had drifted to 253 against an actual 268 before it was last read -

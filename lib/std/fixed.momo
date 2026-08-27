@@ -1,35 +1,50 @@
 // std/fixed.momo - the multiply behind `*` on a fixed-point type (DESIGN §25).
 //
 // `a * b` on two 8.8 values wants `(a*b) >> 8`, and §9 discards `DX` - so the
-// naive lowering is silently wrong the moment the product exceeds a word. This is
-// the way round that: **a 16x16->32 multiply synthesises from four 8x8->16
-// multiplies**, and `mul` on byte operands already gives a 16-bit result.
+// naive lowering is silently wrong the moment the product exceeds a word. There
+// are two ways round that here, and they compute the same thing:
 //
-//   a*b = ah*bh*65536 + (ah*bl + al*bh)*256 + al*bl
+//   fixMulU       one `mul` and two `mov`s, through the mulshr8 intrinsic
+//   fixMulUParts  four 8x8 multiplies, in nothing but ordinary operators
 //
-// so `(a*b) >> 8` is `ah*bh*256 + (ah*bl + al*bh) + (al*bl >> 8)`, all in 16-bit
-// operations. Roughly 3x an optimal multiply, which §25 argues is the right trade
-// and records the escape hatch for.
+// **The second was written first, and that was the point.** §25 argued for
+// building the portable version before the fast one, because the fast one is
+// where the sign handling and the byte extraction live and the portable one is
+// the only thing it could be checked against. `projects/fixmul` runs both over
+// 256 pairs and requires them to agree.
 //
 // **Everything here is written in plain integer types**, with no `raw` in sight.
 // That is deliberate: the fixed types are the caller's business, and the compiler
 // puts the `raw` in when it lowers `*` - which is the one place it is needed, and
 // the reason the reinterpreting cast had to exist at all.
 //
-// Nothing here is a parameterised const, and it cannot be. The kernel uses each
-// operand four times, and §8 rejects an argument that calls a fn when a parameter
-// is used more than once - so `a * b` with a call on either side would fail for a
-// reason the programmer never wrote. A real routine takes its arguments once.
+// Nothing here is a parameterised const, and it cannot be. The parts kernel uses
+// each operand four times, and §8 rejects an argument that calls a fn when a
+// parameter is used more than once - so `a * b` with a call on either side would
+// fail for a reason the programmer never wrote. A real routine takes its
+// arguments once.
 
 include "std/math.momo"
 
-// The unsigned kernel. Exact modulo 65536: every term is exact, and addition wraps
-// the same way the full product's low word would - so an overflowing result is
-// wrong by exactly the amount 16-bit arithmetic is always wrong by, and no more.
+// The whole 32-bit product exists in DX:AX and is never named, which is what §9
+// has always permitted - so this needs no new mnemonic and no change to the
+// accumulator model. `mulshr8` is unsigned because the high half of a product is
+// not sign-agnostic the way the low half is; the sign is handled below.
+u16 fixMulU( u16 a, u16 b ) => mulshr8( a, b )
+
+// The same value, out of four 8x8 multiplies:
 //
-// The bottom eight bits of the true product are discarded rather than rounded,
-// which is what `>>` means everywhere else in the language.
-u16 fixMulU( u16 a, u16 b ) {
+//   a*b = ah*bh*65536 + (ah*bl + al*bh)*256 + al*bl
+//
+// so `(a*b) >> 8` is `ah*bh*256 + (ah*bl + al*bh) + (al*bl >> 8)`, every term
+// inside a word. Exact modulo 65536: each term is exact, and the additions wrap
+// the way the full product's low word would - so an overflowing result is wrong
+// by exactly the amount 16-bit arithmetic is always wrong by, and no more.
+//
+// Kept because it is the specification. It is the reference `fixMulU` is tested
+// against, and it is the version to read if you want to know what the intrinsic
+// means rather than what it costs.
+u16 fixMulUParts( u16 a, u16 b ) {
   u8 ah
   u8 al
   u8 bh

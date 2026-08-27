@@ -1,0 +1,5 @@
+// EXPECT-ERROR: mulshr8 takes plain words - this is u8.8
+u8.8 scale
+u16 b
+u16 r
+r = mulshr8( scale, b )

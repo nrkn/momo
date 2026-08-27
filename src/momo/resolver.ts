@@ -816,6 +816,47 @@ export const resolve = (program: Program): ResolveResult => {
       return annotate(node, { type: node.width === 1 ? 'u8' : 'u16', value: null, frac: 0 })
     }
 
+    if (node.type === 'MulShrExpression') {
+      const left = resolveExpression(node.left)
+      const right = resolveExpression(node.right)
+
+      // Unsigned only. `mul` reads DX, and the high half of a product is not
+      // sign-agnostic the way the low half is - which is the whole reason §1 could
+      // leave `imul` out. A signed fixed multiply gets its sign from
+      // magnitude-and-sign in `lib/std/fixed.momo`, not from here.
+      const operands = [
+        { resolved: left, at: node.left },
+        { resolved: right, at: node.right },
+      ]
+
+      for (const operand of operands) {
+        if (operand.resolved.type !== 'untyped' && isSigned(operand.resolved.type)) {
+          raise(
+            operand.at,
+            `mulshr8 is unsigned - this is ${describeType(operand.resolved)}, so write` +
+              ' u16(...) if the bits really are what you mean',
+          )
+        }
+        if (operand.resolved.frac !== 0) {
+          raise(
+            operand.at,
+            `mulshr8 takes plain words - this is ${describeType(operand.resolved)},` +
+              ' so it wants raw u16(...) to hand the bits over',
+          )
+        }
+      }
+
+      // Folds when both sides are known, and the fold has to agree with the
+      // instructions exactly - a constant and a runtime value differing for one
+      // source line is the bug this shape invites.
+      const value =
+        left.value === null || right.value === null
+          ? null
+          : Math.floor((left.value * right.value) / 256) % 65536
+
+      return annotate(node, { type: 'u16', value, frac: 0 })
+    }
+
     if (node.type === 'InExpression') {
       checkPort(node.port, node.width === 1 ? 'in8' : 'in16')
       return annotate(node, { type: node.width === 1 ? 'u8' : 'u16', value: null, frac: 0 })

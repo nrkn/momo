@@ -6,6 +6,7 @@
 ; ---- constants: no storage, folded at assembly time ----
 ioBase:         equ     10
 ioZeroChar:     equ     48
+folded:         equ     768
 
 ; =========================================================== entry ====
 
@@ -70,6 +71,42 @@ __entry:
         mov     word [showU__x], 51200
         mov     word [showU__y], 256
         call    showU
+; ---- compare()
+        call    compare
+; ---- putNumber( checked )          // 256 pairs, so the loop really ran
+        mov     ax, [checked]
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- newline()
+        call    newline
+; ---- putNumber( differ )           // 0
+        mov     ax, [differ]
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- newline()
+        call    newline
+; ---- lhs = 384
+        mov     word [lhs], 384
+; ---- rhs = 512
+        mov     word [rhs], 512
+; ---- atRuntime = mulshr8( lhs, rhs )
+        mov     ax, [lhs]
+        mov     bx, [rhs]
+        mul     bx                          ; DX:AX = the whole product
+        mov     al, ah
+        mov     ah, dl                      ; (a*b) >> 8
+        mov     [atRuntime], ax
+; ---- putNumber( folded )           // 1.5 * 2.0, folded    -> 768
+        mov     word [putNumber__n], 768
+        call    putNumber
+; ---- newline()
+        call    newline
+; ---- putNumber( atRuntime )        // the same, emitted    -> 768
+        mov     ax, [atRuntime]
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- newline()
+        call    newline
 
 ; ---- implicit exit ----
         mov     word [_ax], 0x4C00          ; DOS terminate, exit code 0
@@ -163,56 +200,68 @@ putNumber:
 ; ============================================== u16 fixMulU ====
 
 fixMulU:
+; ---- u16 fixMulU( u16 a, u16 b ) => mulshr8( a, b )
+        mov     ax, [fixMulU__a]
+        mov     bx, [fixMulU__b]
+        mul     bx                          ; DX:AX = the whole product
+        mov     al, ah
+        mov     ah, dl                      ; (a*b) >> 8
+        mov     [fixMulU__ret], ax
+        ret
+
+; ============================================== u16 fixMulUParts ====
+
+fixMulUParts:
 ; ---- ah = hi( a )
-        mov     ax, [fixMulU__a]
+        mov     ax, [fixMulUParts__a]
         mov     cl, 8                       ; 8086 has no shift-by-immediate
         shr     ax, cl                      ; unsigned >>
         xor     ah, ah                      ; cast to u8
-        mov     [fixMulU__ah], al           ; narrowed to u8
+        mov     [fixMulUParts__ah], al      ; narrowed to u8
 ; ---- al = lo( a )
-        mov     ax, [fixMulU__a]
+        mov     ax, [fixMulUParts__a]
         xor     ah, ah                      ; cast to u8
-        mov     [fixMulU__al], al           ; narrowed to u8
+        mov     [fixMulUParts__al], al      ; narrowed to u8
 ; ---- bh = hi( b )
-        mov     ax, [fixMulU__b]
+        mov     ax, [fixMulUParts__b]
         mov     cl, 8                       ; 8086 has no shift-by-immediate
         shr     ax, cl                      ; unsigned >>
         xor     ah, ah                      ; cast to u8
-        mov     [fixMulU__bh], al           ; narrowed to u8
+        mov     [fixMulUParts__bh], al      ; narrowed to u8
 ; ---- bl = lo( b )
-        mov     ax, [fixMulU__b]
+        mov     ax, [fixMulUParts__b]
         xor     ah, ah                      ; cast to u8
-        mov     [fixMulU__bl], al           ; narrowed to u8
+        mov     [fixMulUParts__bl], al      ; narrowed to u8
 ; ---- return ((ah * bh) << 8) + (ah * bl) + (al * bh) + ((al * bl) >> 8)
-        mov     al, [fixMulU__ah]
+        mov     al, [fixMulUParts__ah]
         xor     ah, ah                      ; u8 -> u16
-        mov     bl, [fixMulU__bh]
+        mov     bl, [fixMulUParts__bh]
         xor     bh, bh                      ; u8 -> u16
         mul     bx                          ; low 16 bits are sign-agnostic
         mov     cl, 8                       ; 8086 has no shift-by-immediate
         shl     ax, cl
         push    ax                          ; save lhs: rhs is not a leaf
-        mov     al, [fixMulU__ah]
+        mov     al, [fixMulUParts__ah]
         xor     ah, ah                      ; u8 -> u16
-        mov     bl, [fixMulU__bl]
+        mov     bl, [fixMulUParts__bl]
         xor     bh, bh                      ; u8 -> u16
         mul     bx                          ; low 16 bits are sign-agnostic
         mov     bx, ax
         pop     ax
         add     ax, bx
         push    ax                          ; save lhs: rhs is not a leaf
-        mov     al, [fixMulU__al]
+        mov     al, [fixMulUParts__al]
         xor     ah, ah                      ; u8 -> u16
-        mov     bl, [fixMulU__bh]
+        mov     bl, [fixMulUParts__bh]
         xor     bh, bh                      ; u8 -> u16
         mul     bx                          ; low 16 bits are sign-agnostic
         mov     bx, ax
         pop     ax
         add     ax, bx
         push    ax                          ; save lhs: rhs is not a leaf
-        mov     al, [fixMulU__al]
+        mov     al, [fixMulUParts__al]
         xor     ah, ah                      ; u8 -> u16
-        mov     bl, [fixMulU__bl]
+        mov     bl, [fixMulUParts__bl]
         xor     bh, bh                      ; u8 -> u16
         mul     bx                          ; low 16 bits are sign-agnostic
         mov     cl, 8                       ; 8086 has no shift-by-immediate
@@ -220,7 +269,7 @@ fixMulU:
         mov     bx, ax
         pop     ax
         add     ax, bx
-        mov     [fixMulU__ret], ax
+        mov     [fixMulUParts__ret], ax
         ret
 
 ; ============================================== i16 fixMul ====
@@ -355,6 +404,76 @@ showU:
         call    newline
         ret
 
+; ============================================== sub compare ====
+
+compare:
+; ---- checked = 0
+        mov     word [checked], 0
+; ---- differ = 0
+        mov     word [differ], 0
+; ---- for ( i = 0; i < 16; i++ ) {
+        mov     word [compare__i], 0
+.L24:
+        mov     ax, [compare__i]
+        cmp     ax, 16
+        jb      .L27                        ; unsigned <
+        jmp     .L26
+.L27:
+; ---- a = i * 4097
+        mov     ax, [compare__i]
+        mov     bx, 4097
+        mul     bx                          ; low 16 bits are sign-agnostic
+        mov     [compare__a], ax
+; ---- for ( j = 0; j < 16; j++ ) {
+        mov     word [compare__j], 0
+.L28:
+        mov     ax, [compare__j]
+        cmp     ax, 16
+        jb      .L31                        ; unsigned <
+        jmp     .L30
+.L31:
+; ---- b = j * 4097
+        mov     ax, [compare__j]
+        mov     bx, 4097
+        mul     bx                          ; low 16 bits are sign-agnostic
+        mov     [compare__b], ax
+; ---- checked = checked + 1
+        mov     ax, [checked]
+        inc     ax
+        mov     [checked], ax
+; ---- if ( fixMulU( a, b ) != fixMulUParts( a, b ) ) {
+        mov     ax, [compare__a]
+        mov     [fixMulU__a], ax
+        mov     ax, [compare__b]
+        mov     [fixMulU__b], ax
+        call    fixMulU
+        mov     ax, [fixMulU__ret]
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [compare__a]
+        mov     [fixMulUParts__a], ax
+        mov     ax, [compare__b]
+        mov     [fixMulUParts__b], ax
+        call    fixMulUParts
+        mov     ax, [fixMulUParts__ret]
+        mov     bx, ax
+        pop     ax
+        cmp     ax, bx
+        je      .L32                        ; unsigned !=
+; ---- differ = differ + 1
+        mov     ax, [differ]
+        inc     ax
+        mov     [differ], ax
+.L32:
+.L29:
+        inc     word [compare__j]
+        jmp     .L28
+.L30:
+.L25:
+        inc     word [compare__i]
+        jmp     .L24
+.L26:
+        ret
+
 ; ==================================================== int helpers ====
 ; One per distinct interrupt: the literal is baked in, so the register
 ; sync is emitted once rather than at every call site.
@@ -399,6 +518,9 @@ putNumber__n:   dw      0        ; u16
 fixMulU__a:     dw      0        ; u16
 fixMulU__b:     dw      0        ; u16
 fixMulU__ret:   dw      0        ; u16
+fixMulUParts__a: dw      0        ; u16
+fixMulUParts__b: dw      0        ; u16
+fixMulUParts__ret: dw      0        ; u16
 fixMul__a:      dw      0        ; i16
 fixMul__b:      dw      0        ; i16
 fixMul__ret:    dw      0        ; i16
@@ -410,17 +532,26 @@ both__x:        dw      0        ; i16
 both__y:        dw      0        ; i16
 showU__x:       dw      0        ; u16
 showU__y:       dw      0        ; u16
+checked:        dw      0        ; u16
+differ:         dw      0        ; u16
+lhs:            dw      0        ; u16
+rhs:            dw      0        ; u16
+atRuntime:      dw      0        ; u16
 putNumber__i:   db      0        ; u8
-fixMulU__ah:    db      0        ; u8
-fixMulU__al:    db      0        ; u8
-fixMulU__bh:    db      0        ; u8
-fixMulU__bl:    db      0        ; u8
+fixMulUParts__ah: db      0        ; u8
+fixMulUParts__al: db      0        ; u8
+fixMulUParts__bh: db      0        ; u8
+fixMulUParts__bl: db      0        ; u8
 fixMul__x:      dw      0        ; i16
 fixMul__y:      dw      0        ; i16
 fixMul__neg:    db      0        ; bool
 fixMul__m:      dw      0        ; u16
 showOp__p:      dw      0        ; i16
 showU__p:       dw      0        ; u16
+compare__i:     dw      0        ; u16
+compare__j:     dw      0        ; u16
+compare__a:     dw      0        ; u16
+compare__b:     dw      0        ; u16
 
 ; ---- arrays ----
 putNumber__digits: times 5 db 0        ; u8[5]

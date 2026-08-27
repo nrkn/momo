@@ -84,7 +84,11 @@ Deliberately absent:
 
 - **`lea`** - no pointers, and `[disp16 + bx]` covers array indexing in one instruction.
 - **`imul`** - the low 16 bits of a multiply are identical signed and unsigned in
-  two's complement, and with no 32-bit type we never read `DX`. `*` always emits `mul`.
+  two's complement, so `*` always emits `mul`. The second half of this reason used to
+  be "with no 32-bit type we never read `DX`", and §25 spent it: `mulshr8` reads the
+  high half of a product. `imul` still stays out, for a different and smaller reason -
+  the unsigned kernel plus magnitude-and-sign in `lib/std/fixed.momo` already covers
+  signed fixed multiply, so `imul` would buy one instruction and cost a mnemonic.
 - **`enter`/`leave`, `pusha`/`popa`, 3-operand `imul`, `push imm`, `shl r,imm8`** - all 186+.
 - **`setcc`** - 386+. This is why conditions compile in control-flow context (§9).
 - Segment ops, BCD/ASCII adjusts, `xlat`, far calls.
@@ -192,6 +196,12 @@ not a register width.
 ---
 
 ## 4. Type rules
+
+**Four scalar types plus `bool`, and a fixed-point spelling over the top of them.**
+`i8.8` and its 47 siblings are the same four types with a documented scale (§25): the
+rules below decide the storage, and a fraction width travels beside it deciding the
+units. Everything in this section is about the storage half and holds unchanged - a
+reader who never writes a `.` in a type name will not meet the other half.
 
 ### Only four operations care about signedness
 
@@ -1371,8 +1381,16 @@ feature would have needed a different shape entirely.
 
 ## 14. Testing
 
-Three tiers, plus a deliberately small set of unit assertions. The first two run
-together in about a second and touch nothing outside Node.
+Three tiers, plus two deliberately small sets of unit assertions - the type lattice, and
+the lexer's decode of a decimal literal and a fixed type name (§25), which nothing else
+consumes until a target scale appears. The first two tiers run together in about a second
+and touch nothing outside Node.
+
+One wrinkle worth knowing about the round trip: it prints the **post-resolve** program,
+because `*` on two fixed-point values lowers to a call and that lowering needs types.
+Every case printed identically when that changed, since the resolver otherwise only
+annotates - but it means the round trip now depends on the resolver as well as the parser
+and the printer.
 
 ```
 npm test          # tiers 1 and 1.5 + type lattice - about a second, no DOSBox
@@ -3705,8 +3723,9 @@ than a compile test because the claim being made is about emitted code and the g
 tier is the only one that watches that.
 
 Also built: decimal literals, which scale wherever a target scale is in view; `raw`, the
-reinterpreting cast; and `*` between two same-scale values, which lowers to `fixMul` in
-`lib/std/fixed.momo` and is checked on the 8086 by `projects/fixmul`.
+reinterpreting cast; `*` between two same-scale values, which lowers to `fixMul` in
+`lib/std/fixed.momo` and is checked on the 8086 by `projects/fixmul`; and `mulshr8`, the
+widening-multiply intrinsic this section held in reserve as its escape hatch.
 
 Not built: `/` between two fixed values, which wants the 24-bit numerator this section
 says Momo cannot express. And a runtime value still cannot cross scales *preserving its
@@ -4008,15 +4027,48 @@ so `(a*b) >> 8` is `ah*bh*256 + (ah*bl + al*bh) + (al*bl >> 8)`, all in 16-bit o
 Signed needs magnitude-and-sign around the unsigned kernel, which is where the bugs
 would live and wants predict-then-check rather than confidence.
 
-**Cost: roughly 3x an optimal multiply** - four `mul`s at around 100 cycles against one
-`mul` and a `sar`.
+**Cost: 5x an optimal multiply, measured** - and the estimate here said 3x, from four
+`mul`s at around 100 cycles against one `mul` and a `sar`.
 
-That 3x is a deliberate trade and it has an escape hatch that does not move the
+Counted off the emitted assembly rather than estimated: `lib/std/fixed.momo`'s portable
+kernel is **54 instructions and about 901 cycles**, against 7 and about 181 for the
+intrinsic below. The gap is not where this section expected it.
+
+**The four-multiply design assumed byte multiplies, and Momo never emits one.** "`mul`
+on byte operands already gives a 16-bit result" is true of the instruction and false of
+this language: §4 promotes every byte operand to 16 bits before arithmetic, so
+`ah * bh` on two `u8`s emits `mul bx` at 118 cycles rather than `mul bl` at 70. Four
+word multiplies, not four byte multiplies. On top of that the byte halves shuttle
+through memory - 24 `mov`s - and each `>> 8` is `shl ax, cl` at 8 + 4n, which is 40
+cycles three times over.
+
+So the kernel is correct as assembly and inexpressible as Momo, which is a distinction
+this section did not draw. The estimate was made against the design; the measurement is
+against the output, and §16's rule about which of those to trust applies here as much as
+anywhere.
+
+That cost is a deliberate trade and it had an escape hatch that does not move the
 language. The sugar's *meaning* is defined by its lowering, so a faster implementation
 of the same meaning is an optimisation: the emitter can special-case the pattern, or a
 widening-multiply intrinsic can arrive, and no program changes. This section then said:
 *"Ship the sugar, measure whether the 3x matters on something real, and only then spend
 anything on the back end."*
+
+**The intrinsic arrived, and it is `mulshr8( a, b )`** - the unsigned product of two
+words, shifted right by eight. `lib/std/fixed.momo`'s `fixMulU` is one line over it, and
+the four-multiply version is kept beside it as `fixMulUParts`, which is the
+specification and the thing the intrinsic is tested against: `projects/fixmul` runs both
+over 256 pairs and requires agreement on every one.
+
+It needed **no new mnemonic**. The whole 32-bit product lives in `DX:AX` and is never
+named, which is exactly what §9 has always permitted, and `(a*b) >> 8` out of `DX:AX` is
+one byte from each half - two `mov`s, no shift, because no 8086 shift reaches across the
+pair anyway. Named for the machine operation rather than for fixed point, the way `peek8`
+is named for the machine rather than for "read a byte".
+
+The honest caveat: it was built before anything measured whether 5x mattered, which is
+the opposite of what the sentence above advises. The zoom transform is still the first
+real consumer and it is not written yet.
 
 **Which has the difficulty backwards. The back end is simpler than the Momo kernel, not
 harder.** The four-mul synthesis exists only because §9 discards `DX`; an
@@ -4031,15 +4083,19 @@ byte extraction:
         mov     ah, dl
 ```
 
-Around 130 cycles and 8 bytes, against roughly 400 for four `mul`s. One helper per
-fractional width in use, which is one per distinct constant - the same rule the interrupt
-helpers already follow.
+Around 130 cycles for the sequence itself, against roughly 900 for the portable kernel as
+Momo actually emits it - see the measurement above.
 
 **§1 anticipated this without knowing it.** `imul` is excluded there because "with no
-32-bit type we never read `DX`", and a fixed multiply reads `DX` - so that justification
-expires the moment this feature exists. Signed then costs one `imul` and the same two
-`mov`s, at 39 mnemonics becoming 40 and a §1 edit. Staying at 39 means magnitude-and-sign
-with `neg` around one `mul`, still several times faster than the kernel.
+32-bit type we never read `DX`", and reading the high half of a product is exactly what
+this does - so that justification expired the moment the intrinsic arrived, and §1 now
+records a smaller reason instead.
+
+**And it stayed at 39.** `imul` would make signed fixed multiply one instruction, but
+`mulshr8` is unsigned and `lib/std/fixed.momo` puts magnitude-and-sign around it in
+ordinary Momo - so the sign costs a few `neg`s in a routine that already exists rather
+than a mnemonic in the subset. That is the cheaper half of the trade and it keeps the
+number on the README true.
 
 None of which changes the order. **Build the Momo lowering first and the helper second**,
 because the helper is where the signed cases live and the Momo version is the reference it

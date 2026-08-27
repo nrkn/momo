@@ -206,6 +206,16 @@ export type InExpression = Located & {
   port: Expression
 }
 
+// `mulshr8( a, b )`. Unsigned, and the one operation in the language that reads
+// the high half of a product - which is why it is a primitive rather than
+// something the emitter could recognise: §9 discards DX, so no expression made of
+// ordinary operators can get at those bits.
+export type MulShrExpression = Located & {
+  type: 'MulShrExpression'
+  left: Expression
+  right: Expression
+}
+
 // `out8(port, value)`, `out16(port, value)`. A statement, like poke, because a
 // port write is an effect and produces nothing.
 export type OutStatement = Spanned & {
@@ -300,6 +310,7 @@ export type Expression =
   | LenExpression
   | PeekExpression
   | InExpression
+  | MulShrExpression
 
 // Only these can appear on the left of an assignment.
 export type LValue = Identifier | IndexExpression

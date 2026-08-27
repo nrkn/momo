@@ -1,0 +1,7 @@
+// EXPECT-ERROR: mulshr8 is unsigned - this is i16
+// The high half of a product is not sign-agnostic the way the low half is, which
+// is the whole reason §1 could leave imul out.
+i16 a
+u16 b
+u16 r
+r = mulshr8( a, b )
