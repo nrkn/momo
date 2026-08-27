@@ -58,6 +58,21 @@ const describe = (token: Token): string => {
   return `"${token.text}"`
 }
 
+// The lexer reads `i8.8` as one type token, so the message can name the missing
+// feature rather than report a stray dot. Both places a type token is consumed -
+// a declaration and a cast - pass through here, and both stop doing so when
+// DESIGN.md §25 is built.
+const rejectFixedType = (token: Token): Token => {
+  if (token.text.includes('.')) {
+    raise(
+      token,
+      `fixed-point types are not built yet, so "${token.text}" is not a type` +
+        ' - use i16 and scale by hand',
+    )
+  }
+  return token
+}
+
 export const parse = (tokens: Token[]): Program => {
   let pos = 0
 
@@ -207,6 +222,15 @@ export const parse = (tokens: Token[]): Program => {
   const parsePrimary = (): Expression => {
     const token = peek()
 
+    // Recognised by the lexer, and nothing can hold it yet - see DESIGN.md §25.
+    if (token.kind === 'decimal') {
+      raise(
+        token,
+        'a decimal literal needs a fixed-point type, and there is not one yet' +
+          ' - scale the value to an integer',
+      )
+    }
+
     if (token.kind === 'number' || token.kind === 'char') {
       advance()
       return {
@@ -241,6 +265,7 @@ export const parse = (tokens: Token[]): Program => {
 
     // A type name in expression position is always a cast - `u8(x)`.
     if (token.kind === 'type') {
+      rejectFixedType(token)
       advance()
       expect('op', '(')
       const argument = parseExpression()
@@ -419,7 +444,7 @@ export const parse = (tokens: Token[]): Program => {
   // ---- statements -----------------------------------------------------------
 
   const parseTypeNode = (): TypeNode => {
-    const token = expect('type')
+    const token = rejectFixedType(expect('type'))
     let array = false
     let size: Expression | null = null
 

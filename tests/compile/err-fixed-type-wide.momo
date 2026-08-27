@@ -1,0 +1,4 @@
+// EXPECT-ERROR: fixed-point types are not built yet, so "i12.4" is not a type
+// The whole part is not a type name, so this is the spelling that catches a
+// lexer that builds a fixed type by absorbing a dot after one.
+i12.4 scale = 1

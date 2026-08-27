@@ -25,6 +25,9 @@ const display = (token: Token): string => {
   if (token.kind === 'string') return `${token.text}  -> ${JSON.stringify(token.str)}`
   if (token.kind === 'char') return `${token.text}  -> ${token.num}`
   if (token.kind === 'number') return `${token.text}  -> ${token.num}`
+  // Split rather than scaled, because the scale comes from the target type - so
+  // the dump shows the two halves the lexer actually decoded.
+  if (token.kind === 'decimal') return `${token.text}  -> ${token.num} + .${token.frac}`
   return token.text
 }
 

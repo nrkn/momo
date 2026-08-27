@@ -28,6 +28,7 @@ import {
 } from './cli.js'
 import { compile } from '../momo/compile.js'
 import { formatError, isMomoError } from '../momo/diagnostics.js'
+import { tokenize } from '../momo/lexer.js'
 import { load } from '../momo/loader.js'
 import { printProgram } from '../momo/printer.js'
 import { combineRanges, naturalType, rangeOf, truncate } from '../momo/types.js'
@@ -79,6 +80,61 @@ const typeAssertions = () => {
   check('natural -129 -> i16', naturalType(-129) === 'i16')
   check('natural 65536 -> none', naturalType(65536) === null)
   check('natural -32769 -> none', naturalType(-32769) === null)
+}
+
+// ---- lexer decode ----------------------------------------------------------
+//
+// The compile tests cover every way a decimal or a fixed type name can be
+// rejected. None of them cover what the lexer DECODES: a decimal's two halves
+// are consumed by nothing until DESIGN.md §25 is built, so a wrong split would
+// be invisible for as long as that takes. These are facts about a lexeme rather
+// than design choices, which is the same thing that earns the type assertions
+// above their place.
+
+const checkLex = (name: string, actual: string, expected: string) =>
+  check(name, actual === expected, `expected "${expected}", got "${actual}"`)
+
+const lexShape = (source: string): string =>
+  tokenize(source, 'lex.momo')
+    .filter((token) => token.kind !== 'eof' && token.kind !== 'newline')
+    .map((token) => `${token.kind}(${token.text})`)
+    .join(' ')
+
+// The two halves as the lexer split them, or a count when there is not exactly
+// one decimal - which is itself the answer for a lexeme that must not become one.
+const lexDecimal = (source: string): string => {
+  const decimals = tokenize(source, 'lex.momo').filter((token) => token.kind === 'decimal')
+  if (decimals.length !== 1) return `${decimals.length} decimals`
+  return `${decimals[0].num} + .${decimals[0].frac}`
+}
+
+const lexAssertions = () => {
+  // Split rather than scaled: 1.5 is 384 in 8.8 and 24 in 12.4, so the scale
+  // cannot be applied here - it comes from a target type the lexer cannot see.
+  checkLex('lex 1.5', lexDecimal('1.5'), '1 + .5')
+  checkLex('lex 0.1', lexDecimal('0.1'), '0 + .1')
+  // A trailing zero is a fraction, not the absence of one.
+  checkLex('lex 20.0', lexDecimal('20.0'), '20 + .0')
+  // Separators strip from both halves, as they do from an integer literal.
+  checkLex('lex 1_000.250', lexDecimal('1_000.250'), '1000 + .250')
+
+  // A fixed type name is one token. `i12` and `u0` are not type names, so a
+  // lexer that builds one by absorbing a dot after a type token reaches only
+  // four of the 48 spellings - and two of those are splits §25 rejects.
+  checkLex('lex i8.8', lexShape('i8.8'), 'type(i8.8)')
+  checkLex('lex i12.4', lexShape('i12.4'), 'type(i12.4)')
+  checkLex('lex u0.16', lexShape('u0.16'), 'type(u0.16)')
+
+  // And what must not have changed. A field name cannot start with a digit,
+  // which is the whole reason group access stays clear of a fixed type.
+  checkLex(
+    'lex mob[0].hp',
+    lexShape('mob[0].hp'),
+    'ident(mob) op([) number(0) op(]) op(.) ident(hp)',
+  )
+  checkLex('lex player.x', lexShape('player.x'), 'ident(player) op(.) ident(x)')
+  checkLex('lex 123', lexShape('123'), 'number(123)')
+  checkLex('lex 0xFF', lexShape('0xFF'), 'number(0xFF)')
 }
 
 // ---- compile tests ---------------------------------------------------------
@@ -371,6 +427,8 @@ const subsetTests = (): number => {
 
 typeAssertions()
 const typeCount = passed + failures.length
+lexAssertions()
+const lexCount = passed + failures.length - typeCount
 const compileCount = compileTests()
 const goldenCount = goldenTests()
 const roundTripCount = roundTripTests()
@@ -382,7 +440,7 @@ const total = passed + failures.length
 console.log(
   `\n${passed}/${total} passed` +
     `  (${compileCount} compile tests, ${goldenCount} golden, ${typeCount} type` +
-    `, ${roundTripCount} round trip, ${subsetCount} subset)`,
+    `, ${lexCount} lex, ${roundTripCount} round trip, ${subsetCount} subset)`,
 )
 
 if (failures.some((failure) => failure.includes('first difference'))) {

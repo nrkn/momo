@@ -1,0 +1,2 @@
+// EXPECT-ERROR: a decimal literal needs a fixed-point type
+const k = 1.5

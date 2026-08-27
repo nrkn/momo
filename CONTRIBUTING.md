@@ -62,7 +62,7 @@ npm run check -- <project>    # symbol table
 npm run memory -- <project>   # exact static footprint
 npm run desugar -- <project>  # the program with its surface sugar lowered
 
-npm test                      # tier 1: compile tests, golden .asm, types, ~1s
+npm test                      # tier 1: compile, golden .asm, types, lexing, ~1s
 npm run test:e2e              # tier 2: run in DOSBox, compare output
 
 npm run grammar               # regenerate the grammar from tokens.ts
@@ -308,5 +308,9 @@ The cost of waiting is that the first thing a visitor reads is the weakest
 document in the repo. That trade is made deliberately, and preferred to shipping a
 second draft in the same voice as the first.
 
-253 tier-1 assertions (143 compile tests, 33 golden `.asm`, 25 type, 49 round
-trip, 3 subset), 26 e2e programs, all green.
+288 tier-1 assertions (152 compile tests, 41 golden `.asm`, 25 type, 11 lex, 56
+round trip, 3 subset), 26 e2e programs, all green.
+
+This figure had drifted to 253 against an actual 268 before it was last read -
+the golden and round-trip tiers both grew during the vector port and nothing
+brought the sentence with them. Unlike §1's mnemonic count, no test enforces it.

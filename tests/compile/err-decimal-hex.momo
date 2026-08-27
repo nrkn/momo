@@ -1,0 +1,2 @@
+// EXPECT-ERROR: a decimal point cannot follow a hex or binary literal
+u16 a = 0x10.5

@@ -66,8 +66,9 @@ export const tokenize = (source: string, file: string): Token[] => {
     tokenCol: number,
     num = 0,
     str = '',
+    frac = '',
   ) => {
-    tokens.push({ kind, text, num, str, file, line: tokenLine, col: tokenCol })
+    tokens.push({ kind, text, num, str, frac, file, line: tokenLine, col: tokenCol })
   }
 
   const pushNewline = (tokenLine: number, tokenCol: number) => {
@@ -145,13 +146,16 @@ export const tokenize = (source: string, file: string): Token[] => {
       const start = pos
 
       // `_` is a digit separator inside a numeric literal: 0b1010_1010.
+      let radix = 10
       if (ch === '0' && (source[pos + 1] === 'x' || source[pos + 1] === 'X')) {
+        radix = 16
         advance(2)
         if (pos >= source.length || !isHexDigit(source[pos])) {
           raise({ file, line: line, col: col }, 'expected hex digits after "0x"')
         }
         while (pos < source.length && (isHexDigit(source[pos]) || source[pos] === '_')) advance(1)
       } else if (ch === '0' && (source[pos + 1] === 'b' || source[pos + 1] === 'B')) {
+        radix = 2
         advance(2)
         if (pos >= source.length || !isBinDigit(source[pos])) {
           raise({ file, line: line, col: col }, 'expected binary digits after "0b"')
@@ -159,6 +163,35 @@ export const tokenize = (source: string, file: string): Token[] => {
         while (pos < source.length && (isBinDigit(source[pos]) || source[pos] === '_')) advance(1)
       } else {
         while (pos < source.length && (isDigit(source[pos]) || source[pos] === '_')) advance(1)
+      }
+
+      // A '.' can never follow a numeric literal as an operator - a group field
+      // is selected off a name, not off a number - so every case here is either
+      // a decimal literal or a mistake, and each gets its own message.
+      const wholeEnd = pos
+      let fracStart = -1
+
+      if (source[pos] === '.') {
+        if (radix !== 10) {
+          raise(
+            { file, line: line, col: col },
+            'a decimal point cannot follow a hex or binary literal - write a fixed-point value in decimal',
+          )
+        }
+        if (!isDigit(source[pos + 1])) {
+          raise({ file, line: line, col: col }, 'a decimal point needs digits after it')
+        }
+
+        advance(1)
+        fracStart = pos
+        while (pos < source.length && (isDigit(source[pos]) || source[pos] === '_')) advance(1)
+
+        if (source[pos] === '.') {
+          raise(
+            { file, line: line, col: col },
+            'a numeric literal may have only one decimal point',
+          )
+        }
       }
 
       // Catches `123abc`, which would otherwise lex as a number then an ident.
@@ -170,8 +203,25 @@ export const tokenize = (source: string, file: string): Token[] => {
       if (text.endsWith('_')) raise({ file, line: startLine, col: startCol }, 'numeric literal may not end with "_"')
       if (text.includes('__')) raise({ file, line: startLine, col: startCol }, 'numeric literal may not contain "__"')
 
-      // Number() understands the 0x and 0b prefixes directly.
-      push('number', text, startLine, startCol, Number(text.replace(/_/g, '')))
+      const bare = (from: number, to: number) => source.slice(from, to).replace(/_/g, '')
+
+      if (fracStart < 0) {
+        // Number() understands the 0x and 0b prefixes directly.
+        push('number', text, startLine, startCol, Number(bare(start, pos)))
+        continue
+      }
+
+      // Split rather than scaled: 1.5 is 384 in 8.8 and 24 in 12.4, and the
+      // scale comes from a target type the lexer cannot see. See DESIGN.md §25.
+      push(
+        'decimal',
+        text,
+        startLine,
+        startCol,
+        Number(bare(start, wholeEnd)),
+        '',
+        bare(fracStart, pos),
+      )
       continue
     }
 
@@ -182,6 +232,23 @@ export const tokenize = (source: string, file: string): Token[] => {
 
       while (pos < source.length && isIdentPart(source[pos])) advance(1)
       const text = source.slice(start, pos)
+
+      // A fixed type name is a sign letter, a whole width, a dot and a fraction
+      // width: `i8.8`, `i12.4`, `u0.16`. Its whole part is NOT itself a type name
+      // - `i12` and `u0` are not - so this cannot be built by absorbing a dot
+      // after a type token. Doing it that way reaches only i8, u8, i16 and u16,
+      // and of those the two 16s are the splits DESIGN.md §25 rejects.
+      //
+      // Requiring a digit after the dot is what keeps this clear of group access:
+      // a field name cannot start with one, so `u0.x` is still a name and a
+      // field. Whether the split is a legal one is decided where the parts are
+      // read, so `i99.1` lexes and is rejected there.
+      if (/^[iu][0-9]+$/.test(text) && source[pos] === '.' && isDigit(source[pos + 1])) {
+        advance(1)
+        while (pos < source.length && isDigit(source[pos])) advance(1)
+        push('type', source.slice(start, pos), startLine, startCol)
+        continue
+      }
 
       if (typeNames.includes(text)) push('type', text, startLine, startCol)
       else if (keywords.includes(text)) push('keyword', text, startLine, startCol)

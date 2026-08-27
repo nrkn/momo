@@ -1,0 +1,2 @@
+// EXPECT-ERROR: fixed-point types are not built yet, so "i8.8" is not a type
+i8.8 scale = 1

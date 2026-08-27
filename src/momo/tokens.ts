@@ -1,10 +1,15 @@
 // Token kinds and the lexeme tables the scanner matches against.
 
+// 'decimal' is its own kind rather than a 'number' carrying a fraction, and
+// deliberately: every existing site that consumes a number token then fails to
+// match a decimal instead of silently reading 1.5 as 1. There are three such
+// sites, and a silent truncation in any of them would be invisible.
 export type TokenKind =
   | 'ident'
   | 'keyword'
   | 'type'
   | 'number'
+  | 'decimal'
   | 'string'
   | 'char'
   | 'op'
@@ -14,8 +19,12 @@ export type TokenKind =
 export type Token = {
   kind: TokenKind
   text: string // exact source lexeme, used in error messages
-  num: number // decoded value for 'number' and 'char', otherwise 0
+  num: number // decoded value for 'number' and 'char', 'decimal's integer part
   str: string // decoded contents for 'string', otherwise empty
+  // Fractional digits of a 'decimal', separators removed, otherwise empty. Kept
+  // as digits rather than scaled here because the scale comes from the target
+  // type, which the lexer cannot see - see DESIGN.md §25.
+  frac: string
   file: string
   line: number
   col: number
@@ -73,8 +82,10 @@ export const operators = [
   '+=', '-=', '*=', '/=', '%=', '&=', '|=', '^=',
   '+', '-', '*', '/', '%', '&', '|', '^', '~', '!',
   '<', '>', '=', '?', ':',
-  // '.' selects a group field and nothing else. There are no floats, so it can
-  // never begin or interrupt a numeric literal.
+  // '.' selects a group field. It also appears inside a decimal literal and
+  // inside a fixed type name, but the lexer consumes both of those whole, so it
+  // never reaches here as an operator in either position - and a bare '.' after
+  // a numeric literal is always a mistake rather than a selection.
   '.',
   '(', ')', '[', ']', '{', '}', ',', ';',
 ]
@@ -90,6 +101,7 @@ export const operators = [
 export const canEndStatement = (token: Token): boolean => {
   if (token.kind === 'ident') return true
   if (token.kind === 'number') return true
+  if (token.kind === 'decimal') return true
   if (token.kind === 'string') return true
   if (token.kind === 'char') return true
 

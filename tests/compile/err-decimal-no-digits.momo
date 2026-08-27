@@ -1,0 +1,2 @@
+// EXPECT-ERROR: a decimal point needs digits after it
+u16 a = 1.

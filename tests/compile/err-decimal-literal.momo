@@ -1,0 +1,3 @@
+// EXPECT-ERROR: a decimal literal needs a fixed-point type
+u16 a = 1
+a = a + 1.5
