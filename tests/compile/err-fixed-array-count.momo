@@ -1,2 +1,2 @@
 // EXPECT-ERROR: 1 is a count, not a value with a radix point
-u0.16 unit = 1
+i8.8[2] table = [ 1, 2 ]

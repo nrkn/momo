@@ -10,6 +10,7 @@
 
 import { raise } from './diagnostics.js'
 import type { Token, TokenKind } from './tokens.js'
+import { fixedSplitError, fixedStorage } from './types.js'
 import type {
   ArrayLiteral,
   BlockStatement,
@@ -58,19 +59,27 @@ const describe = (token: Token): string => {
   return `"${token.text}"`
 }
 
-// The lexer reads `i8.8` as one type token, so the message can name the missing
-// feature rather than report a stray dot. Both places a type token is consumed -
-// a declaration and a cast - pass through here, and both stop doing so when
-// DESIGN.md §25 is built.
-const rejectFixedType = (token: Token): Token => {
-  if (token.text.includes('.')) {
-    raise(
-      token,
-      `fixed-point types are not built yet, so "${token.text}" is not a type` +
-        ' - use i16 and scale by hand',
-    )
-  }
-  return token
+// The lexer reads `i8.8` as one type token; this is where its parts are read and
+// checked. A type with no dot is frac 0, which is every type that existed before
+// DESIGN.md §25 - so the storage type comes out of here unchanged and the scale
+// travels beside it.
+//
+// Both places a type token is consumed - a declaration and a cast - go through
+// here, which keeps the legal set decided in exactly one place.
+const readType = (token: Token): { name: TypeName; frac: number } => {
+  const dot = token.text.indexOf('.')
+  if (dot < 0) return { name: token.text as TypeName, frac: 0 }
+
+  // The lexer only joins a dot to a name matching [iu][0-9]+, so the sign letter
+  // and both widths are known to be present.
+  const signed = token.text[0] === 'i'
+  const whole = Number(token.text.slice(1, dot))
+  const frac = Number(token.text.slice(dot + 1))
+
+  const error = fixedSplitError(signed, whole, frac)
+  if (error) raise(token, error)
+
+  return { name: fixedStorage(signed, whole + frac), frac }
 }
 
 export const parse = (tokens: Token[]): Program => {
@@ -265,14 +274,15 @@ export const parse = (tokens: Token[]): Program => {
 
     // A type name in expression position is always a cast - `u8(x)`.
     if (token.kind === 'type') {
-      rejectFixedType(token)
+      const target = readType(token)
       advance()
       expect('op', '(')
       const argument = parseExpression()
       expect('op', ')')
       return {
         type: 'CastExpression',
-        to: token.text as TypeName,
+        to: target.name,
+        toFrac: target.frac,
         argument,
         file: token.file,
         line: token.line,
@@ -444,7 +454,8 @@ export const parse = (tokens: Token[]): Program => {
   // ---- statements -----------------------------------------------------------
 
   const parseTypeNode = (): TypeNode => {
-    const token = rejectFixedType(expect('type'))
+    const token = expect('type')
+    const read = readType(token)
     let array = false
     let size: Expression | null = null
 
@@ -457,7 +468,8 @@ export const parse = (tokens: Token[]): Program => {
 
     return {
       type: 'TypeNode',
-      name: token.text as TypeName,
+      name: read.name,
+      frac: read.frac,
       array,
       size,
       file: token.file,
@@ -535,6 +547,7 @@ export const parse = (tokens: Token[]): Program => {
         name: name.text,
         params,
         returnType,
+        returnFrac: typeNode ? typeNode.frac : 0,
         body,
         file: start.file,
         line: start.line,
@@ -810,6 +823,7 @@ export const parse = (tokens: Token[]): Program => {
       name: name.text,
       params,
       returnType: null,
+      returnFrac: 0,
       body,
       file: start.file,
       line: start.line,
@@ -864,6 +878,7 @@ export const parse = (tokens: Token[]): Program => {
       name: name.text,
       params,
       returnType: typeNode.name,
+      returnFrac: typeNode.frac,
       body,
       file: start.file,
       line: start.line,

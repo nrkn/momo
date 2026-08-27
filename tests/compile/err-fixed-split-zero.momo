@@ -1,0 +1,2 @@
+// EXPECT-ERROR: i16.0 is i16 - write that instead
+i16.0 wrong

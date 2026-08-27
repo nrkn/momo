@@ -31,7 +31,16 @@ import { formatError, isMomoError } from '../momo/diagnostics.js'
 import { tokenize } from '../momo/lexer.js'
 import { load } from '../momo/loader.js'
 import { printProgram } from '../momo/printer.js'
-import { combineRanges, naturalType, rangeOf, truncate } from '../momo/types.js'
+import {
+  combineRanges,
+  fixedSplitError,
+  fixedStorage,
+  naturalType,
+  rangeOf,
+  rescale,
+  spell,
+  truncate,
+} from '../momo/types.js'
 
 let passed = 0
 const failures: string[] = []
@@ -80,6 +89,37 @@ const typeAssertions = () => {
   check('natural -129 -> i16', naturalType(-129) === 'i16')
   check('natural 65536 -> none', naturalType(65536) === null)
   check('natural -32769 -> none', naturalType(-32769) === null)
+
+  // Fixed-point splits (DESIGN.md §25). Facts about scales rather than design
+  // choices, which is the same thing that earns everything above its place.
+  check('split i8.8 legal', fixedSplitError(true, 8, 8) === null)
+  check('split i12.4 legal', fixedSplitError(true, 12, 4) === null)
+  check('split i4.4 legal', fixedSplitError(true, 4, 4) === null)
+  check('split u0.16 legal', fixedSplitError(false, 0, 16) === null)
+  // Twelve bits matches no storage width, so the four spare bits would be a lie.
+  check('split i6.6 rejected', (fixedSplitError(true, 6, 6) ?? '').includes('12 bits'))
+  check('split i99.1 rejected', (fixedSplitError(true, 99, 1) ?? '').includes('100 bits'))
+  // Two spellings for one type is worse than one.
+  check('split i16.0 rejected', (fixedSplitError(true, 16, 0) ?? '').includes('is i16'))
+
+  check('storage i8.8 -> i16', fixedStorage(true, 16) === 'i16')
+  check('storage u4.4 -> u8', fixedStorage(false, 8) === 'u8')
+
+  // The spelling is what a reader wrote; the storage type is true and useless.
+  check('spell i16/8 -> i8.8', spell('i16', 8) === 'i8.8')
+  check('spell i8/4 -> i4.4', spell('i8', 4) === 'i4.4')
+  check('spell u16/16 -> u0.16', spell('u16', 16) === 'u0.16')
+  check('spell i16/0 -> i16', spell('i16', 0) === 'i16')
+
+  // Scaling up is exact. Scaling down rounds to nearest, ties away from zero -
+  // so 1.5 in 8.8 comes back as 2, and 30.0 comes back as 30.
+  check('rescale 1 up to 8.8 = 256', rescale(1, 0, 8) === 256)
+  check('rescale 1 from 4.4 to 8.8 = 16', rescale(1, 4, 8) === 16)
+  check('rescale 30.0 down = 30', rescale(7680, 8, 0) === 30)
+  check('rescale 1.5 down = 2 (tie away)', rescale(384, 8, 0) === 2)
+  check('rescale -1.5 down = -2 (tie away)', rescale(-384, 8, 0) === -2)
+  check('rescale 1.496 down = 1', rescale(383, 8, 0) === 1)
+  check('rescale same scale is identity', rescale(384, 8, 8) === 384)
 }
 
 // ---- lexer decode ----------------------------------------------------------

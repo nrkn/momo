@@ -71,3 +71,66 @@ export const fits = (value: number, type: ValueType): boolean => {
   const range = rangeOf(type)
   return value >= range.min && value <= range.max
 }
+
+// ---- fixed-point splits (DESIGN.md §25) -------------------------------------
+//
+// `i8.8` is an i16 with eight fraction bits. Nothing here returns a new
+// ValueType: the split decides which of the five the type already IS, and the
+// fraction width travels beside it. That is the rule doing the work - no new
+// storage, no new codegen, and the sugar is type checking plus shift amounts.
+
+// Null when the split is legal. Three ways to get it wrong want three answers,
+// so this returns the message rather than a boolean.
+export const fixedSplitError = (
+  signed: boolean,
+  whole: number,
+  frac: number,
+): string | null => {
+  const letter = signed ? 'i' : 'u'
+  const spelling = `${letter}${whole}.${frac}`
+  const total = whole + frac
+
+  // `i16.0` is i16, and two spellings for one type is worse than one.
+  if (frac === 0) return `${spelling} is ${letter}${whole} - write that instead`
+
+  // Twelve bits matches no storage width, so `i6.6` would live in sixteen and
+  // the four spare bits would be a lie: the type would claim a range it does
+  // not enforce, and overflow would wrap at sixteen rather than at twelve.
+  if (total !== 8 && total !== 16) {
+    const honest = frac < 16 ? ` - ${letter}${16 - frac}.${frac} lives in 16 bits and says so` : ''
+    return `${spelling} is ${total} bits, which is not a storage width${honest}`
+  }
+
+  return null
+}
+
+// The storage a legal split lives in. Narrower than ValueType on purpose: these
+// four are exactly the spellable types, so the result drops straight into a
+// TypeName without a cast.
+export const fixedStorage = (
+  signed: boolean,
+  total: number,
+): 'u8' | 'i8' | 'u16' | 'i16' =>
+  total === 8 ? (signed ? 'i8' : 'u8') : signed ? 'i16' : 'u16'
+
+// 2^frac. The fraction width is at most 16, so this is exact.
+export const scaleOf = (frac: number): number => 2 ** frac
+
+// How a type and a scale are spelled in source. Error messages have to say
+// "i8.8" where the source said it, not "i16" - the storage type is true and
+// useless to the reader.
+export const spell = (type: ValueType, frac: number): string =>
+  frac === 0 ? type : `${isSigned(type) ? 'i' : 'u'}${widthOf(type) * 8 - frac}.${frac}`
+
+// Value-preserving conversion between two scales: 1.5 in 8.8 is 384, and 384 back
+// to a plain integer is 2 rather than 1. Scaling up is exact; scaling down rounds
+// to nearest with ties away from zero, which is the rule DESIGN.md §25 settles on
+// and the reason "exact" is a property of 1.5 rather than of the scheme.
+export const rescale = (value: number, from: number, to: number): number => {
+  if (to >= from) return value * scaleOf(to - from)
+
+  const divisor = scaleOf(from - to)
+  const magnitude = Math.abs(value)
+  const rounded = Math.floor((magnitude + divisor / 2) / divisor)
+  return value < 0 ? -rounded : rounded
+}

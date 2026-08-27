@@ -39,6 +39,11 @@ export type Spanned = Located & { endLine: number }
 export type TypeNode = Located & {
   type: 'TypeNode'
   name: TypeName
+  // Fraction bits, 0 for every type that is not fixed-point. Parallel to `name`
+  // rather than part of it: `i12.4` IS an i16, so the storage type is unchanged
+  // and everything downstream that wants storage keeps reading `name`. See
+  // DESIGN.md §25.
+  frac: number
   array: boolean
   size: Expression | null // `u8[4]` has one, `u8[]` does not
 }
@@ -130,6 +135,7 @@ export type IndexExpression = Located & {
 export type CastExpression = Located & {
   type: 'CastExpression'
   to: TypeName
+  toFrac: number // fraction bits of the target type, 0 when it is not fixed
   argument: Expression
 }
 
@@ -294,6 +300,7 @@ export type ConstFunctionDeclaration = Spanned & {
   name: string
   params: Parameter[]
   returnType: TypeName | null // null means infer from the body
+  returnFrac: number // fraction bits of the declared return type, else 0
   body: Expression
   local?: boolean
 }
@@ -329,6 +336,7 @@ export type RoutineDeclaration = Spanned & {
   name: string
   params: Parameter[]
   returnType: TypeName | null
+  returnFrac: number
   body: BlockStatement
   label?: string // set by the resolver; the call graph and emitter key on it
   local?: boolean

@@ -1,0 +1,4 @@
+// EXPECT-ERROR: 2 is a count, not a value with a radix point
+i8.8 scale
+bool flag
+scale = flag ? scale : 2

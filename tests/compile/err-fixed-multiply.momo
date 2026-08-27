@@ -1,0 +1,4 @@
+// EXPECT-ERROR: needs fixMul, which is not built yet
+i8.8 scale
+i8.8 height
+scale = scale * height

@@ -1,0 +1,4 @@
+// EXPECT-ERROR: casting a runtime value to i16 needs a shift, which is not built yet
+i8.8 scale
+i16 whole
+whole = i16( scale )

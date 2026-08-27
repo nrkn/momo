@@ -1,0 +1,86 @@
+// fixed.momo - every fixed-point shape that works while DESIGN.md §25 is half
+// built. A project rather than a compile test, and deliberately: the golden tier
+// is the only one that watches what gets EMITTED, and this change's central claim
+// is about emitted code.
+//
+// The claim is that nothing here reaches new codegen - the scale is erased before
+// the emitter, so every instruction in `fixed.asm` is one that already existed.
+// Read the committed `.asm` to check it; `mov word [scale], 768` is the folded
+// `i8.8( 3 )`, and a cast that stopped scaling would show up there as 3.
+//
+// It is also the printer's coverage. The round trip prints `i8.8` back and
+// compiles the printed copy, so a printer writing the storage type instead would
+// build a program 256 times different from the one it read - which is exactly the
+// bug the round trip caught the first time this file existed.
+//
+// Golden tier only for now: it computes and stores, and prints nothing. Tier 2
+// numbers are what §25 actually asks for and are the next thing owed.
+
+i8.8 scale
+i8.8 height
+i16  whole
+bool over
+
+// Same scale throughout: add, subtract and compare are integer operations, and
+// there is nothing to lower.
+sub sameScale {
+  scale = scale + height
+  scale = scale - height
+  over = scale < height
+}
+
+// A plain integer is a count - "three times as big" - so the scale survives, no
+// shift is wanted, and an untyped literal lands here rather than being promoted.
+sub counts {
+  scale = scale * 3
+  scale = scale / 2
+  scale = scale >> 1
+  scale = -scale
+}
+
+// A constant crosses the scale boundary by folding, which needs no shift: 3 in
+// 8.8 is 768, and back down it is 3 again.
+sub constants {
+  scale = i8.8( 3 )
+  whole = i16( i8.8( 3 ) )
+}
+
+// Parameters and a return type carry a scale like any other declaration.
+i8.8 doubled( i8.8 v ) => v * 2
+
+sub throughARoutine => scale = doubled( height )
+
+// An eight-bit split, which is where promotion earns its keep: arithmetic
+// happens in 16 bits and the radix point does not move, so i4.4 computes as
+// i12.4 and stores back into a byte.
+i4.4 small
+
+sub eightBit {
+  small = small + small
+  small = small * 2
+}
+
+// Storage of every shape: an array, a group field, and a const with a declared
+// fixed type.
+i8.8[3] table
+
+group blob[2] {
+  i8.8 weight
+}
+
+const i8.8 one = i8.8( 1 )
+
+sub throughStorage {
+  table[0] = scale
+  scale = table[1]
+  blob[0].weight = scale
+  scale = blob[1].weight
+  scale = one
+}
+
+sameScale()
+counts()
+constants()
+throughARoutine()
+eightBit()
+throughStorage()

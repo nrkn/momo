@@ -6,9 +6,10 @@ predecessor [Yuki](https://github.com/nrkn/yuki-js), whose Pong for a fantasy
 console is kept as `_reference/yuki.txt`.
 
 - **`DESIGN.md`** - the language, and *why* every decision was made. 25 sections:
-  built features (§1-§18 and §22), four designed-but-deferred (§19, §23, §24, §25),
-  open questions (§20), and long-term directions (§21). Read the relevant section
-  before changing anything; the rationale matters more than the rules.
+  built features (§1-§18 and §22), three designed-but-deferred (§19, §23, §24),
+  one half-built (§25, which opens by saying which half), open questions (§20),
+  and long-term directions (§21). Read the relevant section before changing
+  anything; the rationale matters more than the rules.
 - **`STYLE.md`** - TypeScript and Momo conventions.
 - **`PITFALLS.md`** - what bites when writing Momo *programs*, as opposed to the
   gotchas below, which are about working on the compiler. Each entry leads with
@@ -308,7 +309,7 @@ The cost of waiting is that the first thing a visitor reads is the weakest
 document in the repo. That trade is made deliberately, and preferred to shipping a
 second draft in the same voice as the first.
 
-288 tier-1 assertions (152 compile tests, 41 golden `.asm`, 25 type, 11 lex, 56
+322 tier-1 assertions (164 compile tests, 42 golden `.asm`, 45 type, 11 lex, 57
 round trip, 3 subset), 26 e2e programs, all green.
 
 This figure had drifted to 253 against an actual 268 before it was last read -

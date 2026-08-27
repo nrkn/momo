@@ -35,6 +35,8 @@ import {
   naturalType,
   promote,
   rangeOf,
+  rescale,
+  spell,
   truncate,
   widthOf,
   type Range,
@@ -52,12 +54,16 @@ import {
 export type Alias = { parent: string; byteOffset: number }
 
 export type MomoSymbol =
-  | { kind: 'const'; name: string; label: string; type: ValueType; value: number }
+  // `frac` on a symbol is the fraction width of its type, absent meaning 0. It
+  // sits beside `type` rather than inside it, so everything that wants storage -
+  // the emitter especially - keeps reading `type` and never learns about scale.
+  | { kind: 'const'; name: string; label: string; type: ValueType; value: number; frac?: number }
   | {
       kind: 'array'
       name: string
       label: string
       elementType: ValueType
+      frac?: number // of the element type
       length: number
       readonly: boolean
       values: number[]
@@ -73,6 +79,7 @@ export type MomoSymbol =
       name: string
       label: string
       type: ValueType
+      frac?: number
       builtin: boolean
       init: number
       owner?: string
@@ -89,16 +96,18 @@ export type MomoSymbol =
       kind: 'routine'
       name: string
       label: string
-      params: { name: string; label: string; type: ValueType }[]
+      params: { name: string; label: string; type: ValueType; frac?: number }[]
       returnType: ValueType | null
+      returnFrac?: number
       retLabel: string | null
     }
   | {
       kind: 'constfn'
       name: string
       label: string
-      params: { name: string; type: ValueType }[]
+      params: { name: string; type: ValueType; frac?: number }[]
       returnType: ValueType | null
+      returnFrac?: number
       body: Expression
     }
   // A window onto memory in another segment. Emits no storage: the segment and
@@ -112,6 +121,7 @@ export type MomoSymbol =
       name: string
       label: string
       elementType: ValueType
+      frac?: number // of the element type
       length: number | null // null when unsized: no bounds checks, as for `u8[]`
       readonly: boolean
       segment: { from: 'const'; value: number } | { from: 'var'; label: string }
@@ -236,7 +246,11 @@ const safeLabel = (name: string): string =>
 const isSub = (symbol: MomoSymbol): boolean =>
   symbol.kind === 'routine' && symbol.returnType === null
 
-type Resolved = { type: ValueType; value: number | null }
+// `frac` is required rather than optional: 32 sites construct a Resolved, and a
+// forgotten scale would be silent at every one of them. Optional would have saved
+// the `frac: 0` on the two thirds that are plain and caught nothing. See
+// DESIGN.md �25.
+type Resolved = { type: ValueType; value: number | null; frac: number }
 
 const isExpression = (value: unknown): value is Expression =>
   typeof value === 'object' &&
@@ -417,7 +431,61 @@ export const resolve = (program: Program): ResolveResult => {
   }
 
   const describeType = (resolved: Resolved): string =>
-    resolved.type === 'untyped' ? `untyped constant ${resolved.value}` : resolved.type
+    resolved.type === 'untyped'
+      ? `untyped constant ${resolved.value}`
+      : spell(resolved.type, resolved.frac)
+
+  // The scale half of a binary operator's result. Storage comes from
+  // combineOperands and is decided by ranges; this is decided by fraction widths,
+  // and the two are independent - which is what DESIGN.md §25 means by a unit
+  // system rather than a width system.
+  const combineScales = (
+    left: Resolved,
+    right: Resolved,
+    operator: string,
+    at: Location,
+  ): number => {
+    if (left.frac === 0 && right.frac === 0) return 0
+
+    // `*` and `/` against a plain integer treat it as a count - "three times as
+    // big" - so the scale survives and no shift is wanted. That is where an
+    // untyped literal lands, which is what makes `scale * 2` mean what it looks
+    // like it means.
+    if (operator === '*' || operator === '/') {
+      if (left.frac === 0 || right.frac === 0) return left.frac + right.frac
+
+      if (left.frac === right.frac) {
+        raise(
+          at,
+          `"${operator}" on two fixed-point values needs fixMul, which is not built yet` +
+            ' - multiply by a plain count instead',
+        )
+      }
+    }
+
+    if (left.frac === right.frac) return left.frac
+
+    // Mixed scales. An untyped constant is the case worth its own message,
+    // because it is the commonest and the fix is a cast rather than a rethink.
+    const scaled = left.frac !== 0 ? left : right
+    const other = left.frac !== 0 ? right : left
+    const target = spell(scaled.type, scaled.frac)
+
+    if (other.type === 'untyped') {
+      raise(
+        at,
+        `cannot apply "${operator}" to ${target} and ${other.value}` +
+          ` - ${other.value} is a count, not a value with a radix point` +
+          `; write ${target}( ${other.value} ) to promote it`,
+      )
+    }
+
+    raise(
+      at,
+      `cannot apply "${operator}" to ${describeType(left)} and ${describeType(right)}` +
+        ' - mixed scales do not combine; one of them needs a cast',
+    )
+  }
 
   const foldBinary = (
     operator: string,
@@ -543,7 +611,7 @@ export const resolve = (program: Program): ResolveResult => {
 
     for (let i = 0; i < node.args.length; i++) {
       const argument = resolveExpression(node.args[i])
-      checkAssignable(argument, symbol.params[i].type, node.args[i])
+      checkAssignable(argument, symbol.params[i].type, symbol.params[i].frac ?? 0, node.args[i])
     }
   }
 
@@ -560,7 +628,7 @@ export const resolve = (program: Program): ResolveResult => {
       }
       node.callee.label = symbol.label
       checkArguments(node, symbol)
-      return annotate(node, { type: symbol.returnType, value: null })
+      return annotate(node, { type: symbol.returnType, value: null, frac: symbol.returnFrac ?? 0 })
     }
 
     if (symbol.kind !== 'constfn') raise(node, `"${node.callee.name}" is not callable`)
@@ -595,6 +663,7 @@ export const resolve = (program: Program): ResolveResult => {
       expansion = {
         type: 'CastExpression',
         to: symbol.returnType as TypeName,
+        toFrac: symbol.returnFrac ?? 0,
         argument: expansion,
         file: node.file,
         line: node.line,
@@ -617,11 +686,11 @@ export const resolve = (program: Program): ResolveResult => {
       if (naturalType(node.value) === null) {
         raise(node, `literal ${node.value} does not fit in 16 bits`)
       }
-      return annotate(node, { type: 'untyped', value: node.value })
+      return annotate(node, { type: 'untyped', value: node.value, frac: 0 })
     }
 
     if (node.type === 'BoolLiteral') {
-      return annotate(node, { type: 'bool', value: node.value ? 1 : 0 })
+      return annotate(node, { type: 'bool', value: node.value ? 1 : 0, frac: 0 })
     }
 
     if (node.type === 'StringLiteral') {
@@ -648,10 +717,10 @@ export const resolve = (program: Program): ResolveResult => {
       node.label = symbol.label
 
       if (symbol.kind === 'const') {
-        return annotate(node, { type: symbol.type, value: symbol.value })
+        return annotate(node, { type: symbol.type, value: symbol.value, frac: symbol.frac ?? 0 })
       }
       if (symbol.kind === 'var') {
-        return annotate(node, { type: symbol.type, value: null })
+        return annotate(node, { type: symbol.type, value: null, frac: symbol.frac ?? 0 })
       }
       if (symbol.kind === 'array') {
         raise(node, `"${node.name}" is an array - index it, or use addr()`)
@@ -678,7 +747,7 @@ export const resolve = (program: Program): ResolveResult => {
       if (symbol.kind === 'far') {
         node.array.label = symbol.label
         checkIndex(symbol, node.index)
-        return annotate(node, { type: symbol.elementType, value: null })
+        return annotate(node, { type: symbol.elementType, value: null, frac: symbol.frac ?? 0 })
       }
 
       if (symbol.kind !== 'array') {
@@ -687,17 +756,17 @@ export const resolve = (program: Program): ResolveResult => {
 
       node.array.label = symbol.label
       checkIndex(symbol, node.index)
-      return annotate(node, { type: symbol.elementType, value: null })
+      return annotate(node, { type: symbol.elementType, value: null, frac: symbol.frac ?? 0 })
     }
 
     if (node.type === 'PeekExpression') {
       checkAddress(node.address, node.width === 1 ? 'peek8' : 'peek16')
-      return annotate(node, { type: node.width === 1 ? 'u8' : 'u16', value: null })
+      return annotate(node, { type: node.width === 1 ? 'u8' : 'u16', value: null, frac: 0 })
     }
 
     if (node.type === 'InExpression') {
       checkPort(node.port, node.width === 1 ? 'in8' : 'in16')
-      return annotate(node, { type: node.width === 1 ? 'u8' : 'u16', value: null })
+      return annotate(node, { type: node.width === 1 ? 'u8' : 'u16', value: null, frac: 0 })
     }
 
     if (node.type === 'AddrExpression') {
@@ -712,7 +781,7 @@ export const resolve = (program: Program): ResolveResult => {
         raise(node, `addr() has no meaning for "${node.target.name}" - it is in another segment`)
       }
       node.target.label = symbol.label
-      return annotate(node, { type: 'u16', value: null })
+      return annotate(node, { type: 'u16', value: null, frac: 0 })
     }
 
     if (node.type === 'LenExpression') {
@@ -730,7 +799,7 @@ export const resolve = (program: Program): ResolveResult => {
               ' count - it is only for the indexed form',
           )
         }
-        return annotate(node, { type: 'untyped', value: symbol.count })
+        return annotate(node, { type: 'untyped', value: symbol.count, frac: 0 })
       }
 
       // A far region has a length only when one was declared - it is an
@@ -743,7 +812,7 @@ export const resolve = (program: Program): ResolveResult => {
               ' nothing to report - give it one',
           )
         }
-        return annotate(node, { type: 'untyped', value: symbol.length })
+        return annotate(node, { type: 'untyped', value: symbol.length, frac: 0 })
       }
 
       if (symbol.kind !== 'array') {
@@ -763,13 +832,42 @@ export const resolve = (program: Program): ResolveResult => {
       // Deliberately no `node.target.label`. Unlike addr(), len() needs no
       // storage, so asking for a length must not be what keeps an otherwise
       // unused array in the output.
-      return annotate(node, { type: 'untyped', value: symbol.length })
+      return annotate(node, { type: 'untyped', value: symbol.length, frac: 0 })
     }
 
     if (node.type === 'CastExpression') {
       const argument = resolveExpression(node.argument)
-      const value = argument.value === null ? null : truncate(argument.value, node.to)
-      return annotate(node, { type: node.to, value })
+
+      // Same scale on both sides is the ordinary cast: bits, not units.
+      if (argument.frac === node.toFrac) {
+        const value = argument.value === null ? null : truncate(argument.value, node.to)
+        return annotate(node, { type: node.to, value, frac: node.toFrac })
+      }
+
+      // Crossing the scale boundary preserves the VALUE, so it is a shift - and
+      // the resolver annotates rather than rewriting, so it cannot insert one
+      // yet. A constant needs no shift, which is the half that works today and
+      // is what lets a fixed-point variable be given a value at all. See
+      // DESIGN.md §25.
+      const spelling = spell(node.to, node.toFrac)
+      if (argument.value === null) {
+        raise(
+          node,
+          `casting a runtime value to ${spelling} needs a shift, which is not built yet` +
+            ' - only a constant can cross scales so far',
+        )
+      }
+
+      const scaled = rescale(argument.value, argument.frac, node.toFrac)
+      if (!fits(scaled, node.to)) {
+        raise(
+          node,
+          `${argument.value} does not fit in ${spelling}` +
+            ` - it would scale to ${scaled}, outside ${node.to}`,
+        )
+      }
+
+      return annotate(node, { type: node.to, value: scaled, frac: node.toFrac })
     }
 
     if (node.type === 'UnaryExpression') {
@@ -777,27 +875,27 @@ export const resolve = (program: Program): ResolveResult => {
 
       if (node.operator === '!') {
         const value = argument.value === null ? null : argument.value === 0 ? 1 : 0
-        return annotate(node, { type: 'bool', value })
+        return annotate(node, { type: 'bool', value, frac: 0 })
       }
 
       if (node.operator === '-') {
         if (argument.type === 'untyped') {
           const value = argument.value === null ? null : -argument.value
-          return annotate(node, { type: 'untyped', value })
+          return annotate(node, { type: 'untyped', value, frac: 0 })
         }
         // `neg` is bitwise-identical regardless of operand signedness.
         const value = argument.value === null ? null : truncate(-argument.value, 'i16')
-        return annotate(node, { type: 'i16', value })
+        return annotate(node, { type: 'i16', value, frac: argument.frac })
       }
 
       if (argument.type === 'untyped') {
         const value = argument.value === null ? null : ~argument.value
-        return annotate(node, { type: 'untyped', value })
+        return annotate(node, { type: 'untyped', value, frac: 0 })
       }
 
       const type = promote(argument.type)
       const value = argument.value === null ? null : truncate(~argument.value, type)
-      return annotate(node, { type, value })
+      return annotate(node, { type, value, frac: argument.frac })
     }
 
     if (node.type === 'LogicalExpression') {
@@ -813,7 +911,7 @@ export const resolve = (program: Program): ResolveResult => {
         value = (node.operator === '&&' ? a && b : a || b) ? 1 : 0
       }
 
-      return annotate(node, { type: 'bool', value })
+      return annotate(node, { type: 'bool', value, frac: 0 })
     }
 
     if (node.type === 'ConditionalExpression') {
@@ -840,7 +938,12 @@ export const resolve = (program: Program): ResolveResult => {
         [consequent.value, alternate.value].filter((v): v is number => v !== null),
       )
 
-      return annotate(node, { type: settled, value })
+      // The result IS one of the arms, so they have to be the same unit. This is
+      // combineScales' rule reached by a different route - `flag ? scale : 2`
+      // is the same units bug as `scale + 2`.
+      const frac = combineScales(consequent, alternate, '?:', node)
+
+      return annotate(node, { type: settled, value, frac })
     }
 
     // BinaryExpression
@@ -855,14 +958,29 @@ export const resolve = (program: Program): ResolveResult => {
           ? null
           : foldBinary(node.operator, left.value, right.value, node)
 
+      // A shift count is a count. Shifting BY a scaled value is meaningless, and
+      // shifting a scaled value is not - `x >> 1` halves it and the radix point
+      // does not move, so the scale rides through untouched.
+      if (right.frac !== 0) {
+        raise(
+          node,
+          `a shift count cannot be ${spell(right.type, right.frac)}` +
+            ' - it counts bits, so it has no scale',
+        )
+      }
+
       // `1 << n` with a runtime n: the literal settles to its own natural type.
       return annotate(node, {
         type: settle(tentative, value, left.value === null ? [] : [left.value]),
         value,
+        frac: left.frac,
       })
     }
 
     const operandType = combineOperands(left, right, node.operator, node)
+    // Checked for comparison too, and for the same reason: `scale < 2` compares a
+    // scaled value against a count and the answer is 256x wrong.
+    const operandFrac = combineScales(left, right, node.operator, node)
     const value =
       left.value === null || right.value === null
         ? null
@@ -871,10 +989,10 @@ export const resolve = (program: Program): ResolveResult => {
     if (comparisonOps.includes(node.operator)) {
       // Keep what the operands combined to - it decides jb vs jl.
       node.operandType = operandType === 'untyped' ? 'u16' : operandType
-      return annotate(node, { type: 'bool', value })
+      return annotate(node, { type: 'bool', value, frac: 0 })
     }
 
-    return annotate(node, { type: operandType, value })
+    return annotate(node, { type: operandType, value, frac: operandFrac })
   }
 
   const requireScalar = (resolved: Resolved, at: Location, what: string) => {
@@ -912,7 +1030,11 @@ export const resolve = (program: Program): ResolveResult => {
     raise(at, 'array values do not share a common type')
   }
 
-  const arrayValuesFrom = (init: Expression | null, elementType: ValueType | null): number[] => {
+  const arrayValuesFrom = (
+    init: Expression | null,
+    elementType: ValueType | null,
+    elementFrac = 0,
+  ): number[] => {
     if (!init) return []
 
     if (init.type === 'StringLiteral') {
@@ -927,7 +1049,15 @@ export const resolve = (program: Program): ResolveResult => {
 
     const values: number[] = []
     for (const element of init.elements) {
-      const value = foldConstant(element, 'array element')
+      // Resolved rather than folded, because an element of a fixed-point array
+      // has to satisfy the scale as well as the range - and a count does not.
+      const resolved = resolveExpression(element)
+      if (resolved.value === null) raise(element, 'array element must be a constant')
+      if (resolved.frac !== elementFrac) {
+        checkAssignable(resolved, elementType ?? 'u16', elementFrac, element)
+      }
+
+      const value = resolved.value
       if (elementType && !fits(value, elementType)) {
         raise(element, `value ${value} does not fit in ${elementType}`)
       }
@@ -945,7 +1075,7 @@ export const resolve = (program: Program): ResolveResult => {
     local = false,
   ) => {
     const elementType = typeNode.name
-    const values = arrayValuesFrom(init, elementType)
+    const values = arrayValuesFrom(init, elementType, typeNode.frac)
 
     let length: number
     if (typeNode.size) {
@@ -964,6 +1094,7 @@ export const resolve = (program: Program): ResolveResult => {
     declare(
       {
         kind: 'array', name, label: labelFor(name, local), elementType,
+        frac: typeNode.frac,
         length, readonly, values, dynamic: false,
       },
       at,
@@ -1004,7 +1135,7 @@ export const resolve = (program: Program): ResolveResult => {
     let init = 0
     if (node.init) {
       const value = resolveExpression(node.init)
-      checkAssignable(value, node.typeNode.name, node.init)
+      checkAssignable(value, node.typeNode.name, node.typeNode.frac, node.init)
       if (value.value !== null) init = truncate(value.value, node.typeNode.name)
     }
 
@@ -1015,6 +1146,7 @@ export const resolve = (program: Program): ResolveResult => {
         name: node.name,
         label: node.label,
         type: node.typeNode.name,
+        frac: node.typeNode.frac,
         builtin: false,
         init,
       },
@@ -1080,6 +1212,7 @@ export const resolve = (program: Program): ResolveResult => {
         name: node.name,
         label: node.label,
         elementType: node.typeNode.name,
+        frac: node.typeNode.frac,
         length,
         readonly: node.readonly,
         segment,
@@ -1195,6 +1328,7 @@ export const resolve = (program: Program): ResolveResult => {
           name: node.name,
           label: node.label,
           elementType: node.typeNode.name,
+          frac: node.typeNode.frac,
           length,
           readonly,
           segment: parent.segment,
@@ -1218,6 +1352,7 @@ export const resolve = (program: Program): ResolveResult => {
           name: node.name,
           label: node.label,
           type: node.typeNode.name,
+          frac: node.typeNode.frac,
           builtin: false,
           init: 0,
           readonly: readonly ? true : undefined,
@@ -1234,6 +1369,7 @@ export const resolve = (program: Program): ResolveResult => {
         name: node.name,
         label: node.label,
         elementType: node.typeNode.name,
+        frac: node.typeNode.frac,
         length,
         readonly,
         values: [],
@@ -1274,10 +1410,11 @@ export const resolve = (program: Program): ResolveResult => {
         count === null
           ? {
               kind: 'var', name: label, label, type: field.typeNode.name,
-              builtin: false, init: 0,
+              frac: field.typeNode.frac, builtin: false, init: 0,
             }
           : {
               kind: 'array', name: label, label, elementType: field.typeNode.name,
+              frac: field.typeNode.frac,
               length: count, readonly: false, values: new Array<number>(count).fill(0),
               dynamic: false,
             }
@@ -1324,8 +1461,8 @@ export const resolve = (program: Program): ResolveResult => {
 
     if (index !== null) checkIndex(entry.symbol, index, `${symbol.name}[].${entry.name}`)
 
-    if (entry.symbol.kind === 'array') return { type: entry.symbol.elementType, value: null }
-    if (entry.symbol.kind === 'var') return { type: entry.symbol.type, value: null }
+    if (entry.symbol.kind === 'array') return { type: entry.symbol.elementType, value: null, frac: entry.symbol.frac ?? 0 }
+    if (entry.symbol.kind === 'var') return { type: entry.symbol.type, value: null, frac: entry.symbol.frac ?? 0 }
     raise(target, 'internal: group field is not storage')
   }
 
@@ -1346,8 +1483,10 @@ export const resolve = (program: Program): ResolveResult => {
         params: node.params.map((parameter) => ({
           name: parameter.name,
           type: parameter.typeNode.name,
+          frac: parameter.typeNode.frac,
         })),
         returnType: node.returnType,
+        returnFrac: node.returnFrac,
         body: node.body,
       },
       node,
@@ -1386,7 +1525,20 @@ export const resolve = (program: Program): ResolveResult => {
     }
 
     // A scalar const is a named literal: untyped, no storage, emitted as `equ`.
-    const value = foldConstant(node.init, 'const initialiser')
+    const initial = resolveExpression(node.init)
+    if (initial.value === null) raise(node.init, 'const initialiser must be a constant')
+    if (node.typeNode) {
+      checkAssignable(initial, node.typeNode.name, node.typeNode.frac, node.init)
+    } else if (initial.frac !== 0) {
+      // An untyped const has nowhere to record a scale, so it cannot carry one.
+      raise(
+        node.init,
+        `"${node.name}" has no declared type, so it cannot hold` +
+          ` ${spell(initial.type, initial.frac)} - give it one`,
+      )
+    }
+
+    const value = initial.value
     const declaredType = node.typeNode ? node.typeNode.name : 'untyped'
 
     if (node.typeNode && !fits(value, node.typeNode.name)) {
@@ -1394,7 +1546,14 @@ export const resolve = (program: Program): ResolveResult => {
     }
 
     declare(
-      { kind: 'const', name: node.name, label: labelFor(node.name, node.local), type: declaredType, value },
+      {
+        kind: 'const',
+        name: node.name,
+        label: labelFor(node.name, node.local),
+        type: declaredType,
+        frac: node.typeNode ? node.typeNode.frac : 0,
+        value,
+      },
       node,
       node.local,
     )
@@ -1449,8 +1608,31 @@ export const resolve = (program: Program): ResolveResult => {
   const checkAssignable = (
     value: Resolved,
     target: ValueType,
+    targetFrac: number,
     at: Location,
   ) => {
+    // Scale before width. A units mismatch is wrong whatever the ranges say, and
+    // section 4's implicit narrowing has nothing to say about it - see DESIGN.md
+    // section 25.
+    if (value.frac !== targetFrac) {
+      const spelling = spell(target, targetFrac)
+
+      if (value.type === 'untyped' && value.value !== null && targetFrac !== 0) {
+        raise(
+          at,
+          `cannot put ${value.value} in ${spelling}` +
+            ` - ${value.value} is a count, not a value with a radix point` +
+            `; write ${spelling}( ${value.value} ) to promote it`,
+        )
+      }
+
+      raise(
+        at,
+        `cannot put ${describeType(value)} in ${spelling}` +
+          ' - the scales differ, so it needs a cast',
+      )
+    }
+
     if (value.type === 'untyped') {
       // A constant we can already see is a different case from the implicit
       // narrowing §4 allows. That rule is about RUNTIME values, where writing
@@ -1530,7 +1712,7 @@ export const resolve = (program: Program): ResolveResult => {
         raise(target, `"${target.name}" is a const view and cannot be assigned`)
       }
       target.label = symbol.label
-      return annotate(target, { type: symbol.type, value: null })
+      return annotate(target, { type: symbol.type, value: null, frac: symbol.frac ?? 0 })
     }
 
     const symbol = lookup(target.array.name)
@@ -1542,7 +1724,7 @@ export const resolve = (program: Program): ResolveResult => {
       }
       target.array.label = symbol.label
       checkIndex(symbol, target.index)
-      return annotate(target, { type: symbol.elementType, value: null })
+      return annotate(target, { type: symbol.elementType, value: null, frac: symbol.frac ?? 0 })
     }
 
     if (symbol.kind !== 'array') raise(target, `"${target.array.name}" is not an array`)
@@ -1551,7 +1733,7 @@ export const resolve = (program: Program): ResolveResult => {
     }
     target.array.label = symbol.label
     checkIndex(symbol, target.index)
-    return annotate(target, { type: symbol.elementType, value: null })
+    return annotate(target, { type: symbol.elementType, value: null, frac: symbol.frac ?? 0 })
   }
 
   const resolveStatement = (node: Statement) => {
@@ -1606,7 +1788,7 @@ export const resolve = (program: Program): ResolveResult => {
       const value = resolveExpression(node.value)
 
       if (node.operator === '=') {
-        checkAssignable(value, target.type, node.value)
+        checkAssignable(value, target.type, target.frac, node.value)
         return
       }
 
@@ -1712,7 +1894,7 @@ export const resolve = (program: Program): ResolveResult => {
       }
 
       const value = resolveExpression(node.argument)
-      checkAssignable(value, currentFn.returnType, node.argument)
+      checkAssignable(value, currentFn.returnType, currentFn.returnFrac ?? 0, node.argument)
       return
     }
 
@@ -1723,7 +1905,8 @@ export const resolve = (program: Program): ResolveResult => {
       // The store keeps one byte or two, so the value follows the same fit rule a
       // declared u8 or u16 would apply - including the bool rule, since a raw
       // byte store is exactly what makes that one matter.
-      checkAssignable(value, node.width === 1 ? 'u8' : 'u16', node.value)
+      // Raw storage and a port both take bits, so neither has a scale.
+      checkAssignable(value, node.width === 1 ? 'u8' : 'u16', 0, node.value)
       return
     }
 
@@ -1733,7 +1916,8 @@ export const resolve = (program: Program): ResolveResult => {
       const value = resolveExpression(node.value)
       // One byte or two leaves the port, so the value follows the same fit rule
       // a declared u8 or u16 would - exactly as poke's does.
-      checkAssignable(value, node.width === 1 ? 'u8' : 'u16', node.value)
+      // Raw storage and a port both take bits, so neither has a scale.
+      checkAssignable(value, node.width === 1 ? 'u8' : 'u16', 0, node.value)
       return
     }
 
@@ -1792,7 +1976,7 @@ export const resolve = (program: Program): ResolveResult => {
   // execution model changes: no frame, no BP, no recursion.
   const declareRoutine = (node: RoutineDeclaration) => {
     const seen = new Set<string>()
-    const params: { name: string; label: string; type: ValueType }[] = []
+    const params: { name: string; label: string; type: ValueType; frac: number }[] = []
 
     // Everything below hangs off the label rather than the name, because a
     // `local sub` may share its name with one in another file. `owner` too: the
@@ -1808,6 +1992,7 @@ export const resolve = (program: Program): ResolveResult => {
         name: parameter.name,
         label: `${routineLabel}__${parameter.name}`,
         type: parameter.typeNode.name,
+        frac: parameter.typeNode.frac,
       })
     }
 
@@ -1820,6 +2005,7 @@ export const resolve = (program: Program): ResolveResult => {
         label: routineLabel,
         params,
         returnType: node.returnType,
+        returnFrac: node.returnFrac,
         retLabel,
       },
       node,
@@ -1833,6 +2019,7 @@ export const resolve = (program: Program): ResolveResult => {
         name: parameter.label,
         label: parameter.label,
         type: parameter.type,
+        frac: parameter.frac,
         builtin: false,
         init: 0,
         owner: routineLabel,
@@ -1846,6 +2033,7 @@ export const resolve = (program: Program): ResolveResult => {
         name: retLabel,
         label: retLabel,
         type: node.returnType,
+        frac: node.returnFrac,
         builtin: false,
         init: 0,
         owner: routineLabel,
@@ -1872,6 +2060,7 @@ export const resolve = (program: Program): ResolveResult => {
         name: parameter.name,
         label: parameter.label,
         type: parameter.type,
+        frac: parameter.frac,
         builtin: false,
         init: 0,
         owner: node.name,

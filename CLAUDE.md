@@ -67,6 +67,35 @@ tool.
 run after adding `src/dsl/lex.test.ts` reported a comfortable pass having executed none
 of it. The tell was the number: 56 before, 56 after, thirteen tests added.
 
+**Python's `read_text`/`write_text` default to cp1252 on Windows, not UTF-8.** A
+script that reads a file containing `§`, edits something unrelated and writes it
+back silently re-encodes every non-ASCII character on the way out: a comment
+reading `DESIGN.md §25` comes back holding a lone 0xA7, which is not valid UTF-8 at
+all. Nothing complains - tsc does not care, the suite stayed green, and it was
+found only by grepping for the byte. Then it gets worse, because Edit reads that
+byte as U+FFFD and writes the replacement character back, so a second pass leaves
+`§` followed by a `?` glyph instead of fixing it. **Pass `encoding='utf-8'` on both
+ends**, and prefer Edit for any file with a `§` in it - which, given the
+cross-reference convention, is most of them. A `read_text()` used only for matching
+is safe; it is the write that does the damage.
+
+**`git checkout <file>` during a teeth check discards the work being tested.** The
+whole premise of a teeth check is that the change is not committed yet, so
+reverting a neutered guard "back to normal" through git takes the feature out
+with it - here, an entire resolver's worth of uncommitted work, recovered only
+because a `cp` to the scratchpad happened to exist a few minutes earlier.
+**Commit before the teeth check**, then git is safe again and the neutering can be
+reverted with confidence rather than from memory. Restoring from a copy works but
+relies on having thought of it.
+
+**Neutering a guard with a literal `true` or `false` breaks TypeScript's
+narrowing.** An always-taken branch makes the rest of the block unreachable, so
+`node.to` on a narrowed union stops existing and tsc reports eight errors that
+read as though the change itself was wrong. The suite then never runs at all -
+and a harness that only greps for `FAIL` lines reports that as "nothing failed",
+which is the exact opposite of the truth. Use a condition tsc cannot fold, such
+as `node.line < 0`, and make the harness read the tally rather than the failures.
+
 **A stub measures a floor the real design cannot reach.** Twice this project predicted
 the cost of a change by stubbing it out, and twice the real version came in higher - by
 77 bytes once, because a stub removes a call site that the real design still has to

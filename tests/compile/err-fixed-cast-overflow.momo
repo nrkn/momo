@@ -1,0 +1,3 @@
+// EXPECT-ERROR: 200 does not fit in i8.8
+i8.8 scale
+scale = i8.8( 200 )

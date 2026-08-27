@@ -1,0 +1,4 @@
+// EXPECT-ERROR: a shift count cannot be i8.8
+i8.8 scale
+i16 whole
+whole = 1 << scale

@@ -1,0 +1,2 @@
+// EXPECT-ERROR: has no declared type, so it cannot hold i8.8
+const half = i8.8( 1 )

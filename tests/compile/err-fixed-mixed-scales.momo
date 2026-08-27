@@ -1,0 +1,4 @@
+// EXPECT-ERROR: mixed scales do not combine
+i8.8  eighths
+i12.4 quarters
+eighths = eighths + quarters

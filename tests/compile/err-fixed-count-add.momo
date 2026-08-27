@@ -1,0 +1,3 @@
+// EXPECT-ERROR: 2 is a count, not a value with a radix point
+i8.8 scale
+scale = scale + 2

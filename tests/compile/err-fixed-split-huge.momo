@@ -1,0 +1,2 @@
+// EXPECT-ERROR: i99.1 is 100 bits, which is not a storage width
+i99.1 wrong

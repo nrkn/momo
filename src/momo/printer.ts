@@ -21,6 +21,7 @@ import type {
   Statement,
   TypeNode,
 } from './ast.js'
+import { spell } from './types.js'
 
 // Tighter binds harder. Mirrors the table in DESIGN §6, and is the parser's
 // `binaryLevels` read from the other end.
@@ -53,10 +54,14 @@ const escapeString = (value: string): string => {
   return `"${out}"`
 }
 
+// A fixed-point type prints as it was written, not as its storage: `i12.4` came
+// in as an i16 with four fraction bits and has to go back out as `i12.4`, or the
+// round trip in section 14 compiles a different program from the one it read.
 const printType = (node: TypeNode): string => {
-  if (!node.array) return node.name
-  if (!node.size) return `${node.name}[]`
-  return `${node.name}[${printExpression(node.size)}]`
+  const name = spell(node.name, node.frac)
+  if (!node.array) return name
+  if (!node.size) return `${name}[]`
+  return `${name}[${printExpression(node.size)}]`
 }
 
 const printParams = (params: Parameter[]): string =>
@@ -152,7 +157,10 @@ export const printExpression = (node: Expression): string => {
     }
 
     case 'CastExpression':
-      return `${node.to}( ${printExpression(node.argument)} )`
+      // `spell`, not `node.to`: printing the storage type turns `i8.8( 1 )` into
+      // `i16( 1 )`, which parses and means 256 times less. The round trip caught
+      // exactly that.
+      return `${spell(node.to, node.toFrac)}( ${printExpression(node.argument)} )`
 
     case 'AddrExpression':
       return `addr( ${node.target.name} )`
@@ -194,7 +202,7 @@ export const printStatement = (node: Statement, depth = 0): string => {
     }
 
     case 'ConstFunctionDeclaration': {
-      const type = node.returnType ? `${node.returnType} ` : ''
+      const type = node.returnType ? `${spell(node.returnType, node.returnFrac)} ` : ''
       return (
         `${pad}const ${type}${node.name}${printParams(node.params)}` +
         ` = ${printExpression(node.body)}`
@@ -238,7 +246,9 @@ export const printStatement = (node: Statement, depth = 0): string => {
     // declaration. A `sub` needs no such disambiguation, so an empty one is
     // written bare.
     case 'RoutineDeclaration': {
-      const head = node.returnType ? `${node.returnType} ${node.name}` : `sub ${node.name}`
+      const head = node.returnType
+        ? `${spell(node.returnType, node.returnFrac)} ${node.name}`
+        : `sub ${node.name}`
       const params =
         node.returnType || node.params.length ? printParams(node.params) : ''
       return `${pad}${head}${params} ${printBlock(node.body.body, depth)}`

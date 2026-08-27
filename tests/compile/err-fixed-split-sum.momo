@@ -1,0 +1,2 @@
+// EXPECT-ERROR: i6.6 is 12 bits, which is not a storage width
+i6.6 wrong

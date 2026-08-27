@@ -3692,11 +3692,22 @@ can assert the error fires for a routine shared between a handler and the entry
 point - and, more importantly, that it does *not* fire for one reachable from two
 handlers, which IF makes safe.
 
-## 25. Planned: fixed-point types
+## 25. Fixed-point types
 
-Designed and not yet built. A type whose scale the compiler knows, so that it can
-insert the shifts and reject the mismatches, and **lowered to Momo that could have been
-written by hand**.
+**The type and its rules are built. Everything that needs a shift is not.** A type whose
+scale the compiler knows, so that it can insert the shifts and reject the mismatches, and
+**lowered to Momo that could have been written by hand**.
+
+Built: the lexer, the 48 legal splits, the mixing rules, the count rule, comparison,
+same-scale `+` and `-`, `*` and `/` against a count, and casts of *constants* across the
+scale boundary. `projects/fixed` is all of it in one program, and it is a project rather
+than a compile test because the claim being made is about emitted code and the golden
+tier is the only one that watches that.
+
+Not built: decimal literals, which lex and are then rejected; the reinterpreting cast;
+and `*` between two fixed values, which is `fixMul` and needs the reinterpret first. A
+runtime value cannot cross scales yet for the same reason - the shift has nowhere to come
+from. `NEXT.md` in the vector study holds the order.
 
 An earlier draft of this section said "lowered entirely in the parser". That is wrong,
 and it is wrong in a way that reaches as far as which test tier can see the feature at

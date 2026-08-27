@@ -1,0 +1,4 @@
+// EXPECT-ERROR: cannot put i8.8 in i16 - the scales differ
+i8.8 scale
+i16 whole
+whole = scale
