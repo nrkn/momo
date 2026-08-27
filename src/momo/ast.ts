@@ -105,6 +105,12 @@ export type BinaryExpression = Located & {
   // For comparisons, `resolvedType` is bool - but the emitter needs the type
   // the OPERANDS combined to, since that is what picks jb vs jl.
   operandType?: ValueType
+  // Set by the resolver when `*` on two same-scale fixed values lowers to a call
+  // on fixMul. The emitter emits this instead of the multiply, exactly as it does
+  // with a parameterised const's `expansion` - and the call graph and the leaf
+  // test both walk a node's own keys, so they find the call inside it without
+  // being told. See DESIGN.md §25.
+  lowered?: Expression
 }
 
 // Separate from BinaryExpression because these two short-circuit, and so are

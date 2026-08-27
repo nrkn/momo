@@ -519,6 +519,9 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
 
   const containsCall = (node: Expression): boolean => {
     if (node.type === 'CallExpression' && !node.expansion) return true
+    // A lowered fixed multiply IS a call, and the operands it wraps are reached by
+    // the generic walk below.
+    if (node.type === 'BinaryExpression' && node.lowered) return true
 
     for (const value of Object.values(node)) {
       if (Array.isArray(value)) {
@@ -698,6 +701,13 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
       // here has flags to preserve.
       if (fixed === 0) ins('xor', 'ax, ax', '0')
       else ins('mov', `ax, ${fixed}`)
+      return
+    }
+
+    // A fixed multiply became a call, so emit that instead. Same shape as a
+    // parameterised const's expansion just below.
+    if (node.type === 'BinaryExpression' && node.lowered) {
+      emitExpression(node.lowered)
       return
     }
 

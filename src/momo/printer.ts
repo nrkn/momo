@@ -111,7 +111,11 @@ export const printExpression = (node: Expression): string => {
     case 'ArrayLiteral':
       return `[ ${node.elements.map(printExpression).join(', ')} ]`
 
-    case 'BinaryExpression': {
+    // When `*` lowered to a call, the lowering is what the program means - so
+    // that is what desugar shows and what the round trip compiles. Only ever set
+    // after `resolve`, so printing a freshly parsed program is unchanged.
+    case 'BinaryExpression': if (node.lowered) return printExpression(node.lowered)
+    {
       const own = precedence[node.operator] ?? atomPrecedence
       return (
         `${printChild(node.left, own, 'left')} ${node.operator}` +

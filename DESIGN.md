@@ -3704,13 +3704,15 @@ scale boundary. `projects/fixed` is all of it in one program, and it is a projec
 than a compile test because the claim being made is about emitted code and the golden
 tier is the only one that watches that.
 
-Also built: decimal literals, which scale wherever a target scale is in view, and `raw`,
-the reinterpreting cast.
+Also built: decimal literals, which scale wherever a target scale is in view; `raw`, the
+reinterpreting cast; and `*` between two same-scale values, which lowers to `fixMul` in
+`lib/std/fixed.momo` and is checked on the 8086 by `projects/fixmul`.
 
-Not built: `*` between two fixed values, which is `fixMul`. And a runtime value still
-cannot cross scales *preserving its value*, because that is a shift and the resolver
-annotates rather than rewriting - `raw` is the other half of that pair and does not need
-one. `NEXT.md` in the vector study holds the order.
+Not built: `/` between two fixed values, which wants the 24-bit numerator this section
+says Momo cannot express. And a runtime value still cannot cross scales *preserving its
+value*, because that is a shift - `raw` is the other half of that pair and needs none.
+Only 8.8 has a multiply; another fraction width would want its own helper with its own
+baked shift. `NEXT.md` in the vector study holds the order.
 
 An earlier draft of this section said "lowered entirely in the parser". That is wrong,
 and it is wrong in a way that reaches as far as which test tier can see the feature at
@@ -3882,6 +3884,17 @@ instead.** Since the resolver only annotates today, the printed text comes out
 byte-identical for every existing round-trip case, so the change is a no-op that then
 covers the lowering.
 
+**Done, and the prediction held**: `desugar` and the round trip now resolve first, and
+all 58 existing cases printed identically. `npm run desugar -- fixmul` shows
+`raw i8.8( fixMul( raw i16( x ), raw i16( y ) ) )` where the source said `x * y`, and the
+round trip compiles that printed form to the same instructions - which is the whole of
+the "the printed form IS the hand-written Momo" claim, and the reason `raw` had to exist.
+
+One thing the round trip still cannot see, and it is worth knowing where the tier ends:
+`x * y` and the call it lowers to produce the same assembly, so the harness cannot tell
+whether the printer showed the lowering or the multiply. That takes an assertion on the
+printed *text*, which `fixmul` now carries.
+
 **Literals are the half that really is parse-time, and only where the scale is
 adjacent.** `i8.8 x = 1.5` has the type right there, so 1.5 becomes 384. `const k = 1.5`
 and `f( 1.5 )` do not, so a decimal has to stay an untyped fixed value carrying an exact
@@ -4033,6 +4046,14 @@ because the helper is where the signed cases live and the Momo version is the re
 gets checked against. The other way round validates a magnitude-and-sign kernel against
 nothing, which is the wrong direction for the one part of this section already flagged as
 bug-prone. The escape hatch is worth holding in reserve rather than spending early.
+
+The Momo half is built, and predict-then-check paid: thirteen products were derived by
+hand from the kernel and written into `fixmul.expected` before the program was ever run,
+and all thirteen matched first time. Two properties came out of writing it rather than
+designing it, and `lib/std/fixed.momo` documents both - it truncates toward zero rather
+than toward negative infinity, which buys `fixMul( -a, b ) == -fixMul( a, b )` at the cost
+of differing by one from an arithmetic shift; and -32768 has no magnitude in an i16, so
+the most negative 8.8 value multiplies as though it were positive.
 
 **This is why fixed point is the right shape and a 32-bit type is not.** §22 records
 what happened when port I/O assumed `DX` was free because §9 called it *"scratch and

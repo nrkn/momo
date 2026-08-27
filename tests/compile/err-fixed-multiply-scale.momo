@@ -1,0 +1,6 @@
+// EXPECT-ERROR: multiplying two i12.4 values is not built - only 8.8 has a helper
+// Another fraction width needs its own helper with its own baked shift, so §25
+// builds 8.8 and says so rather than picking one.
+i12.4 a
+i12.4 b
+a = a * b

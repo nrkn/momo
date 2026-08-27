@@ -456,11 +456,15 @@ export const resolve = (program: Program): ResolveResult => {
     if (operator === '*' || operator === '/') {
       if (left.frac === 0 || right.frac === 0) return left.frac + right.frac
 
+      // `*` lowers to fixMul, below. `/` would want a 24-bit numerator, which is
+      // exactly what DESIGN.md §25 says Momo cannot express - so it stays out until
+      // there is either a reciprocal fold or a mulDiv intrinsic.
       if (left.frac === right.frac) {
+        if (operator === '*') return left.frac
         raise(
           at,
-          `"${operator}" on two fixed-point values needs fixMul, which is not built yet` +
-            ' - multiply by a plain count instead',
+          '"/" on two fixed-point values needs a 24-bit numerator, which is not built' +
+            ' - divide by a plain count, or multiply by a reciprocal',
         )
       }
     }
@@ -1043,6 +1047,12 @@ export const resolve = (program: Program): ResolveResult => {
     // Checked for comparison too, and for the same reason: `scale < 2` compares a
     // scaled value against a count and the answer is 256x wrong.
     const operandFrac = combineScales(left, right, node.operator, node)
+
+    // Two scaled operands multiplied is the one case that is not an integer
+    // operation, so it is the one case that lowers.
+    if (node.operator === '*' && left.frac !== 0 && left.frac === right.frac) {
+      return lowerFixedMultiply(node, left)
+    }
     const value =
       left.value === null || right.value === null
         ? null
@@ -1055,6 +1065,73 @@ export const resolve = (program: Program): ResolveResult => {
     }
 
     return annotate(node, { type: operandType, value, frac: operandFrac })
+  }
+
+  // `a * b` on two 8.8 values becomes `raw i8.8( fixMul( raw i16( a ), raw i16( b ) ) )`,
+  // which is legal Momo and prints as such. The `raw` casts are the whole reason
+  // that spelling had to exist: fixMul is written in plain integers, so the bits
+  // have to cross the scale boundary without a shift in either direction.
+  //
+  // Only 8.8, per §25's scope note. Another fraction width needs its own helper
+  // with its own baked shift, and saying so is better than picking one.
+  const lowerFixedMultiply = (
+    node: Expression & { type: 'BinaryExpression' },
+    operand: Resolved,
+  ): Resolved => {
+    const frac = operand.frac
+    const spelling = spell(operand.type, frac)
+
+    if (frac !== 8) {
+      raise(
+        node,
+        `multiplying two ${spelling} values is not built - only 8.8 has a helper,` +
+          ' so scale the operands or multiply by a plain count',
+      )
+    }
+
+    const signed = isSigned(operand.type)
+    const helper = signed ? 'fixMul' : 'fixMulU'
+    const storage: TypeName = signed ? 'i16' : 'u16'
+
+    const symbol = lookup(helper)
+    if (!symbol || symbol.kind !== 'routine') {
+      raise(
+        node,
+        `multiplying two ${spelling} values calls ${helper}` +
+          ' - add include "std/fixed.momo"',
+      )
+    }
+
+    const where = { file: node.file, line: node.line, col: node.col }
+
+    // Bits in, bits out. The operands were resolved already; resolving them again
+    // through these casts is idempotent - the resolver only annotates expressions,
+    // and nothing here declares anything.
+    const asWord = (argument: Expression): Expression => ({
+      type: 'CastExpression',
+      to: storage,
+      toFrac: 0,
+      raw: true,
+      argument,
+      ...where,
+    })
+
+    const lowered: Expression = {
+      type: 'CastExpression',
+      to: storage,
+      toFrac: frac,
+      raw: true,
+      argument: {
+        type: 'CallExpression',
+        callee: { type: 'Identifier', name: helper, ...where },
+        args: [asWord(node.left), asWord(node.right)],
+        ...where,
+      },
+      ...where,
+    }
+
+    node.lowered = lowered
+    return annotate(node, resolveExpression(lowered))
   }
 
   const requireScalar = (resolved: Resolved, at: Location, what: string) => {

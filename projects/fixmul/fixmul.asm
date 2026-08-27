@@ -10,58 +10,66 @@ ioZeroChar:     equ     48
 ; =========================================================== entry ====
 
 __entry:
-; ---- show( 1.5, 2.0 )              // 3.0    -> 768
-        mov     word [show__x], 384
-        mov     word [show__y], 512
-        call    show
-; ---- show( 1.5, 1.5 )              // 2.25   -> 576
-        mov     word [show__x], 384
-        mov     word [show__y], 384
-        call    show
-; ---- show( 0.5, 0.5 )              // 0.25   -> 64
-        mov     word [show__x], 128
-        mov     word [show__y], 128
-        call    show
-; ---- show( 10.0, 3.0 )             // 30.0   -> 7680
-        mov     word [show__x], 2560
-        mov     word [show__y], 768
-        call    show
-; ---- show( 1.0, 1.0 )              // 1.0    -> 256
-        mov     word [show__x], 256
-        mov     word [show__y], 256
-        call    show
-; ---- show( 0.00390625, 1.0 )       // 1/256  -> 1
-        mov     word [show__x], 1
-        mov     word [show__y], 256
-        call    show
-; ---- show( 0.1, 0.1 )              // ~0.01  -> 2
-        mov     word [show__x], 26
-        mov     word [show__y], 26
-        call    show
-; ---- show( 127.0, 1.0 )            // 127.0  -> 32512
-        mov     word [show__x], 32512
-        mov     word [show__y], 256
-        call    show
-; ---- show( -1.5, 2.0 )             // -3.0   -> 64768
-        mov     word [show__x], 65152
-        mov     word [show__y], 512
-        call    show
-; ---- show( 1.5, -2.0 )             // -3.0   -> 64768
-        mov     word [show__x], 384
-        mov     word [show__y], 65024
-        call    show
-; ---- show( -1.5, -2.0 )            // 3.0    -> 768
-        mov     word [show__x], 65152
-        mov     word [show__y], 65024
-        call    show
-; ---- show( -0.1, 0.1 )             // -2     -> 65534
-        mov     word [show__x], 65510
-        mov     word [show__y], 26
-        call    show
-; ---- show( 100.0, 2.0 )            // wraps  -> 51200
-        mov     word [show__x], 25600
-        mov     word [show__y], 512
-        call    show
+; ---- both( 1.5, 2.0 )              // 3.0    -> 768
+        mov     word [both__x], 384
+        mov     word [both__y], 512
+        call    both
+; ---- both( 1.5, 1.5 )              // 2.25   -> 576
+        mov     word [both__x], 384
+        mov     word [both__y], 384
+        call    both
+; ---- both( 0.5, 0.5 )              // 0.25   -> 64
+        mov     word [both__x], 128
+        mov     word [both__y], 128
+        call    both
+; ---- both( 10.0, 3.0 )             // 30.0   -> 7680
+        mov     word [both__x], 2560
+        mov     word [both__y], 768
+        call    both
+; ---- both( 1.0, 1.0 )              // 1.0    -> 256
+        mov     word [both__x], 256
+        mov     word [both__y], 256
+        call    both
+; ---- both( 0.00390625, 1.0 )       // 1/256  -> 1
+        mov     word [both__x], 1
+        mov     word [both__y], 256
+        call    both
+; ---- both( 0.1, 0.1 )              // ~0.01  -> 2
+        mov     word [both__x], 26
+        mov     word [both__y], 26
+        call    both
+; ---- both( 127.0, 1.0 )            // 127.0  -> 32512
+        mov     word [both__x], 32512
+        mov     word [both__y], 256
+        call    both
+; ---- both( -1.5, 2.0 )             // -3.0   -> 64768
+        mov     word [both__x], 65152
+        mov     word [both__y], 512
+        call    both
+; ---- both( 1.5, -2.0 )             // -3.0   -> 64768
+        mov     word [both__x], 384
+        mov     word [both__y], 65024
+        call    both
+; ---- both( -1.5, -2.0 )            // 3.0    -> 768
+        mov     word [both__x], 65152
+        mov     word [both__y], 65024
+        call    both
+; ---- both( -0.1, 0.1 )             // -2     -> 65534
+        mov     word [both__x], 65510
+        mov     word [both__y], 26
+        call    both
+; ---- both( 100.0, 2.0 )            // wraps  -> 51200
+        mov     word [both__x], 25600
+        mov     word [both__y], 512
+        call    both
+; ---- showU( 1.5, 2.0 )             // 3.0    -> 768
+        mov     word [showU__x], 384
+        mov     word [showU__y], 512
+        call    showU
+; ---- showU( 200.0, 1.0 )           // 200.0  -> 51200
+        mov     word [showU__x], 51200
+        mov     word [showU__y], 256
+        call    showU
 
 ; ---- implicit exit ----
         mov     word [_ax], 0x4C00          ; DOS terminate, exit code 0
@@ -294,6 +302,59 @@ show:
         call    newline
         ret
 
+; ============================================== sub showOp ====
+
+showOp:
+; ---- p = x * y
+        mov     ax, [showOp__x]
+        mov     [fixMul__a], ax
+        mov     ax, [showOp__y]
+        mov     [fixMul__b], ax
+        call    fixMul
+        mov     ax, [fixMul__ret]
+        mov     [showOp__p], ax
+; ---- putNumber( raw u16( p ) )
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- newline()
+        call    newline
+        ret
+
+; ============================================== sub both ====
+
+both:
+; ---- show( x, y )
+        mov     ax, [both__x]
+        mov     [show__x], ax
+        mov     ax, [both__y]
+        mov     [show__y], ax
+        call    show
+; ---- showOp( x, y )
+        mov     ax, [both__x]
+        mov     [showOp__x], ax
+        mov     ax, [both__y]
+        mov     [showOp__y], ax
+        call    showOp
+        ret
+
+; ============================================== sub showU ====
+
+showU:
+; ---- p = x * y
+        mov     ax, [showU__x]
+        mov     [fixMulU__a], ax
+        mov     ax, [showU__y]
+        mov     [fixMulU__b], ax
+        call    fixMulU
+        mov     ax, [fixMulU__ret]
+        mov     [showU__p], ax
+; ---- putNumber( raw u16( p ) )
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- newline()
+        call    newline
+        ret
+
 ; ==================================================== int helpers ====
 ; One per distinct interrupt: the literal is baked in, so the register
 ; sync is emitted once rather than at every call site.
@@ -343,6 +404,12 @@ fixMul__b:      dw      0        ; i16
 fixMul__ret:    dw      0        ; i16
 show__x:        dw      0        ; i16
 show__y:        dw      0        ; i16
+showOp__x:      dw      0        ; i16
+showOp__y:      dw      0        ; i16
+both__x:        dw      0        ; i16
+both__y:        dw      0        ; i16
+showU__x:       dw      0        ; u16
+showU__y:       dw      0        ; u16
 putNumber__i:   db      0        ; u8
 fixMulU__ah:    db      0        ; u8
 fixMulU__al:    db      0        ; u8
@@ -352,6 +419,8 @@ fixMul__x:      dw      0        ; i16
 fixMul__y:      dw      0        ; i16
 fixMul__neg:    db      0        ; bool
 fixMul__m:      dw      0        ; u16
+showOp__p:      dw      0        ; i16
+showU__p:       dw      0        ; u16
 
 ; ---- arrays ----
 putNumber__digits: times 5 db 0        ; u8[5]
@@ -360,7 +429,7 @@ putNumber__digits: times 5 db 0        ; u8[5]
 ; No storage is emitted - a .COM owns everything past its image, so
 ; these are addresses and NASM does the arithmetic.
 
-_hstack:        equ     264        ; 8 worst-case + 256 interrupt reserve
+_hstack:        equ     266        ; 10 worst-case + 256 interrupt reserve
 _htop:          equ     0FFFEh - _hstack
 
 _hsize:         dw      _htop - _heap        ; NASM computes this

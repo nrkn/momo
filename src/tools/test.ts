@@ -31,6 +31,7 @@ import { formatError, isMomoError } from '../momo/diagnostics.js'
 import { tokenize } from '../momo/lexer.js'
 import { load } from '../momo/loader.js'
 import { printProgram } from '../momo/printer.js'
+import { resolve } from '../momo/resolver.js'
 import {
   combineRanges,
   fixedSplitError,
@@ -369,6 +370,11 @@ const roundTripTests = (): number => {
       }
 
       const original = compile(file, libRoot, sources).assembly
+      // Resolved first: `*` on two fixed-point values lowers to a call, and that
+      // needs types, so it is invisible to a printer fed a freshly parsed AST.
+      // Everything else the resolver does is annotation, so this changed no
+      // existing case when it was introduced.
+      resolve(program)
       const printed = printProgram(program)
 
       // Written out rather than compiled from memory, so the round trip goes
@@ -384,6 +390,21 @@ const roundTripTests = (): number => {
         codeOnly(original).join('\n'),
       )
       check(`round trip ${name}`, difference === null, difference ?? '')
+
+      // The round trip compares assembly, and `x * y` compiles to the same code
+      // as the call it lowers to - so it cannot tell whether the printer showed
+      // the lowering or the multiply. One project asserts the text directly,
+      // because "the printed form IS the hand-written Momo" is the claim DESIGN.md
+      // §25 rests on and nothing else here checks it.
+      if (name === 'fixmul') {
+        asserted += 1
+        check(
+          'round trip fixmul shows the lowering',
+          printed.includes('raw i8.8( fixMul( raw i16(') &&
+            printed.includes('raw u8.8( fixMulU( raw u16('),
+          'the printer wrote the multiply rather than the call it lowers to',
+        )
+      }
     } catch (error) {
       if (!isMomoError(error)) throw error
       check(`round trip ${name}`, false, formatError(sources, error))

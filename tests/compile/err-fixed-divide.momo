@@ -1,0 +1,4 @@
+// EXPECT-ERROR: needs a 24-bit numerator, which is not built
+i8.8 a
+i8.8 b
+a = a / b

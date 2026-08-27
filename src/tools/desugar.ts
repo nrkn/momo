@@ -2,8 +2,13 @@
 //
 //   npm run desugar -- simplerl
 //
-// The lowering is not a pass of its own: it is what the parser and loader
-// already did. `=>` is gone, `else if` is a nested if, prefix and postfix `++`
+// One piece of the lowering needs types and so happens in the resolver: `*` on
+// two fixed-point values becomes a call on fixMul (DESIGN.md §25). This runs
+// `resolve` before printing so that shows up too, and since the resolver
+// otherwise only annotates, nothing else in the output moved when it started.
+//
+// The rest of the lowering is not a pass of its own: it is what the parser and
+// loader already did. `=>` is gone, `else if` is a nested if, prefix and postfix `++`
 // have collapsed into one form, adjacent string literals have joined, and every
 // `include` has been spliced in. Printing the AST is how you see it.
 //
@@ -15,6 +20,7 @@ import { existsSync } from 'node:fs'
 import { entryFor, fail, failWith, libRoot } from './cli.js'
 import { load } from '../momo/loader.js'
 import { printProgram } from '../momo/printer.js'
+import { resolve } from '../momo/resolver.js'
 
 const usage = 'usage: npm run desugar -- <project>'
 
@@ -29,6 +35,7 @@ const main = async () => {
 
   try {
     const { program } = load(file, libRoot, sources)
+    resolve(program)
     process.stdout.write(printProgram(program))
   } catch (error) {
     failWith(sources, error)

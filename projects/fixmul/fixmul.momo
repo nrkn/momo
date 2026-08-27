@@ -1,10 +1,16 @@
-// fixmul.momo - fixMul on the 8086, against products worked out by hand.
+// fixmul.momo - fixMul on the 8086, against products worked out by hand, and
+// `*` checked against fixMul called by name.
 //
 // Tier 2 rather than golden, and that is the point: the golden tier can only say
 // the assembly did not change, and `lib/std/fixed.momo` is the first part of
 // DESIGN §25 where plausible-looking code can still compute the wrong number.
 // Every figure in `fixmul.expected` was derived by hand from the kernel before
 // this was ever run.
+//
+// Each pair is printed twice - once through an explicit `fixMul` call and once
+// through `*`, which the compiler lowers to exactly that call. The two lines must
+// agree, so the reference and the sugar check each other rather than both being
+// checked against the same guess.
 //
 // Printed as unsigned words, because `putNumber` takes a u16 - so -3.0 shows as
 // 64768 rather than as -768. That is a bit pattern rather than a value, which
@@ -13,42 +19,66 @@
 include "std/io.momo"
 include "std/fixed.momo"
 
-// Both operands arrive as 8.8, so a decimal literal at the call site scales to the
-// parameter's fraction width. `raw` carries the bits into a routine written in
-// plain integers, which is exactly what the compiler inserts when `*` lowers.
+// By name. `raw` carries the bits into a routine written in plain integers.
 sub show( i8.8 x, i8.8 y ) {
   putNumber( u16( fixMul( raw i16( x ), raw i16( y ) ) ) )
   newline()
 }
 
+// Through `*`. The compiler writes the same two `raw` casts and the same call.
+sub showOp( i8.8 x, i8.8 y ) {
+  i8.8 p
+  p = x * y
+  putNumber( raw u16( p ) )
+  newline()
+}
+
+sub both( i8.8 x, i8.8 y ) {
+  show( x, y )
+  showOp( x, y )
+}
+
 // Exact in 8.8 on both sides, so these are the products or nothing is.
-show( 1.5, 2.0 )              // 3.0    -> 768
-show( 1.5, 1.5 )              // 2.25   -> 576
-show( 0.5, 0.5 )              // 0.25   -> 64
-show( 10.0, 3.0 )             // 30.0   -> 7680
-show( 1.0, 1.0 )              // 1.0    -> 256
+both( 1.5, 2.0 )              // 3.0    -> 768
+both( 1.5, 1.5 )              // 2.25   -> 576
+both( 0.5, 0.5 )              // 0.25   -> 64
+both( 10.0, 3.0 )             // 30.0   -> 7680
+both( 1.0, 1.0 )              // 1.0    -> 256
 
 // One step of 8.8 is 1/256, and 0.00390625 is exactly that - so this checks the
 // smallest thing the type can hold survives a multiply by one.
-show( 0.00390625, 1.0 )       // 1/256  -> 1
+both( 0.00390625, 1.0 )       // 1/256  -> 1
 
 // 0.1 is 25.6 and stores as 26, so this is the product of what was stored rather
 // than of what was written: 26*26 >> 8 is 2.
-show( 0.1, 0.1 )              // ~0.01  -> 2
+both( 0.1, 0.1 )              // ~0.01  -> 2
 
 // Near the top of the range without leaving it.
-show( 127.0, 1.0 )            // 127.0  -> 32512
+both( 127.0, 1.0 )            // 127.0  -> 32512
 
 // Sign, all four ways round.
-show( -1.5, 2.0 )             // -3.0   -> 64768
-show( 1.5, -2.0 )             // -3.0   -> 64768
-show( -1.5, -2.0 )            // 3.0    -> 768
+both( -1.5, 2.0 )             // -3.0   -> 64768
+both( 1.5, -2.0 )             // -3.0   -> 64768
+both( -1.5, -2.0 )            // 3.0    -> 768
 
 // Truncation toward zero, which is what magnitude-and-sign gives and what an
 // arithmetic shift would not: -2, where `sar` would have produced -3.
-show( -0.1, 0.1 )             // -2     -> 65534
+both( -0.1, 0.1 )             // -2     -> 65534
 
 // And one that overflows i8.8 deliberately, because wrapping is documented
 // behaviour rather than an accident: 200.0 does not fit, and the low word is what
 // 16-bit arithmetic always gives.
-show( 100.0, 2.0 )            // wraps  -> 51200
+both( 100.0, 2.0 )            // wraps  -> 51200
+
+// The unsigned path, which lowers to fixMulU instead. 200.0 is out of range for
+// i8.8 and comfortably inside u8.8, so this is a value the signed cases cannot
+// reach.
+sub showU( u8.8 x, u8.8 y ) {
+  u8.8 p
+  p = x * y
+  putNumber( raw u16( p ) )
+  newline()
+}
+
+showU( 1.5, 2.0 )             // 3.0    -> 768
+showU( 200.0, 1.0 )           // 200.0  -> 51200
