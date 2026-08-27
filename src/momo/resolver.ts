@@ -689,6 +689,7 @@ export const resolve = (program: Program): ResolveResult => {
         type: 'CastExpression',
         to: symbol.returnType as TypeName,
         toFrac: symbol.returnFrac ?? 0,
+        raw: false,
         argument: expansion,
         file: node.file,
         line: node.line,
@@ -886,8 +887,19 @@ export const resolve = (program: Program): ResolveResult => {
       scaleDecimals(node.argument, node.toFrac)
       const argument = resolveExpression(node.argument)
 
-      // Same scale on both sides is the ordinary cast: bits, not units.
-      if (argument.frac === node.toFrac) {
+      // A cast to bool normalises to 0 or 1, which is a decision about the value
+      // rather than a reading of the bits - so there is nothing for `raw` to mean.
+      if (node.raw && node.to === 'bool') {
+        raise(
+          node,
+          'raw cannot target bool - a cast to bool normalises to 0 or 1 rather than' +
+            ' reinterpreting what is there',
+        )
+      }
+
+      // `raw` keeps the bits and changes only what they are read as, so it takes
+      // the same path as a cast that does not cross scales at all.
+      if (node.raw || argument.frac === node.toFrac) {
         const value = argument.value === null ? null : truncate(argument.value, node.to)
         return annotate(node, { type: node.to, value, frac: node.toFrac })
       }

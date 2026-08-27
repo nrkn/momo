@@ -1,0 +1,4 @@
+// EXPECT-ERROR: expected type but found "("
+u16 a = 1
+u16 b
+b = raw ( a )

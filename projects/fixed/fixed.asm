@@ -18,6 +18,8 @@ __entry:
         call    constants
 ; ---- decimals()
         call    decimals
+; ---- reinterpret()
+        call    reinterpret
 ; ---- throughARoutine()
         call    throughARoutine
 ; ---- eightBit()
@@ -148,6 +150,16 @@ decimals:
         mov     [small], al                 ; i8 -> i8, no widening
         ret
 
+; ============================================== sub reinterpret ====
+
+reinterpret:
+; ---- asWord = raw u16( fromLiteral )
+        mov     ax, [fromLiteral]
+        mov     [asWord], ax
+; ---- scale = raw i8.8( asWord )
+        mov     [scale], ax
+        ret
+
 ; ============================================== sub throughStorage ====
 
 throughStorage:
@@ -219,6 +231,7 @@ eighth:         db      1        ; i8 = 1
 doubled__v:     dw      0        ; i16
 doubled__ret:   dw      0        ; i16
 small:          db      0        ; i8
+asWord:         dw      0        ; u16
 
 ; ---- arrays ----
 table:          times 3 dw 0        ; i16[3]

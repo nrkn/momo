@@ -149,6 +149,10 @@ export type CastExpression = Located & {
   type: 'CastExpression'
   to: TypeName
   toFrac: number // fraction bits of the target type, 0 when it is not fixed
+  // `raw i16( x )`: keep the bits, change what they are read as. An ordinary cast
+  // across a scale boundary preserves the VALUE and so implies a shift; this one
+  // is the other half, and the lowering of `*` needs it at both ends.
+  raw: boolean
   argument: Expression
 }
 

@@ -3704,10 +3704,13 @@ scale boundary. `projects/fixed` is all of it in one program, and it is a projec
 than a compile test because the claim being made is about emitted code and the golden
 tier is the only one that watches that.
 
-Not built: decimal literals, which lex and are then rejected; the reinterpreting cast;
-and `*` between two fixed values, which is `fixMul` and needs the reinterpret first. A
-runtime value cannot cross scales yet for the same reason - the shift has nowhere to come
-from. `NEXT.md` in the vector study holds the order.
+Also built: decimal literals, which scale wherever a target scale is in view, and `raw`,
+the reinterpreting cast.
+
+Not built: `*` between two fixed values, which is `fixMul`. And a runtime value still
+cannot cross scales *preserving its value*, because that is a shift and the resolver
+annotates rather than rewriting - `raw` is the other half of that pair and does not need
+one. `NEXT.md` in the vector study holds the order.
 
 An earlier draft of this section said "lowered entirely in the parser". That is wrong,
 and it is wrong in a way that reaches as far as which test tier can see the feature at
@@ -3945,10 +3948,28 @@ declaration rather than an expression.
 
 **So a reinterpreting cast is part of the feature**, cast-shaped because it needs a target
 type. It fits an existing family: `peek`, `poke`, `in` and `out` are all deliberately
-unsafe and visibly so at every use, and this is that. The spelling is open. The cost is
-one token, a grammar regeneration, and the six files any language-surface addition
-touches - which measured 189 lines when §22 added four intrinsics at once, so this is not
-the cheap half of the feature.
+unsafe and visibly so at every use, and this is that.
+
+**It is spelled `raw`**, an adjective in front of an otherwise ordinary cast:
+
+```momo
+u16  bits = raw u16( scale )    // the word behind an i8.8, unchanged
+i8.8 back = raw i8.8( bits )    // and read as 8.8 again
+```
+
+The adjective reads the way `const far` and `const view` do, and it produces the same
+`CastExpression` the plain form does with a flag set - so there is one cast node, one
+emitter path, and nothing new in the back end at all. Both lines above emit a `mov` and
+no shift, which is the whole point of having it.
+
+`raw` cannot target `bool`: a cast to bool normalises to 0 or 1, which is a decision
+about the value rather than a reading of the bits, so there is nothing for the adjective
+to mean.
+
+**It cost 51 lines across five files**, and 30 keywords rather than 29. Against the 189
+§22 spent on four intrinsics that is cheap, and the reason is that it reuses the cast
+node instead of adding a construct - the same trade §17 made when `view` absorbed the
+emitter's byte-alias arithmetic.
 
 A parameterised const would have avoided it, and does not work. The unsigned kernel is a
 single expression, so one declaration with the shift as a parameter would fold for every

@@ -1,0 +1,4 @@
+// EXPECT-ERROR: raw cannot target bool
+u16 a = 1
+bool flag
+flag = raw bool( a )

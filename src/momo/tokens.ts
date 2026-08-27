@@ -69,6 +69,11 @@ export const keywords = [
   'in16',
   'out8',
   'out16',
+  // `raw i16( x )` - a cast that preserves bits rather than value, which is what
+  // a fixed-point helper written in plain Momo needs at both ends. Named and
+  // grouped with the four above because it belongs to the same family: unsafe,
+  // and visibly so at every use. See DESIGN.md §25.
+  'raw',
   'true',
   'false',
 ]

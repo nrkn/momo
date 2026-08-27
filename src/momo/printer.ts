@@ -165,7 +165,10 @@ export const printExpression = (node: Expression): string => {
       // `spell`, not `node.to`: printing the storage type turns `i8.8( 1 )` into
       // `i16( 1 )`, which parses and means 256 times less. The round trip caught
       // exactly that.
-      return `${spell(node.to, node.toFrac)}( ${printExpression(node.argument)} )`
+      return (
+        `${node.raw ? 'raw ' : ''}${spell(node.to, node.toFrac)}` +
+        `( ${printExpression(node.argument)} )`
+      )
 
     case 'AddrExpression':
       return `addr( ${node.target.name} )`

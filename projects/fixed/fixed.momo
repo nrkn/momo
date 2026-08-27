@@ -80,6 +80,18 @@ sub decimals {
   small = eighth
 }
 
+// `raw` keeps the bits and changes only what they are read as - the other half of
+// the cast rule, and what a fixed-point helper written in plain Momo needs at both
+// ends. Note the contrast: `u16( scale )` on a runtime value is an error, because
+// preserving the VALUE across scales needs a shift that does not exist yet, while
+// `raw u16( scale )` is a plain move and always was.
+u16 asWord
+
+sub reinterpret {
+  asWord = raw u16( fromLiteral )
+  scale = raw i8.8( asWord )
+}
+
 // Storage of every shape: an array, a group field, and a const with a declared
 // fixed type. Decimal initialisers included, since an array element and a const
 // are both targets with a scale.
@@ -107,6 +119,7 @@ sameScale()
 counts()
 constants()
 decimals()
+reinterpret()
 throughARoutine()
 eightBit()
 throughStorage()

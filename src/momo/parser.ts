@@ -289,6 +289,7 @@ export const parse = (tokens: Token[]): Program => {
         type: 'CastExpression',
         to: target.name,
         toFrac: target.frac,
+        raw: false,
         argument,
         file: token.file,
         line: token.line,
@@ -297,6 +298,28 @@ export const parse = (tokens: Token[]): Program => {
     }
 
     if (token.kind === 'keyword') {
+      // `raw i16( x )`. The adjective reads the way `const far` and `const view`
+      // do, and it sits in front of an otherwise ordinary cast rather than being
+      // a construct of its own - so there is one cast node and one emitter path.
+      if (token.text === 'raw') {
+        advance()
+        const target = readType(expect('type'))
+        expect('op', '(')
+        const argument = parseExpression()
+        expect('op', ')')
+
+        return {
+          type: 'CastExpression',
+          to: target.name,
+          toFrac: target.frac,
+          raw: true,
+          argument,
+          file: token.file,
+          line: token.line,
+          col: token.col,
+        }
+      }
+
       if (token.text === 'true' || token.text === 'false') {
         advance()
         return {
