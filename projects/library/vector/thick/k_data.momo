@@ -6,7 +6,7 @@
 // one stroke: a run of subpaths, one four-sided ribbon per segment plus two bevel
 // triangles per joint, all wound the same way so the nonzero rule unions them.
 //
-// **Nothing in projects/thick knows what a stroke is.** The whole feature is the
+// **Nothing in thick knows what a stroke is.** The whole feature is the
 // study's stroke.ts; the target fills paths, which it has done since chunk 6.
 //
 //   0  wide arc         width 21  156 ops

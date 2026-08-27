@@ -7,9 +7,9 @@
 // through the portability filter - so nothing here can be wider than the audited
 // 15-pixel span however the scene was written.
 //
-// Read by projects/mvdemo, which digests it, and projects/mvpic, which draws it.
-// One dataset, two programs, no copy to drift. It sits at the include root
-// because neither of them owns it - the same arrangement as scenes/tiger.momo.
+// Read by `mvdemo`, which digests it, and `mvpic`, which draws it. One dataset,
+// two programs, no copy to drift. It sits at the include root because neither of
+// them owns it - the same arrangement as `scenes/tiger.momo`.
 //
 //   paths    6
 //   ops      41

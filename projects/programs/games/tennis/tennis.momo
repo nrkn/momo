@@ -95,7 +95,7 @@ sub drawNet {
 // object offset, eg ball.x, ball.y, player[ i ].y etc
 // `>> 2` and not `/ 4`: obj is i16, and a signed divide rounds toward zero
 // where the shift floors, so these are different answers for a negative offset.
-// Signed division deliberately does not strength-reduce - see projects/strred.
+// Signed division deliberately does not strength-reduce - see strred.
 const subgridToPx( i16 play, i16 obj ) = play + 1 + (obj >> 2)
 
 // clear at old, draw at new

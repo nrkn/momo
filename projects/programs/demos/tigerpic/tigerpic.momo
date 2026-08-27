@@ -8,14 +8,14 @@
 //
 // A demo rather than a test: it draws, waits for a key and puts the display back,
 // so it cannot have a `.expected` - tier 2 has no way to press one. The geometry is
-// not taken on trust for that reason. `projects/tiger` digests the same data
+// not taken on trust for that reason. `tiger` digests the same data
 // through the same rasteriser and holds 339 numbers against the study - every
 // scanline's pixel count and x-sum, every path's colour and pixel count, and a hash
 // over every pixel in draw order. So this picture is made of numbers that have been
 // checked, and only the drawing is new here.
 //
 // The data is shared rather than copied: `scenes/tiger.momo` is the one generated
-// dataset, and `projects/tiger` and `projects/tzoom` include it by exactly this
+// dataset, and `tiger` and `tzoom` include it by exactly this
 // name. Three programs, one file, and no copy to drift.
 //
 // **The rasteriser cannot tell this program from the digest.** `lib/momovec` asks a

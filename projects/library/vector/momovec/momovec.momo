@@ -52,7 +52,7 @@ include "m_scene.momo"
 // Every path of one scene, in order.
 //
 // A scene is this harness's idea, not the rasteriser's. It lived in
-// lib/momovec/path.momo until projects/tiger needed the library without one and
+// lib/momovec/path.momo until tiger needed the library without one and
 // could not compile - the resolver wants every name to exist whether or not the
 // code is reachable, so a library referring to `scenePathCount` is a library that
 // only works for programs which happen to have scenes. The rasteriser knows about

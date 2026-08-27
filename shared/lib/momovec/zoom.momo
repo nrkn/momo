@@ -4,7 +4,7 @@
 // same two names and the program picks, exactly as `subdiv.momo` and
 // `quadflat.momo` do for quadratics.
 //
-// This is the transform that could not be baked. `projects/tpan` bakes its
+// This is the transform that could not be baked. `tpan` bakes its
 // translation into generated data, which works because a translation does not
 // change how many points there are - and a zoom does: the 3x tiger needs 13,982
 // points against 8,014, which came to 84,914 bytes against a 64 KB segment. It

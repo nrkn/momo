@@ -10,7 +10,7 @@
 // **The second was written first, and that was the point.** §25 argued for
 // building the portable version before the fast one, because the fast one is
 // where the sign handling and the byte extraction live and the portable one is
-// the only thing it could be checked against. `projects/fixmul` runs both over
+// the only thing it could be checked against. `fixmul` runs both over
 // 256 pairs and requires them to agree.
 //
 // **Everything here is written in plain integer types**, with no `raw` in sight.

@@ -18,7 +18,7 @@
 // here to digest - 320x200 bytes is 64,000, against 37.9 KB of path data in a 64 KB
 // segment - so an overdrawn pixel counts twice, on both sides. That is a complete
 // claim about what the rasteriser produced and a weaker one about the final image.
-// The image is `projects/tigerpic`, and it is judged by eye, because that is what a
+// The image is `tigerpic`, and it is judged by eye, because that is what a
 // picture is for.
 //
 // The data is shared with that project rather than copied: it lives at

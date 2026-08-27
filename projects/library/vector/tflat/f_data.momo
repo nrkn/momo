@@ -4,7 +4,7 @@
 //
 // The Ghostscript tiger at LEVEL 2: every quadratic replaced by the line segments
 // that approximate it to half a pixel. Same arrays and same digest shape as
-// projects/tiger, so the two are comparable to the byte.
+// tiger, so the two are comparable to the byte.
 //
 // **There is no opQuad in this file.** A program that only ever reads data like
 // this needs drawLine and nothing else - no span limit, no coordinate

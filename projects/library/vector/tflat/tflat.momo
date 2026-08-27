@@ -2,7 +2,7 @@
 //
 //   npm start tflat
 //
-// The same 138 paths as `projects/tiger`, the same digest, and the same harness -
+// The same 138 paths as `tiger`, the same digest, and the same harness -
 // the only difference is the data. Every quadratic has been replaced by the line
 // segments that approximate it to half a pixel, so `opKind` contains no 2.
 //

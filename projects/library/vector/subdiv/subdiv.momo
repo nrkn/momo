@@ -16,7 +16,7 @@
 //
 // The rounding is the part most likely to disagree. Momo's `/ 2` truncates toward
 // zero where `>> 1` rounds toward negative infinity, and about half the midpoints of
-// any curve crossing the origin are odd negatives. `projects/divtest` pins that
+// any curve crossing the origin are odd negatives. `divtest` pins that
 // separately; the `straddling origin` and `negative coordinates` cases here are what
 // would break if the model ever drifted.
 //
@@ -37,7 +37,7 @@ include "s_corpus.momo"
 
 // One pixel, printed. The library calls this by name and never learns it is a
 // `putNumber` rather than a byte of video memory - the same arrangement that let
-// `projects/tiger` and `projects/tigerpic` differ by exactly one routine.
+// `tiger` and `tigerpic` differ by exactly one routine.
 sub plot( i16 x, i16 y ) {
   putNumber( u16( x ) )
   space()

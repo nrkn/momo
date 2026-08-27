@@ -10,7 +10,7 @@
 // neither can tell a picture from the same picture painted in a different sequence -
 // and painting order is what makes overlapping paths look like anything.
 //
-// The picture is projects/mvpic. It differs from this program in its setup and
+// The picture is mvpic. It differs from this program in its setup and
 // its output, as it must - but the rasteriser sees only `plot` and `emitSpan`, so
 // the difference reaches nothing below them. That is what the late binding bought.
 

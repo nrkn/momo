@@ -6,7 +6,7 @@
 // display back.
 //
 // A demo rather than a test: it cannot have a `.expected` because tier 2 has no way
-// to press a key. The geometry is not taken on trust for that - projects/mvdemo
+// to press a key. The geometry is not taken on trust for that - mvdemo
 // runs the same data through the same rasteriser and holds its numbers against the
 // study. So this picture is made of numbers that have been checked, and only the
 // drawing is new here.

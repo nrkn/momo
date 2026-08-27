@@ -16,7 +16,7 @@
 // have cancelled every overlap into a hole.
 //
 // So the whole feature is a generator in the study, and this program is the same
-// `fillPath` loop `projects/tiger` runs.
+// `fillPath` loop `tiger` runs.
 //
 // The geometry was verified in the study before this existed, against a brute-force
 // distance field that shares no code with the ribbons or the rasteriser: every

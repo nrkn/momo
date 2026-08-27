@@ -2,7 +2,7 @@
 //
 //   npm start tpan
 //
-// The same 138 paths and the same data as `projects/tiger`, translated half a canvas
+// The same 138 paths and the same data as `tiger`, translated half a canvas
 // up and left so only the bottom-right quarter of the tiger is visible. **98 of its
 // 138 paths are rejected outright** and never rasterised at all.
 //
