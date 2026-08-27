@@ -21,6 +21,12 @@ i8.8 height
 i16  whole
 bool over
 
+// A declaration with a decimal initialiser, which is DESIGN.md §25's opening
+// example and was the one shape with no positive test: it folds into the data
+// section, so `fromLiteral: dw 384` in fixed.asm is the whole assertion.
+i8.8 fromLiteral = 1.5
+i4.4 eighth      = 0.0625
+
 // Same scale throughout: add, subtract and compare are integer operations, and
 // there is nothing to lower.
 sub sameScale {
@@ -70,6 +76,8 @@ sub decimals {
   scale = 1.5 + 2.5
   scale = 1.5 * 2
   scale = doubled( 0.25 )
+  scale = fromLiteral
+  small = eighth
 }
 
 // Storage of every shape: an array, a group field, and a const with a declared

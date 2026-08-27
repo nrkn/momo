@@ -140,6 +140,12 @@ decimals:
         call    doubled
         mov     ax, [doubled__ret]
         mov     [scale], ax
+; ---- scale = fromLiteral
+        mov     ax, [fromLiteral]
+        mov     [scale], ax
+; ---- small = eighth
+        mov     al, [eighth]
+        mov     [small], al                 ; i8 -> i8, no widening
         ret
 
 ; ============================================== sub throughStorage ====
@@ -208,6 +214,8 @@ scale:          dw      0        ; i16
 height:         dw      0        ; i16
 whole:          dw      0        ; i16
 over:           db      0        ; bool
+fromLiteral:    dw      384        ; i16 = 384
+eighth:         db      1        ; i8 = 1
 doubled__v:     dw      0        ; i16
 doubled__ret:   dw      0        ; i16
 small:          db      0        ; i8
