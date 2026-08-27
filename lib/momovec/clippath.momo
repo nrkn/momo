@@ -1,0 +1,136 @@
+// Clipping a fill to an arbitrary shape, for a fraction of what that usually costs.
+//
+// The playground carries a full polygon boolean - Martinez-Rueda-Feito, a sweep line
+// with an event queue, a splay tree, segment splitting and robust orientation
+// predicates. That is the right tool for producing an intersection **as geometry**: a
+// new path you can store, transform or stroke.
+//
+// **For rendering it is the wrong tool.** The rasteriser already reduces a path to
+// sorted spans per scanline, and two shapes intersect exactly where their spans
+// overlap - so clipping is a linear merge of two sorted interval lists. No sweep line,
+// no event queue, no segment intersection, and no orientation predicate.
+//
+// That last one matters more than it sounds. `orient2d` is a 2x2 determinant of
+// coordinate differences, which inside the port's 8,191 bound needs 30 signed bits, and
+// a sign error there does not degrade the output - it corrupts the sweep's topology.
+// Span intersection has no such term: it compares coordinates it already holds.
+//
+// The study verified this against a brute-force pixel-set intersection sharing no code
+// with it, over rectangles, curves, a shape with a hole, and all eleven ladder rungs
+// used as clips. Breaking the row cursor in the study failed eight of ten tests.
+//
+// **What this cannot do is give you the result as a path.** That is the sweep line's
+// job and it stays deferred.
+
+include "momovec/types.momo"
+include "momovec/fill.momo"
+
+// The clip buffer, as spans rather than crossings. A second crossing list would be
+// 1,024 slots at eight bytes; a clip's spans are one or two per scanline, so this holds
+// far more shape for far less memory. `maxClipSpans` is the program's, for the same
+// reason `maxCrossings` is: an array dimension has to be known where the array is
+// declared, so it cannot bind late.
+u8[maxClipSpans]  clipY
+i16[maxClipSpans] clipX0
+i16[maxClipSpans] clipX1
+
+u16 clipSpanCount
+
+// Set if the clip needs more spans than the buffer holds. A capacity problem must not
+// look like a geometry bug - same argument as `crossingsOverflowed`.
+bool clipOverflowed
+
+// A row index, so intersection is a lookup rather than a search.
+//
+// **Deliberately not a cursor.** A cursor would have to be reset per path and must not
+// advance past its row - the study's implementation had exactly that bug, and breaking
+// it there failed eight of ten tests. Two arrays of 200 entries cost 800 bytes and
+// remove the state entirely, which is the better trade when the alternative is an
+// ordering assumption nothing enforces.
+u16[screenH] clipRowStart
+u16[screenH] clipRowCount
+
+// While true, `emitSpan` appends to the buffer instead of intersecting against it.
+// Capture reuses the ordinary fill path - it IS a fill, and the only difference is
+// where the spans go.
+bool clipCapturing
+
+sub clearClipPath {
+  u16 i
+
+  clipSpanCount = 0
+  clipOverflowed = false
+  clipCapturing = false
+
+  for ( i = 0; i < screenH; i++ ) {
+    clipRowStart[i] = 0
+    clipRowCount[i] = 0
+  }
+}
+
+// The subject's spans, intersected with the clip, go here. The PROGRAM defines it -
+// the fifth thing in this library to bind late, after `plot`, `emitSpan`,
+// `strokeScene` and `drawQuadAny`.
+//
+// A program that wants clipping therefore defines `emitClipped` rather than
+// `emitSpan`, because `emitSpan` is taken: it is the filter.
+
+sub emitSpan( u16 y, i16 x0, i16 x1 ) {
+  u16 j
+  u16 last
+  i16 lo
+  i16 hi
+
+  if ( clipCapturing ) {
+    if ( clipSpanCount >= maxClipSpans ) {
+      clipOverflowed = true
+      return
+    }
+
+    clipY[ clipSpanCount ] = u8( y )
+    clipX0[ clipSpanCount ] = x0
+    clipX1[ clipSpanCount ] = x1
+
+    // The index is built as spans arrive rather than in a second pass. Capture emits
+    // in y order, so a row's spans are contiguous and the first one seen fixes its
+    // start.
+    if ( clipRowCount[y] == 0 ) {
+      clipRowStart[y] = clipSpanCount
+    }
+
+    clipRowCount[y] += 1
+    clipSpanCount += 1
+
+    return
+  }
+
+  // `u16( yMax )` rather than `yMax`: 4's rule is that u16 does not mix with signed
+  // types, and the cast on a const folds to nothing. The row index is sized by
+  // screenH, so a y past the canvas would read off the end of it.
+  if ( y > u16( yMax ) ) return
+  if ( clipRowCount[y] == 0 ) return
+
+  last = clipRowStart[y] + clipRowCount[y]
+  j = clipRowStart[y]
+
+  while ( j < last ) {
+    lo = x0 > clipX0[j] ? x0 : clipX0[j]
+    hi = x1 < clipX1[j] ? x1 : clipX1[j]
+
+    if ( lo <= hi ) {
+      emitClipped( y, lo, hi )
+    }
+
+    j += 1
+  }
+}
+
+// One path becomes the clip. Tidied, because the intersection needs a row's clip spans
+// disjoint and ascending - overlapping ones would emit the same subject pixel twice.
+sub captureClipPath( u16 pathIndex ) {
+  clearClipPath()
+
+  clipCapturing = true
+  fillPath( pathIndex, true )
+  clipCapturing = false
+}

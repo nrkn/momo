@@ -1,0 +1,140 @@
+// tclip.momo - the tiger clipped to a shape, by intersecting spans.
+//
+//   npm start tclip
+//
+// 138 tiger paths filled through a 139th used as a clip. What survives is the
+// intersection of each fill with that shape, and the digest is 339 lines of it.
+//
+// **No sweep line.** The playground's polygon boolean is Martinez-Rueda-Feito with an
+// event queue, a splay tree, segment splitting and robust orientation predicates. None
+// of it is here, because the rasteriser already reduces a path to sorted spans per
+// scanline and two shapes intersect exactly where their spans overlap - so clipping is
+// a linear merge of two sorted interval lists.
+//
+// The predicate is the part worth not needing. `orient2d` is a determinant of
+// coordinate differences that wants 30 signed bits inside this port's 8,191 bound, and
+// a sign error there does not degrade the picture - it corrupts the sweep's topology.
+// Span intersection compares coordinates it already holds.
+//
+// What it costs: **152 spans, 760 bytes** for this clip, against 8,192 for a second
+// crossing list. A clip has one or two spans per scanline where a crossing list is
+// sized for the worst single path.
+//
+// **This clips fills, not strokes.** A fill reaches the program through `emitSpan`,
+// which is where the filter sits; a stroke reaches it through `plot`, one pixel at a
+// time, and passes through no span at all. Clipping strokes is possible - the row index
+// is right there for a program's own `plot` to test against - but it is different code
+// and this does not pretend to do it.
+
+// Measured by the study at 692 for the worst single path, as the unclipped tiger. The
+// clip changes what is emitted, not how many crossings a path produces.
+const maxCrossings = 1024
+
+// Before the momovec includes, because `maxClipSpans` sizes clippath.momo's arrays and
+// an array dimension has to be known where the array is declared.
+include "c_data.momo"
+
+include "std/io.momo"
+include "std/math.momo"
+include "momovec/types.momo"
+include "momovec/edges.momo"
+include "momovec/subdiv.momo"
+include "momovec/path.momo"
+include "momovec/fill.momo"
+include "momovec/clippath.momo"
+
+u16[screenH] rowPixels
+u16[screenH] rowSumX
+u16[subjectPaths] pathPixels
+u16 orderHash
+
+u16 currentPath
+
+// What survives the clip. `emitSpan` is taken - it is the filter - so a clipping
+// program defines this instead. Fifth thing in this library to bind late, after `plot`,
+// `emitSpan`, `strokeScene` and `drawQuadAny`.
+sub emitClipped( u16 y, i16 x0, i16 x1 ) {
+  i16 x
+  u16 ux
+
+  for ( x = x0; x <= x1; x++ ) {
+    if ( x >= 0 && x <= xMax ) {
+      ux = u16( x )
+
+      rowPixels[ y ] += 1
+      rowSumX[ y ] += ux
+      pathPixels[ currentPath ] += 1
+
+      orderHash = orderHash * 31 + ux + y
+    }
+  }
+}
+
+// Never called: nothing here strokes, so `walkPath` runs with `wantPixels` false. The
+// name still has to exist, because the resolver wants every name a library mentions
+// whether the code is reachable or not - the same thing that moved `strokeScene` out of
+// the library in chunk 7.
+sub plot( i16 x, i16 y ) {
+}
+
+u16 i
+u16 p
+
+for ( i = 0; i < screenH; i++ ) {
+  rowPixels[i] = 0
+  rowSumX[i] = 0
+}
+
+for ( p = 0; p < subjectPaths; p++ ) {
+  pathPixels[p] = 0
+}
+
+orderHash = 0
+
+// The clip is captured, not drawn. Capture reuses the ordinary fill - it IS a fill, and
+// the only difference is that the spans go into the buffer instead of to the program.
+captureClipPath( clipPathIndex )
+
+for ( p = 0; p < subjectPaths; p++ ) {
+  currentPath = p
+
+  if ( pathHasFill[p] != 0 ) {
+    fillPath( p, true )
+  }
+}
+
+// ---- the digest ----
+
+for ( i = 0; i < screenH; i++ ) {
+  putNumber( i )
+  space()
+  putNumber( rowPixels[i] )
+  space()
+  putNumber( rowSumX[i] )
+  newline()
+}
+
+for ( p = 0; p < subjectPaths; p++ ) {
+  putNumber( p )
+  space()
+  putNumber( pathFill[p] )
+  space()
+  putNumber( pathPixels[p] )
+  newline()
+}
+
+putNumber( orderHash )
+newline()
+
+if ( crossingsOverflowed ) {
+  putStr( addr( overflowed ) )
+  newline()
+}
+
+if ( clipOverflowed ) {
+  putStr( addr( clipFull ) )
+  newline()
+}
+
+const u8[] overflowed = "CROSSING LIST OVERFLOWED$"
+const u8[] clipFull = "CLIP SPAN BUFFER OVERFLOWED$"
