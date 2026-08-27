@@ -12,7 +12,7 @@
 // a linear merge of two sorted interval lists.
 //
 // The predicate is the part worth not needing. `orient2d` is a determinant of
-// coordinate differences that wants 30 signed bits inside this port's 8,191 bound, and
+// coordinate differences that wants 30 signed bits inside this port's 16,383 bound, and
 // a sign error there does not degrade the picture - it corrupts the sweep's topology.
 // Span intersection compares coordinates it already holds.
 //
@@ -20,11 +20,11 @@
 // crossing list. A clip has one or two spans per scanline where a crossing list is
 // sized for the worst single path.
 //
-// **This clips fills, not strokes.** A fill reaches the program through `emitSpan`,
-// which is where the filter sits; a stroke reaches it through `plot`, one pixel at a
-// time, and passes through no span at all. Clipping strokes is possible - the row index
-// is right there for a program's own `plot` to test against - but it is different code
-// and this does not pretend to do it.
+// **Fills and strokes are both clipped, by different questions.** A fill arrives as
+// spans and is clipped by intersecting intervals; a stroke arrives as pixels and is
+// clipped by a point query. The same row index answers both, so the second cost a few
+// lines rather than a second structure - and `clippath.momo` takes over `plot` as well
+// as `emitSpan` so that including it cannot mean half a guarantee.
 
 // Measured by the study at 692 for the worst single path, as the unclipped tiger. The
 // clip changes what is emitted, not how many crossings a path produces.
@@ -70,11 +70,28 @@ sub emitClipped( u16 y, i16 x0, i16 x1 ) {
   }
 }
 
-// Never called: nothing here strokes, so `walkPath` runs with `wantPixels` false. The
-// name still has to exist, because the resolver wants every name a library mentions
-// whether the code is reachable or not - the same thing that moved `strokeScene` out of
-// the library in chunk 7.
-sub plot( i16 x, i16 y ) {
+// A stroke pixel that survived the clip.
+//
+// **`plot` is taken - clippath.momo owns it, as it owns `emitSpan`.** A fill is clipped
+// by intersecting intervals; a stroke arrives as pixels and passes through no span at
+// all, so it needs a point query against the same row index. Two questions, one clip.
+sub plotClipped( i16 x, i16 y ) {
+  u16 ux
+  u16 uy
+
+  if ( x < 0 ) return
+  if ( y < 0 ) return
+  if ( x > xMax ) return
+  if ( y > yMax ) return
+
+  ux = u16( x )
+  uy = u16( y )
+
+  rowPixels[ uy ] += 1
+  rowSumX[ uy ] += ux
+  pathPixels[ currentPath ] += 1
+
+  orderHash = orderHash * 31 + ux + uy
 }
 
 u16 i
@@ -95,11 +112,23 @@ orderHash = 0
 // the only difference is that the spans go into the buffer instead of to the program.
 captureClipPath( clipPathIndex )
 
+// **Fills for every path, then strokes for every path** - two passes, not one path at a
+// time. The order matters because `orderHash` is order-sensitive, and the study
+// computes it the same way round. Getting this wrong would match every count and fail
+// the hash, which is exactly what the hash is there to catch.
 for ( p = 0; p < subjectPaths; p++ ) {
   currentPath = p
 
   if ( pathHasFill[p] != 0 ) {
     fillPath( p, true )
+  }
+}
+
+for ( p = 0; p < subjectPaths; p++ ) {
+  currentPath = p
+
+  if ( pathHasStroke[p] != 0 ) {
+    strokePath( p )
   }
 }
 

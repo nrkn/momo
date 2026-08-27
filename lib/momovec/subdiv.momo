@@ -156,6 +156,28 @@ sub drawQuadAny(
   i16 my
   i16 span
 
+  // The ladder's bound, checked before anything is pushed. `drawLine` checks the same
+  // bound for its own reason - a difference that has to fit a word - and this checks it
+  // for the ladder's: a sum that has to. Both give 16,383; see types.momo.
+  //
+  // Checked here rather than left to `drawLine` because subdivision would run first and
+  // the wrapping would happen in the midpoints, producing pieces inside the bound that
+  // are in the wrong place. A guard downstream of the damage is not a guard.
+  if ( !inCoordRange( x0 ) || !inCoordRange( y0 ) ) {
+    coordOutOfRange = true
+    return
+  }
+
+  if ( !inCoordRange( x1 ) || !inCoordRange( y1 ) ) {
+    coordOutOfRange = true
+    return
+  }
+
+  if ( !inCoordRange( x2 ) || !inCoordRange( y2 ) ) {
+    coordOutOfRange = true
+    return
+  }
+
   subX0[0] = x0
   subY0[0] = y0
   subX1[0] = x1

@@ -78,4 +78,15 @@ if ( subdivOverflowed ) {
   newline()
 }
 
+// The coordinate bound. The last corpus case is deliberately outside it, so this
+// MUST fire - a guard nothing exercises is a guard nobody knows works. The target
+// draws nothing for that case and says so, which is the only unambiguous answer:
+// a chord is no safer, since drawLine has the same bound, and clamping would put a
+// plausible wrong shape on the screen.
+if ( coordOutOfRange ) {
+  putStr( addr( outOfRange ) )
+  newline()
+}
+
 const u8[] overflowed = "SUBDIVISION STACK OVERFLOWED$"
+const u8[] outOfRange = "SUBDIVISION COORDINATE OUT OF RANGE$"

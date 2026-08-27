@@ -1,4 +1,4 @@
-// Clipping a fill to an arbitrary shape, for a fraction of what that usually costs.
+// Clipping to an arbitrary shape, for a fraction of what that usually costs.
 //
 // The playground carries a full polygon boolean - Martinez-Rueda-Feito, a sweep line
 // with an event queue, a splay tree, segment splitting and robust orientation
@@ -7,29 +7,42 @@
 //
 // **For rendering it is the wrong tool.** The rasteriser already reduces a path to
 // sorted spans per scanline, and two shapes intersect exactly where their spans
-// overlap - so clipping is a linear merge of two sorted interval lists. No sweep line,
-// no event queue, no segment intersection, and no orientation predicate.
+// overlap - so clipping a fill is a linear merge of two sorted interval lists. No sweep
+// line, no event queue, no segment intersection, and no orientation predicate.
 //
 // That last one matters more than it sounds. `orient2d` is a 2x2 determinant of
-// coordinate differences, which inside the port's 8,191 bound needs 30 signed bits, and
-// a sign error there does not degrade the output - it corrupts the sweep's topology.
-// Span intersection has no such term: it compares coordinates it already holds.
+// coordinate differences, which inside this port's 16,383 bound needs 30 signed bits,
+// and a sign error there does not degrade the output - it corrupts the sweep's
+// topology. Span intersection has no such term: it compares coordinates it already
+// holds.
 //
-// The study verified this against a brute-force pixel-set intersection sharing no code
+// The study verified it against a brute-force pixel-set intersection sharing no code
 // with it, over rectangles, curves, a shape with a hole, and all eleven ladder rungs
-// used as clips. Breaking the row cursor in the study failed eight of ten tests.
+// used as clips. Breaking the row walk there failed eight of ten tests.
 //
-// **What this cannot do is give you the result as a path.** That is the sweep line's
-// job and it stays deferred.
+// **Fills and strokes are clipped differently, because they arrive differently.** A
+// fill arrives as spans and is clipped by intersecting intervals. A stroke arrives as
+// pixels, one at a time, and passes through no span at all - so it needs a point query.
+// The same row index answers both, which is why the second costs a few lines rather
+// than a second structure.
+//
+// This file therefore takes over BOTH names the library asks a program for - `emitSpan`
+// and `plot` - and delegates to `emitClipped` and `plotClipped`. Taking one and not the
+// other would mean including it clipped fills and left strokes silently unclipped,
+// which is the kind of half-applied guarantee that reads as a bug later.
+//
+// **What it cannot do is give the result as a path.** That is the sweep line's job and
+// it stays deferred - and it is now the whole justification for one, since clip-path
+// rendering was the most common reason to want a boolean and turns out not to need it.
 
 include "momovec/types.momo"
 include "momovec/fill.momo"
 
 // The clip buffer, as spans rather than crossings. A second crossing list would be
 // 1,024 slots at eight bytes; a clip's spans are one or two per scanline, so this holds
-// far more shape for far less memory. `maxClipSpans` is the program's, for the same
-// reason `maxCrossings` is: an array dimension has to be known where the array is
-// declared, so it cannot bind late.
+// far more shape for far less memory - 152 spans and 760 bytes for the tiger's clip.
+// `maxClipSpans` is the program's, for the same reason `maxCrossings` is: an array
+// dimension has to be known where the array is declared, so it cannot bind late.
 u8[maxClipSpans]  clipY
 i16[maxClipSpans] clipX0
 i16[maxClipSpans] clipX1
@@ -40,20 +53,28 @@ u16 clipSpanCount
 // look like a geometry bug - same argument as `crossingsOverflowed`.
 bool clipOverflowed
 
-// A row index, so intersection is a lookup rather than a search.
+// A row index, so both the interval query and the point query are lookups rather than
+// searches.
 //
 // **Deliberately not a cursor.** A cursor would have to be reset per path and must not
 // advance past its row - the study's implementation had exactly that bug, and breaking
 // it there failed eight of ten tests. Two arrays of 200 entries cost 800 bytes and
 // remove the state entirely, which is the better trade when the alternative is an
-// ordering assumption nothing enforces.
+// ordering assumption nothing enforces. It is also what makes the point query cheap.
 u16[screenH] clipRowStart
 u16[screenH] clipRowCount
 
 // While true, `emitSpan` appends to the buffer instead of intersecting against it.
-// Capture reuses the ordinary fill path - it IS a fill, and the only difference is
-// where the spans go.
+// Capture reuses the ordinary fill - it IS a fill, and the only difference is where the
+// spans go.
 bool clipCapturing
+
+// **False until a clip is set, and then everything passes through unclipped.**
+//
+// Without this, including the file would reject every pixel until `captureClipPath` ran
+// - technically consistent and thoroughly surprising. A program can draw unclipped,
+// set a clip, draw clipped, and call `clearClipPath` to stop.
+bool clipActive
 
 sub clearClipPath {
   u16 i
@@ -61,6 +82,7 @@ sub clearClipPath {
   clipSpanCount = 0
   clipOverflowed = false
   clipCapturing = false
+  clipActive = false
 
   for ( i = 0; i < screenH; i++ ) {
     clipRowStart[i] = 0
@@ -68,12 +90,37 @@ sub clearClipPath {
   }
 }
 
-// The subject's spans, intersected with the clip, go here. The PROGRAM defines it -
-// the fifth thing in this library to bind late, after `plot`, `emitSpan`,
-// `strokeScene` and `drawQuadAny`.
+// Where clipped output goes. The PROGRAM defines both - the fifth and sixth things in
+// this library to bind late, after `plot`, `emitSpan`, `strokeScene` and `drawQuadAny`.
 //
-// A program that wants clipping therefore defines `emitClipped` rather than
-// `emitSpan`, because `emitSpan` is taken: it is the filter.
+// A clipping program defines `emitClipped` and `plotClipped` rather than `emitSpan` and
+// `plot`, because those two are taken: they are the filter.
+
+// One pixel against the clip. Used by the stroke path, where there is no span to
+// intersect.
+bool insideClip( i16 x, i16 y ) {
+  u16 uy
+  u16 j
+  u16 last
+
+  if ( y < 0 ) return false
+  if ( y > yMax ) return false
+
+  uy = u16( y )
+
+  if ( clipRowCount[ uy ] == 0 ) return false
+
+  last = clipRowStart[ uy ] + clipRowCount[ uy ]
+  j = clipRowStart[ uy ]
+
+  while ( j < last ) {
+    if ( x >= clipX0[j] && x <= clipX1[j] ) return true
+
+    j += 1
+  }
+
+  return false
+}
 
 sub emitSpan( u16 y, i16 x0, i16 x1 ) {
   u16 j
@@ -104,6 +151,11 @@ sub emitSpan( u16 y, i16 x0, i16 x1 ) {
     return
   }
 
+  if ( !clipActive ) {
+    emitClipped( y, x0, x1 )
+    return
+  }
+
   // `u16( yMax )` rather than `yMax`: 4's rule is that u16 does not mix with signed
   // types, and the cast on a const folds to nothing. The row index is sized by
   // screenH, so a y past the canvas would read off the end of it.
@@ -125,12 +177,31 @@ sub emitSpan( u16 y, i16 x0, i16 x1 ) {
   }
 }
 
+sub plot( i16 x, i16 y ) {
+  // Capture runs `fillPath`, which walks with `wantPixels` false - so this is not
+  // reached during it. Guarded anyway, because relying on a caller's flag to keep a
+  // branch unreached is the kind of assumption that stops being true.
+  if ( clipCapturing ) return
+
+  if ( !clipActive ) {
+    plotClipped( x, y )
+    return
+  }
+
+  if ( !insideClip( x, y ) ) return
+
+  plotClipped( x, y )
+}
+
 // One path becomes the clip. Tidied, because the intersection needs a row's clip spans
-// disjoint and ascending - overlapping ones would emit the same subject pixel twice.
+// disjoint and ascending - overlapping ones would emit the same subject pixel twice,
+// and would make the point query no less correct but no faster either.
 sub captureClipPath( u16 pathIndex ) {
   clearClipPath()
 
   clipCapturing = true
   fillPath( pathIndex, true )
   clipCapturing = false
+
+  clipActive = true
 }

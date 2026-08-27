@@ -47,3 +47,40 @@ const i16 xMin = 0
 const i16 yMin = 0
 const i16 xMax = screenW - 1
 const i16 yMax = screenH - 1
+
+// The coordinate bound, DERIVED rather than chosen, and shared by two routines that
+// arrive at it independently:
+//
+//   drawQuadAny's midpoint ladder computes `(a + b) / 2`, and a midpoint never leaves
+//   the range of its inputs - so the largest intermediate at any depth is twice a
+//   coordinate, and it has to fit a signed word.
+//
+//   drawLine computes `iabs( x1 - x0 )` as an i16, so the difference between two
+//   coordinates has to fit one too.
+//
+// Both give 16,383. The study replayed the ladder at each candidate to pin it: at
+// 16,383 the worst intermediate is 32,766 and fits; at 16,384 it is 32,768 and does
+// not.
+//
+// **This was documented as 8,191 and unenforced, which was wrong twice over.** The
+// figure came with the words "leaves a factor of four spare" - caution rather than a
+// derivation, rejecting legal input for no reason - and nothing on the target checked
+// it, so a caller who exceeded it got wrapped arithmetic and a silently wrong drawing.
+// That is the failure mode this port has been bitten by twice, and the only remaining
+// place it could happen.
+const i16 maxCoord = 16383
+
+// Set when geometry outside the bound is handed to the rasteriser.
+//
+// **Nothing is drawn in that case, deliberately.** A chord is no safer - drawLine has
+// the same bound - and clamping would put a plausible wrong shape on the screen. A
+// missing shape plus an explicit marker is the only unambiguous answer. Same argument
+// as `crossingsOverflowed` and `subdivOverflowed`.
+bool coordOutOfRange
+
+bool inCoordRange( i16 v ) {
+  if ( v > maxCoord ) return false
+  if ( v < -maxCoord ) return false
+
+  return true
+}

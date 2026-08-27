@@ -22,6 +22,7 @@
 // twice and the other never - invisible on a convex outline and obvious on a star.
 
 include "std/math.momo"
+include "momovec/types.momo"
 include "momovec/edges.momo"
 
 // `forceDir` overrides the crossing direction, or 0 to use the walk's own `sy`.
@@ -44,6 +45,21 @@ sub drawLine(
   i16 curX
   i16 curY
   i8  dir
+
+  // The bound, checked here because `iabs( x1 - x0 )` is an i16 and a difference wider
+  // than a word wraps into a plausible-looking wrong line. Four compares per segment,
+  // against a routine that already does several - and this is the choke point every
+  // line passes through, whether it came from an `L` op, a chord, a subpath close or a
+  // quadratic's trailing needle.
+  if ( !inCoordRange( x0 ) || !inCoordRange( y0 ) ) {
+    coordOutOfRange = true
+    return
+  }
+
+  if ( !inCoordRange( x1 ) || !inCoordRange( y1 ) ) {
+    coordOutOfRange = true
+    return
+  }
 
   dx = iabs( x1 - x0 )
   dy = -iabs( y1 - y0 )

@@ -27,8 +27,9 @@
 //   14 degenerate, control on to             4       0           4
 //   15 collinear, long                      16       0           5
 //   16 chord fallback, at the origin         8       1           4
+//   17 OUT OF RANGE, deliberately            0       0           0
 
-const caseCount = 17
+const caseCount = 18
 
 // Six coordinates per case: from x, from y, control x, control y, to x, to y.
 const i16[] cx0 = [
@@ -37,5 +38,5 @@ const i16[] cx0 = [
   80, 80, 50, 50, 0, 0, 70, 70, 0, 0, 900, 900, 10, 0, -100, -100, -50,
   -160, 0, -100, -77, -55, 3, 91, 61, -33, 0, 0, 5, 3, 10, 6, 0, 0, 1, 1,
   2, 2, 5, 5, 5, 5, 5, 5, 0, 0, 0, 0, 40, 40, 0, 0, 40, 40, 40, 40, 0, 0,
-  100, 100, 200, 200, 0, 0, -50, -50, 20, 20
+  100, 100, 200, 200, 0, 0, -50, -50, 20, 20, 0, 0, 20000, 20000, 100, 100
 ]
