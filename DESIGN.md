@@ -25,7 +25,7 @@ paper even when nothing needs it yet. Momo is where they finally have to compile
 and §16 and §17 both did, close enough to what was written down that the sections
 needed correcting rather than rewriting.
 
-**Status.** §1-§18 and §22 describe what is built. §19, §23 and §24 are designed
+**Status.** §1-§18 and §22 describe what is built. §19, §23, §24 and §25 are designed
 and not yet built, and say so in their headings. §20 collects open questions, §21
 longer-term directions. Section numbers are stable - `group` was built where it
 sits rather than renumbered into the built range, because the numbers are
@@ -3691,3 +3691,182 @@ corruption rather than a crash. That belongs in tier 1, where the compile tests
 can assert the error fires for a routine shared between a handler and the entry
 point - and, more importantly, that it does *not* fire for one reachable from two
 handlers, which IF makes safe.
+
+## 25. Planned: fixed-point types
+
+Designed and not yet built. A type whose scale the compiler knows, so that it can
+insert the shifts and reject the mismatches - and **lowered entirely in the parser**,
+to Momo that could have been written by hand.
+
+```momo
+i8.8 scale  = 1.5
+i8.8 height = 20.0
+
+i8.8 scaled = height * scale     // 30.0
+i16  pixels = i16( scaled )      // 30
+```
+
+### It is a unit system, not a width system
+
+The arithmetic is trivial and the arithmetic is not the point. Same-scale `+` and `-`
+are integer addition and subtraction unchanged; comparison is integer comparison; `*`
+is a multiply and a shift; `/` is a pre-shift and a divide.
+
+**The bug fixed point causes is a units bug.** In C a 16.16 value and a plain `int`
+are the same type, so adding a scaled thing to an unscaled thing compiles silently and
+gives an answer 65,536 times wrong. The compiler could catch every instance and cannot,
+because it cannot see the scale.
+
+Momo already has exactly this kind of rule. §4's *"u16 does not mix with signed types;
+use an explicit cast"* exists to turn a silent wrong answer into a compile error, and
+this is that idea applied to scale:
+
+```
+i8.8 * i8.8   ->  scaled multiply, shift after      i8.8
+i8.8 * i16    ->  plain multiply, no shift          i8.8
+i16  * i16    ->  plain multiply, as today          i16
+i8.8 * i4.4   ->  error, mixed scales, needs a cast
+i8.8 + i16    ->  error, needs a cast
+```
+
+Every case is decided by the operand types, so there is nothing ambiguous to resolve
+and nothing for a caller to remember. **That is the feature.** A version where the
+programmer has to call `fixMul` by hand would be worse than nothing: writing `a * b`
+and getting an integer multiply is the 256x error this exists to prevent.
+
+**`i8.8 * i16` treats the integer as a count** - "three times as big" - so no shift and
+the scale is preserved. The other reading promotes the `i16` to `i8.8` first, and the
+two answers are 256x apart. Count is the useful one, and promotion is what a cast is
+for: `a * i8.8( n )`. §4 has no implicit promotion anywhere and this adds none.
+
+### Spelling
+
+`i8.8` and `u8.8`. The signedness letter stays because §4's whole rule turns on it,
+the dot reads as a radix point because that is what it is, and the parts add to the
+storage width - so `i8.8` is 16 bits, consistent with `i16` being 16 bits, and a reader
+can do the sum.
+
+Rejected: `fix8.8` loses signedness and would need `ifix`/`ufix` to say the same thing,
+and Momo does not prefix with category words - it is `u16`, not `uint16`. `q8.8` is the
+correct DSP convention and completely opaque, where Momo's names are self-explanatory.
+
+The dot is unambiguous in a type position: a type starts with a letter, a number starts
+with a digit, and Momo has no member access to collide with. The cost is that the
+lexer's identifier rule must admit a dot, or the parser assembles three tokens.
+**`i8_8` is the fallback** if that proves to be grief - less pretty, no lexer question.
+
+### The parts must sum to a storage width
+
+`i12.4`, `i10.6`, `i4.4`, `i2.6`, `u0.16` - all legal, and all of them are a type that
+already exists with a documented scale. `i12.4` **is** an `i16`. That is the rule doing
+the work: no new storage, no new codegen, and the sugar is type checking plus shift
+amounts. The valid set is finite and small.
+
+- **`i6.6` is rejected.** Twelve bits matches no storage width, so it would live in
+  sixteen and the four spare bits would be a lie: the type would claim a range it does
+  not enforce, and overflow would wrap at sixteen rather than at twelve. It offers
+  nothing `i10.6` does not, and `i10.6` is honest about where it lives.
+- **`i16.0` is rejected** - that is `i16`, and two spellings for one type is worse than
+  one.
+- **`i0.16` is allowed.** A pure fraction in [-1, 1) is genuinely useful: a normalised
+  value, a sine table entry.
+
+### Lowered in the parser, and the round trip already proves it
+
+Literals scale at parse time and cost nothing at run time: `1.5` in 8.8 **is** the
+integer 384. `+`, `-` and comparison need no lowering at all. Only `*` and `/` lower,
+to a call:
+
+```momo
+i8.8 c = a * b        // lowers to
+i8.8 c = fixMul( a, b )
+```
+
+`fixMul` is an ordinary hand-written `sub` in `lib/std/fixed.momo`. **Which means the
+desugar round trip in §14 verifies this feature without a new tier.** That test prints
+each program back as Momo with sugar already lowered, compiles the printed copy, and
+requires the same code from both - so the printed form *is* the hand-written Momo, and
+the round trip proves it. `=>`, `else if`, `++`, adjacent string literals, compound
+assignment and `group` all arrive this way already.
+
+### No new register pressure, which is the whole reason it is shaped this way
+
+`a * b` on 8.8 wants `(a*b) >> 8`, and §9 discards `DX` - so the naive lowering is
+silently wrong the moment the product exceeds a word. It does not need new codegen:
+**a 16x16->32 multiply synthesises from four 8x8->16 multiplies**, and `mul` on byte
+operands already gives a 16-bit result.
+
+```
+a*b = ah*bh*65536 + (ah*bl + al*bh)*256 + al*bl
+```
+
+so `(a*b) >> 8` is `ah*bh*256 + (ah*bl + al*bh) + (al*bl >> 8)`, all in 16-bit ops.
+Signed needs magnitude-and-sign around the unsigned kernel, which is where the bugs
+would live and wants predict-then-check rather than confidence.
+
+**Cost: roughly 3x an optimal multiply** - four `mul`s at around 100 cycles against one
+`mul` and a `sar`.
+
+That 3x is a deliberate trade and it has an escape hatch that does not move the
+language. The sugar's *meaning* is defined by its lowering, so a faster implementation
+of the same meaning is an optimisation: the emitter can special-case the pattern, or a
+widening-multiply intrinsic can arrive, and no program changes. Ship the sugar, measure
+whether the 3x matters on something real, and only then spend anything on the back end.
+
+**This is why fixed point is the right shape and a 32-bit type is not.** §22 records
+what happened when port I/O assumed `DX` was free because §9 called it *"scratch and
+never live"*: a port has to stay in `DX` from the load until the `out`, and `mul` and
+`div` both write it. A *stored* 32-bit value is that problem everywhere - it needs `DX`
+live across arbitrary code - and that is a change to the accumulator model, which
+fifteen peepholes and every golden `.asm` stand on. Fixed point never stores a wide
+value: the 32-bit intermediate exists inside one expression and is never named, which
+is what §9 has always permitted.
+
+### Division is the half this does not cover cleanly
+
+`i8.8 / i8.8` is `(a << 8) / b`, which needs a 24-bit numerator - exactly what `div`
+wants in `DX:AX`, and exactly what Momo cannot express since it zeroes `DX`.
+Synthesising it in pure Momo means long division, which is a great deal worse than 3x,
+and the quotient can exceed a word and fault.
+
+Two standard mitigations, and they are enough to start: division by a **constant**
+becomes a multiply by a reciprocal at compile time, which covers most real uses; and
+division by a **variable** is where a `mulDiv` intrinsic would first earn its place.
+So `/` is the natural first candidate if the back end ever gains anything, and until
+then it is the operation to use sparingly.
+
+### Why not 16.16
+
+Not for want of use - the vector work wanted exactly that precision for a zoom
+transform. **A type wider than a machine word cannot be an expression value here,
+because a routine returns one word.** So `x = a + b` on 16.16 cannot lower to a call
+returning the sum; it lowers to `fixAdd( addr(x), addr(a), addr(b) )`, a statement. The
+sugar then stops composing: `x = (a + b) * c` needs a temporary the desugarer invents,
+storage allocated for it, and §12's analysis to account for it.
+
+8.8 composes perfectly because it fits a word, and that is the entire difference.
+
+**And the precision can live in the operation instead of in the type.** A scale passed
+as two words, kept at 32 bits internally, returning 8.8 - `fixMulWide( a, hi, lo )` -
+gets 16.16 precision exactly where the transform wanted it without a 16.16 type
+existing. Precision in the operation is not the same as precision in the type, and the
+first is much cheaper here.
+
+### What this opens in existing code
+
+The opportunity is not wider numbers, it is **proportions without overflow**, and there
+is more of that waiting than expected.
+
+- **`lib/std/rand.momo`** is a u16 LCG whose own header documents the damage: *"period
+  256"*, *"period 512 - a visible band every 1.6 scanlines"*. `rndpix` and `rndtext`
+  are the programs that would show an improvement.
+- **`lib/momolo` has no proportional arithmetic at all**, and percent sizing was one of
+  the things explicitly cut from the clay port. This is what it needs.
+- **`projects/tennis`** carries shifts documented as port fidelity - `obj >> 2` - which
+  a fixed type would express as what they mean rather than as what they do.
+- Gauges, aspect ratios, progress bars: the whole `(a*b)/c` family.
+
+It does **not** reopen the conic cut in the vector study. One of that decision's four
+arguments was 32-bit intermediates; the other three - nothing in the data produces an
+arc, an ellipse is not a segment, four winding directions against one `forceDir` - stand
+regardless.
