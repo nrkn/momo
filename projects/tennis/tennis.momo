@@ -1,9 +1,9 @@
 // tennis.momo - *loosely* based on the Fairchild Channel F pong clone "Tennis"
 
-include "std/key.momo"
-include "std/math.momo"
-include "std/rand.momo"
-include "std/time.momo"
+include "lib/std/key.momo"
+include "lib/std/math.momo"
+include "lib/std/rand.momo"
+include "lib/std/time.momo"
 include "t_cfg.momo"
 include "t_kbd.momo"
 include "t_pal.momo"

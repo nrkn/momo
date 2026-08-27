@@ -279,7 +279,7 @@ export const resolve = (program: Program): ResolveResult => {
     return created
   }
 
-  // `lib/std/rand.momo` gives `rand`, so a private reads as `rand__randomSeed` -
+  // `shared/lib/std/rand.momo` gives `rand`, so a private reads as `rand__randomSeed` -
   // the same shape as `mob__x` and `add__a`, which a reader of the assembly
   // already knows. Two files with one base name would collide here, and
   // claimLabel says so rather than emitting the label twice.
@@ -823,7 +823,7 @@ export const resolve = (program: Program): ResolveResult => {
       // Unsigned only. `mul` reads DX, and the high half of a product is not
       // sign-agnostic the way the low half is - which is the whole reason §1 could
       // leave `imul` out. A signed fixed multiply gets its sign from
-      // magnitude-and-sign in `lib/std/fixed.momo`, not from here.
+      // magnitude-and-sign in `shared/lib/std/fixed.momo`, not from here.
       const operands = [
         { resolved: left, at: node.left },
         { resolved: right, at: node.right },
@@ -1139,7 +1139,7 @@ export const resolve = (program: Program): ResolveResult => {
       raise(
         node,
         `multiplying two ${spelling} values calls ${helper}` +
-          ' - add include "std/fixed.momo"',
+          ' - add include "lib/std/fixed.momo"',
       )
     }
 

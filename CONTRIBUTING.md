@@ -18,14 +18,15 @@ console is kept as `_reference/yuki.txt`.
 ## Layout
 
 ```
-src/momo/       the compiler
-src/tools/      CLI entry points, over cli.ts (paths, fail) and toolchain.ts
-lib/std/        standard library, written in Momo
-lib/momolo/     a layout engine, written in Momo
-lib/momovec/    a vector rasteriser, written in Momo
-projects/       programs, as <name>/<name>.momo
-tests/compile/  tier 1 tests
-editor/vscode/  generated syntax highlighting
+src/momo/            the compiler
+src/tools/           CLI entry points, over cli.ts (paths, fail) and toolchain.ts
+shared/              the include root: what more than one project reads
+shared/lib/std/      standard library, written in Momo
+shared/lib/momolo/   a layout engine, written in Momo
+shared/lib/momovec/  a vector rasteriser, written in Momo
+projects/            programs, as <name>/<name>.momo
+tests/compile/       tier 1 tests
+editor/vscode/       generated syntax highlighting
 ```
 
 A project with more than one file prefixes its parts - `t_scr.momo` beside
@@ -282,7 +283,7 @@ six files, mode 13h, sprites, a palette, and a keyboard reader that masks IRQ1 a
 talks to the 8042 directly. Most of `PITFALLS.md` was found in it, and found on
 86Box rather than under DOSBox. It blocks on input, so it is golden-tier only too.
 
-`lib/momovec/` is a vector rasteriser ported from a TypeScript study, and it also
+`shared/lib/momovec/` is a vector rasteriser ported from a TypeScript study, and it also
 arrived with two projects. `projects/tiger` digests the Ghostscript tiger - 339
 numbers covering every scanline, every path and the order all 92,949 pixels were
 drawn in, held against the study - and `projects/tigerpic` draws it at 320x200 in
@@ -296,12 +297,12 @@ That is what DESIGN §21's routine parameters would have been for, and it needed
 language feature at all.
 
 `projects/tzoom` is the tiger zoomed by a transform applied as geometry is READ rather
-than baked into data, which is what `lib/momovec/zoom.momo` exists for and what §25 was
+than baked into data, which is what `shared/lib/momovec/zoom.momo` exists for and what §25 was
 built for. It shares `projects/tiger`'s data unchanged - there is no second copy, because
 the whole point is that a zoom cannot be stored: the 3x tiger is 84,914 bytes against a
 64 KB segment. Held against a digest the study derives independently.
 
-`lib/std/fixed.momo` is the multiply behind `*` on a fixed-point type (§25), and it
+`shared/lib/std/fixed.momo` is the multiply behind `*` on a fixed-point type (§25), and it
 holds the same value twice: `fixMulU` over the `mulshr8` intrinsic, and `fixMulUParts`
 built from four multiplies in nothing but ordinary operators. The second is the
 specification and the first is the fast one, and `projects/fixmul` requires them to agree
@@ -309,12 +310,12 @@ over 256 pairs on the target. `projects/fixed` is the language surface instead -
 fixed-point shape that compiles, held by the golden tier because the claim being made
 there is about emitted code.
 
-`lib/momolo/` is a layout engine ported from a TypeScript study, and it arrived
+`shared/lib/momolo/` is a layout engine ported from a TypeScript study, and it arrived
 with two projects rather than one. `projects/momolo` runs six scenes through it
 and prints every resolved box as bare numbers, compared against the numbers the
 original engine produces - two implementations agreeing on every integer, which
 is what makes it a tier 2 test rather than a demo. `projects/mlodemo` draws the
-same tree at 80x25 and waits for a key. Both go through `lib/mopaint.momo`, the
+same tree at 80x25 and waits for a key. Both go through `shared/lib/mopaint.momo`, the
 colour, borders and wrapping layer that deliberately sits outside the engine, so
 what is untested is the painting rather than the layout.
 

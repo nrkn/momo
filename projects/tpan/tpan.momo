@@ -40,14 +40,14 @@
 // 692, because a panned path has fewer of its scanlines on the canvas.
 const maxCrossings = 1024
 
-include "std/io.momo"
-include "std/math.momo"
-include "momovec/direct.momo"
-include "momovec/types.momo"
-include "momovec/edges.momo"
-include "momovec/subdiv.momo"
-include "momovec/path.momo"
-include "momovec/fill.momo"
+include "lib/std/io.momo"
+include "lib/std/math.momo"
+include "lib/momovec/direct.momo"
+include "lib/momovec/types.momo"
+include "lib/momovec/edges.momo"
+include "lib/momovec/subdiv.momo"
+include "lib/momovec/path.momo"
+include "lib/momovec/fill.momo"
 
 include "z_data.momo"
 

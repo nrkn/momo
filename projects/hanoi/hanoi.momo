@@ -3,7 +3,7 @@
 // Harder than quicksort: each frame carries a resume point, so the loop is a
 // state machine rather than a simple worklist. Frames are 4 words in _heapw.
 
-include "std/io.momo"
+include "lib/std/io.momo"
 
 const discs     = 4
 const frameSize = 4

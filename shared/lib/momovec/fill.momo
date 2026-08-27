@@ -23,7 +23,7 @@
 // Spans go to `emitSpan`, which the PROGRAM defines - so the harness prints them
 // and a demo fills them, from one walk. Same arrangement as `plot`.
 
-include "momovec/edges.momo"
+include "lib/momovec/edges.momo"
 
 // `tidy` clips each span to the canvas and merges the ones that touch.
 //

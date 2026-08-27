@@ -4,7 +4,7 @@
 // no mixed-width wart, and tree-shaking per field. `mob.y` below is declared and
 // never touched, so `mob__y` does not appear in the output at all.
 
-include "std/io.momo"
+include "lib/std/io.momo"
 
 const mobCount = 4
 

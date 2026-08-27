@@ -46,7 +46,7 @@
 // it is pixel-identical to no rejection at every zoom tested, which is the claim that
 // matters most.
 
-include "momovec/types.momo"
+include "lib/momovec/types.momo"
 
 // Counters, so a program can state what rejection bought rather than assert it.
 //

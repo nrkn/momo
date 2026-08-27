@@ -16,7 +16,7 @@
 // backwards half the time, which is the wrong trade for the one function here
 // that is genuinely intricate.
 
-include "std/math.momo"
+include "lib/std/math.momo"
 
 // Breadth-first queue. Read by index and never popped, so it needs room for
 // every element that has children - bounded by the element array itself.

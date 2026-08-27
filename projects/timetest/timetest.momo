@@ -7,8 +7,8 @@
 // asserts those by running at all, since a counter that never advanced would
 // leave waitTicks spinning and nothing would be printed.
 
-include "std/io.momo"
-include "std/time.momo"
+include "lib/std/io.momo"
+include "lib/std/time.momo"
 
 u16 start
 u16 later

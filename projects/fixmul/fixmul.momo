@@ -16,8 +16,8 @@
 // 64768 rather than as -768. That is a bit pattern rather than a value, which
 // makes it a stricter check, not a looser one.
 
-include "std/io.momo"
-include "std/fixed.momo"
+include "lib/std/io.momo"
+include "lib/std/fixed.momo"
 
 // By name. `raw` carries the bits into a routine written in plain integers.
 sub show( i8.8 x, i8.8 y ) {

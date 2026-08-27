@@ -13,8 +13,8 @@
 // deliberately replaced - so the fixture was carrying the version the library
 // rejected, and reading it would have taught the wrong thing.
 
-include "std/io.momo"
-include "std/rand.momo"
+include "lib/std/io.momo"
+include "lib/std/rand.momo"
 
 const count = 20                // values to sort
 

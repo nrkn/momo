@@ -20,10 +20,10 @@ export type Compilation = {
 // part-way through still leaves enough behind to format the error.
 export const compile = (
   entryFile: string,
-  libRoot: string,
+  sharedRoot: string,
   sources: Map<string, string>,
 ): Compilation => {
-  const { program, files } = load(entryFile, libRoot, sources)
+  const { program, files } = load(entryFile, sharedRoot, sources)
   const resolved = resolve(program)
   const pruned = { ...resolved, ...prune(resolved) }
   const { assembly, temporaries } = emit(pruned, sources)

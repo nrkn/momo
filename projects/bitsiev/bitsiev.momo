@@ -2,7 +2,7 @@
 //
 // One bit per candidate, so 1000 numbers cost 125 bytes instead of 1000.
 
-include "std/io.momo"
+include "lib/std/io.momo"
 
 const limit = 1000
 const bytes = 126               // limit / 8, rounded up

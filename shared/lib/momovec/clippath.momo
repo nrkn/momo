@@ -35,8 +35,8 @@
 // it stays deferred - and it is now the whole justification for one, since clip-path
 // rendering was the most common reason to want a boolean and turns out not to need it.
 
-include "momovec/types.momo"
-include "momovec/fill.momo"
+include "lib/momovec/types.momo"
+include "lib/momovec/fill.momo"
 
 // The clip buffer, as spans rather than crossings. A second crossing list would be
 // 1,024 slots at eight bytes; a clip's spans are one or two per scanline, so this holds

@@ -1,6 +1,6 @@
 // consttst.momo - parameterised consts: substituted, never called.
 
-include "std/io.momo"
+include "lib/std/io.momo"
 
 const sqr(u8 n)                  = n * n
 const u16 min(u16 a, u16 b) = a < b ? a : b

@@ -20,7 +20,7 @@
 //                       the reflow seam and it is the last chunk; this is
 //                       precisely the picture that shows what it buys.
 
-include "std/key.momo"
+include "lib/std/key.momo"
 
 include "../momolo/m_scene.momo"
 

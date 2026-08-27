@@ -1,4 +1,4 @@
-// EXPECT-ERROR: calls fixMul - add include "std/fixed.momo"
+// EXPECT-ERROR: calls fixMul - add include "lib/std/fixed.momo"
 // The lowering is a call, so the routine has to be in scope. Momo has no
 // implicit prologue and this does not add one.
 i8.8 scale

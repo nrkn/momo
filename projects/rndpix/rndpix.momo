@@ -4,8 +4,8 @@
 // back. The whole frame is one far array, so plotting is an ordinary array
 // store - no interrupt per pixel.
 
-include "std/key.momo"
-include "std/rand.momo"
+include "lib/std/key.momo"
+include "lib/std/rand.momo"
 
 // 320 x 200, one byte per pixel, each an index into the palette.
 far u8[64000] pixels = 0xA000

@@ -18,10 +18,10 @@
 // function from inside its own pass; momolo instead stops, lets this run, and
 // carries the answer up the tree when it resumes.
 
-include "std/screen.momo"
-include "std/str.momo"
-include "momolo/types.momo"
-include "momolo/build.momo"
+include "lib/std/screen.momo"
+include "lib/std/str.momo"
+include "lib/momolo/types.momo"
+include "lib/momolo/build.momo"
 
 // What a layout unit means. The study runs the same scenes against a pixel
 // target where these are 11 and 20 and text is proportional; here a unit is a

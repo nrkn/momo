@@ -19,7 +19,7 @@
 // Set all three before drawing. `zoomScale` is 8.8, so `1.0` is identity and `3.0`
 // is three times the size; the centre is the point that stays put.
 
-include "std/fixed.momo"
+include "lib/std/fixed.momo"
 
 i8.8 zoomScale
 i16  zoomCx

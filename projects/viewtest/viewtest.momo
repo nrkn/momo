@@ -5,8 +5,8 @@
 // so that a view landing at the wrong offset prints a different number rather
 // than the same one by luck.
 
-include "std/io.momo"
-include "std/screen.momo"
+include "lib/std/io.momo"
+include "lib/std/screen.momo"
 
 // ---- a view of a far region inherits its segment, so §16 composes ----
 

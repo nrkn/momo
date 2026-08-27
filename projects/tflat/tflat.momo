@@ -35,14 +35,14 @@
 // tiger, because flattening does not change how often an outline crosses a scanline.
 const maxCrossings = 1024
 
-include "std/io.momo"
-include "std/math.momo"
-include "momovec/direct.momo"
-include "momovec/types.momo"
-include "momovec/edges.momo"
-include "momovec/quadflat.momo"
-include "momovec/path.momo"
-include "momovec/fill.momo"
+include "lib/std/io.momo"
+include "lib/std/math.momo"
+include "lib/momovec/direct.momo"
+include "lib/momovec/types.momo"
+include "lib/momovec/edges.momo"
+include "lib/momovec/quadflat.momo"
+include "lib/momovec/path.momo"
+include "lib/momovec/fill.momo"
 
 include "f_data.momo"
 

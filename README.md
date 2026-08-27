@@ -4,7 +4,7 @@ A small imperative language that compiles to **readable, commented NASM** for a
 strict 8086 subset, producing DOS `.COM` files.
 
 ```momo
-include "std/screen.momo"
+include "lib/std/screen.momo"
 
 const mapW = 10
 

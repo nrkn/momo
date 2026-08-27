@@ -12,7 +12,7 @@
 // The third sum does the same for storage: routines were only ever half of the
 // problem, because a routine got a colon and a variable did not.
 
-include "std/io.momo"
+include "lib/std/io.momo"
 
 // Prefixes. All fifteen were rejected as labels before they were mangled,
 // checked one name at a time.

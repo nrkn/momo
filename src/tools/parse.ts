@@ -8,7 +8,7 @@
 
 import { existsSync } from 'node:fs'
 
-import { entryFor, fail, failWith, libRoot } from './cli.js'
+import { entryFor, fail, failWith, sharedRoot } from './cli.js'
 import type { Node } from '../momo/ast.js'
 import { load } from '../momo/loader.js'
 
@@ -94,7 +94,7 @@ const main = async () => {
   const sources = new Map<string, string>()
 
   try {
-    const { program } = load(file, libRoot, sources)
+    const { program } = load(file, sharedRoot, sources)
     if (asJson) {
       console.log(JSON.stringify(program, null, 2))
       return

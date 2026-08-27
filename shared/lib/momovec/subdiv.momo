@@ -31,9 +31,9 @@
 // the span exits on the first test, so the existing datasets pay two tests per
 // segment and nothing else.
 
-include "momovec/types.momo"
-include "momovec/line.momo"
-include "momovec/quad.momo"
+include "lib/momovec/types.momo"
+include "lib/momovec/line.momo"
+include "lib/momovec/quad.momo"
 
 // The audited range limit, and the size below which a piece that will never become
 // monotonic is drawn as its chord.

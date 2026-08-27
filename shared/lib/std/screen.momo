@@ -7,8 +7,8 @@
 // interrupt each and this file keeps paying it, which is the right trade for a
 // library that must not disturb ES and the wrong one for a redraw loop.
 
-include "std/io.momo"
-include "std/str.momo"
+include "lib/std/io.momo"
+include "lib/std/str.momo"
 
 const screenCols = 80
 const screenRows = 25

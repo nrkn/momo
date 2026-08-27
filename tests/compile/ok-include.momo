@@ -1,4 +1,4 @@
-include "std/io.momo"
+include "lib/std/io.momo"
 sub t {
   putNumber(42)
   putStr(addr(greeting))

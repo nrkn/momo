@@ -25,7 +25,7 @@
 //
 // See PORT.md in the clay-study.
 
-include "std/io.momo"
+include "lib/std/io.momo"
 include "m_scene.momo"
 
 // A number and its separator. All but the last column wants one, and a sub is

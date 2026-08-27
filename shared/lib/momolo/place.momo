@@ -16,7 +16,7 @@
 // produces anyway. Here they are three plain arrays and one depth, and no
 // translation was needed at all.
 
-include "std/math.momo"
+include "lib/std/math.momo"
 
 // Every element is pushed exactly once, so the stacks can never hold more than
 // the element array does. Private to this pass: nothing outside it has any

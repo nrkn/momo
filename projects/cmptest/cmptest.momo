@@ -14,7 +14,7 @@
 // materialised bool when it is a value - and the two use opposite spellings of
 // the same test, so both are checked.
 
-include "std/io.momo"
+include "lib/std/io.momo"
 
 i16 a
 i16 b

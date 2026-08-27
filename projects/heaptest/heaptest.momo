@@ -4,7 +4,7 @@
 // the stack. Momo generates `_heap` (u8 view), `_heapw` (u16 view) and `_hsize`;
 // the allocator itself is ordinary Momo code.
 
-include "std/io.momo"
+include "lib/std/io.momo"
 
 u16 hp = 0                      // bump pointer: byte offset into _heap
 u16 allocSize

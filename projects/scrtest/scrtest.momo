@@ -1,8 +1,8 @@
 // scrtest.momo - proves the BIOS screen calls actually work, by writing cells
 // and reading them back with int 10h AH=08h.
 
-include "std/math.momo"
-include "std/screen.momo"
+include "lib/std/math.momo"
+include "lib/std/screen.momo"
 
 u16 cell
 

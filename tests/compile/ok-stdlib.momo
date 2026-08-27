@@ -2,10 +2,10 @@
 // std/io and std/str arrive through std/screen, which genuinely uses both.
 // std/math has to be named: screen and key deliberately do not include it for
 // their callers, even though their own comments point at lo() and hi().
-include "std/math.momo"
-include "std/screen.momo"
-include "std/key.momo"
-include "std/rand.momo"
+include "lib/std/math.momo"
+include "lib/std/screen.momo"
+include "lib/std/key.momo"
+include "lib/std/rand.momo"
 
 const u8[] palette = [ color(white, black), color(red, yellow), color(cyan, blue) ]
 const u16[] limits = [ min(3, 9), max(3, 9), clamp(50, 0, 10) ]

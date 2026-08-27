@@ -21,9 +21,9 @@
 // meeting at a vertex then report the same scanline once each, rather than one
 // twice and the other never - invisible on a convex outline and obvious on a star.
 
-include "std/math.momo"
-include "momovec/types.momo"
-include "momovec/edges.momo"
+include "lib/std/math.momo"
+include "lib/momovec/types.momo"
+include "lib/momovec/edges.momo"
 
 // `forceDir` overrides the crossing direction, or 0 to use the walk's own `sy`.
 //

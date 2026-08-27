@@ -24,7 +24,7 @@ import {
   compileTestsDir as compileDir,
   designPath,
   entryFor,
-  libRoot,
+  sharedRoot,
 } from './cli.js'
 import { compile } from '../momo/compile.js'
 import { formatError, isMomoError } from '../momo/diagnostics.js'
@@ -213,7 +213,7 @@ const compileTests = () => {
 
     let error: unknown = null
     try {
-      compile(file, libRoot, sources)
+      compile(file, sharedRoot, sources)
     } catch (caught) {
       error = caught
     }
@@ -298,7 +298,7 @@ const goldenTests = (): number => {
 
     let assembly: string
     try {
-      assembly = compile(entryFor(project), libRoot, sources).assembly
+      assembly = compile(entryFor(project), sharedRoot, sources).assembly
     } catch (error) {
       if (!isMomoError(error)) throw error
       check(project, false, formatError(sources, error))
@@ -353,7 +353,7 @@ const roundTripTests = (): number => {
     const sources = new Map<string, string>()
 
     try {
-      const program = load(file, libRoot, new Map()).program
+      const program = load(file, sharedRoot, new Map()).program
 
       // `local` names a file as its owner, and printing splices every include
       // into one file - so the boundary that gives a private its identity is
@@ -367,7 +367,7 @@ const roundTripTests = (): number => {
         continue
       }
 
-      const original = compile(file, libRoot, sources).assembly
+      const original = compile(file, sharedRoot, sources).assembly
       // Resolved first: `*` on two fixed-point values lowers to a call, and that
       // needs types, so it is invisible to a printer fed a freshly parsed AST.
       // Everything else the resolver does is annotation, so this changed no
@@ -380,7 +380,7 @@ const roundTripTests = (): number => {
       const copy = join(roundTripRoot, `${name.replace(/\.momo$/, '')}.momo`)
       writeFileSync(copy, printed, 'utf8')
 
-      const again = compile(copy, libRoot, new Map()).assembly
+      const again = compile(copy, sharedRoot, new Map()).assembly
       asserted += 1
 
       const difference = firstDifference(

@@ -27,11 +27,11 @@
 // to link rather than a measured figure.
 const maxCrossings = 64
 
-include "std/io.momo"
-include "std/math.momo"
-include "momovec/types.momo"
-include "momovec/edges.momo"
-include "momovec/subdiv.momo"
+include "lib/std/io.momo"
+include "lib/std/math.momo"
+include "lib/momovec/types.momo"
+include "lib/momovec/edges.momo"
+include "lib/momovec/subdiv.momo"
 
 include "s_corpus.momo"
 

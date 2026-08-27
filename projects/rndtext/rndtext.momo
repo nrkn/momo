@@ -3,9 +3,9 @@
 // A demo rather than a test: it draws, waits for a key, and puts the display
 // back. Every cell is written straight to video memory - no int 10h per cell.
 
-include "std/screen.momo"
-include "std/key.momo"
-include "std/rand.momo"
+include "lib/std/screen.momo"
+include "lib/std/key.momo"
+include "lib/std/rand.momo"
 
 // 80x25 cells. Each cell is a word: the character in the low byte, the
 // attribute in the high byte.

@@ -21,7 +21,7 @@
 // "maxCrossings" is not declared. Hence the ordering requirement, which the
 // compiler enforces by name rather than leaving to a comment.
 
-include "momovec/types.momo"
+include "lib/momovec/types.momo"
 
 // maxCrossings is declared by the PROGRAM - see the header.
 

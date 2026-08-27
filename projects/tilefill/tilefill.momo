@@ -4,7 +4,7 @@
 // things nothing else exercises: many far writes inside one routine, a near read
 // and a far write in the same loop, and `y * 320` address arithmetic.
 
-include "std/key.momo"
+include "lib/std/key.momo"
 
 // 320 x 200, one byte per pixel, each an index into the palette.
 far u8[64000] pixels = 0xA000

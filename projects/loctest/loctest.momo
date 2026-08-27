@@ -5,7 +5,7 @@
 // the one it was written beside. Values are chosen so that reaching the wrong
 // one prints a different number rather than a coincidentally equal one.
 
-include "std/io.momo"
+include "lib/std/io.momo"
 include "tickets.momo"
 include "scores.momo"
 

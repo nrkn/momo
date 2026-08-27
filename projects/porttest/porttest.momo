@@ -14,8 +14,8 @@
 // Nothing here sets a video mode. The sequencer and graphics controller exist in
 // text mode exactly as they do in mode 13h, so the test leaves the screen alone.
 
-include "std/io.momo"
-include "std/time.momo"
+include "lib/std/io.momo"
+include "lib/std/time.momo"
 
 u8  saved
 u16 start

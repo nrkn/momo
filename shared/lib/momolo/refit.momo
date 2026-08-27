@@ -15,7 +15,7 @@
 // Heights only. Widths were settled by sizeX and must not move, or the reflow
 // that produced these heights would no longer be the one that applies.
 
-include "std/math.momo"
+include "lib/std/math.momo"
 
 // Post-order over two parallel stacks: a container is recomputed only once every
 // child below it has been. The `seen` flag is what makes one stack do the work

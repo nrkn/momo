@@ -1,5 +1,5 @@
-include "std/io.momo"
-include "std/rand.momo"
+include "lib/std/io.momo"
+include "lib/std/rand.momo"
 
 u16 i
 seedRandom(1234)

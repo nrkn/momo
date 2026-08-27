@@ -146,7 +146,7 @@ than every time by a writer.
   glance which file the program starts in.
 
   **Library files take no prefix**, because there is no entry file to be
-  separated from. `lib/momolo/` is `types.momo`, `build.momo`, `fit.momo` and so
+  separated from. `shared/lib/momolo/` is `types.momo`, `build.momo`, `fit.momo` and so
   on; a `m_` on each would be repeating the directory. The engine was written
   under `projects/` first and moved, and the prefixes came with it before this
   was noticed.

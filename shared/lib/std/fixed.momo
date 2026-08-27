@@ -24,7 +24,7 @@
 // fail for a reason the programmer never wrote. A real routine takes its
 // arguments once.
 
-include "std/math.momo"
+include "lib/std/math.momo"
 
 // The whole 32-bit product exists in DX:AX and is never named, which is what §9
 // has always permitted - so this needs no new mnemonic and no change to the

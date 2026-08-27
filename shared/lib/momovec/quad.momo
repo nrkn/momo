@@ -22,7 +22,7 @@
 // two things Zingl needs a `plotQuadBezier` wrapper for both happen on the other
 // side, in TypeScript, where a square root is free.
 
-include "momovec/line.momo"
+include "lib/momovec/line.momo"
 
 // `windDir` is captured before the swap below and used for every crossing this
 // routine emits, including the ones from its straight remainder.

@@ -1,6 +1,6 @@
 // sieve.momo - Sieve of Eratosthenes.
 
-include "std/io.momo"
+include "lib/std/io.momo"
 
 const limit = 100
 

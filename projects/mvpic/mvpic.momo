@@ -22,15 +22,15 @@
 // `emitSpan` it cannot bind late.
 const maxCrossings = 256
 
-include "std/io.momo"
-include "std/key.momo"
-include "std/math.momo"
-include "momovec/direct.momo"
-include "momovec/types.momo"
-include "momovec/edges.momo"
-include "momovec/subdiv.momo"
-include "momovec/path.momo"
-include "momovec/fill.momo"
+include "lib/std/io.momo"
+include "lib/std/key.momo"
+include "lib/std/math.momo"
+include "lib/momovec/direct.momo"
+include "lib/momovec/types.momo"
+include "lib/momovec/edges.momo"
+include "lib/momovec/subdiv.momo"
+include "lib/momovec/path.momo"
+include "lib/momovec/fill.momo"
 
 include "../mvdemo/d_data.momo"
 

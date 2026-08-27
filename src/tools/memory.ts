@@ -12,7 +12,7 @@
 import { existsSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { buildRoot, entryFor, fail, failWith, libRoot } from './cli.js'
+import { buildRoot, entryFor, fail, failWith, sharedRoot } from './cli.js'
 import { entryName, interruptReserve, stackBytes } from '../momo/analysis.js'
 import { compile } from '../momo/compile.js'
 import { widthOf } from '../momo/types.js'
@@ -35,7 +35,7 @@ const main = async () => {
   const sources = new Map<string, string>()
 
   try {
-    const resolved = compile(file, libRoot, sources)
+    const resolved = compile(file, sharedRoot, sources)
     const { temporaries } = resolved
 
     let reserved = 0

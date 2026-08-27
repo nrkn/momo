@@ -87,7 +87,7 @@ Deliberately absent:
   two's complement, so `*` always emits `mul`. The second half of this reason used to
   be "with no 32-bit type we never read `DX`", and §25 spent it: `mulshr8` reads the
   high half of a product. `imul` still stays out, for a different and smaller reason -
-  the unsigned kernel plus magnitude-and-sign in `lib/std/fixed.momo` already covers
+  the unsigned kernel plus magnitude-and-sign in `shared/lib/std/fixed.momo` already covers
   signed fixed multiply, so `imul` would buy one instruction and cost a mnemonic.
 - **`enter`/`leave`, `pusha`/`popa`, 3-operand `imul`, `push imm`, `shl r,imm8`** - all 186+.
 - **`setcc`** - 386+. This is why conditions compile in control-flow context (§9).
@@ -635,7 +635,7 @@ remember - and no arrow. `->` no longer exists in the language.
 ### Three things it can do that are not obvious, and one design rests on them
 
 Established by probing rather than by reading, because the zoom transform in
-`lib/momovec` needed all three at once - and if any had been false the transform would
+`shared/lib/momovec` needed all three at once - and if any had been false the transform would
 have had to be a routine, which is a call per coordinate read for every program whether
 it transforms or not.
 
@@ -654,7 +654,7 @@ instructions across ten geometry projects.
 
 **The trap in the same area** is §8's repeated-parameter rule, one paragraph down: an
 argument that calls a fn cannot be bound to a parameter the body uses more than once.
-That is why `fixMulUParts` in `lib/std/fixed.momo` is a routine and not a const - its
+That is why `fixMulUParts` in `shared/lib/std/fixed.momo` is a routine and not a const - its
 kernel uses each operand four times, so `a * b` with a call on either side would have
 failed for a reason the programmer never wrote.
 
@@ -1090,7 +1090,7 @@ dead. Needed because DOS string calls take `DS:DX`.
 
 **Built.** `addr` produces an address; these four consume one. They are the only
 construct in Momo that reaches memory the compiler cannot name, which is what
-makes `lib/std/str.momo` possible at all - see §20 for why they exist and why they
+makes `shared/lib/std/str.momo` possible at all - see §20 for why they exist and why they
 are four names rather than a `_mem` array.
 
 ```momo
@@ -1174,14 +1174,20 @@ int 0x21
 ## 11. Code reuse: `include`
 
 ```momo
-include "std/io.momo"
+include "lib/std/io.momo"
 ```
 
 Top level only. Resolved entirely at compile time, so NASM still sees one flat
 file and the DOSBox toolchain is unaffected. Search order is relative to the
-including file, then `lib/`. The standard library lives in `lib/std/` as ordinary
-`.momo` files and arrives by exactly the same path as your own code - there is no
-implicit prologue and no special case.
+including file, then `shared/`. The standard library lives in `shared/lib/std/`
+as ordinary `.momo` files and arrives by exactly the same path as your own code -
+there is no implicit prologue and no special case.
+
+`shared/` is the include root rather than `lib` because it is not only
+libraries: `shared/lib/` is code, and data that more than one project reads lives
+beside it rather than inside whichever project happened to be written first.
+Kept to ONE root deliberately - a second search path would let a name resolve two
+ways, and the paragraph above ends "no special case".
 
 **Includes are always once-only.** No guards, no `#ifndef`. There is no
 legitimate reason to include a file twice in Momo; the only language that
@@ -1215,7 +1221,7 @@ parameters, and nobody noticed because the conclusion still felt right.
 
 What was left to hide is **state shared by several routines and private to
 them**. A sub-local is persistent but belongs to one routine; a global is shared
-but belongs to everything; there was nothing in between. `lib/std/rand.momo` was
+but belongs to everything; there was nothing in between. `shared/lib/std/rand.momo` was
 the standing example, and not a hypothetical one: it maps a zero seed to 1
 because zero is a fixed point that would return zero forever - and then left
 `randomSeed` writable, so any program could assign 0 directly and walk past the
@@ -1536,7 +1542,7 @@ to.
 is skipped if any statement it *loads* is private, so one `local` in a widely
 included file removes every consumer from the only test the parser has. That is
 why 13 cases are skipped where far fewer files use the keyword, and it is worth
-pricing before adding a private to `lib/`:
+pricing before adding a private to `shared/lib/`:
 
 - `local u16 randomSeed` in `std/rand.momo` costs the six programs that include
   it, and pays for itself - it closes a hole where a program could write past the
@@ -1608,13 +1614,13 @@ Where that stands:
 | Hello world | `projects/hello` - hand-written asm, and trivial in Momo |
 | Fizzbuzz | inside `projects/smoke`, verified end to end |
 | Arithmetic, arrays, loops, branches | `smoke` - every construct in one program |
-| A standard library | `lib/std/io.momo` |
+| A standard library | `shared/lib/std/io.momo` |
 | Dynamic allocation | `projects/heaptest` - a bump allocator in Momo |
 | Compile-time tables | `projects/consttst` |
 | Sieve of Eratosthenes | `projects/sieve`, and `projects/bitsiev` bit-packed on the heap |
 | Recursive algorithms | `projects/qsort` (quicksort) and `projects/hanoi` - explicit stacks on the heap |
-| Text-mode screen library | `lib/std/screen.momo`, verified by `projects/scrtest` |
-| String library | `lib/std/str.momo`, verified by `projects/strtest` |
+| Text-mode screen library | `shared/lib/std/screen.momo`, verified by `projects/scrtest` |
+| String library | `shared/lib/std/str.momo`, verified by `projects/strtest` |
 | Text adventure | not yet attempted |
 
 **Only the text adventure is left**, and nothing in the language blocks it. The
@@ -2425,7 +2431,7 @@ up, so where both fit, this is the more Momo-shaped answer.
   | `view` | compile time | ours |
   | `peek`/`poke` | **runtime** | ours |
 
-  What they unlocked is **library routines that take a buffer** - `lib/std/str.momo`
+  What they unlocked is **library routines that take a buffer** - `shared/lib/std/str.momo`
   is now `strLen`, `strCopy`, `strCmp`, `strFind`, `memCopy` and `memFill`, and
   `screen.momo` finally has a coloured `writeStrAt`, which the note below spent a
   long time explaining the absence of.
@@ -2473,7 +2479,7 @@ up, so where both fit, this is the more Momo-shaped answer.
 - **A direct-write path for `std/screen.momo`.** Every routine in it goes through
   `int 10h`, which is an interrupt per cell. That was the only option when the
   file was written; `far` (§16) and `view` (§17) have since made the B800:0000
-  text buffer ordinary memory, and `lib/mopaint.momo` writes it directly - so the
+  text buffer ordinary memory, and `shared/lib/mopaint.momo` writes it directly - so the
   capability is built and demonstrated, and only the library has not moved.
 
   What stops it being obvious is that the two have different obligations.
@@ -2489,7 +2495,7 @@ up, so where both fit, this is the more Momo-shaped answer.
   and reports one key at a time. `projects/tennis/t_kbd.momo` has the other
   thing - IRQ1 masked, the 8042 polled directly, make and break tracked as level
   state per player, plus the sticky latch a tap needs. Every hard-won entry in
-  `PITFALLS.md` came out of writing it, and none of that knowledge is in `lib/`.
+  `PITFALLS.md` came out of writing it, and none of that knowledge is in `shared/lib/`.
 
   Port I/O (§22) is what made it possible, and it landed after `std/key.momo` was
   written, so this is a gap rather than a decision. Against moving it: a raw
@@ -3145,7 +3151,7 @@ screen smoothly on hardware with no blitter.
 By the time it was built three things wanted it, and the scroll was the one
 still not written. The other two are below.
 
-**Timing was the second.** `lib/std/time.momo` reads the BIOS tick counter at
+**Timing was the second.** `shared/lib/std/time.momo` reads the BIOS tick counter at
 0040:006C, which the timer interrupt advances 18.2065 times a second - so the
 finest wait that library can express is 55ms. That paces a roguelike and cannot
 pace an animation, and no library can improve on it: the rate is the PIT's
@@ -3301,7 +3307,7 @@ it.
 What goes wrong in practice is a *sequence*: the attribute flip-flop, the
 index-then-data pairing, the write of `0x20` to `0x3C0` that re-enables video and
 without which the screen simply stays black in a way that reads as a hang. Those
-belong in `lib/std` written carefully once, so that most programs never spell a
+belong in `shared/lib/std` written carefully once, so that most programs never spell a
 raw `out8` at all.
 
 **But the registers that can actually damage anything are the ones no wrapper
@@ -3403,7 +3409,7 @@ collide every future id with a live entity. That is the same guard-with-a-hole
 that `randomSeed` had, one level in.
 
 **The argument for a construct rather than a file is proportion**, not cohesion.
-`mobIds` would work perfectly as `lib/mobids.momo`. It is eight lines, one
+`mobIds` would work perfectly as `shared/lib/mobids.momo`. It is eight lines, one
 variable and two routines, and making a file for that is ceremony. Nothing else
 about it needs a boundary the file system can see.
 
@@ -3764,7 +3770,7 @@ tier is the only one that watches that.
 
 Also built: decimal literals, which scale wherever a target scale is in view; `raw`, the
 reinterpreting cast; `*` between two same-scale values, which lowers to `fixMul` in
-`lib/std/fixed.momo` and is checked on the 8086 by `projects/fixmul`; and `mulshr8`, the
+`shared/lib/std/fixed.momo` and is checked on the 8086 by `projects/fixmul`; and `mulshr8`, the
 widening-multiply intrinsic this section held in reserve as its escape hatch.
 
 Not built: `/` between two fixed values, which wants the 24-bit numerator this section
@@ -3929,7 +3935,7 @@ i8.8 c = a * b        // lowers to
 i8.8 c = fixMul( a, b )
 ```
 
-`fixMul` is an ordinary hand-written `sub` in `lib/std/fixed.momo`, so the printed form
+`fixMul` is an ordinary hand-written `sub` in `shared/lib/std/fixed.momo`, so the printed form
 *is* the hand-written Momo - the same route `=>`, `else if`, `++`, adjacent string
 literals, compound assignment and `group` all arrive by.
 
@@ -4070,7 +4076,7 @@ would live and wants predict-then-check rather than confidence.
 **Cost: 5x an optimal multiply, measured** - and the estimate here said 3x, from four
 `mul`s at around 100 cycles against one `mul` and a `sar`.
 
-Counted off the emitted assembly rather than estimated: `lib/std/fixed.momo`'s portable
+Counted off the emitted assembly rather than estimated: `shared/lib/std/fixed.momo`'s portable
 kernel is **54 instructions and about 901 cycles**, against 7 and about 181 for the
 intrinsic below. The gap is not where this section expected it.
 
@@ -4095,7 +4101,7 @@ widening-multiply intrinsic can arrive, and no program changes. This section the
 anything on the back end."*
 
 **The intrinsic arrived, and it is `mulshr8( a, b )`** - the unsigned product of two
-words, shifted right by eight. `lib/std/fixed.momo`'s `fixMulU` is one line over it, and
+words, shifted right by eight. `shared/lib/std/fixed.momo`'s `fixMulU` is one line over it, and
 the four-multiply version is kept beside it as `fixMulUParts`, which is the
 specification and the thing the intrinsic is tested against: `projects/fixmul` runs both
 over 256 pairs and requires agreement on every one.
@@ -4109,7 +4115,7 @@ is named for the machine rather than for "read a byte".
 The honest caveat stands, in a smaller form: it was built before anything measured
 whether 5x mattered, which is the opposite of what the sentence above advises.
 
-**The consumer now exists** - `lib/momovec/zoom.momo` and `projects/tzoom`, one `fixMul`
+**The consumer now exists** - `shared/lib/momovec/zoom.momo` and `projects/tzoom`, one `fixMul`
 per coordinate applied as geometry is read - and what it says is that the multiply was
 never the constraint. The zoomed tiger fits in 63,454 bytes of a 64 KB segment where
 baking it needed 84,914, and what it actually costs is crossing-list capacity rather than
@@ -4138,7 +4144,7 @@ this does - so that justification expired the moment the intrinsic arrived, and 
 records a smaller reason instead.
 
 **And it stayed at 39.** `imul` would make signed fixed multiply one instruction, but
-`mulshr8` is unsigned and `lib/std/fixed.momo` puts magnitude-and-sign around it in
+`mulshr8` is unsigned and `shared/lib/std/fixed.momo` puts magnitude-and-sign around it in
 ordinary Momo - so the sign costs a few `neg`s in a routine that already exists rather
 than a mnemonic in the subset. That is the cheaper half of the trade and it keeps the
 number on the README true.
@@ -4152,7 +4158,7 @@ bug-prone. The escape hatch is worth holding in reserve rather than spending ear
 The Momo half is built, and predict-then-check paid: thirteen products were derived by
 hand from the kernel and written into `fixmul.expected` before the program was ever run,
 and all thirteen matched first time. Two properties came out of writing it rather than
-designing it, and `lib/std/fixed.momo` documents both - it truncates toward zero rather
+designing it, and `shared/lib/std/fixed.momo` documents both - it truncates toward zero rather
 than toward negative infinity, which buys `fixMul( -a, b ) == -fixMul( a, b )` at the cost
 of differing by one from an arithmetic shift; and -32768 has no magnitude in an i16, so
 the most negative 8.8 value multiplies as though it were positive.
@@ -4218,13 +4224,13 @@ first is much cheaper here.
 The opportunity is not wider numbers, it is **proportions without overflow**, and there
 is more of that waiting than expected.
 
-- **`lib/std/rand.momo`** was written up here as a u16 LCG, quoting its own header on
+- **`shared/lib/std/rand.momo`** was written up here as a u16 LCG, quoting its own header on
   *"period 512 - a visible band every 1.6 scanlines"*. That header describes a generator
   the file no longer has: the LCG was replaced with xorshift16 the day before this section
   was written, and those lines are its account of what got retired. The file may still
   want proportions - `randomBelow` is a `div` per call - but not for the reason given, and
   nothing checked the quotation against the code it came from.
-- **`lib/momolo` has no proportional arithmetic at all**, and percent sizing was one of
+- **`shared/lib/momolo` has no proportional arithmetic at all**, and percent sizing was one of
   the things explicitly cut from the clay port. This is what it needs.
 - **`projects/tennis`** carries shifts documented as port fidelity - `obj >> 2` - which
   a fixed type would express as what they mean rather than as what they do.

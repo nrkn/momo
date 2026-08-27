@@ -4,7 +4,7 @@
 
 import { existsSync } from 'node:fs'
 
-import { entryFor, fail, failWith, libRoot } from './cli.js'
+import { entryFor, fail, failWith, sharedRoot } from './cli.js'
 import { compile } from '../momo/compile.js'
 import type { MomoSymbol } from '../momo/resolver.js'
 
@@ -70,7 +70,7 @@ const main = async () => {
   const sources = new Map<string, string>()
 
   try {
-    const { symbols } = compile(file, libRoot, sources)
+    const { symbols } = compile(file, sharedRoot, sources)
 
     const shown = symbols.filter((symbol) => !(symbol.kind === 'var' && symbol.builtin))
     const width = Math.max(...shown.map((symbol) => symbol.label.length))

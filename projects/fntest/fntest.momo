@@ -1,6 +1,6 @@
 // fntest.momo - fn: arguments and return values via mangled globals.
 
-include "std/io.momo"
+include "lib/std/io.momo"
 
 u16 add(u16 a, u16 b) {
   return a + b

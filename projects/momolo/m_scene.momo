@@ -14,11 +14,11 @@
 // Colours come from std/screen.momo, which names the CGA sixteen exactly as the
 // study's src/palette.ts does. That was not an accident.
 
-include "mopaint.momo"
-include "momolo/fit.momo"
-include "momolo/size.momo"
-include "momolo/refit.momo"
-include "momolo/place.momo"
+include "lib/mopaint.momo"
+include "lib/momolo/fit.momo"
+include "lib/momolo/size.momo"
+include "lib/momolo/refit.momo"
+include "lib/momolo/place.momo"
 
 // One unit is one character cell, which mopaint decides rather than the scene.
 const u = cellW

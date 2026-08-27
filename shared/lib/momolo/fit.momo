@@ -14,7 +14,7 @@
 // Leaves never reach here; build.momo sizes them directly, since their size came
 // from the caller rather than from anything below them.
 
-include "std/math.momo"
+include "lib/std/math.momo"
 
 sub fitSize( u16 i ) {
   u16 n

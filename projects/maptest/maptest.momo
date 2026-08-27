@@ -1,6 +1,6 @@
 // maptest.momo - proves the concatenated map is one flat array, indexed by row.
 
-include "std/io.momo"
+include "lib/std/io.momo"
 
 const mapWidth  = 8
 const mapHeight = 5

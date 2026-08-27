@@ -1,2 +1,2 @@
 // EXPECT-ERROR: cannot find include
-include "std/nope.momo"
+include "lib/std/nope.momo"

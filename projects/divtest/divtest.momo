@@ -26,7 +26,7 @@
 // A midpoint ladder also cares about the SUM before the halving, so the last block
 // checks the exact expression the subdivider uses.
 
-include "std/io.momo"
+include "lib/std/io.momo"
 
 sub show( i16 v ) {
   i16 half

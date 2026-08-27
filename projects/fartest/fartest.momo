@@ -5,7 +5,7 @@
 // prints what it found - and under the e2e harness the printing is redirected to
 // a file while the far writes still go to the screen. No screen-scraping.
 
-include "std/screen.momo"
+include "lib/std/screen.momo"
 
 // 80x25 cells, each a character byte and an attribute byte.
 far u16[2000] cells = 0xB800

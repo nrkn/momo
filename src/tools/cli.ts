@@ -14,7 +14,7 @@ import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { formatError, isMomoError } from '../momo/diagnostics.js'
-import { libRootFor } from '../momo/loader.js'
+import { sharedRootFor } from '../momo/loader.js'
 
 export const root = process.cwd()
 
@@ -25,7 +25,7 @@ export const confPath = join(root, 'data', 'dosbox.conf')
 export const compileTestsDir = join(root, 'tests', 'compile')
 export const editorDir = join(root, 'editor', 'vscode')
 export const designPath = join(root, 'DESIGN.md')
-export const libRoot = libRootFor(root)
+export const sharedRoot = sharedRootFor(root)
 
 // A project is a directory named for its entry file, so every path in it is the
 // project name twice. Where that directory SITS is not the project's business:

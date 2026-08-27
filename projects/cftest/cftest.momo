@@ -8,7 +8,7 @@
 // DOS filenames are NUL-terminated, not '$'-terminated - that terminator is a
 // print convention, nothing more.
 
-include "std/io.momo"
+include "lib/std/io.momo"
 
 const u8[] present = "CFTEST.ASM\0"
 const u8[] missing = "NOSUCH.XYZ\0"

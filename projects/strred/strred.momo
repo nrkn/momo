@@ -5,7 +5,7 @@
 // `idiv`: -7 / 2 is -3 rounding toward zero, and -4 rounding toward minus
 // infinity, so a `sar` here would be visible.
 
-include "std/io.momo"
+include "lib/std/io.momo"
 
 u16 u
 i16 s

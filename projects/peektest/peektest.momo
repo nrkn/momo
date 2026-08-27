@@ -5,7 +5,7 @@
 // through a declared name, or the reverse - the two must agree about which byte
 // they mean. Addresses come from addr(), which is the only way to get one.
 
-include "std/io.momo"
+include "lib/std/io.momo"
 
 u8[8]  bytes
 u16[4] words

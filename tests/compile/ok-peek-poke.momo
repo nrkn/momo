@@ -1,6 +1,6 @@
 // Every peek and poke shape that must work.
 
-include "std/str.momo"
+include "lib/std/str.momo"
 
 u8[8]  bytes
 u16[4] words

@@ -35,14 +35,14 @@
 // spans rather than dropping real ones.
 const maxCrossings = 1536
 
-include "std/io.momo"
-include "std/math.momo"
-include "momovec/zoom.momo"
-include "momovec/types.momo"
-include "momovec/edges.momo"
-include "momovec/subdiv.momo"
-include "momovec/path.momo"
-include "momovec/fill.momo"
+include "lib/std/io.momo"
+include "lib/std/math.momo"
+include "lib/momovec/zoom.momo"
+include "lib/momovec/types.momo"
+include "lib/momovec/edges.momo"
+include "lib/momovec/subdiv.momo"
+include "lib/momovec/path.momo"
+include "lib/momovec/fill.momo"
 
 // Included before the arrays below, because it declares the bounds they are sized
 // by - and those bounds are generated with the data rather than written here, so

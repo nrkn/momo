@@ -19,8 +19,8 @@
 // `momovec/subdiv.momo`, which subdivides an arbitrary quadratic, or
 // `momovec/quadflat.momo`, which cannot draw one and says so. A level 2 program
 // picking the second drops drawQuad and the subdivision stack entirely.
-include "momovec/line.momo"
-include "momovec/clip.momo"
+include "lib/momovec/line.momo"
+include "lib/momovec/clip.momo"
 
 sub walkPath(
   u16 pathIndex, bool wantPixels, bool wantEdges, bool closeSubpaths

@@ -6,11 +6,11 @@
 // ---
 // Minimal roguelike skeleton - an '@' moving around a hard coded map
 
-include "std/io.momo"
-include "std/screen.momo"
-include "std/key.momo"
-include "std/rand.momo"
-include "std/math.momo"
+include "lib/std/io.momo"
+include "lib/std/screen.momo"
+include "lib/std/key.momo"
+include "lib/std/rand.momo"
+include "lib/std/math.momo"
 
 // const
 

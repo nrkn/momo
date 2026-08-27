@@ -35,8 +35,8 @@
 // and one at run time, which is the right number for an invariant that has already
 // been violated once.
 
-include "momovec/types.momo"
-include "momovec/line.momo"
+include "lib/momovec/types.momo"
+include "lib/momovec/line.momo"
 
 // Set if a quadratic reached a renderer that cannot draw one.
 bool curveInFlatData

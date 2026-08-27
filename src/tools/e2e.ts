@@ -23,10 +23,10 @@ import {
   entryFor,
   expectedFor,
   fail,
-  libRoot,
   nasmDir,
   projectDir,
   root,
+  sharedRoot,
 } from './cli.js'
 import { compile } from '../momo/compile.js'
 import { formatError, isMomoError } from '../momo/diagnostics.js'
@@ -143,7 +143,7 @@ const main = async () => {
     // Momo projects are compiled first; hand-written .asm ones are not.
     if (existsSync(entry)) {
       try {
-        const { assembly } = compile(entry, libRoot, sources)
+        const { assembly } = compile(entry, sharedRoot, sources)
         await writeFile(asmFor(project), assembly, 'ascii')
       } catch (error) {
         if (!isMomoError(error)) throw error

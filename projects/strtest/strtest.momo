@@ -5,8 +5,8 @@
 // reuse. So each case calls the library twice, on different buffers, and prints
 // what it got - the same routine, no second copy of the loop.
 
-include "std/io.momo"
-include "std/str.momo"
+include "lib/std/io.momo"
+include "lib/std/str.momo"
 
 const u8[] hello = "hello$"
 const u8[] world = "world!$"

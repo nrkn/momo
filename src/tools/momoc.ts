@@ -8,7 +8,7 @@
 import { existsSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
 
-import { allProjects, asmFor, entryFor, fail, libRoot } from './cli.js'
+import { allProjects, asmFor, entryFor, fail, sharedRoot } from './cli.js'
 import { compile } from '../momo/compile.js'
 import { formatError, isMomoError } from '../momo/diagnostics.js'
 
@@ -26,7 +26,7 @@ const compileProject = async (project: string): Promise<boolean> => {
   const sources = new Map<string, string>()
 
   try {
-    const { assembly } = compile(file, libRoot, sources)
+    const { assembly } = compile(file, sharedRoot, sources)
     await writeFile(output, assembly, 'ascii')
     console.log(`ok: ${output}  (${assembly.split('\r\n').length} lines)`)
     return true

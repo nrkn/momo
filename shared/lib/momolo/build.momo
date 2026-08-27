@@ -35,7 +35,7 @@
 // directly at the call site - `cfg.gap = u` reads better than `cfgGap( u )` and
 // there is nothing for a wrapper to get wrong.
 
-include "std/math.momo"
+include "lib/std/math.momo"
 
 group cfg {
   bool isCol

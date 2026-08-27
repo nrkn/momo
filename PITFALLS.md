@@ -224,7 +224,7 @@ comparison and leaves `*` and `/` alone.
 **Symptom.** `fixMul( -0.1, 0.1 )` gives -2 where an arithmetic shift of the same
 product would give -3.
 
-`lib/std/fixed.momo` takes the magnitude of both operands, multiplies, and negates
+`shared/lib/std/fixed.momo` takes the magnitude of both operands, multiplies, and negates
 the result - so the truncation happens on a positive number and rounds inward.
 `sar` would round toward negative infinity instead.
 
