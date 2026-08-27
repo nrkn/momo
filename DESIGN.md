@@ -632,6 +632,38 @@ Four `const` shapes, all told apart by one token of lookahead past the name:
 The type sits in the same place in all of them, so there is nothing special to
 remember - and no arrow. `->` no longer exists in the language.
 
+### Three things it can do that are not obvious, and one design rests on them
+
+Established by probing rather than by reading, because the zoom transform in
+`lib/momovec` needed all three at once - and if any had been false the transform would
+have had to be a routine, which is a call per coordinate read for every program whether
+it transforms or not.
+
+- **It binds late.** A parameterised const may be *called* before it is declared, and
+  from a different file - so a library can read through a name the program supplies.
+  Same property routines have, and for the same reason: declarations are collected
+  before any body is resolved.
+- **The body may index an array**, folding to a direct displacement where the index is
+  constant.
+- **The body may call a fn.** The expansion contains the call; the const itself still
+  emits none of its own.
+
+Which is what makes `momovec/direct.momo` free: `const i16 mapX( u16 at ) = px[ at ]`
+substitutes to exactly the array index it replaced, measured as byte-identical
+instructions across ten geometry projects.
+
+**The trap in the same area** is §8's repeated-parameter rule, one paragraph down: an
+argument that calls a fn cannot be bound to a parameter the body uses more than once.
+That is why `fixMulUParts` in `lib/std/fixed.momo` is a routine and not a const - its
+kernel uses each operand four times, so `a * b` with a call on either side would have
+failed for a reason the programmer never wrote.
+
+**And one consequence worth knowing:** a const's body is resolved when it is *expanded*,
+not when it is declared. So a const over names that do not exist compiles cleanly until
+something calls it - which is how `projects/subdiv` carried an include of
+`momovec/direct.momo`, over `px` and `py` it does not have, for a whole commit without
+anything complaining.
+
 ### How it compiles
 
 The resolver substitutes the const's body - deep-cloned, with parameter
@@ -1391,6 +1423,14 @@ because `*` on two fixed-point values lowers to a call and that lowering needs t
 Every case printed identically when that changed, since the resolver otherwise only
 annotates - but it means the round trip now depends on the resolver as well as the parser
 and the printer.
+
+**And the two tiers disagree about comments, deliberately.** The golden tier compares the
+whole `.asm`, `; ---- ` source quotations included; the round trip filters those lines out,
+because the printed source is different text by construction. So a change that alters only
+what a statement *looks like* moves every golden and no round trip - which is exactly what
+happened when momovec's coordinate reads became `mapX( at )`: 24 lines moved in each of ten
+projects and not one instruction changed. Reading the diff is how you tell the two apart,
+and it is why `npm run momoc:all` asks you to.
 
 ```
 npm test          # tiers 1 and 1.5 + type lattice - about a second, no DOSBox

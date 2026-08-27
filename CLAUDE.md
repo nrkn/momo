@@ -67,6 +67,14 @@ tool.
 run after adding `src/dsl/lex.test.ts` reported a comfortable pass having executed none
 of it. The tell was the number: 56 before, 56 after, thirteen tests added.
 
+**A write to the study docs did not persist, and nothing said so.** Two corrections to
+`NEXT.md` in the vector study were applied, verified by a matched replacement count, and
+were simply not there an hour later - while other edits from the same run survived. The
+study lives under Dropbox and is not a git repo, so there is no diff to catch it and no
+history to recover from. **Re-read a study doc before trusting an edit you made earlier in
+the session**, and prefer one write per file over several across a session. The cause was
+never established, which is itself the reason to write it down.
+
 **Python's `read_text`/`write_text` default to cp1252 on Windows, not UTF-8.** A
 script that reads a file containing `§`, edits something unrelated and writes it
 back silently re-encodes every non-ASCII character on the way out: a comment

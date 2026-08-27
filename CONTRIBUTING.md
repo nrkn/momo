@@ -97,9 +97,21 @@ emitted `add dw 0`, which NASM read as an ADD (DESIGN §7). When a change touche
 what the emitter *writes* rather than what it computes, `npm run test:e2e` is the
 only tier that can tell you it worked.
 
+**`momoc` also reports `ok` for a program that cannot fit the segment.** A different
+case from the NASM one above and it bites the same way: raising `maxCrossings` to 3,072
+in a momovec program put the image at 69,630 bytes against 65,536, `momoc` said `ok`,
+and the program built, ran and hung. **`npm run memory` is what catches it** - it prints
+a *negative* heap, which is the only place the overflow is visible. Worth running after
+any change to a static capacity, because nothing else will say a word.
+
 **To check what a program prints**, run the `.com` with `> out.txt` inside a
 generated batch and read the file afterwards - see `src/tools/e2e.ts`. Do not
 rely on watching the DOSBox window.
+
+**A program that does not terminate reports as a bare timeout.** Tier 2 prints
+`<timed out after 120s>` and nothing else, because there is no output to compare - so
+an infinite loop and a crash look identical from here. `PITFALLS.md` has the one that
+caused it.
 
 **8.3 filenames** for anything DOSBox touches: project directories and entry
 files are 1-8 characters. Tier 1 tests never touch DOS and can be named freely.
@@ -324,7 +336,13 @@ document in the repo. That trade is made deliberately, and preferred to shipping
 second draft in the same voice as the first.
 
 344 tier-1 assertions (173 compile tests, 44 golden `.asm`, 53 type, 11 lex, 60
-round trip, 3 subset), 28 e2e programs, all green.
+round trip, 3 subset), 35 e2e programs, all green.
+
+Both figures had drifted before they were last read, and the e2e one further than the
+other: it said 26 against an actual 33, and was then incremented three times from the
+wrong base. Counting `projects/*/*.expected` is the honest check, and `npm test` prints
+the tier 1 breakdown so its parts can be added up. Neither number is enforced by
+anything.
 
 This figure had drifted to 253 against an actual 268 before it was last read -
 the golden and round-trip tiers both grew during the vector port and nothing
