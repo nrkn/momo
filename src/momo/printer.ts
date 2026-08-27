@@ -94,6 +94,11 @@ export const printExpression = (node: Expression): string => {
       return node.field === undefined ? node.name : `${node.name}.${node.field}`
 
     // The original lexeme, so a hex or character literal stays what it was.
+    // The original lexeme, so `1.5` goes back out as `1.5` rather than as the
+    // integer it scaled to. The round trip then compiles the same program.
+    case 'DecimalLiteral':
+      return node.text
+
     case 'NumberLiteral':
       return node.text
 

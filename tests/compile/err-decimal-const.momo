@@ -1,2 +1,2 @@
-// EXPECT-ERROR: a decimal literal needs a fixed-point type
+// EXPECT-ERROR: 1.5 needs a fixed-point target
 const k = 1.5

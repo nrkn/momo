@@ -74,6 +74,19 @@ export type BoolLiteral = Located & {
   value: boolean
 }
 
+// `1.5`. Kept as the two halves the lexer split, because the scale comes from the
+// target type: 1.5 is 384 in 8.8 and 24 in 12.4, and there is no one integer to
+// store here. `scaleTo` is set by the resolver at the sites that know the target -
+// a declaration, an assignment, a cast, an argument - and a decimal that reaches
+// resolution without one is an error. See DESIGN.md §25.
+export type DecimalLiteral = Located & {
+  type: 'DecimalLiteral'
+  whole: number
+  digits: string // fractional digits, separators already stripped
+  text: string // original lexeme, so the printer can put `1.5` back
+  scaleTo?: number
+}
+
 export type StringLiteral = Located & {
   type: 'StringLiteral'
   value: string
@@ -262,6 +275,7 @@ export type GroupDeclaration = Spanned & {
 export type Expression =
   | Identifier
   | NumberLiteral
+  | DecimalLiteral
   | BoolLiteral
   | StringLiteral
   | ArrayLiteral

@@ -5,6 +5,7 @@
 
 ; ---- constants: no storage, folded at assembly time ----
 one:            equ     256
+half:           equ     128
 
 ; =========================================================== entry ====
 
@@ -15,6 +16,8 @@ __entry:
         call    counts
 ; ---- constants()
         call    constants
+; ---- decimals()
+        call    decimals
 ; ---- throughARoutine()
         call    throughARoutine
 ; ---- eightBit()
@@ -119,6 +122,26 @@ eightBit:
         mov     [small], al                 ; narrowed to i8
         ret
 
+; ============================================== sub decimals ====
+
+decimals:
+; ---- scale = 1.5
+        mov     word [scale], 384
+; ---- scale = -0.5
+        mov     word [scale], 65408
+; ---- scale = i8.8( 1.5 )
+        mov     word [scale], 384
+; ---- scale = 1.5 + 2.5
+        mov     word [scale], 1024
+; ---- scale = 1.5 * 2
+        mov     word [scale], 768
+; ---- scale = doubled( 0.25 )
+        mov     word [doubled__v], 64
+        call    doubled
+        mov     ax, [doubled__ret]
+        mov     [scale], ax
+        ret
+
 ; ============================================== sub throughStorage ====
 
 throughStorage:
@@ -135,6 +158,11 @@ throughStorage:
         mov     [scale], ax
 ; ---- scale = one
         mov     word [scale], 256
+; ---- scale = half
+        mov     word [scale], 128
+; ---- scale = pair[0]
+        mov     ax, [pair]
+        mov     [scale], ax
         ret
 
 ; ==================================================== int helpers ====
@@ -186,6 +214,7 @@ small:          db      0        ; i8
 
 ; ---- arrays ----
 table:          times 3 dw 0        ; i16[3]
+pair:           dw      384, 640        ; i16[2]
 blob__weight:   times 2 dw 0        ; i16[2]
 
 ; ============================================================ heap ====

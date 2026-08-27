@@ -1,0 +1,5 @@
+// EXPECT-ERROR: 1.5 needs a fixed-point target
+// An i16 has no radix point, so a decimal going into one is a units mistake
+// rather than a request to round.
+i16 whole
+whole = 1.5

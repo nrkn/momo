@@ -1,0 +1,2 @@
+// EXPECT-ERROR: carries more fractional digits than any fixed type can hold
+i8.8 scale = 1.1234567890

@@ -60,15 +60,30 @@ sub eightBit {
   small = small * 2
 }
 
+// Decimal literals, which scale wherever a target scale is in view. The values
+// are exact where the literal is exact: 1.5 in 8.8 is 384, 0.5 is 128, and 0.25
+// is 64. Read them in `fixed.asm` - that is what makes this a project.
+sub decimals {
+  scale = 1.5
+  scale = -0.5
+  scale = i8.8( 1.5 )
+  scale = 1.5 + 2.5
+  scale = 1.5 * 2
+  scale = doubled( 0.25 )
+}
+
 // Storage of every shape: an array, a group field, and a const with a declared
-// fixed type.
+// fixed type. Decimal initialisers included, since an array element and a const
+// are both targets with a scale.
 i8.8[3] table
+i8.8[2] pair = [ 1.5, 2.5 ]
 
 group blob[2] {
   i8.8 weight
 }
 
-const i8.8 one = i8.8( 1 )
+const i8.8 one  = i8.8( 1 )
+const i8.8 half = 0.5
 
 sub throughStorage {
   table[0] = scale
@@ -76,11 +91,14 @@ sub throughStorage {
   blob[0].weight = scale
   scale = blob[1].weight
   scale = one
+  scale = half
+  scale = pair[0]
 }
 
 sameScale()
 counts()
 constants()
+decimals()
 throughARoutine()
 eightBit()
 throughStorage()

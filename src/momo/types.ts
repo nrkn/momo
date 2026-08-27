@@ -122,6 +122,23 @@ export const scaleOf = (frac: number): number => 2 ** frac
 export const spell = (type: ValueType, frac: number): string =>
   frac === 0 ? type : `${isSigned(type) ? 'i' : 'u'}${widthOf(type) * 8 - frac}.${frac}`
 
+// The most fractional digits a decimal literal may carry. Sixteen fraction bits
+// is about five decimal digits of meaning, so nine is already generous - and the
+// exact arithmetic below stays inside 2^53 only while it holds.
+export const maxDecimalDigits = 9
+
+// A decimal literal at a given scale, exactly, rounding to nearest with ties away
+// from zero. `1.5` in 8.8 is 384; `0.1` is 25.6 and so becomes 26.
+//
+// Integer arithmetic throughout: (whole * 10^n + digits) * 2^frac / 10^n. Doing it
+// in floating point would make the rounding rule a claim about the host's
+// behaviour rather than about this function.
+export const scaleDecimal = (whole: number, digits: string, frac: number): number => {
+  const tenth = 10 ** digits.length
+  const numerator = (whole * tenth + Number(digits)) * scaleOf(frac)
+  return Math.floor((numerator + tenth / 2) / tenth)
+}
+
 // Value-preserving conversion between two scales: 1.5 in 8.8 is 384, and 384 back
 // to a plain integer is 2 rather than 1. Scaling up is exact; scaling down rounds
 // to nearest with ties away from zero, which is the rule DESIGN.md §25 settles on

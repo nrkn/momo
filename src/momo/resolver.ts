@@ -33,9 +33,11 @@ import {
   fits,
   isSigned,
   naturalType,
+  maxDecimalDigits,
   promote,
   rangeOf,
   rescale,
+  scaleDecimal,
   spell,
   truncate,
   widthOf,
@@ -584,6 +586,28 @@ export const resolve = (program: Program): ResolveResult => {
     return false
   }
 
+  // A decimal literal has no scale of its own - `1.5` is 384 in 8.8 and 24 in
+  // 12.4 - so the sites that know a target scale stamp it on before resolving.
+  // An annotation rather than a rewrite, which is what the resolver does with
+  // everything else it learns. A decimal reaching resolution unstamped is an
+  // error, so nothing can silently pick a scale for it. See DESIGN.md §25.
+  //
+  // The nearest enclosing target wins, because an inner cast stamps over an outer
+  // one on its way down: `i16( i8.8( 1.5 ) )` scales the literal by 8, not by 0.
+  const scaleDecimals = (node: Expression, frac: number) => {
+    if (node.type === 'DecimalLiteral') {
+      node.scaleTo = frac
+      return
+    }
+    for (const value of Object.values(node)) {
+      if (Array.isArray(value)) {
+        for (const item of value) if (isExpression(item)) scaleDecimals(item, frac)
+        continue
+      }
+      if (isExpression(value)) scaleDecimals(value, frac)
+    }
+  }
+
   const countUses = (node: Expression, name: string): number => {
     if (node.type === 'Identifier') return node.name === name ? 1 : 0
 
@@ -610,6 +634,7 @@ export const resolve = (program: Program): ResolveResult => {
     }
 
     for (let i = 0; i < node.args.length; i++) {
+      scaleDecimals(node.args[i], symbol.params[i].frac ?? 0)
       const argument = resolveExpression(node.args[i])
       checkAssignable(argument, symbol.params[i].type, symbol.params[i].frac ?? 0, node.args[i])
     }
@@ -687,6 +712,28 @@ export const resolve = (program: Program): ResolveResult => {
         raise(node, `literal ${node.value} does not fit in 16 bits`)
       }
       return annotate(node, { type: 'untyped', value: node.value, frac: 0 })
+    }
+
+    if (node.type === 'DecimalLiteral') {
+      // Unstamped, or stamped with a scale of nothing: either way no fixed type
+      // is in view, and guessing one is the 256x error this all exists to stop.
+      if (!node.scaleTo) {
+        raise(
+          node,
+          `${node.text} needs a fixed-point target - write i8.8( ${node.text} ),` +
+            ' or give the thing it is going into a scale',
+        )
+      }
+      if (node.digits.length > maxDecimalDigits) {
+        raise(
+          node,
+          `${node.text} carries more fractional digits than any fixed type can hold` +
+            ` - at most ${maxDecimalDigits}`,
+        )
+      }
+
+      const value = scaleDecimal(node.whole, node.digits, node.scaleTo)
+      return annotate(node, { type: 'untyped', value, frac: node.scaleTo })
     }
 
     if (node.type === 'BoolLiteral') {
@@ -836,6 +883,7 @@ export const resolve = (program: Program): ResolveResult => {
     }
 
     if (node.type === 'CastExpression') {
+      scaleDecimals(node.argument, node.toFrac)
       const argument = resolveExpression(node.argument)
 
       // Same scale on both sides is the ordinary cast: bits, not units.
@@ -880,8 +928,10 @@ export const resolve = (program: Program): ResolveResult => {
 
       if (node.operator === '-') {
         if (argument.type === 'untyped') {
+          // `argument.frac`, not 0: negating a decimal has to keep its scale, and
+          // for an ordinary integer literal the two are the same thing.
           const value = argument.value === null ? null : -argument.value
-          return annotate(node, { type: 'untyped', value, frac: 0 })
+          return annotate(node, { type: 'untyped', value, frac: argument.frac })
         }
         // `neg` is bitwise-identical regardless of operand signedness.
         const value = argument.value === null ? null : truncate(-argument.value, 'i16')
@@ -1051,6 +1101,7 @@ export const resolve = (program: Program): ResolveResult => {
     for (const element of init.elements) {
       // Resolved rather than folded, because an element of a fixed-point array
       // has to satisfy the scale as well as the range - and a count does not.
+      scaleDecimals(element, elementFrac)
       const resolved = resolveExpression(element)
       if (resolved.value === null) raise(element, 'array element must be a constant')
       if (resolved.frac !== elementFrac) {
@@ -1134,6 +1185,7 @@ export const resolve = (program: Program): ResolveResult => {
     // section; a non-constant one becomes code at the point of declaration.
     let init = 0
     if (node.init) {
+      scaleDecimals(node.init, node.typeNode.frac)
       const value = resolveExpression(node.init)
       checkAssignable(value, node.typeNode.name, node.typeNode.frac, node.init)
       if (value.value !== null) init = truncate(value.value, node.typeNode.name)
@@ -1525,6 +1577,7 @@ export const resolve = (program: Program): ResolveResult => {
     }
 
     // A scalar const is a named literal: untyped, no storage, emitted as `equ`.
+    scaleDecimals(node.init, node.typeNode ? node.typeNode.frac : 0)
     const initial = resolveExpression(node.init)
     if (initial.value === null) raise(node.init, 'const initialiser must be a constant')
     if (node.typeNode) {
@@ -1643,10 +1696,13 @@ export const resolve = (program: Program): ResolveResult => {
       // A bool target takes the same rule: its range is {0, 1}, so `b = 1` is
       // fine and `b = 2` does not fit.
       if (value.value !== null && !fits(value.value, target)) {
+        const spelling = spell(target, targetFrac)
         raise(
           at,
-          `value ${value.value} does not fit in ${target}` +
-            ` - write ${target}(${value.value}) if the truncation is deliberate`,
+          `value ${value.value} does not fit in ${spelling}` +
+            (targetFrac === 0
+              ? ` - write ${spelling}(${value.value}) if the truncation is deliberate`
+              : ' - it is already scaled, so the value itself is out of range'),
         )
       }
       return
@@ -1785,6 +1841,7 @@ export const resolve = (program: Program): ResolveResult => {
 
     if (node.type === 'AssignmentStatement') {
       const target = resolveLValue(node.target)
+      scaleDecimals(node.value, target.frac)
       const value = resolveExpression(node.value)
 
       if (node.operator === '=') {
@@ -1893,6 +1950,7 @@ export const resolve = (program: Program): ResolveResult => {
         raise(node, `"${currentFn?.name ?? subName}" is a sub - "return" is an early exit and carries no value`)
       }
 
+      scaleDecimals(node.argument, currentFn.returnFrac ?? 0)
       const value = resolveExpression(node.argument)
       checkAssignable(value, currentFn.returnType, currentFn.returnFrac ?? 0, node.argument)
       return

@@ -231,13 +231,19 @@ export const parse = (tokens: Token[]): Program => {
   const parsePrimary = (): Expression => {
     const token = peek()
 
-    // Recognised by the lexer, and nothing can hold it yet - see DESIGN.md §25.
+    // The scale is not the parser's to know - it comes from the target type, and
+    // the resolver is where targets live. See DESIGN.md §25.
     if (token.kind === 'decimal') {
-      raise(
-        token,
-        'a decimal literal needs a fixed-point type, and there is not one yet' +
-          ' - scale the value to an integer',
-      )
+      advance()
+      return {
+        type: 'DecimalLiteral',
+        whole: token.num,
+        digits: token.frac,
+        text: token.text,
+        file: token.file,
+        line: token.line,
+        col: token.col,
+      }
     }
 
     if (token.kind === 'number' || token.kind === 'char') {

@@ -38,6 +38,7 @@ import {
   naturalType,
   rangeOf,
   rescale,
+  scaleDecimal,
   spell,
   truncate,
 } from '../momo/types.js'
@@ -120,6 +121,18 @@ const typeAssertions = () => {
   check('rescale -1.5 down = -2 (tie away)', rescale(-384, 8, 0) === -2)
   check('rescale 1.496 down = 1', rescale(383, 8, 0) === 1)
   check('rescale same scale is identity', rescale(384, 8, 8) === 384)
+
+  // A decimal literal at a scale, exactly. 1.5 is exact in 8.8; 0.1 is 25.6 and
+  // so rounds, which is why "exact" is a property of the literal.
+  check('decimal 1.5 in 8.8 = 384', scaleDecimal(1, '5', 8) === 384)
+  check('decimal 0.5 in 8.8 = 128', scaleDecimal(0, '5', 8) === 128)
+  check('decimal 0.25 in 8.8 = 64', scaleDecimal(0, '25', 8) === 64)
+  check('decimal 20.0 in 8.8 = 5120', scaleDecimal(20, '0', 8) === 5120)
+  check('decimal 1.5 in 12.4 = 24', scaleDecimal(1, '5', 4) === 24)
+  check('decimal 0.1 in 8.8 = 26', scaleDecimal(0, '1', 8) === 26)
+  check('decimal 1.005 in 8.8 = 257', scaleDecimal(1, '005', 8) === 257)
+  // The tie, and the one case that shows the rule: 0.5 at no scale is 1, not 0.
+  check('decimal 0.5 at frac 0 = 1 (tie away)', scaleDecimal(0, '5', 0) === 1)
 }
 
 // ---- lexer decode ----------------------------------------------------------

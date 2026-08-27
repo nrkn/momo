@@ -1,0 +1,2 @@
+// EXPECT-ERROR: does not fit in i8.8
+i8.8 scale = 200.0
