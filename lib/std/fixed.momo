@@ -1,0 +1,84 @@
+// std/fixed.momo - the multiply behind `*` on a fixed-point type (DESIGN §25).
+//
+// `a * b` on two 8.8 values wants `(a*b) >> 8`, and §9 discards `DX` - so the
+// naive lowering is silently wrong the moment the product exceeds a word. This is
+// the way round that: **a 16x16->32 multiply synthesises from four 8x8->16
+// multiplies**, and `mul` on byte operands already gives a 16-bit result.
+//
+//   a*b = ah*bh*65536 + (ah*bl + al*bh)*256 + al*bl
+//
+// so `(a*b) >> 8` is `ah*bh*256 + (ah*bl + al*bh) + (al*bl >> 8)`, all in 16-bit
+// operations. Roughly 3x an optimal multiply, which §25 argues is the right trade
+// and records the escape hatch for.
+//
+// **Everything here is written in plain integer types**, with no `raw` in sight.
+// That is deliberate: the fixed types are the caller's business, and the compiler
+// puts the `raw` in when it lowers `*` - which is the one place it is needed, and
+// the reason the reinterpreting cast had to exist at all.
+//
+// Nothing here is a parameterised const, and it cannot be. The kernel uses each
+// operand four times, and §8 rejects an argument that calls a fn when a parameter
+// is used more than once - so `a * b` with a call on either side would fail for a
+// reason the programmer never wrote. A real routine takes its arguments once.
+
+include "std/math.momo"
+
+// The unsigned kernel. Exact modulo 65536: every term is exact, and addition wraps
+// the same way the full product's low word would - so an overflowing result is
+// wrong by exactly the amount 16-bit arithmetic is always wrong by, and no more.
+//
+// The bottom eight bits of the true product are discarded rather than rounded,
+// which is what `>>` means everywhere else in the language.
+u16 fixMulU( u16 a, u16 b ) {
+  u8 ah
+  u8 al
+  u8 bh
+  u8 bl
+
+  ah = hi( a )
+  al = lo( a )
+  bh = hi( b )
+  bl = lo( b )
+
+  return ((ah * bh) << 8) + (ah * bl) + (al * bh) + ((al * bl) >> 8)
+}
+
+// Magnitude and sign around the kernel, which §25 names as where the bugs would
+// live. Two consequences worth knowing, neither of them accidents:
+//
+// **It truncates toward zero, not toward negative infinity.** `sar` would round a
+// negative product down; taking the magnitude and negating rounds it in. The gain
+// is symmetry - `fixMul( -a, b )` is exactly `-fixMul( a, b )` - and the cost is
+// that a negative result can differ by one from an arithmetic shift of the same
+// product. Symmetry is the more useful property for a scale factor.
+//
+// **-32768 has no magnitude in an i16.** Negating it gives itself back, so the
+// most negative 8.8 value (-128.0) multiplies as though it were positive. In 8.8
+// terms almost any product involving it overflows anyway, so this is documented
+// rather than guarded: a check would cost every call to catch one input.
+i16 fixMul( i16 a, i16 b ) {
+  i16 x
+  i16 y
+  bool neg
+  u16 m
+
+  x = a
+  y = b
+  neg = false
+
+  if ( x < 0 ) {
+    x = -x
+    neg = true
+  }
+
+  if ( y < 0 ) {
+    y = -y
+    neg = !neg
+  }
+
+  m = fixMulU( u16( x ), u16( y ) )
+
+  if ( neg ) return -i16( m )
+
+  return i16( m )
+}
