@@ -21,9 +21,10 @@
 // The image is `projects/tigerpic`, and it is judged by eye, because that is what a
 // picture is for.
 //
-// The data is shared with that project rather than copied: it lives in t_data.momo
-// here, and tigerpic includes it across with `../`. Same arrangement as
-// projects/mlodemo reaching into projects/momolo.
+// The data is shared with that project rather than copied: it lives at
+// `scenes/tiger.momo`, which this program, tigerpic and tzoom all include by the
+// same name. No project owns it, so none of them has to know where the others
+// are.
 
 // The crossing budget, sized by the study against this dataset. Must precede the
 // momovec includes: an array dimension is needed where the array is declared, so
@@ -44,7 +45,7 @@ include "lib/momovec/fill.momo"
 // Included before the arrays below, because it declares the bounds they are sized
 // by - and those bounds are generated with the data rather than written here, so
 // nothing carries a hand-maintained count of 138.
-include "t_data.momo"
+include "scenes/tiger.momo"
 
 // The digest, accumulated as pixels are emitted.
 u16[screenH] rowPixels

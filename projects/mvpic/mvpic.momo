@@ -32,7 +32,7 @@ include "lib/momovec/subdiv.momo"
 include "lib/momovec/path.momo"
 include "lib/momovec/fill.momo"
 
-include "../mvdemo/d_data.momo"
+include "scenes/demo.momo"
 
 // Mode 13h video memory: 320x200, one byte per pixel, at A000:0000. A `far` region,
 // so ES is loaded per access and the tiny model stays intact everywhere else.

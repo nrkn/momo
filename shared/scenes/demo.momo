@@ -1,4 +1,4 @@
-// d_data.momo - GENERATED from a .mv scene. Do not edit.
+// demo.momo - GENERATED from a .mv scene. Do not edit.
 //
 //   cd ../20260826-vector-study && npm run emit:dsl -- --scene=scenes/demo.mv
 //
@@ -7,9 +7,9 @@
 // through the portability filter - so nothing here can be wider than the audited
 // 15-pixel span however the scene was written.
 //
-// Included by BOTH projects, the second reaching across with `../`, the way
-// projects/tigerpic reaches into projects/tiger. One dataset, two programs, no copy
-// to drift.
+// Read by projects/mvdemo, which digests it, and projects/mvpic, which draws it.
+// One dataset, two programs, no copy to drift. It sits at the include root
+// because neither of them owns it - the same arrangement as scenes/tiger.momo.
 //
 //   paths    6
 //   ops      41

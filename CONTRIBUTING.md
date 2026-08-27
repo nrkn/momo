@@ -288,7 +288,10 @@ arrived with two projects. `projects/tiger` digests the Ghostscript tiger - 339
 numbers covering every scanline, every path and the order all 92,949 pixels were
 drawn in, held against the study - and `projects/tigerpic` draws it at 320x200 in
 mode 13h and waits for a key, so it is golden-tier only. The data is generated and
-lives once, in `projects/tiger/t_data.momo`, which `tigerpic` reaches across for.
+lives once, at `shared/scenes/tiger.momo`, which all three of `tiger`, `tigerpic`
+and `tzoom` include by that one name. It used to live inside `projects/tiger` with
+the other two reaching across by `../`, which made the include depend on where all
+three happened to sit.
 
 The two programs differ in one routine. `plot` decides whether a pixel becomes a
 number or a byte of video memory, and the rasteriser never learns which: a library

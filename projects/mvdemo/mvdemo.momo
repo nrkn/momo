@@ -29,7 +29,7 @@ include "lib/momovec/subdiv.momo"
 include "lib/momovec/path.momo"
 include "lib/momovec/fill.momo"
 
-include "d_data.momo"
+include "scenes/demo.momo"
 
 u16[screenH] rowPixels
 u16[screenH] rowSumX

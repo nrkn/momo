@@ -14,9 +14,9 @@
 // over every pixel in draw order. So this picture is made of numbers that have been
 // checked, and only the drawing is new here.
 //
-// The data is shared rather than copied: `../tiger/t_data.momo` is the one
-// generated dataset, reached across the way `projects/mlodemo` reaches into
-// `projects/momolo`. Two programs, one file, and no copy to drift.
+// The data is shared rather than copied: `scenes/tiger.momo` is the one generated
+// dataset, and `projects/tiger` and `projects/tzoom` include it by exactly this
+// name. Three programs, one file, and no copy to drift.
 //
 // **The rasteriser cannot tell this program from the digest.** `lib/momovec` asks a
 // program for exactly two routines - `plot` and `emitSpan` - so one routine decides
@@ -46,7 +46,7 @@ include "lib/momovec/subdiv.momo"
 include "lib/momovec/path.momo"
 include "lib/momovec/fill.momo"
 
-include "../tiger/t_data.momo"
+include "scenes/tiger.momo"
 
 // Mode 13h video memory: 320x200, one byte per pixel, at A000:0000. A `far` region,
 // so ES is loaded per access and the tiny model stays intact everywhere else.
