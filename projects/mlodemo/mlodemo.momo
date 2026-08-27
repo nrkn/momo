@@ -22,7 +22,7 @@
 
 include "lib/std/key.momo"
 
-include "../momolo/m_scene.momo"
+include "scenes/shell.momo"
 
 u8 savedMode
 

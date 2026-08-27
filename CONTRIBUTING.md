@@ -318,7 +318,8 @@ with two projects rather than one. `projects/momolo` runs six scenes through it
 and prints every resolved box as bare numbers, compared against the numbers the
 original engine produces - two implementations agreeing on every integer, which
 is what makes it a tier 2 test rather than a demo. `projects/mlodemo` draws the
-same tree at 80x25 and waits for a key. Both go through `shared/lib/mopaint.momo`, the
+same tree at 80x25 and waits for a key - literally the same, since both include
+`shared/scenes/shell.momo` rather than either owning it. Both go through `shared/lib/mopaint.momo`, the
 colour, borders and wrapping layer that deliberately sits outside the engine, so
 what is untested is the painting rather than the layout.
 

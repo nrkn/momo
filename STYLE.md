@@ -140,8 +140,8 @@ than every time by a writer.
   are limited to 8 characters, letters/digits/underscore, starting with a letter.
 - **A multi-file project prefixes its parts**, one letter and an underscore, from
   the project's own name: `projects/tennis/` has `t_cfg.momo` and `t_scr.momo`
-  beside `tennis.momo`, and `projects/momolo/` has `m_scene.momo` beside
-  `momolo.momo`. The prefix exists to separate the parts from the entry file,
+  beside `tennis.momo`, and `projects/momovec/` has `m_scene.momo` beside
+  `momovec.momo`. The prefix exists to separate the parts from the entry file,
   which DOS requires to be named after the directory - so a reader can tell at a
   glance which file the program starts in.
 

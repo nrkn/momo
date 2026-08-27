@@ -1,6 +1,6 @@
 // momolo.momo - the cross-check harness.
 //
-// Runs every scene in m_scene.momo through the engine and prints the resolved
+// Runs every scene in scenes/shell.momo through the engine and prints the resolved
 // boxes as bare numbers, one line per element:
 //
 //   i x y w h minW minH oX oY
@@ -26,7 +26,7 @@
 // See PORT.md in the clay-study.
 
 include "lib/std/io.momo"
-include "m_scene.momo"
+include "scenes/shell.momo"
 
 // A number and its separator. All but the last column wants one, and a sub is
 // shorter than a bare `space()` on its own line eight times - Momo ends a

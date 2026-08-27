@@ -1,4 +1,4 @@
-// m_scene.momo - the scenes, and the pass sequence a caller drives.
+// shell.momo - the scenes, and the pass sequence a caller drives.
 //
 // Six scenes, every one the same tree as a demo in the clay-study's gallery, so
 // the numbers they produce can be held against the study's own. See PORT.md.

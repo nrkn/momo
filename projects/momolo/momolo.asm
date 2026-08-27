@@ -4250,21 +4250,21 @@ stripClose:
 
 ; ============================================== sub swatchBody ====
 
-m_scene__swatchBody:
+shell__swatchBody:
 ; ---- cfgInsetX( u )
         mov     byte [cfgInsetX__n], 1
         call    cfgInsetX
 ; ---- cfg.alignMain = alignCenter
         mov     byte [cfg__alignMain], 1
 ; ---- panelOpen( bg )
-        mov     al, [m_scene__swatchBody__bg]
+        mov     al, [shell__swatchBody__bg]
         mov     [panelOpen__bg], al         ; u8 -> u8, no widening
         call    panelOpen
 ; ---- labelPaint( at, black, bg )
-        mov     ax, [m_scene__swatchBody__at]
+        mov     ax, [shell__swatchBody__at]
         mov     [labelPaint__at], ax
         mov     byte [labelPaint__fg], 0
-        mov     al, [m_scene__swatchBody__bg]
+        mov     al, [shell__swatchBody__bg]
         mov     [labelPaint__bg], al        ; u8 -> u8, no widening
         call    labelPaint
 ; ---- closeBox()
@@ -4276,10 +4276,10 @@ m_scene__swatchBody:
 swatchFit:
 ; ---- sub swatchFit( u16 at, u8 bg ) => swatchBody( at, bg )
         mov     ax, [swatchFit__at]
-        mov     [m_scene__swatchBody__at], ax
+        mov     [shell__swatchBody__at], ax
         mov     al, [swatchFit__bg]
-        mov     [m_scene__swatchBody__bg], al; u8 -> u8, no widening
-        call    m_scene__swatchBody
+        mov     [shell__swatchBody__bg], al ; u8 -> u8, no widening
+        call    shell__swatchBody
         ret
 
 ; ============================================== sub swatchGrow ====
@@ -4289,10 +4289,10 @@ swatchGrow:
         call    cfgGrowW
 ; ---- swatchBody( at, bg )
         mov     ax, [swatchGrow__at]
-        mov     [m_scene__swatchBody__at], ax
+        mov     [shell__swatchBody__at], ax
         mov     al, [swatchGrow__bg]
-        mov     [m_scene__swatchBody__bg], al; u8 -> u8, no widening
-        call    m_scene__swatchBody
+        mov     [shell__swatchBody__bg], al ; u8 -> u8, no widening
+        call    shell__swatchBody
         ret
 
 ; ============================================== sub swatchFixed ====
@@ -4304,10 +4304,10 @@ swatchFixed:
         call    cfgFixedW
 ; ---- swatchBody( at, bg )
         mov     ax, [swatchFixed__at]
-        mov     [m_scene__swatchBody__at], ax
+        mov     [shell__swatchBody__at], ax
         mov     al, [swatchFixed__bg]
-        mov     [m_scene__swatchBody__bg], al; u8 -> u8, no widening
-        call    m_scene__swatchBody
+        mov     [shell__swatchBody__bg], al ; u8 -> u8, no widening
+        call    shell__swatchBody
         ret
 
 ; ============================================== sub swatchCapped ====
@@ -4320,10 +4320,10 @@ swatchCapped:
         mov     [cfg__wMax], ax
 ; ---- swatchBody( at, bg )
         mov     ax, [swatchCapped__at]
-        mov     [m_scene__swatchBody__at], ax
+        mov     [shell__swatchBody__at], ax
         mov     al, [swatchCapped__bg]
-        mov     [m_scene__swatchBody__bg], al; u8 -> u8, no widening
-        call    m_scene__swatchBody
+        mov     [shell__swatchBody__bg], al ; u8 -> u8, no widening
+        call    shell__swatchBody
         ret
 
 ; ============================================== sub buildShell ====
@@ -5112,8 +5112,8 @@ sizeAxis__xAxis: db      0        ; bool
 refit__rfTop:   dw      0        ; u16
 place__stkTop:  dw      0        ; u16
 stripOpen__caption: dw      0        ; u16
-m_scene__swatchBody__at: dw      0        ; u16
-m_scene__swatchBody__bg: db      0        ; u8
+shell__swatchBody__at: dw      0        ; u16
+shell__swatchBody__bg: db      0        ; u8
 swatchFit__at:  dw      0        ; u16
 swatchFit__bg:  db      0        ; u8
 swatchGrow__at: dw      0        ; u16
