@@ -1,0 +1,25 @@
+// momovec/direct.momo - coordinates read straight out of the arrays.
+//
+// **`momovec/direct.momo` or `momovec/zoom.momo`, never both.** They define the
+// same two names and the program picks, exactly as `subdiv.momo` and
+// `quadflat.momo` do for quadratics. Every program that draws the data as it was
+// generated includes this one.
+//
+// Parameterised consts rather than routines, and that is the whole point: §8
+// substitutes the body inline, so `mapX( at )` compiles to precisely the `px[ at ]`
+// it replaced. A program that does not transform pays nothing - not a call, not a
+// compare, not an instruction - and the golden `.asm` of every existing project is
+// unchanged by the indirection existing.
+//
+// One thing to know if this ends up somewhere it is not needed: a parameterised
+// const's body is resolved when it is EXPANDED, not when it is declared. So
+// including this in a program with no `px`/`py` compiles cleanly right up until
+// something calls `mapX`, which is how `projects/subdiv` carried a pointless copy
+// of this include for one commit without anything complaining.
+//
+// `at` is an index into the point arrays, not a coordinate. Handing the index over
+// rather than the value is what lets `zoom.momo` do something the caller cannot:
+// there is nothing to transform twice, and no way to forget to transform at all.
+
+const i16 mapX( u16 at ) = px[ at ]
+const i16 mapY( u16 at ) = py[ at ]

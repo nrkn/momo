@@ -122,8 +122,8 @@ bool pathOutside( u16 pathIndex ) {
 
     // A move and a line carry one point, a quadratic two. Both of a quadratic's
     // points count toward the box.
-    vx = px[ at ]
-    vy = py[ at ]
+    vx = mapX( at )
+    vy = mapY( at )
 
     if ( vx < loX ) loX = vx
     if ( vy < loY ) loY = vy
@@ -133,8 +133,8 @@ bool pathOutside( u16 pathIndex ) {
     at += 1
 
     if ( op == opQuad ) {
-      vx = px[ at ]
-      vy = py[ at ]
+      vx = mapX( at )
+      vy = mapY( at )
 
       if ( vx < loX ) loX = vx
       if ( vy < loY ) loY = vy

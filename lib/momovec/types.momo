@@ -21,6 +21,18 @@
 // the audited range before rounding. 15 is measured: above it the quadratic's
 // error terms leave a signed 16-bit word.
 //
+// **Coordinates are read through `mapX( at )` and `mapY( at )`**, never out of the
+// arrays directly, and a program picks which pair it gets: `momovec/direct.momo`
+// reads the point as stored, `momovec/zoom.momo` scales it about a centre as it is
+// read. Two files defining the same names, one of them included - the same
+// arrangement as `subdiv.momo` against `quadflat.momo`.
+//
+// They are parameterised consts, so the body substitutes inline and the direct pair
+// compiles to exactly the array index it replaced: measured, and the instructions in
+// all ten geometry projects are byte-identical either way. Taking the INDEX rather
+// than the coordinate is what makes a transform possible at all - there is nothing
+// to transform twice, and nowhere to forget.
+//
 // **It calls routines it does not define.** `plot( x, y )` is supplied by the
 // PROGRAM, and so are the scene arrays. Momo splices every include into one
 // namespace and resolves routines by name whatever file declared them, so a

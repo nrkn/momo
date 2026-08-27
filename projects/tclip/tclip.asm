@@ -2074,13 +2074,13 @@ pathOutside:
         mov     al, [opKind + bx]
         xor     ah, ah                      ; u8 -> u16
         mov     [pathOutside__op], ax
-; ---- vx = px[ at ]
+; ---- vx = mapX( at )
         mov     ax, [pathOutside__at]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [px + bx]
         mov     [pathOutside__vx], ax
-; ---- vy = py[ at ]
+; ---- vy = mapY( at )
         mov     ax, [pathOutside__at]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -2128,13 +2128,13 @@ pathOutside:
         je      .L313                       ; unsigned ==
         jmp     .L311
 .L313:
-; ---- vx = px[ at ]
+; ---- vx = mapX( at )
         mov     ax, [pathOutside__at]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [px + bx]
         mov     [pathOutside__vx], ax
-; ---- vy = py[ at ]
+; ---- vy = mapY( at )
         mov     ax, [pathOutside__at]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -2320,13 +2320,13 @@ walkPath:
 .L352:
 .L347:
 .L343:
-; ---- curX = px[ at ]
+; ---- curX = mapX( at )
         mov     ax, [walkPath__at]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [px + bx]
         mov     [walkPath__curX], ax
-; ---- curY = py[ at ]
+; ---- curY = mapY( at )
         mov     ax, [walkPath__at]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -2352,13 +2352,13 @@ walkPath:
         je      .L357                       ; unsigned ==
         jmp     .L355
 .L357:
-; ---- toX = px[ at ]
+; ---- toX = mapX( at )
         mov     ax, [walkPath__at]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [px + bx]
         mov     [walkPath__toX], ax
-; ---- toY = py[ at ]
+; ---- toY = mapY( at )
         mov     ax, [walkPath__at]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -2404,26 +2404,26 @@ walkPath:
         mov     [walkPath__curY], ax
         jmp     .L356
 .L355:
-; ---- ctlX = px[ at ]
+; ---- ctlX = mapX( at )
         mov     ax, [walkPath__at]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [px + bx]
         mov     [walkPath__ctlX], ax
-; ---- ctlY = py[ at ]
+; ---- ctlY = mapY( at )
         mov     ax, [walkPath__at]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [py + bx]
         mov     [walkPath__ctlY], ax
-; ---- toX = px[ at + 1 ]
+; ---- toX = mapX( at + 1 )
         mov     ax, [walkPath__at]
         inc     ax
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [px + bx]
         mov     [walkPath__toX], ax
-; ---- toY = py[ at + 1 ]
+; ---- toY = mapY( at + 1 )
         mov     ax, [walkPath__at]
         inc     ax
         shl     ax, 1                       ; word elements

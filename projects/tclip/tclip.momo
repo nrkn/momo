@@ -36,6 +36,7 @@ include "c_data.momo"
 
 include "std/io.momo"
 include "std/math.momo"
+include "momovec/direct.momo"
 include "momovec/types.momo"
 include "momovec/edges.momo"
 include "momovec/subdiv.momo"

@@ -70,16 +70,16 @@ sub walkPath(
         }
       }
 
-      curX = px[ at ]
-      curY = py[ at ]
+      curX = mapX( at )
+      curY = mapY( at )
       at += 1
 
       startX = curX
       startY = curY
       inSubpath = true
     } else if ( op == opLine ) {
-      toX = px[ at ]
-      toY = py[ at ]
+      toX = mapX( at )
+      toY = mapY( at )
       at += 1
 
       // y only. Rejecting on x would drop a crossing that a surviving span still
@@ -92,10 +92,10 @@ sub walkPath(
       curY = toY
     } else {
       // A quadratic: control point then end point.
-      ctlX = px[ at ]
-      ctlY = py[ at ]
-      toX = px[ at + 1 ]
-      toY = py[ at + 1 ]
+      ctlX = mapX( at )
+      ctlY = mapY( at )
+      toX = mapX( at + 1 )
+      toY = mapY( at + 1 )
       at += 2
 
       // `drawQuadAny` rather than `drawQuad`, so a caller can hand this an arbitrary

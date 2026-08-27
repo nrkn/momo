@@ -39,6 +39,7 @@ const maxCrossings = 1024
 include "std/io.momo"
 include "std/key.momo"
 include "std/math.momo"
+include "momovec/direct.momo"
 include "momovec/types.momo"
 include "momovec/edges.momo"
 include "momovec/subdiv.momo"
