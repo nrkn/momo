@@ -2,7 +2,7 @@
 //
 //   npm start subdiv
 //
-// `lib/momovec/subdiv.momo` takes an arbitrary quadratic and feeds `drawQuad` only
+// `shared/lib/momovec/subdiv.momo` takes an arbitrary quadratic and feeds `drawQuad` only
 // quadratics it can draw. This runs it over deliberately illegal input - spans of
 // 20, 100, 320 and 8,000, non-monotonic in one axis and both, a control point far
 // outside its endpoints, coordinates straddling the origin, and degenerate curves

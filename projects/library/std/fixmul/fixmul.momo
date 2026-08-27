@@ -2,7 +2,7 @@
 // `*` checked against fixMul called by name.
 //
 // Tier 2 rather than golden, and that is the point: the golden tier can only say
-// the assembly did not change, and `lib/std/fixed.momo` is the first part of
+// the assembly did not change, and `shared/lib/std/fixed.momo` is the first part of
 // DESIGN §25 where plausible-looking code can still compute the wrong number.
 // Every figure in `fixmul.expected` was derived by hand from the kernel before
 // this was ever run.

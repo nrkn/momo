@@ -10,7 +10,7 @@
 // back, so it cannot have a .expected - tier 2 cannot run something that blocks.
 // The geometry is not taken on trust for that reason. `momolo` builds
 // the same scenes from the same file and prints every resolved box as numbers,
-// held against the clay-study's own engine; so this picture is made of a tree
+// held against the clay study's own engine; so this picture is made of a tree
 // that has been checked element by element, and only the drawing is new here.
 //
 // What is on screen and what is not:

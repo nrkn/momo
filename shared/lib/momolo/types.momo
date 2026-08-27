@@ -1,7 +1,7 @@
 // types.momo - the element array, the builder's scratch stacks, and the one
 // accessor pass 1 needs.
 //
-// Port of src/momolo/types.ts from the clay-study. See PORT.md there.
+// Port of src/momolo/types.ts from the clay study. See PORT.md there.
 //
 // momolo's `Element` is a flat record of integers with no nesting, which is
 // exactly what makes it a Momo `group`: each field becomes its own array

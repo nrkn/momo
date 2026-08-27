@@ -1,6 +1,6 @@
 // demo.momo - GENERATED from a .mv scene. Do not edit.
 //
-//   cd ../20260826-vector-study && npm run emit:dsl -- --scene=scenes/demo.mv
+//   npm run emit:dsl -- --scene=scenes/demo.mv
 //
 // Compiled from scenes/demo.mv by the vector DSL: inheritance resolved, transforms
 // baked into the coordinates, relative commands made absolute, and every quadratic

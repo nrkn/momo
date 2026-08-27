@@ -5,6 +5,13 @@ cost real time, and the working practices this project holds to all live there,
 and all of them apply here. This file is only what differs when the contributor
 is an agent rather than a person at an editor - which is very little.
 
+**Then read `LOCAL.md` if there is one.** It is untracked, so a fresh clone will
+not have it, and it holds what is true of the machine rather than of the project:
+where the reference studies live, which of them generate files in this repo, and
+the command that checks the two still agree. None of it is actionable by someone
+who cloned this repo, which is why it is not in it - and all of it is needed by
+anyone working on the machine that has it.
+
 ## Writing files
 
 **Never write a file containing backslashes through a shell heredoc.** They get

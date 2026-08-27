@@ -3,7 +3,7 @@
 //   npm start thick
 //
 // Five strokes between 1 and 21 pixels wide, drawn on an 8086. **There is no
-// stroking code in this file, and none in `lib/momovec` either.** Search it for a
+// stroking code in this file, and none in `shared/lib/momovec` either.** Search it for a
 // normal, a square root, a join or a cap and there is nothing to find.
 //
 // A thick stroke is a filled shape: one four-sided ribbon per segment, two bevel

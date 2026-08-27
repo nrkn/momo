@@ -9,7 +9,7 @@
 //
 // Momo's `/` on a signed type emits `cwd` + `idiv`, which truncates toward zero,
 // where an arithmetic shift rounds toward negative infinity. They differ for every
-// odd negative value. `lib/std/place.momo` already carries a comment about the same
+// odd negative value. `shared/lib/momolo/place.momo` already carries a comment about the same
 // distinction for the same reason.
 //
 // This is written and run rather than reasoned about, because "reading the emitter

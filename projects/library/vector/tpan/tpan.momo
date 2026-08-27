@@ -19,7 +19,7 @@
 //
 // **This project exists because without it rejection clipping is a feature with no
 // measured benefit.** The tiger at 1x fits the canvas exactly, so nothing is
-// rejectable and `lib/momovec/clip.momo` is 598 bytes of pure cost. A zoom is what a
+// rejectable and `shared/lib/momovec/clip.momo` is 598 bytes of pure cost. A zoom is what a
 // viewer or an editor produces constantly, and it is where the work stops being
 // proportional to the drawing and starts being proportional to the view.
 //

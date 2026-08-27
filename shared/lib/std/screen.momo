@@ -3,7 +3,7 @@
 // Everything here goes through the BIOS, so no segment register is touched and
 // the tiny memory model stays intact. That is a choice rather than a limit now:
 // `far` (DESIGN §16) makes the B800:0000 text buffer ordinary memory, and
-// `lib/mopaint.momo` writes it directly. Cell-at-a-time BIOS calls cost an
+// `shared/lib/mopaint.momo` writes it directly. Cell-at-a-time BIOS calls cost an
 // interrupt each and this file keeps paying it, which is the right trade for a
 // library that must not disturb ES and the wrong one for a redraw loop.
 
