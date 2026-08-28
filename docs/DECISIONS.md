@@ -320,6 +320,82 @@ involved, and DECISIONS §26 what it measured.
 
 ---
 
+## 22. Port I/O
+
+### What wanted it, and what still does not exist
+
+It waited for the reason §20 gave: out of scope until a program wanted it. **The
+program that wanted it was Carmack-style scrolling** - coarse scroll plus fine
+scroll plus adaptive tile refresh, which is how Commander Keen moved an EGA screen
+smoothly on hardware with no blitter.
+
+By the time it was built three things wanted it, **and the scroll was the one
+still not written**. The other two were timing, which retrace polling answers
+without touching the PIT (§22), and two-player input, which is still unfinished.
+
+**Two-player input is the one the section did not finish.** BIOS `int 16h` reports
+keystrokes rather than key state: no key-up, and no way to see two players holding
+keys at once. Reading scancodes needs port `0x60`, and polling it means masking
+IRQ1 at the PIC first, or the BIOS handler consumes every scancode before the
+program sees it. That is a keyboard module with a hazard of its own - **a masked
+IRQ1 left behind is a dead keyboard** - and it wants its own design pass. Whether
+such a reader belongs in `std` at all is still open, and §20 has that question.
+
+### What it cost
+
+**Two mnemonics - §1 went from 37 to 39**, the largest single addition to the
+subset since it was written down, and the reason this needed a section rather than
+a bullet. No segment involvement, and §12's static memory analysis untouched,
+because ports are not memory and nothing here allocates.
+
+Six files, all doing what `peek`/`poke` already did: `tokens`, `ast`, `parser`,
+`resolver`, `emitter`, `printer`. The lexer and the call graph needed nothing.
+Nine compile tests and one project.
+
+**The claim about DX was half right, and the half that was wrong is the whole of
+the codegen.** The section said "no new register pressure beyond DX, which §9
+already documents as scratch and never live". True of DX at rest - but a port has
+to *stay* in DX from the load until the `out`, and `mul` and `div` both write DX.
+So `out8( port, u8( n * 3 ) )` with the port parked in DX emits a multiply between
+the two and sends the value to whatever the multiply left there.
+
+"Scratch and never live" describes a register nothing keeps a value in, and this
+was the first construct that needed to. The rule that came out of it - constant
+port loaded last, computed port pushed - is in §22.
+
+**The subset assertion did exactly its job.** The first full run after the emitter
+worked failed with `"out" (in porttest.asm) is not in §1's table` - the code was
+right and the documentation had not caught up, which is the direction §14 built
+that test to catch.
+
+### The testing hierarchy, paid for rather than argued
+
+§22 sets out three tiers and says only the first is automatic. That was written as
+an argument and has since been settled by an incident.
+
+A raw keyboard reader built on these builtins **worked perfectly under DOSBox and
+dropped keystrokes on 86Box**, because DOSBox hands over the next byte from the
+controller immediately where real hardware takes about a millisecond - so a drain
+loop really drains on one and collects a single byte on the other. Nothing in tier
+2 could have caught it, and three plausible explanations were wrong before the
+right one.
+
+`PITFALLS.md` records the specific bug. The general form is the one worth keeping:
+**a passing DOSBox run means the logic is right, not that the program works.**
+
+### Three things deliberately out of scope
+
+- **A graphics library.** §20 separates "access to the hardware" from "a library
+  over it"; §22 is the first, and mode setting, sprites, clipping and the scroll
+  bookkeeping are the second.
+- **`rep outsb` and the string port instructions.** More mnemonics, and nothing in
+  a tile blitter wants them.
+- **Interrupt control.** `cli`/`sti` would be needed to retime the PIT or install a
+  handler; both are separate features with their own reasons, and neither is
+  needed to scroll.
+
+---
+
 ## 26. Strength reduction
 
 ### What it measured, against what it predicted

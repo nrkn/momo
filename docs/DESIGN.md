@@ -108,7 +108,7 @@ Deliberately absent:
 - **`setcc`** - 386+. This is why conditions compile in control-flow context (§9).
 - Segment ops, BCD/ASCII adjusts, `xlat`, far calls.
 - **`rep` and the string instructions**, including the string port forms - more
-  mnemonics, and nothing has wanted them; §22 says why for `rep outsb`.
+  mnemonics, and nothing has wanted them; DECISIONS §22 says why for `rep outsb`.
 - **Flag manipulation**, with one exception. `pushf` earns its place by being the
   only way to read carry without `setcc` (386+), and carry is how DOS and BIOS
   report failure - see `_cf` in §10. It appears once per int helper and nowhere
@@ -2046,41 +2046,6 @@ this file, and a number that changes meaning is worse than one that redirects.
 **Built.** `porttest` exercises all four builtins and is the worked
 example for this section (§14) - read it alongside the rules below.
 
-It waited for the reason §20 gave: out of scope until a program wanted it, and
-**Carmack-style scrolling is the program that does.** Coarse scroll plus fine
-scroll plus adaptive tile refresh, which is how Commander Keen moved an EGA
-screen smoothly on hardware with no blitter.
-
-By the time it was built three things wanted it, and the scroll was the one
-still not written. The other two are below.
-
-**Timing was the second.** `shared/lib/std/time.momo` reads the BIOS tick counter at
-0040:006C, which the timer interrupt advances 18.2065 times a second - so the
-finest wait that library can express is 55ms. That paces a roguelike and cannot
-pace an animation, and no library can improve on it: the rate is the PIT's
-divisor, and changing that is `out` and nothing else. It is also the argument a
-game meets first, before it ever wants to scroll.
-
-Retrace polling turns out to answer it without touching the PIT at all. Mode 13h
-refreshes at 70Hz, so waiting on bit 3 of 0x3DA is both a finer clock than the
-BIOS tick and the cure for tearing - one loop for two problems:
-
-```momo
-sub waitRetrace {
-  while ( in8( 0x3DA ) & 8 ) { }        // let a retrace in progress finish
-  while ( !( in8( 0x3DA ) & 8 ) ) { }   // then wait for the next to start
-}
-```
-
-**Two-player input was the third**, and it is the one this section does *not*
-finish. BIOS `int 16h` reports keystrokes rather than key state: no key-up, and
-no way to see two players holding keys at once. Reading scancodes needs port
-0x60, which needs these builtins - but polling it means masking IRQ1 at the PIC
-first, since the BIOS handler would otherwise consume every scancode before the
-program saw it. That is a keyboard module with a hazard of its own (a masked
-IRQ1 left behind is a dead keyboard), and it wants its own design pass rather
-than a paragraph here.
-
 ```momo
 out8( 0x3C4, 0x02 )              // sequencer index: map mask
 out16( 0x3C4, 0x0F02 )           // index and data in one instruction
@@ -2103,6 +2068,23 @@ what adaptive tile refresh needs:
   idea in text mode.
 
 **Only the control registers are missing.** That is the whole feature.
+
+**Retrace polling is the other thing `in` buys, and it is worth naming here.**
+`time.momo` reads the BIOS tick counter, which the timer interrupt advances
+18.2065 times a second - so 55ms is the finest wait that library can express. That
+paces a roguelike and cannot pace an animation, and no library can improve on it:
+the rate is the PIT's divisor, and changing that is `out` and nothing else.
+
+Mode 13h refreshes at 70Hz, so waiting on bit 3 of `0x3DA` is both a finer clock
+than the BIOS tick and the cure for tearing - one loop for two problems, and it
+touches the PIT not at all:
+
+```momo
+sub waitRetrace {
+  while ( in8( 0x3DA ) & 8 ) { }        // let a retrace in progress finish
+  while ( !( in8( 0x3DA ) & 8 ) ) { }   // then wait for the next to start
+}
+```
 
 ### What actually needs a port
 
@@ -2174,32 +2156,6 @@ one step removed - see the correction under "What it cost".
 shorter, but every port above is greater than 0xFF, so it would never fire on the
 code this feature is for.
 
-### What it cost
-
-**Two mnemonics - §1 went from 37 to 39**, which is the largest single addition to
-the subset since it was written down, and the reason this needs a section rather
-than a bullet. No segment involvement, and §12's static memory analysis is
-untouched, because ports are not memory and nothing here allocates.
-
-Six files, all of them doing what `peek`/`poke` already did: `tokens`, `ast`,
-`parser`, `resolver`, `emitter`, `printer`. The lexer and the call graph needed
-nothing. Nine compile tests and one project.
-
-**The claim about DX was half right, and the half that was wrong is the whole of
-the codegen.** This section said "no new register pressure beyond DX, which §9
-already documents as scratch and never live". True of DX at rest - but a port has
-to *stay* in DX from the load until the `out`, and `mul` and `div` both write DX.
-So `out8( port, u8( n * 3 ) )` with the port parked in DX emits a multiply between
-the two and sends the value to whatever the multiply left there. A constant port
-sidesteps it by being loaded last; a computed one is pushed. "Scratch and never
-live" describes a register nothing keeps a value in, and this is the first
-construct that needs to.
-
-**The subset assertion did exactly its job.** The first full run after the emitter
-worked failed with `"out" (in porttest.asm) is not in §1's table` - the code was
-right and the documentation had not caught up, which is the direction §14 built
-that test to catch.
-
 ### On danger, stated once and accurately
 
 This is the first construct in Momo that can affect something outside the
@@ -2222,7 +2178,7 @@ precisely in the paths a library does not cover, and a program that writes them 
 doing so deliberately. Under DOSBox, 86Box, or any modern display the realistic
 failure is a black screen or a hang, not hardware.
 
-That is the whole warning. It is the `unsafe { }` bargain §20 already made for
+That is the whole warning. It is the `unsafe { }` bargain §10 already made for
 `peek`/`poke`, one step further out.
 
 ### Testing has three tiers here, and only the first is automatic
@@ -2244,27 +2200,9 @@ golden-tier only. **The honest claim for an automated test here is "the right po
 instruction was emitted", not "the hardware agreed"** - and any test added should
 say so in its own comment rather than implying otherwise.
 
-**That hierarchy has since been paid for rather than argued.** A raw keyboard
-reader built on these builtins worked perfectly under DOSBox and dropped
-keystrokes on 86Box, because DOSBox hands over the next byte from the controller
-immediately where real hardware takes about a millisecond - so a drain loop
-really drains on one and collects a single byte on the other. Nothing in tier 2
-could have caught it, and three plausible explanations were wrong before the
-right one. `PITFALLS.md` records it, and the general form: a passing DOSBox run
-means the logic is right, not that the program works.
-
-### Deliberately out of scope
-
-- **A graphics library.** §20 already separates "access to the hardware" from "a
-  library over it"; this section is the first, and mode setting, sprites, clipping
-  and the scroll bookkeeping are the second.
-- **`rep outsb` and the string port instructions.** More mnemonics, and nothing in
-  a tile blitter wants them.
-- **Interrupt control.** `cli`/`sti` would be needed to retime the PIT or install a
-  handler; both are separate features with their own reasons, and neither is
-  needed to scroll.
-
----
+The record for this section - what wanted it, what it cost, what the design got
+wrong about DX, and the incident that settled the hierarchy above rather than
+arguing it - is `DECISIONS.md` §22.
 
 ## 23. `scope`
 
@@ -2768,7 +2706,6 @@ It does **not** reopen the conic cut in the vector study. One of that decision's
 arguments was 32-bit intermediates; the other three - nothing in the data produces an
 arc, an ellipse is not a segment, four winding directions against one `forceDir` - stand
 regardless.
-
 
 ## 26. Strength reduction: how far to go
 

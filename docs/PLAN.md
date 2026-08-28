@@ -69,9 +69,9 @@ nothing has yet wanted it.
 - **Fixed-point division.** DESIGN §25 is half built and says which half: `*` on
   8.8 lands, division does not, and §25 sets out why it is the awkward one.
 - **Finish moving the record into `DECISIONS.md`.** In progress, section by
-  section, as `DESIGN.md` is read through. Done: §15, §16, §17, §18, §20, §26,
-  §27 - §27 dissolved entirely rather than splitting, and §16 spun out two designs
-  of its own, §34 and §35. Still to do: §22, §25.
+  section, as `DESIGN.md` is read through. Done: §15, §16, §17, §18, §20, §22,
+  §26, §27 - §27 dissolved entirely rather than splitting, and §16 spun out two
+  designs of its own, §34 and §35. Still to do: §25.
 
 ### Probably
 
