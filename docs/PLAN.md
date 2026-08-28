@@ -129,6 +129,11 @@ nothing has yet wanted it.
   already opens a real file on the target. The open decision is where bytes land,
   since DOS wants its buffer in DS and Momo cannot move DS. It is what `momowad`,
   `momoed`, `momode` and a swap file all wait on.
+- **`unit`.** §39 - a numeric type that will not mix with another unit without a
+  cast, entirely at compile time. §25 already carries scale as metadata beside the
+  storage type and this is that tag generalised, so the mechanism is shipped. What
+  wanted it is `tennis`, which encodes its two coordinate spaces in identifiers -
+  `subPxY`, `subgridToPx`, `// subgrid units` - because nothing else can.
 - **Record where each peephole lives.** `PEEPHOLES.md` says what each rewrite is
   and why it is safe, but not where in the emitter it is implemented or whether it
   is built at all - which is how entries 4 and 5 stood as fiction for a long time.
@@ -168,6 +173,14 @@ nothing has yet wanted it.
 
 ### Maybe
 
+- **A `type` keyword.** Declare a `group`'s shape once and instantiate it in
+  several places. Nothing has wanted it: no two groups in the repo share a shape,
+  and `player` and `ball` in `tennis` come closest while still differing. What
+  makes it worth keeping is that it is the *nominal* version of §19's group
+  parameters - which that section calls structural typing and the deepest of its
+  three extensions - since two groups declared from one shape match by
+  construction with no structural comparison anywhere. `momopnt`, one toolkit
+  under three editors, is where the want would arrive.
 - **`--cpu` target levels.** §28. 186 is modest, 286 is a rounding error, 386 is
   transformative - and 386 would change §4's type rules, so it is not only a
   backend switch.
@@ -222,6 +235,36 @@ All are set out in DESIGN §20 unless noted.
 - **What precision does constant folding happen at?** The folder runs on the
   host's numbers, so it folds at a precision the language cannot express. The
   analysis is in §32; three ways out, none chosen.
+
+- **How should a nested structure be built?** Set out here rather than in §20.
+  momolo (§36) represents nesting by convention: `boxOpen` and `closeBox` must
+  pair, the caller indents to show it, and nothing checks. Worse, a wrapper may
+  open more than one box - `stripOpen` opens two and `stripClose` closes two - so
+  pairs are not one-to-one with call sites and a balanced-looking source can still
+  be wrong. The config carrier is the same discomfort one step along: `cfg` is a
+  mutable global consumed by the next builder call.
+
+  Clay solved this with macros and hyperscript-style libraries solve it with
+  functions returning values, neither of which Momo has. Three candidates, none
+  chosen. **§19's routine parameters** would make closing structural, but the body
+  would be a named sub written elsewhere - forty nodes becomes forty subs, which is
+  worse than indentation, and writing the body *in place* is the whole ergonomic
+  win. **Parser sugar** lowering `box( ... ) { ... }` to open/body/close costs
+  nothing at runtime, the way `=>` already lowers, but a general form for it is a
+  macro system and a specific one puts a library's name in the compiler.
+  **Expressing the tree as data** and walking it removes the problem rather than
+  solving it, and is where a scene format points - at the cost that a static tree
+  cannot loop or take parameters, which the existing scenes do.
+
+- **Does Momo want a third namespacing mechanism?** Arbitrary const trees for
+  organisation, whose leaves are ordinary consts - name mangling and nothing more
+  by the time it reaches the emitter. The question is not whether it works. It is
+  that `group` already gives dotted access and is used deliberately that way -
+  `ball` in `tennis` carries a comment saying it is namespacing rather than
+  structure-of-arrays - and §23's `scope` gives named blocks of declarations. A
+  third would have to earn its place against both, and answer §23 directly:
+  *owners are flat, which is the decision that keeps this small*. Arbitrary trees
+  are exactly what that declined.
 
 ## Done
 
@@ -1434,3 +1477,132 @@ gone by the end of the run.
 `momowad`, `momoed`, `momode` and the swap file - four of the six things in the
 tier at the top of this document, and the only capability that more than one of
 them waits on.
+
+---
+
+## 39. `unit`
+
+**Designed, not built.** A named alias for a numeric type whose values will not
+mix with another unit's without a cast. Entirely compile time - nothing reaches
+the emitter, and no program gets larger or slower for using it.
+
+```momo
+unit px      = u16
+unit subgrid = u16
+
+px      x  = 40
+subgrid sy = 160
+
+x = sy                          // error: subgrid is not px
+x = px( sy >> 2 )               // fine, and now says what it is
+```
+
+### What wanted it
+
+`tennis`, and it is already paying for the absence by hand. `t_cfg.momo` has
+`const subgridScale = 4` and a comment reading `// subgrid units`; `tennis.momo`
+has `subgridToPx( play, obj )` and variables called `subPxX` and `subPxY`. **The
+unit is encoded in the identifier**, which is the workaround a reader has to keep
+in their head and the compiler cannot check. Confusion between the two coordinate
+spaces while writing that program is what put this section here.
+
+It is not one program's problem. `mopaint` decides a layout unit is a character
+cell while the same scenes have been run at 11 and 20 pixels; a screen library
+will have pixels, cells and a device aspect in the same expressions; §25 already
+has scaled and unscaled values that must not meet.
+
+### The mechanism is §25's, generalised
+
+§25 carries scale as **metadata beside the storage type** rather than as a member
+of `ValueType`, because the alternative made five unguarded `if` chains fall
+through silently. `Resolved` grew a fraction width, `frac: 0` kept every existing
+site working, and making the field required turned forgetting it into a compile
+error - which mattered for a feature whose whole purpose was catching silent
+losses.
+
+**A unit is the same shape**: a second field beside `frac`, defaulting to none,
+required for exactly the same reason. The hard question - whether this kind of tag
+belongs in the type or beside it - is already asked and answered, and answered the
+way this needs.
+
+That is most of the argument for it being cheap. The rest is that §25's own
+heading is *"It is a unit system, not a width system"*, so this is a shipped
+mechanism widened from one tag to many rather than a new one.
+
+### What it subtracts, which is the actual work
+
+§4's table says what happens when two types meet. `unit` does not extend it - it
+**refuses cells that table currently permits**, and it is the first feature here
+to take a permission away rather than add one. The rules:
+
+- **Same unit, any widths** - mix exactly as §4 says, and the result carries the
+  unit.
+- **Different units** - an error, whatever the widths, whatever the signs.
+- **Comparison** yields `bool`, which carries nothing.
+- **One side untyped** - the case that decides whether this is usable at all.
+
+### Untyped constants adopt the unit, and §25 has that precedent too
+
+§25 already says untyped constants are counts. The same has to hold here or
+nothing is writable: if `x + 1` needs a cast then every expression needs one, the
+casts stop being read, and the feature is worse than the naming convention it
+replaces.
+
+So **an untyped constant takes the unit of the other operand.** `x + 1` is px,
+`x * 2` is px, `x > 0` is fine.
+
+A literal suffix - `10px` - is then a disambiguator for the case with no other
+operand to take from, not the main path. **Out of the first build**: it costs a
+lexer change and the case for it is thin until something is stuck without it.
+
+### Multiplication and division are where a unit system usually stops being small
+
+`px * px` is an area, which nothing in the table names and 16 bits will overflow
+anyway. `px / px` is a plain ratio with no unit. A real dimensional system answers
+these; **Momo should not try**, because the answer costs a type system nobody here
+wants. Four rules instead:
+
+| | |
+|---|---|
+| `unit` with untyped, either order, `*` or `/` | keeps the unit |
+| `unit / unit`, same unit | unitless - this is the useful one, a ratio |
+| `unit * unit` | error |
+| `unit` with a different `unit` | error, as everywhere else |
+
+That covers what `tennis` and the layout code actually do, and refuses the case
+that would need dimensions to be right.
+
+### It should compose with §25, not compete
+
+`unit fix = i8.8` wants to work: a unit riding on a storage type that already
+carries a scale. Both are metadata beside the same `Resolved` and neither reaches
+the emitter, so there is no reason it cannot - but it is worth designing for
+deliberately rather than discovering it was excluded by accident.
+
+### What it costs
+
+**Nothing at runtime.** Not an instruction, not a register, not a byte. The cost
+is the type checker, plus the four AST carriers §25 names as holding a bare
+`TypeName` - they grew a fraction width and would grow a unit beside it.
+
+The other cost is not technical. A unit system that is too strict becomes cast
+noise, and casts that appear everywhere stop being read - at which point the
+feature has made the program harder to check rather than easier. The
+untyped-constant rule above is the main defence, and a small first build is the
+other.
+
+### The claim is directly testable
+
+The central claim is that units never reach the emitter. **That is a golden-tier
+assertion, not an argument**: compile a program with units and the same program
+with the units stripped, and require the `.asm` to be byte-identical. The 53 type
+tests take one case per rule above, which is what that tier is already for.
+
+### Scope of the first build
+
+In: `unit` declarations over the four integer types, unit-aware mixing, casts both
+ways, and units usable wherever a type is written - globals, sub-locals,
+parameters, returns, arrays and `group` fields.
+
+Out: literal suffixes, any arithmetic beyond the four rules, and any notion of
+dimension at all.
