@@ -26,15 +26,15 @@ happen.
 
 | | | wants |
 |---|---|---|
-| `momowad` | assets in bulk, with Doom-style PWAD overrides. Compatible with WAD at the container level, carrying our own lump types | file read and write |
-| `momoed` | the editor - an explorer beside a text pane, toggled away for width, and text modes `edit.com` never had | file I/O, a screen library |
+| `momowad` | assets in bulk, with Doom-style PWAD overrides. Compatible with WAD at the container level, carrying our own lump types | file I/O (§38) |
+| `momoed` | the editor - an explorer beside a text pane, toggled away for width, and text modes `edit.com` never had | file I/O (§38), a screen library |
 | `momode` | a graphical shell and launcher. Single-tasking, and windowed by screen offsets an aware program is handed | a mouse, and DOS memory management |
 | `momove` | a small vector editor, for icons and the like | a mouse, §37's geometric booleans |
 | `momopnt` | the library three image editors share - sprite, bitmap font, paint | a mouse, a palette library |
 | tilemap, sfx and music editors | the rest of the shape a fantasy console is expected to have | sound, which nothing here has touched |
 
-**Three capabilities are missing under all of it**: file read and write, a mouse,
-and sound. Everything else composes from what is built - and none of the three is
+**Three capabilities are missing under all of it**: file read and write (§38), a
+mouse, and sound. Everything else composes from what is built - and none of the three is
 far off. `cftest` already opens and closes a file on the target, §22's port I/O
 was justified partly by the PIT and the speaker, and §24 already records that a
 mouse callback is the one thing that would want `retf`.
@@ -124,6 +124,11 @@ nothing has yet wanted it.
 
 ### Probably
 
+- **File I/O.** §38 - designed, and it needs no language feature at all: `int`,
+  the register builtins, `addr()` and `_cf` are between them enough, and `cftest`
+  already opens a real file on the target. The open decision is where bytes land,
+  since DOS wants its buffer in DS and Momo cannot move DS. It is what `momowad`,
+  `momoed`, `momode` and a swap file all wait on.
 - **Record where each peephole lives.** `PEEPHOLES.md` says what each rewrite is
   and why it is safe, but not where in the emitter it is implemented or whether it
   is built at all - which is how entries 4 and 5 stood as fiction for a long time.
@@ -1293,3 +1298,139 @@ ourSeg = _ds
 buffer with no blitter is memory with nothing to write into it. Mode 13h is the
 case that wants it: the frame is 64000 bytes against a 65536-byte segment, so
 double buffering needs a second one. Text mode at 4000 bytes does not.
+
+---
+
+## 38. File I/O
+
+**Designed, not built.** DOS file handles from Momo: open, create, close, read,
+write and seek.
+
+The headline is that **none of it is a language feature.** `int`, the register
+builtins, `addr()` and `_cf` (§10) are between them everything this needs, and
+`cftest` already opens a real file, reads the carry and closes the handle. What is
+missing is a library and a decision about where the bytes land - not a compiler
+change.
+
+That makes this the second design met by what already existed, after §37's routine
+indirection. It is worth noticing as a pattern rather than a coincidence: the
+features that unlocked it - `int`, the registers, `_cf`, `addr()` - were each
+built for something else.
+
+### `cftest` is most of the proof already
+
+```momo
+sub openFile( u16 at ) {
+  _ah = 0x3D                      // open
+  _al = 0                         // read-only
+  _dx = at                        // DS:DX -> an ASCIIZ name
+  int 0x21
+}
+```
+
+Read and write are the same shape: `AH=3Fh` and `AH=40h`, `BX` the handle, `CX` a
+byte count, `DS:DX` the buffer, `AX` the count actually transferred. Seek is
+`AH=42h` with the offset in `CX:DX`. Create is `AH=3Ch`.
+
+Filenames are NUL-terminated, which `cftest` also settles - `$` is a print
+convention and nothing more.
+
+### The buffer must live in this segment, and that is the real constraint
+
+DOS takes its buffer as **DS:DX**. Momo has no `_ds` and no `_es` among the
+register builtins, `far` (§16) manages ES and nothing manages DS, so the tiny
+model's `DS = CS` holds everywhere and cannot be suspended for the length of a
+call. **Every read and write therefore lands in the program's own segment.**
+
+For anything larger than the segment - a WAD lump, a swap page, a picture bound
+for a back buffer - that means **staging**: read a block into a `view` of `_heap`,
+copy it out to `far` memory, repeat. The copy is the cost, it is per byte, and it
+should be measured rather than estimated.
+
+The alternative is a mechanism for pointing DS somewhere else across a single
+call, and it is **rejected for now** rather than overlooked. `DS = CS` is what
+makes every global a bare displacement (§10), a routine that moved it would have
+to restore it before touching anything at all, and §16 already records what that
+discipline costs for ES - which is the register that does *not* underpin the
+memory model. If staging ever proves too expensive, the answer is to design that
+deliberately, not to reach for it here.
+
+Note that §35 does not help. It reads `_ds` so a program can learn its own
+segment; writing DS is a different thing and a much larger one.
+
+### Errors are `_cf`, and the capture has to be immediate
+
+`_cf` is the carry from the **most recent** `int`, and `cftest` already documents
+what that implies: it reads its result before printing anything, because
+`putNumber` goes through `int 21h` and would overwrite the flag with the carry
+from writing a digit.
+
+That is not a caller's discipline to remember - it is a rule about where the
+capture belongs. **Every routine that issues a DOS call captures `_cf` and `AX`
+into its own storage before it returns**, and hands back a result. A library that
+left `_cf` for the caller to read would be correct exactly until somebody put a
+`putStr` between the call and the check, which is the shape of bug this project
+usually designs out rather than documents.
+
+```momo
+u16  fileStatus                   // the DOS error code, or 0
+bool fileFailed
+
+u16 fileRead( u16 handle, u16 at, u16 count ) {
+  _ah = 0x3F
+  _bx = handle
+  _cx = count
+  _dx = at
+  int 0x21
+
+  fileFailed = _cf                // both, before anything else runs
+  fileStatus = fileFailed ? _ax : 0
+
+  return fileFailed ? 0 : _ax
+}
+```
+
+`fileStatus` and `fileFailed` are the `local` (§11) case exactly - shared by every
+routine in the file, private to them, and writable by nobody else.
+
+### The split, which is the convention rather than a choice here
+
+A toolkit of the six calls above, returning what DOS returns, and a surface over
+it: `readWhole` into a view, `fileSize` by seeking to the end and back, and
+whatever line-reading an editor turns out to want. A consumer that dislikes the
+surface builds its own from the toolkit, and one that wants a single call does not
+pay for the rest - §11's dead code elimination is per-routine, so it does not.
+
+### Handles are a fixed and small resource
+
+A `.COM` inherits a twenty-entry handle table in its PSP with five already open -
+stdin, stdout, stderr, stdaux, stdprn - leaving fifteen. That is ample for an
+editor and thin for a shell that keeps assets mapped, so momowad should expect to
+open, read and close rather than hold handles. **Both numbers want confirming on
+the target before anything relies on them**, which is what the tier exists for.
+
+### Out of scope for the first build, and one collision worth knowing
+
+Directory enumeration, attributes, rename and delete are all out. Enumeration is
+out for a specific reason rather than for tidiness: `FindFirst` and `FindNext`
+write to the Disk Transfer Area, which defaults to **PSP:0080h - the command
+tail**. That is the same 128 bytes a windowed program would read its rectangle
+from under `momode`. So a program that enumerates a directory destroys its own
+arguments unless it either reads them first or moves the DTA with `AH=1Ah`.
+
+Neither is difficult; both are invisible until they bite, and the second one bites
+in a program that worked yesterday.
+
+### Testing needs no fixture
+
+`cftest` opens its own assembly listing, which the build copies alongside the
+`.com`. The round trip is better still and needs nothing external: create a file,
+write a known pattern, close, reopen, read it back, compare, print a digest.
+Everything the tier compares is a number the program produced, and the file is
+gone by the end of the run.
+
+### What it unblocks
+
+`momowad`, `momoed`, `momode` and the swap file - four of the six things in the
+tier at the top of this document, and the only capability that more than one of
+them waits on.
