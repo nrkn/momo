@@ -27,10 +27,10 @@ happen.
 | | | wants |
 |---|---|---|
 | `momowad` (§41) | assets in bulk, with Doom-style PWAD overrides. Compatible with WAD at the container level, carrying our own lump types | file I/O (§38) |
-| `momoed` | the editor - an explorer beside a text pane, toggled away for width, and text modes `edit.com` never had | file I/O (§38), a screen library |
-| `momode` | a graphical shell and launcher. Single-tasking, and windowed by screen offsets an aware program is handed | a mouse, and DOS memory management |
+| `momoed` | the editor - an explorer beside a text pane, toggled away for width, and text modes `edit.com` never had | file I/O (§38), the screen library (§43) |
+| `momode` | a graphical shell and launcher. Single-tasking, and windowed by screen offsets an aware program is handed (§43) | a mouse, and §40's ES gap |
 | `momove` | a small vector editor, for icons and the like | a mouse, §37's geometric booleans |
-| `momopnt` | the library three image editors share - sprite, bitmap font, paint | a mouse, a palette library |
+| `momopnt` | the library three image editors share - sprite, bitmap font, paint | a mouse, a palette library, §43 |
 | tilemap, sfx and music editors | the rest of the shape a fantasy console is expected to have | sound, which nothing here has touched |
 
 **Three capabilities are missing under all of it**: file read and write (§38), a
@@ -145,6 +145,13 @@ nothing has yet wanted it.
   storage type and this is that tag generalised, so the mechanism is shipped. What
   wanted it is `tennis`, which encodes its two coordinate spaces in identifiers -
   `subPxY`, `subgridToPx`, `// subgrid units` - because nothing else can.
+- **The screen library.** §43 - a table of modes with the shape of a pixel in it,
+  a yes/no/maybe query that resolves by setting a mode and reading it back, and the
+  current-screen descriptor `momode` would set to put a program in a window. Mode
+  13h is set by hand in five places today and `screenCols` is a constant. One thing
+  wants settling before any of it is written: a runtime screen width costs nothing
+  now and about 7x once §29 lands, because §26's odd-residue tier was designed for
+  exactly these strides.
 - **A test tier below DOSBox.** §42 - and the first move is one environment
   variable, not a project: DOSBox is SDL-based, so `SDL_VIDEODRIVER=dummy` may end
   the window-stealing outright. If it does not, §42 is the executor, which is worth
@@ -1933,3 +1940,190 @@ encodings per mnemonic, and the decoder has to handle every form it picks, not
 every mnemonic it was given. No estimate is offered here: `CLAUDE.md`'s rule about
 stubs measuring floors the real design cannot reach applies to sizing a decoder
 from a table of mnemonics.
+
+---
+
+## 43. The screen library
+
+**Designed, not built.** What screen a program is on, what screens it could ask
+for, and - because it turns out to be the same question one step along - what part
+of the screen is actually its own.
+
+### The repository is already the argument
+
+Mode 13h is set by hand in **five** places: `mvpic`, `rndpix`, `tigerpic`,
+`tilefill` and `t_scr`. The palette is loaded in two, which disagree about where
+eight bits become six. `std/screen.momo` has `const screenCols = 80` and
+`const screenRows = 25`, so every cell address in the repository is computed from a
+number that is only true of one mode.
+
+None of it is in `shared/lib/`. This is a consolidation with five existing
+consumers rather than a new capability.
+
+### A mode is a record, and the shape of a pixel is one of its fields
+
+Width, height, colour depth, the framebuffer segment, the bytes per row, the data
+layout, and the pixel aspect. Every DOS mode happens to be shown on a 4:3 display,
+and that is exactly why the aspect belongs in the table rather than baked into the
+code: it is a fact about a mode, and the first mode that breaks the pattern should
+cost a row rather than a rewrite.
+
+### Availability is yes, no, or maybe - and "maybe" resolves
+
+Detection through `int 10h` is not reliable across cards and clones, so the design
+splits along that seam rather than pretending it is not there:
+
+- **The table is knowledge.** Static, and says what a mode *is* and whether it is
+  plausible on whatever adapter was detected.
+- **The query is probing.** Set the mode, read it back with `AH=0Fh`, confirm it
+  took, and fall back if it did not.
+
+"Maybe" then means "the table says plausible, go and ask", and what comes back is a
+fact rather than a guess.
+
+### Ask for properties, not a mode number
+
+The call a program should make is *"at least 256 colours, at least 320 across, and
+tell me the pixel shape"*, with a fallback chain behind it - not `0x13`.
+
+That is the mechanism by which **a fantasy console runs on real hardware**, and it
+is worth naming as such. `DESIGN.md` says the constraints here were somebody's
+actual machine rather than invented ones; the price of that is that they vary, and
+asking for properties is how a program keeps a fixed-specification feel on hardware
+that will not cooperate.
+
+### The stride trade, which should be settled before a line is written
+
+`std/screen.momo` computes cell addresses as `row * screenCols + col`, and §26
+prices exactly that expression:
+
+| `x * 80` | cycles | bytes |
+|---|---|---|
+| `mov bx, 80` + `mul bx` | ~128 | 5 |
+| factored, `(x*4 + x) << 4` | **17** | 16 |
+
+The tier that performs that factoring is *"odd residues of 3, 5, 7 and 9, which
+covers 10, 40, 80, 160 and 320 - practically every 2D stride"* - and it sits
+**behind `-o`**, which is §29 and unbuilt. Only powers of two are reduced today.
+
+So the trade is not the one it appears to be. **A runtime screen width costs
+nothing now and roughly 7x later**: a `const 80` and a variable both emit `mul`
+today, and the difference is that the constant keeps a door open which a variable
+closes permanently. §26's `-o` tier was designed for screen strides specifically,
+so a dynamic-width library would put that optimisation out of reach of the code it
+exists for.
+
+**The escape is §19.** A routine monomorphised per mode gets its constant stride
+back - which hands that section the concrete want it has been missing, since it
+sits in Probably as designed in full with nothing having asked for it.
+
+### Windowing does not make that worse, which is the good news
+
+A window's address is
+
+```
+base + (y + originY) * stride + (x + originX)
+```
+
+**Stride is a property of the mode, not of the window.** The multiply keeps a
+mode-constant operand and the window contributes two adds, so the expensive part
+stays reducible even when the visible width is arbitrary. What has to stay constant
+is the *stride*, and it can.
+
+The bug this invites is silent and worth naming: **width is not stride.** A windowed
+program that uses its own width as the row step renders everything, skewed into a
+diagonal.
+
+### Aspect ratio, and why an editor turns it into correctness
+
+Mode 13h is 320x200 on a 4:3 display, so a pixel is about 1.2 times taller than it
+is wide and a circle drawn with equal pixel counts on both axes comes out an
+ellipse. Text mode is far worse.
+
+For a viewer that is a quality problem. **For `momove` it is a correctness problem**
+- a drawing tool that shows you something other than what you are making is lying
+about your own document.
+
+The fix is nearly free and already most of the way there. `zoom.momo` applies a
+transform as geometry is read, and `mapX` and `mapY` are already separate
+parameterised consts - but they share one `zoomScale`. Aspect correction is a second
+global and one changed line, and it is **the same work as the vector library's open
+item** "the scene format carrying a transform" rather than a second piece of it.
+
+One thing to check rather than assume: the subdivider decides how many segments a
+curve flattens into, and may assume a uniform scale. A non-uniform one could want
+its tolerance considered per axis.
+
+### Layout types, and the one §22 already reaches
+
+Linear (mode 13h), text (character and attribute pairs), interleaved (CGA's even
+and odd scanlines), planar (EGA and VGA sixteen-colour, four planes behind `0x3C4`
+and `0x3CE`), and banked for anything past VESA.
+
+§16's `far` and §17's `view` already handle linear and text. **Planar is not
+theoretical**: DECISIONS §22 records port I/O as built for *"EGA/VGA planar modes,
+the PIT and the speaker"*, and nothing in the repository touches those ports - so
+the layout field would be the first thing to use a capability that was justified by
+it.
+
+### Where the table lives is a real question
+
+A full table as `const` arrays costs bytes in every program that includes it, and
+§11's dead code elimination drops an unused array but not an unused *entry* of a
+used one. Three options: §8 parameterised consts, so a program pays only for the
+modes it names; a lump read at runtime (§41), which would be the first case of
+`momowad` earning its keep for something that is not an asset; or choosing a mode
+at compile time and carrying nothing.
+
+### The current screen, and windows under `momode`
+
+The same record, describing what is actually on screen, plus an origin. `momode`
+sets it; an aware program is handed a rectangle and draws inside it; an unaware
+program never asks and gets the whole screen. Single-tasking means a window that is
+not running does not update - **it has simply left its pixels behind**, which is the
+whole trick and costs nothing to implement.
+
+Three things follow, and two of them are not obvious.
+
+**The contract is small.** `momode` owns the mode, the palette and the screen; the
+program owns a rectangle. "Aware" minimally means "does not set the video mode",
+which is also exactly why an unaware program gets everything.
+
+**The palette is the sharp edge.** Mode 13h has one 256-entry DAC shared by
+everything visible, so a windowed program loading its own palette recolours its
+neighbour. This is where a *structured* palette stops being a nicety: when the
+layout is arithmetic, `momode` can hand out a sub-range - a hue band, a grey ramp, N
+entries from K - and the program indexes inside it with no lookup table. An
+unstructured palette offers no cheap way to subdivide one. The palette study is
+load-bearing for windowing, which is not where anybody would have gone looking for
+it.
+
+**The handshake needs nothing new.** The rectangle can travel on the command line,
+and a `.COM` reads its command tail from **PSP:0080h** - offset 0x80 of its own
+segment, reachable with `peek` (§10) today. The one part of this that sounds like
+infrastructure is not. Note §38's collision, though: `FindFirst` writes to the DTA,
+which defaults to those same 128 bytes.
+
+**It is cooperative, and a misbehaving program wins.** There is no MMU. A program
+that ignores its rectangle scribbles over its neighbour and nothing stops it. That
+is DOS-honest and fine, but the contract is discipline rather than enforcement, and
+it should be written down as such rather than discovered.
+
+**`momode` must be able to redraw what it cannot ask to redraw.** An unaware program
+destroys the whole screen, and a window that is not running cannot restore itself -
+so the shell has to hold a baked bitmap per window. That is §35 again, plus §41 for
+where the pixels came from.
+
+### momolo is already resolution-independent
+
+`mopaint` decides that a layout unit is a character cell, and the same scenes have
+been run against a pixel target where a unit was 11 or 20. The seam a screen library
+would feed already exists and has been exercised both ways, which is most of what
+`momoed` needs in order to support text modes larger than 80x25.
+
+### What it needs that does not exist
+
+Nothing, for the table, the query and the descriptor - they are `int 10h`, `far`,
+`view` and data, and the window handshake needs nothing either. What is blocked is
+the storage question if the table becomes a lump (§38, §41), and the backing stores
+(§35).
