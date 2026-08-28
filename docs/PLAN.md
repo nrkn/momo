@@ -124,6 +124,17 @@ nothing has yet wanted it.
 
 ### Probably
 
+- **`_ds`, so a program can learn its own segment.** §35 - two bytes, no storage,
+  no new mnemonic, and the cheapest unblocking on this list by a distance. §40 is
+  why it moved out of Maybe: everything that wants memory past the segment - a
+  mode 13h back buffer, a far arena for assets, `momode`'s baked backing stores -
+  needs this and no DOS call at all, because the memory is already the program's.
+  §35 still says to do it once something can put pixels in a buffer.
+- **Memory past the segment.** §40 - the allocators are libraries and need no
+  compiler change, the robust `_hsize` is specified in §13 and unbuilt, and the
+  half that is genuinely blocked is shrinking the program's own block, which needs
+  a way to set ES that does not exist. Same shape as §38's DS problem, one
+  register along.
 - **File I/O.** §38 - designed, and it needs no language feature at all: `int`,
   the register builtins, `addr()` and `_cf` are between them enough, and `cftest`
   already opens a real file on the target. The open decision is where bytes land,
@@ -198,9 +209,6 @@ nothing has yet wanted it.
   fill loop, 2.1% of a `tilefill` screen and 1% of `rndpix`, so it is behind loop
   machinery, index recomputation and the push/pop pair on every measurement taken.
   Not wrong, just never the biggest thing left.
-- **`_ds`, so a program can learn its own segment.** §35 - two bytes, no storage,
-  no new mnemonic. It is what actually blocks a second segment, and therefore a
-  mode 13h back buffer. Worth doing after something can put pixels in a buffer.
 - **Align the data section.** DECISIONS §27 measured this at **-13% on a true
   8086 and nothing at all on an 8088**, whose 8-bit bus pays two cycles for a word
   access however it is aligned. Most of these machines were 8088s, so it waits for
@@ -1606,3 +1614,107 @@ parameters, returns, arrays and `group` fields.
 
 Out: literal suffixes, any arithmetic beyond the four rules, and any notion of
 dimension at all.
+
+---
+
+## 40. Memory past the segment
+
+**Partly designed, partly blocked.** What a program does when 64 KB is not enough:
+reaching the memory it already owns, asking DOS for more, giving some back, and
+the allocators over the result.
+
+### §13 already answers the question people ask first
+
+> *"That largest available block is typically **not** one segment but most of
+> conventional memory - several hundred KB on a real machine. `_hsize` stops at
+> `0FFFEh` because that is as far as it can address without a segment register,
+> not because that is all DOS gave. Reaching the rest needs `far` with a runtime
+> segment and nothing else: the memory is already the program's, so no allocation
+> call is involved."*
+
+So the mode 13h back buffer, a far arena for assets, and `momode`'s baked backing
+stores need **no DOS call at all**. They need §35, which is two bytes. That is the
+single cheapest unblocking available and it is why §35 has moved out of Maybe.
+
+### Where asking DOS does become unavoidable
+
+Two cases, and neither is graphics.
+
+**You have to give memory back before you can get any.** A `.COM` already owns
+everything, so `AH=48h` allocate fails until `AH=4Ah` has shrunk the program's own
+block. The inversion is the part worth writing down; it reads as a bug the first
+time.
+
+**`momode` forces it.** A launcher runs child programs with `AH=4Bh`, and a child
+needs somewhere to exist. So the shell must shrink, must choose how much to keep,
+and must handle an allocation that fails - which is the first time in this
+project's life that a memory request can be refused.
+
+### Both of those calls need ES, and Momo cannot set it
+
+`AH=4Ah` takes the block in **ES**. `AH=4Bh` takes its parameter block in
+**ES:BX**. The register builtins are AX, BX, CX, DX, SI and DI - there is no `_es`
+and no `_ds`, and `far` (§16) drives ES for its own accesses rather than offering
+it.
+
+§16 is not in the way, which is worth stating precisely because it looks as though
+it should be: its int helpers already `push es` / `int` / `pop es`, so an interrupt
+that *reads* ES would see whatever was in it. **The gap is only that nothing can
+put a value there.**
+
+There is an accidental route - perform a `far` access to a region at the segment
+you want, then make the call before anything else touches ES - and it should not be
+used. It depends on ES being reloaded per access, which is exactly the codegen §34
+proposes to change, so it would work until an optimisation landed and then fail
+somewhere unrelated.
+
+So this is the same shape as §38's DS problem, one register along, and the two
+should be answered together rather than separately. Neither is urgent until
+`momode` is real.
+
+### The exactness property is not threatened
+
+§12 covers the **image** - data, stack, code - and never covered the heap: §13
+already hands out memory whose indices are unchecked and whose size *"can in
+principle overstate what the program owns"*. Allocation costs nothing §12 promised.
+
+What it does want is the robust `_hsize`, which §13 specifies and nobody has built:
+read the end-of-allocation segment from `PSP:0x0002`, which for a `.COM` is offset
+2 of our own segment. That makes `_hsize` a runtime computation rather than an
+assembly-time one, and it becomes necessary rather than merely correct the moment a
+program shrinks its own block.
+
+### Allocators are libraries, and need no compiler change
+
+§13 is explicit - *"the language supplies the memory, the programmer supplies the
+policy"* - and `heaptest` is already a bump allocator written in Momo. An arena and
+a zone are the same kind of thing.
+
+§13's other note is the real check on how much allocator anything needs:
+**`view` (§17) is often the better answer**, partitioning the heap into named,
+bounds-checked regions with no allocator and no runtime cost at all. A program that
+knows its regions at compile time should not be allocating.
+
+**The zone allocator and `momowad` (§41) are one design, not two.** Doom's zone
+exists *because* of WADs: its tagged, purgeable blocks are what let cached lumps be
+evicted under pressure, and that is what the cache tags are for. Designing the
+storage format and the allocator separately would miss the reason either has the
+shape it does.
+
+### A swap file
+
+Blocked on §38, like everything else that touches a disk. What makes it defensible
+rather than desperate is stated in `DESIGN.md`'s preamble: **slow is acceptable
+where the work still gets done.** A machine that pages to disk and takes its time
+is the aesthetic rather than a failure of it - and it is the trade that lets a tool
+handle a document larger than the memory it has.
+
+### What is blocked on what
+
+| | |
+|---|---|
+| back buffer, far arena, backing stores | §35 only - no DOS call |
+| runtime `_hsize` | nothing; specified in §13, unbuilt |
+| arena and zone allocators | nothing - libraries, no compiler change |
+| shrinking, and `AH=4Bh` | a way to set ES, which does not exist |
+| swap file | §38 |
