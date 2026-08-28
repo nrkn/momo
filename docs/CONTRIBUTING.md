@@ -228,18 +228,26 @@ stored blob differ in line endings while comparing identical after normalisation
 them made anyone want a branch. Small and mid-sized changes are the normal case,
 and this is the whole of the rule for them.
 
-Two things are worth branching for, and neither has come up yet:
+Two things are worth branching for, and one of them has happened:
 
 - **A feature large enough that a half-finished `main` would cost more than the
-  merge does.** Where that line falls is deliberately not written down. Nothing
-  has reached it, so a number now would be a guess rather than a record - and
-  the honest test in the meantime is whether you would mind leaving `main` in
-  the state your change reaches by the end of a session.
+  merge does.** **momolo (DESIGN §36) is the instance** - a layout engine ported
+  chunk by chunk across more than one session, built on a `momolo` branch and
+  merged as a pull request. Where the line falls is still not written down,
+  because one crossing does not locate it, but it is no longer hypothetical. The
+  test for anything smaller is unchanged: whether you would mind leaving `main`
+  in the state your change reaches by the end of a session.
 - **Work that may not survive.** Subsetting the language down to something
   smaller to find out what can still usefully be built in it, say. An experiment
   whose answer might be "no" wants to be able to end without leaving anything
-  behind, which is a different reason from size and the more likely of the two
-  to be needed first.
+  behind, which is a different reason from size. **This one still has not come
+  up** - and this section used to call it the more likely of the two to be needed
+  first, which was wrong.
+
+This paragraph said for a while that neither case had come up, having been
+written before momolo and not read again afterwards. The claim about which would
+arrive first was the tell: a prediction is the part of a document most worth
+re-reading once the thing it predicted has happened.
 
 ## Working practices
 
