@@ -251,7 +251,7 @@ const isSub = (symbol: MomoSymbol): boolean =>
 // `frac` is required rather than optional: 32 sites construct a Resolved, and a
 // forgotten scale would be silent at every one of them. Optional would have saved
 // the `frac: 0` on the two thirds that are plain and caught nothing. See
-// DESIGN.md �25.
+// DESIGN.md §25.
 type Resolved = { type: ValueType; value: number | null; frac: number }
 
 const isExpression = (value: unknown): value is Expression =>
