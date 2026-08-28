@@ -86,6 +86,29 @@ nothing has yet wanted it.
 - **`scope`.** §23 - designed in full; no program has wanted it yet.
 - **Interrupt handlers.** §24 - designed in full. A raw scancode reader and
   held-key input are what would ask for it.
+- **Optimise `tennis`.** It runs well on a 486 and flickers on a 286 - vsync fixed
+  the flicker on fast hardware, and that is as far as it got. The intended work was
+  always known and is recorded in the source rather than in any document:
+
+  - **Word blitting.** `t_scr.momo` declares `view u16[32000] pxwords` "for later
+    optimisation of `setPixel`", and `drawBackground` uses it as a demo of "the
+    word blitting we will use extensively later". Nothing else does yet.
+  - **Skip `pset`.** `drawLineHorizontal` and `drawLineVertical` go through it
+    because that was easier; the note beside them says writing them by hand is
+    much more efficient.
+  - **Unroll the sprites.** `draw`/`clearPaddles` and `draw`/`clearBall` need not
+    call `drawLineVertical` at all - nine direct `pixels[n]` writes each - with
+    pixel doubling as the complication: one axis can be done with a word, the rows
+    still have to be doubled.
+  - **Dirty tracking, only if the above is not enough.** A 27-element buffer for
+    the 9x2 paddle pixels and 9 ball pixels plus a count, or just each object's
+    movement offset so the redraw knows exactly how many pixels changed. The
+    source is explicit that this waits: *"wait and see how it plays out before
+    prematurely adding this"*.
+
+  The word blitting is §27's finding arriving in a real program - that section
+  concluded word views are worth doing today with no compiler change, and this is
+  the program that cares.
 - **Rewrite `README.md`.** `CONTRIBUTING.md` records that it is provisional, in a
   register the other documents do not use, and that rewriting it waits on programs
   worth showing and on a draft written rather than generated.
