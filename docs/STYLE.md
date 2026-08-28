@@ -98,6 +98,13 @@ load-bearing or it is cut.
 - **Dry wit is welcome; jokes are not.** The test is whether it still reads well
   on the fourth pass, when the reader is looking something up rather than
   browsing.
+- **Never cite a study** - not from a document, and not from a source comment.
+  Some of `shared/lib/` was ported from projects that are not in this repository
+  and never will be, so a reference to one names a file the reader does not have
+  and cannot get. Say what was learned instead; anything worth citing has to be
+  brought across first. Public upstream - Clay, Zingl, the Ghostscript tiger -
+  stays citable, because a reader can go and look. `STUDIES.md` has the rule and
+  the register.
 
 `README.md` does not currently follow any of this - see `CONTRIBUTING.md`.
 

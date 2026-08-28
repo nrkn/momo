@@ -29,6 +29,10 @@ console is kept as `_reference/yuki.txt`.
 - **`PITFALLS.md`** - what bites when writing Momo *programs*, as opposed to the
   gotchas below, which are about working on the compiler. Each entry leads with
   the symptom, and every one of them cost real time to find.
+- **`STUDIES.md`** - the parts of `shared/lib/` that were ported rather than
+  designed here, what each was distilled from, and the method those ports
+  converged on. It also carries the one rule that follows from studies living
+  outside this repository: say what was learned, never where it was learned.
 
 ## Layout
 
@@ -44,7 +48,7 @@ projects/            programs, as <category>/<name>/<name>.momo
 tests/compile/       tier 1 tests
 editor/vscode/       generated syntax highlighting
 docs/                this file, DESIGN.md, PLAN.md, DECISIONS.md,
-                     PEEPHOLES.md, STYLE.md, PITFALLS.md
+                     PEEPHOLES.md, STYLE.md, PITFALLS.md, STUDIES.md
 ```
 
 `README.md` stays in the root because that is where it is read from, and so do
