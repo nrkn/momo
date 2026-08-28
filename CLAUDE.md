@@ -43,6 +43,25 @@ that has been done here the prediction was either confirmed, which is real
 evidence, or wrong in a way that found something. Adopting whatever the tool
 printed proves only that it printed it.
 
+**Check the environment instead of reading about it. `npm run test:e2e` almost
+certainly works.** Two agents in a row have reported tier 2 as unavailable
+because DOSBox "would be needed", while `toolchain.json` sat in the repo root
+correctly configured the whole time.
+
+What causes it is that `README.md` and `CONTRIBUTING.md` describe DOSBox in the
+second person - *"point the toolchain at **your** DOSBox first"* - because they
+are addressing somebody setting the project up. **That is a setup instruction,
+not a statement about this machine**, and it reads as the latter. `toolchain.json`
+being gitignored makes it worse: "not in the repo" slides quietly into "not
+present". `CONTRIBUTING.md` saying *"35 e2e programs, all green"* contradicts the
+conclusion outright - that figure cannot exist unless somebody runs them - and
+got read straight past both times.
+
+The check is `toolchain.json` in the repo root, or `MOMO_DOSBOX` in the
+environment, or just running the suite and reading the error if there is one.
+This is the same rule as the top of this section, applied to the environment
+rather than to the compiler - which is precisely where it keeps being skipped.
+
 ## Tooling traps this project has actually hit
 
 Each of these cost real time, and none of them announce themselves.
