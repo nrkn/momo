@@ -68,11 +68,6 @@ nothing has yet wanted it.
   since a README that shows off wants something to show.
 - **Fixed-point division.** DESIGN §25 is half built and says which half: `*` on
   8.8 lands, division does not, and §25 sets out why it is the awkward one.
-- **Finish moving the record into `DECISIONS.md`.** In progress, section by
-  section, as `DESIGN.md` is read through. **Done.** §15, §16, §17, §18, §20, §22, §25, §26
-  and §27 - §27 dissolved entirely rather than splitting, and §16 spun out two
-  designs of its own, §34 and §35. What remains is judgement rather than work:
-  whether the split lands where a reader would put it.
 
 ### Probably
 
@@ -172,8 +167,15 @@ All are set out in DESIGN §20 unless noted.
 
 ## Done
 
-Nothing yet. Empty rather than incomplete - see the note above for why, and where
-to look instead.
+**Not a history.** Only what passed through the list above, or was lifted from a
+section that was itself a plan - see the note at the top for why, and where to
+look for the rest.
+
+- **Finish moving the record into `DECISIONS.md`.** 2026-08-28. §15, §16, §17,
+  §18, §20, §22, §25, §26 and §27 - §27 dissolved entirely rather than splitting,
+  and §16 spun out two designs of its own, §34 and §35. What remained at the end
+  was judgement rather than work - whether the split lands where a reader would
+  put it - and it was read through and let stand.
 
 ---
 

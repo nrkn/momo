@@ -404,12 +404,14 @@ second draft in the same voice as the first.
 344 tier-1 assertions (173 compile tests, 44 golden `.asm`, 53 type, 11 lex, 60
 round trip, 3 subset), 35 e2e programs, all green.
 
-Both figures had drifted before they were last read, and the e2e one further than the
-other: it said 26 against an actual 33, and was then incremented three times from the
-wrong base. Counting `projects/*/*/*.expected` is the honest check, and `npm test` prints
-the tier 1 breakdown so its parts can be added up. Neither number is enforced by
-anything.
+Both figures have drifted before, and neither is enforced by anything - unlike
+§1's mnemonic count, which a test checks. The e2e one drifted furthest: it said
+26 against an actual 33, and was then incremented three times from the wrong
+base. The tier 1 one said 253 against an actual 268, because the golden and
+round-trip tiers both grew during the vector port and nothing brought the
+sentence with them.
 
-This figure had drifted to 253 against an actual 268 before it was last read -
-the golden and round-trip tiers both grew during the vector port and nothing
-brought the sentence with them. Unlike §1's mnemonic count, no test enforces it.
+Counting `projects/*/*/*/*.expected` is the honest check on the e2e figure, and
+`npm test` prints the tier 1 breakdown so its parts can be added up. That glob
+gained a level when `projects/` was grouped and this sentence did not follow it,
+so the instruction for catching drift had drifted too.
