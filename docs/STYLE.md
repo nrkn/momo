@@ -81,24 +81,32 @@ so it doubles as a check on the codegen design:
 - Reach for braces when the body is multi-statement, when a comment belongs
   inside it, or when the line would wrap.
 
-- **Comments say what a reader needs, not how the code got here.** The TypeScript
-  in `src/momo/` is the standard and mostly meets it - `analysis.ts` opens with
-  ten lines saying what the file is, why recursion is rejected and why both halves
-  live there, over 447 lines of code. The Momo libraries have drifted well past
-  that: they run **25-76% comment lines against the TypeScript's 9-26%**, and
-  `std/rand.momo` carries 48 comment lines over 15 of code.
+- **Comments say what a reader needs, not how the code got here.** The test is the
+  same stranger the documents are written for: they have not read the commit, they
+  do not know what was there before, and they are looking something up rather than
+  reading it through. Anything that fails that test is in the wrong file, however
+  true it is.
 
-  What accumulated is **record rather than description** - the periods of an LCG
-  that no longer exists, a cycle count that says of itself that it predates
-  peephole 14 and has not been re-derived, a paragraph on what a wider state would
-  buy. That is the same interleaving `DECISIONS.md` was created to undo, one level
-  down, and the same split applies: **a measurement goes to `DECISIONS.md`, a
-  direction goes to `PLAN.md`**, and what stays in the file is what somebody needs
-  in order to use the routine or change it safely.
+  **Density is a symptom, not the measure.** The Momo libraries run 25-76% comment
+  lines against the TypeScript's 9-26%, which is worth knowing because it finds
+  candidates - but complex code can buy its density honestly.
+  `momovec/types.momo` is 80% comment and earns all of it: no cubics, every
+  segment pre-limited on arrival, coordinates read through `mapX`/`mapY`, and
+  routines the library does not define. A stranger needs all four before reading a
+  line of it. `std/rand.momo` was 76% and did not - most of its header was the
+  periods of an LCG that no longer exists.
 
-  The test is the stranger the documents are written for. They have not read the
-  commit, they do not know what was there before, and they are looking something
-  up rather than reading it through.
+  What accumulates is **record rather than description**: a measurement that has
+  drifted, a design that was replaced, a direction nobody took. That is the same
+  interleaving `DECISIONS.md` was created to undo, one level down, and the same
+  split applies - **a measurement goes to `DECISIONS.md`, a direction goes to
+  `PLAN.md`**. Where neither is worth the drift surface, **the commit that removes
+  it is the record**: `git log` does not drift, which `PLAN.md` already says of it.
+
+  **A figure nothing checks is drift surface.** `std/io.momo` said 22 programs
+  included it when the answer was 36, and 19 of 48 round-trip assertions when the
+  suite had 60. Keep a number where it is load-bearing and stable; otherwise give
+  the shape of it and let the tools hold the arithmetic.
 
 ## Prose
 
