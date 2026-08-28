@@ -348,7 +348,7 @@ six files, mode 13h, sprites, a palette, and a keyboard reader that masks IRQ1 a
 talks to the 8042 directly. Most of `PITFALLS.md` was found in it, and found on
 86Box rather than under DOSBox. It blocks on input, so it is golden-tier only too.
 
-`shared/lib/momovec/` is a vector rasteriser ported from a TypeScript study, and it also
+`shared/lib/momovec/` (§37) is a vector rasteriser ported from a study, and it also
 arrived with two projects. `tiger` digests the Ghostscript tiger - 339
 numbers covering every scanline, every path and the order all 92,949 pixels were
 drawn in, held against the study - and `tigerpic` draws it at 320x200 in
@@ -378,7 +378,7 @@ over 256 pairs on the target. `fixed` is the language surface instead - every
 fixed-point shape that compiles, held by the golden tier because the claim being made
 there is about emitted code.
 
-`shared/lib/momolo/` is a layout engine ported from a TypeScript study, and it arrived
+`shared/lib/momolo/` (§36) is a layout engine ported from a study, and it arrived
 with two projects rather than one. `momolo` runs six scenes through it
 and prints every resolved box as bare numbers, compared against the numbers the
 original engine produces - two implementations agreeing on every integer, which

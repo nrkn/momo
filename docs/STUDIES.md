@@ -51,18 +51,18 @@ has this repository open. The reverse is not true and never will be.
 
 | | distilled from | became | generates files here |
 |---|---|---|---|
-| clay study | [Clay](https://github.com/nicbarker/clay), `clay.h`, 5,058 lines | `shared/lib/momolo/` | no |
-| vector study | Alois Zingl, *Bresenham Curve Rasterizing Algorithms* (V20.15, 2020), by way of a TypeScript playground | `shared/lib/momovec/` | yes |
+| clay study | [Clay](https://github.com/nicbarker/clay), `clay.h`, 5,058 lines | `shared/lib/momolo/`, §36 | no |
+| vector study | Alois Zingl, *Bresenham Curve Rasterizing Algorithms* (V20.15, 2020), by way of a TypeScript playground | `shared/lib/momovec/`, §37 | yes |
 | palette study | prior work by the author, 2024 | colour and palettes - scope undecided | planned, not built |
 
-**momolo** is pure geometry - no text, colour, borders or drawing - which is the
-largest single departure from Clay. The name is six characters so it fits a DOS
+**momolo** (§36) is pure geometry - no text, colour, borders or drawing - which
+is the largest single departure from Clay. The name is six characters so it fits a DOS
 8.3 project directory. The port was written by hand against the study, so nothing
 here is generated and there is nothing to keep in step mechanically.
 `shared/lib/mopaint.momo` is the layer momolo deliberately does not have.
 
-**momovec** is a rasteriser: normalized paths in, pixels out, integers throughout.
-Its provenance runs one level deeper than momolo's - the study distilled a
+**momovec** (§37) is a rasteriser: normalized paths in, pixels out, integers
+throughout. Its provenance runs one level deeper than momolo's - the study distilled a
 playground, and the playground was itself a port of Zingl's paper. The study
 generates data and harness programs in this repository, which is the part that can
 break silently; `CONTRIBUTING.md` records the general shape of that trap and the

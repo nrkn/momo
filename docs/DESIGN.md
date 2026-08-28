@@ -2755,6 +2755,121 @@ which is a record rather than a rule.
 
 ---
 
+## 36. `momolo` - layout
+
+**Built.** An immediate-mode layout engine in `shared/lib/momolo/`, ported from a
+study of [Clay](https://github.com/nicbarker/clay) - `STUDIES.md` has the
+provenance and the method. `momolo` runs six scenes and prints every resolved box
+as bare numbers; `mlodemo` draws one of them at 80x25.
+
+**It is pure geometry.** No text, colour, borders or drawing, which is the largest
+single departure from Clay. `shared/lib/mopaint.momo` is the layer it deliberately
+does not have: a border lives there rather than in the engine because a border is
+not geometry - it is a decision to draw something in space the caller already
+reserved, and what the engine gets told is an inset it would have needed anyway.
+
+**Elements are one flat array**, pushed as they open, a parent collecting its
+children when it closes. Every entry point returns the element's index, and that
+index is the only handle momolo hands out - which is how a caller joins its own
+tables onto the geometry without the engine knowing they exist. `mopaint` keeps
+its style table exactly that way.
+
+**Four passes, and the caller drives them.**
+
+| | |
+|---|---|
+| fit | a container wraps tightly around its children. Runs from `closeBox` rather than a traversal of its own, since children necessarily close first - which is what makes it free |
+| size | settle every child's extent along one axis, breadth-first, once per axis. Surplus and deficit are mirror images |
+| refit | re-accumulate heights after the caller has changed some, between `sizeX` and `sizeY` |
+| place | turn sizes into positions, depth-first over an explicit stack |
+
+**momolo never calls out.** Clay reaches a measure callback from inside its own
+pass; momolo stops between passes, lets the caller wrap text, and carries the
+answer up when it resumes. That is what `refit` is for.
+
+**What it asked of the language: nothing.** It was written against §18's `group`,
+§11's `include` and `local` and §8's parameterised consts, and needed no compiler
+change - which is the strongest evidence any one program has given that the
+language is finished enough to build on. §18 is why: momolo's element is a flat
+record of integers with no nesting, so each field becomes its own array and
+`el[i].w` is `el__w[i]`, with no multiply for the index.
+
+**The config is a `group`, and single-use.** Fourteen optional fields with
+defaults is an object literal in TypeScript and has no spelling here, so the
+config is one `group` written before the call and consumed by it. The builder
+copies it onto the element and resets, so a call site sets only what differs and
+nothing has to remember to reset. The first design asked the caller to reset, and
+the first scene written against it forgot - `build.momo` records what that cost.
+
+**Nesting is a convention, and that is the open part.** `boxOpen` and `closeBox`
+must pair and nothing checks; worse, a wrapper may open more than one box, so
+pairs are not one-to-one with call sites - `stripOpen` opens two and `stripClose`
+closes two. `PLAN.md` carries this as a question.
+
+**It is resolution-independent.** The caller decides what a unit is: `mopaint`
+makes it a character cell, and the same scenes have been run against a pixel
+target where a unit was 11 or 20. Both programs include `shared/scenes/shell.momo`
+rather than either owning it, so the picture is made of the tree the numbers
+verified.
+
+The detail is in the file headers, which are the record for this library.
+
+---
+
+## 37. `momovec` - vector rasterisation
+
+**Built, and not finished** - `PLAN.md` has what is open. Normalized paths in,
+pixels out, integers throughout, in `shared/lib/momovec/`, ported from a study of
+Alois Zingl's curve algorithms; `STUDIES.md` has the provenance. Nine programs
+exercise it in tier 2 and two more draw.
+
+**The interface is two routines, and the library never learns what they do.** A
+program supplies `plot` and `emitSpan`; `tiger` accumulates a digest and
+`tigerpic` writes mode 13h, and none of that difference reaches the rasteriser. A
+library file may call a routine the *program* defines, and it compiles to a direct
+`call`. **That is what §19's routine parameters would have been for, and it needed
+no language feature at all** - the clearest case here of a design being met by
+what already existed.
+
+**Alternatives are chosen by which file you include.** `direct.momo` or
+`zoom.momo`, never both; `quadflat.momo` or `subdiv.momo` likewise. Each pair
+defines the same names and the program picks. Because they are parameterised
+consts (§8), a program that does not transform pays nothing - not a call, not a
+compare - and the golden `.asm` of every project that does not use them is
+unchanged by the indirection existing.
+
+**A transform is applied as geometry is read, not baked into data.** A translation
+can be baked, because it does not change how many points there are. A zoom does:
+the 3x tiger needs 13,982 points against 8,014, which came to 84,914 bytes against
+a 64 KB segment - it built, ran, and printed zeros. So `tzoom` scales on read, and
+the extra segments a curve flattens into are generated on the fly and never
+stored.
+
+**It is why §25 exists.** The multiply behind that zoom is what wanted fixed
+point, and `mulshr8` is what makes it about 181 cycles rather than 901.
+
+**Filling is a nonzero walk with an unsigned accumulator**, which is the whole
+argument for nonzero on this machine: nonzero asks only whether the winding is
+zero, never what it is. Clipping comes in two kinds - rejection, where a path
+outside the view is dropped whole (`tpan`), and clip paths, done by span
+intersection with no sweep line at all (`tclip`).
+
+The detail is in the file headers, which are the record for this library.
+
+### Why these two and not `shared/lib/std/`
+
+`std` has accumulated as programs needed it rather than being designed, and it is
+still moving. A section describing it would be drift surface bought at full price,
+for a description likely to be wrong within a few commits - and keeping documents,
+comments and code in step is already a standing cost here rather than a spare one.
+
+So the criterion is not size or importance. **These two have sections because they
+were designed in full, elsewhere, before they were written** - there is a settled
+thing to describe, and citations that need somewhere to land. `std` has file
+headers, which are the right weight for something still finding its shape.
+
+---
+
 ## Sections 28-35: designed, not built
 
 Eight more sections carry numbers but no text here, because what they describe
