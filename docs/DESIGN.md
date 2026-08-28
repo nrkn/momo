@@ -1836,11 +1836,10 @@ bottom:         equ     bar + 50
 storage, no instructions, no indirection. This is the `_heapw equ _heap` trick
 already used for the heap, promoted from a special case into the language.
 
-**`const view` was added, which this section did not ask for**: a read-only
-window onto storage that is otherwise writable, spelled as the adjective on
-`view` exactly as `const far` is on `far`. Read-only is *inherited* from a const
-parent either way - this is for handing out part of a mutable buffer as
-read-only, which the rules below had no way to say.
+**`const view`** is a read-only window onto storage that is otherwise writable,
+spelled as the adjective on `view` exactly as `const far` is on `far`. Read-only
+is *inherited* from a const parent either way; this one is for handing out part of
+a mutable buffer as read-only.
 
 ### What it is actually for
 
@@ -1932,35 +1931,27 @@ a `view` kind is what made this small: a view of an array *is* an array, so
 indexing, bounds checks, `len`, `addr` and the const rules all took no new case,
 and codegen took none at all - `[tail + bx]` is what an ordinary array emits.
 
-### What it cost
+### How they are emitted
 
-**One emitter change, two tool changes, and no codegen.** Views are written last
-in the file, after the heap, because a view of `_heap` can only be written after
-`_heap` is - which makes every view a forward reference from the code that uses
-it. That was measured before it was relied on, with a hand-written probe: NASM
-resolves a forward-referenced `equ` correctly as a displacement under `-f bin`.
-The §13 trap is a *difference* of labels inside an `equ`, which is a different
-shape.
+Views are written last in the file, after the heap, because a view of `_heap` can
+only be written after `_heap` is - which makes every view a forward reference from
+the code that uses it. NASM resolves a forward-referenced `equ` correctly as a
+displacement under `-f bin`; the §13 trap is a *difference* of labels inside an
+`equ`, which is a different shape.
 
 Tree-shaking keeps a live view's parent alive, and a view's own declaration is
 not a use of its parent - so an unused view in an included library costs nothing,
 and neither does the array it points at.
 
-**Two compiler special cases went away**, which is the argument this section was
-originally making. Not as source, as it guessed: `_heapw` is an unsized view of
-`_heap`, which the rules above make an error, and the register halves alias a
-*scalar* rather than an array, which no view can do. What they can be is the same
-*mechanism* - `_heapw` and `_al`..`_dh` now carry an alias like any view, and the
+**Two compiler special cases are gone.** `_heapw` is an unsized view of `_heap`,
+which the rules above make an error, and the register halves alias a *scalar*
+rather than an array, which no view can do. What they can be is the same
+*mechanism* - `_heapw` and `_al`..`_dh` carry an alias like any view, and the
 emitter's byte-alias arithmetic (reconstructing `_ax + 1` from the spelling of
-`_ah`) and its hardcoded `_heapw equ _heap` line are both gone. All 19 committed
-programs stayed byte-identical across that, which is what makes it a refactor.
+`_ah`) and its hardcoded `_heapw equ _heap` line are both gone.
 
-It also found a one-byte bug. The memory report counted only word-width reserved
-globals, on the reasoning that every byte-width one was an alias - true until
-`_cf` arrived, which is real storage. Any program reading the carry flag
-under-reported its data by the one byte `_cf db 0` occupies. Asking the symbol
-whether it is an alias, rather than inferring it from a width, fixes it: `cftest`
-went from 53 bytes to 54.
+The record for this section - what it cost, what the design did not anticipate,
+and the one-byte bug it turned up - is `DECISIONS.md` §17.
 
 ### Runtime offsets are deliberately excluded
 

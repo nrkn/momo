@@ -45,6 +45,51 @@ cannot happen is the same aspect in two places.
 
 ---
 
+## 17. `view`
+
+Written out in full before it was built - `DESIGN.md`'s preamble names §16, §17
+and §19 as the three that were - and corrected rather than rewritten when it
+landed. These are the corrections.
+
+### What it cost
+
+**One emitter change, two tool changes, and no codegen.**
+
+That views are written last in the file, and are therefore forward references from
+the code that uses them, was measured before it was relied on rather than assumed:
+a hand-written probe confirmed NASM resolves a forward-referenced `equ` as a
+displacement under `-f bin`.
+
+### What the design did not anticipate
+
+**`const view` was not in the plan.** The read-only window onto otherwise-writable
+storage was added because the rules as written had no way to hand out part of a
+mutable buffer as read-only.
+
+**The two compiler special cases went, but not the way the section argued they
+would.** It expected them to go *as source* - that `_heapw` and the register
+halves would be re-spelled as ordinary views. They cannot be: `_heapw` is unsized,
+which the rules make an error, and the register halves alias a scalar rather than
+an array. What they share with a view is the *mechanism*, not the spelling.
+
+So the claim was half right, and it is worth being clear which half: a feature
+that subsumes a special case is worth having whether or not the special case can
+be re-spelled in it, but those are two different claims and only one of them
+survived contact.
+
+All 19 committed programs stayed byte-identical across that change, which is what
+makes it a refactor rather than a rewrite.
+
+### The one-byte bug it found
+
+The memory report counted only word-width reserved globals, on the reasoning that
+every byte-width one was an alias - true until `_cf` arrived, which is real
+storage. Any program reading the carry flag under-reported its data by the one
+byte `_cf db 0` occupies. Asking the symbol whether it is an alias, rather than
+inferring it from a width, fixes it: `cftest` went from 53 bytes to 54.
+
+---
+
 ## 18. `group`
 
 ### What it displaces
