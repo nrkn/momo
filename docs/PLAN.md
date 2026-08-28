@@ -63,6 +63,26 @@ nothing has yet wanted it.
 
 ### Definitely
 
+- **Finish the vector library.** `shared/lib/momovec/` is the largest thing in
+  `shared/` and is not done. **Built and running on the target:** the tiger
+  filled and stroked, thick strokes as ribbon unions, subdivision on the 8086, a
+  lines-only conformance level, rejection clipping, clip paths, a transform
+  applied as geometry is read, and the text scene format end to end - `tiger`,
+  `thick`, `subdiv`, `tflat`, `tpan`, `tclip`, `tzoom`, `mvdemo` and `momovec` in
+  tier 2, `tigerpic` and `mvpic` golden-only because they draw and wait for a
+  key. Three things are open:
+
+  - **Geometric booleans** - the one area untouched. The sign of a difference of
+    products does not survive a shift, so it wants either a `crossSign` intrinsic
+    returning -1/0/1 or a real `i32`; the intrinsic is cheaper and leaves §9's
+    accumulator model alone. Its case also shrank: `clippath.momo` does clip-path
+    rendering by span intersection, which was the commonest reason to want a
+    polygon boolean, so what is left is wanting the result *as a path* - to
+    store, transform or stroke - which is an authoring need.
+  - **The scene format running on DOS.** Its lexer and parser are ordinary code
+    and are not written in Momo yet. §32's hazard applies.
+  - **The scene format carrying a transform.** `tzoom` applies one as geometry is
+    read; the format still bakes coordinates in.
 - **A text adventure.** DECISIONS §15 - the last item on the original acceptance bar,
   and nothing in the language blocks it. Also what the README rewrite waits on,
   since a README that shows off wants something to show.
