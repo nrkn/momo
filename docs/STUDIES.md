@@ -18,6 +18,15 @@ Momo without a redesign. It is a place to be wrong quickly: TypeScript iterates
 faster than an 8086 does, and a design that cannot survive being written twice was
 not ready to be written once.
 
+**A study always has a model**, and that is intent rather than how it has happened
+to work out twice. A study distils; the model is what makes the result checkable,
+because the port can then be held against it number for number rather than merely
+looking right. Work with no precedent to measure against is a different activity
+and belongs in `PLAN.md` as a design.
+
+So a study with nothing to distil is not a study that stretches the definition -
+it is a sign the model has not been found yet.
+
 A study is not a dependency. Nothing here builds, runs or tests against one.
 
 ## They are not in this repository, and will not be
