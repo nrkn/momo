@@ -16,6 +16,10 @@ console is kept as `_reference/yuki.txt`.
   appended, because they are cited from source comments - §17 means `view`
   permanently, and a number absent from `DESIGN.md` is in `PLAN.md` rather than
   deleted. §21 is a redirect to where its contents went rather than a section.
+- **`PEEPHOLES.md`** - the fifteen local rewrites the emitter applies, and how one
+  gets added. Its own document because it is a catalogue with its own numbering,
+  cited by number from `emitter.ts`, and because it grows by sweeping emitted
+  assembly rather than by designing anything.
 - **`STYLE.md`** - TypeScript and Momo conventions.
 - **`PITFALLS.md`** - what bites when writing Momo *programs*, as opposed to the
   gotchas below, which are about working on the compiler. Each entry leads with
@@ -34,7 +38,8 @@ shared/scenes/       data read by more than one project
 projects/            programs, as <category>/<name>/<name>.momo
 tests/compile/       tier 1 tests
 editor/vscode/       generated syntax highlighting
-docs/                this file, DESIGN.md, PLAN.md, STYLE.md, PITFALLS.md
+docs/                this file, DESIGN.md, PLAN.md, PEEPHOLES.md, STYLE.md,
+                     PITFALLS.md
 ```
 
 `README.md` stays in the root because that is where it is read from, and so do

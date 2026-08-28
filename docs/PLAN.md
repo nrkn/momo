@@ -57,6 +57,11 @@ nothing has yet wanted it.
 
 ### Probably
 
+- **Record where each peephole lives.** `PEEPHOLES.md` says what each rewrite is
+  and why it is safe, but not where in the emitter it is implemented or whether it
+  is built at all - which is how entries 4 and 5 stood as fiction for a long time.
+  Fifteen entries to check against the emitter.
+
 - **Compile-time array parameters.** §19 - designed in full, and the case that
   most wanted it (`drawString` over many messages) was met by `peek`/`poke`
   instead.
