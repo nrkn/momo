@@ -26,7 +26,7 @@ happen.
 
 | | | wants |
 |---|---|---|
-| `momowad` | assets in bulk, with Doom-style PWAD overrides. Compatible with WAD at the container level, carrying our own lump types | file I/O (§38) |
+| `momowad` (§41) | assets in bulk, with Doom-style PWAD overrides. Compatible with WAD at the container level, carrying our own lump types | file I/O (§38) |
 | `momoed` | the editor - an explorer beside a text pane, toggled away for width, and text modes `edit.com` never had | file I/O (§38), a screen library |
 | `momode` | a graphical shell and launcher. Single-tasking, and windowed by screen offsets an aware program is handed | a mouse, and DOS memory management |
 | `momove` | a small vector editor, for icons and the like | a mouse, §37's geometric booleans |
@@ -145,6 +145,16 @@ nothing has yet wanted it.
   storage type and this is that tag generalised, so the mechanism is shipped. What
   wanted it is `tennis`, which encodes its two coordinate spaces in identifiers -
   `subPxY`, `subgridToPx`, `// subgrid units` - because nothing else can.
+- **A test tier below DOSBox.** §42 - and the first move is one environment
+  variable, not a project: DOSBox is SDL-based, so `SDL_VIDEODRIVER=dummy` may end
+  the window-stealing outright. If it does not, §42 is the executor, which is worth
+  as much for counting cycles exactly as for being headless.
+- **A palette and colour study.** Scope undecided, and that is the first job -
+  most of the model is host-side work, so the interesting Momo library is small.
+  `STUDIES.md` has the register entry. Two consumers already exist and disagree:
+  `tennis` reduces 8 bits to 6 on the target, `tigerpic` has it done by the
+  generator, and neither lives in a library. Nothing in the repo touches the DAC
+  ports, though §22 made them reachable.
 - **Record where each peephole lives.** `PEEPHOLES.md` says what each rewrite is
   and why it is safe, but not where in the emitter it is implemented or whether it
   is built at all - which is how entries 4 and 5 stood as fiction for a long time.
@@ -1718,3 +1728,208 @@ handle a document larger than the memory it has.
 | arena and zone allocators | nothing - libraries, no compiler change |
 | shrinking, and `AH=4Bh` | a way to set ES, which does not exist |
 | swap file | §38 |
+
+---
+
+## 41. `momowad` - asset storage
+
+**Designed, not built, and blocked on §38.** The storage format for everything a
+program ships with: a container compatible with Doom's WAD, carrying lump types of
+our own, with PWAD-style override.
+
+### The format, and why it suits this machine
+
+A 12-byte header - a four-character magic, a lump count, and the offset of the
+directory - then the lumps, then a directory of 16-byte entries: a four-byte file
+position, a four-byte size, and **an eight-character name**.
+
+Three things make it a good fit rather than merely an available one.
+
+**Eight-character names are the discipline this repository already keeps.**
+Project directories and entry files are 1-8 characters because DOS requires it, so
+a lump name and a Momo name are the same shape, and nothing has to be truncated or
+mapped on the way in.
+
+**It is little-endian**, which is the machine's own byte order, so every field is
+read by loading it.
+
+**The 32-bit fields never need 32-bit arithmetic.** Momo has no `i32`, and a file
+position is four bytes - but DOS seek takes its offset in `CX:DX`, which is exactly
+two words. The high and low halves come out of the directory entry and go straight
+into the two registers without ever being added together. The one place this stops
+working is a lump larger than a segment, which has to be read in chunks anyway.
+
+**The numbers above want checking against a real WAD** before anything relies on
+them.
+
+### What compatibility buys, and what it does not
+
+The container is readable by existing WAD tools - they can list what is in one and
+extract a lump - which is worth having for inspection and for anything written on
+the host side.
+
+They will make no sense of the contents, and that is expected: the lump *types* are
+ours. Worth being plain that this is compatibility of the envelope only, so nobody
+later reads the claim as "our assets work in Doom".
+
+### One decision the format does not make for us
+
+**Doom's WAD has no type field.** A lump's kind comes from its name and from where
+it sits between marker lumps - `S_START` and `S_END` around sprites, and so on.
+That is a convention rather than a structure, and it is the part worth choosing
+deliberately rather than inheriting:
+
+- **markers, as Doom does** - costs nothing, stays maximally compatible, and makes
+  the type a property of position, which is fragile under editing;
+- **a name prefix** - one character of eight spent on the type, checkable in
+  isolation;
+- **a small header inside each lump** - the type where the data is, at the cost of
+  every reader knowing to skip it.
+
+No case here yet argues strongly for one. It should be settled before the first
+lump is written rather than after.
+
+### Override is the reason for the format rather than a bonus
+
+A PWAD's lumps shadow an IWAD's of the same name, so a base set of assets can be
+patched without being rebuilt. That is a mod system, and it is also how a project
+carries a variant - a different palette, a bigger font - without a second copy of
+everything.
+
+The mechanism is a lookup that finds the **last** lump registered under a name,
+which makes load order the whole of the policy.
+
+### Where the bytes go
+
+§38's constraint applies in full: DOS reads into the program's own segment, so a
+lump lands in a `view` of `_heap` (§17) and is copied out to `far` memory if it is
+bound for somewhere larger. That copy is the per-byte cost of every asset load and
+should be measured once rather than argued about.
+
+The directory has a cost of its own. Five hundred lumps is eight thousand bytes,
+which is a lot to hold resident on a machine with sixty-four thousand. Three
+options, and "slow is acceptable where the work still gets done" makes the last one
+respectable: hold it all, hold names only and re-read entries on demand, or re-read
+the directory per lookup.
+
+### It is the same design as the zone allocator
+
+§40 records this and it belongs here too: Doom's zone allocator exists **because**
+of WADs. Its purgeable cache tag is what lets a cached lump be dropped when memory
+runs short, which is precisely the policy a program with an asset file and 64 KB
+needs. The two want designing together.
+
+### It is the binary form the scene work has been missing
+
+A text scene format compiles to something, and so far that something has always
+been a Momo source file full of `const` arrays, baked into the program. A lump is
+the other target: the same data, loaded rather than compiled in, which is what lets
+a program ship more assets than fit in its own image.
+
+### Testing
+
+A round trip needs no fixture and no host tool: write a small WAD from Momo, read
+it back, and print a digest of what came out - which is a tier 2 test of the kind
+this project already has thirty-five of. A host-side writer is worth having as
+well, since it is what the asset pipeline will actually use, but the test does not
+depend on it.
+
+---
+
+## 42. A test tier below DOSBox
+
+**Designed, not built.** Running the non-graphical tier 2 programs without an
+emulator window - and, as a consequence that may matter more, counting cycles
+exactly.
+
+### The problem is disruption, not speed
+
+Tier 2 opens and closes a DOSBox window per program, thirty-five times, taking
+focus each time. It works and it has worked for a long time; it is simply hostile
+to the machine it runs on, which makes it something you avoid running.
+
+### Try the free thing first
+
+DOSBox is SDL-based, and SDL renders to nothing under `SDL_VIDEODRIVER=dummy`:
+
+```bash
+SDL_VIDEODRIVER=dummy npm run test:e2e
+```
+
+One variable, no fork, and it either solves this outright or justifies the rest of
+this section. **86Box is SDL2 as well**, so the same trick may reach the accurate
+emulator without the fork that looked necessary. This should be tried before
+anything here is built.
+
+### What an executor would actually have to cover
+
+Small, and unusually knowable. Every DOS and BIOS call in the repository:
+
+| | | |
+|---|---|---|
+| `int 0x10` | 31 uses | set mode, get mode, cursor shape, read char and attribute, the DAC, blink |
+| `int 0x21` | 7 uses | character out, string out, input status, open, close |
+| `int 0x16` | 2 uses | key |
+
+Three interrupts and about a dozen functions, most of them reached only by the
+graphics programs that would keep needing a real target anyway.
+
+The instruction side is better. §1's subset is **39 mnemonics and a test enforces
+it** - three tier 1 assertions check that the heading's count matches the table,
+that nothing outside the table is emitted, and that nothing in the table goes
+unemitted. That third one is a coverage claim, so every mnemonic an executor must
+handle is exercised by a committed program, and nothing outside the table can turn
+up. Most projects cannot write their own executor because they do not know what
+they emit; here it is enforced.
+
+### It must consume the `.COM`, not the `.asm`
+
+This is the constraint that decides whether the tier is worth having.
+`CONTRIBUTING.md` records why tier 2 exists: *"a codegen bug at the NASM boundary
+is indistinguishable from success"* below it, and naming a global after an
+instruction emitted `add dw 0` for the whole life of the project without anything
+noticing.
+
+An executor reading NASM source would reproduce that blind spot exactly, while
+looking as though it had closed it. Decoding the assembled bytes keeps NASM inside
+the loop, which is the only reason this can sit anywhere near tier 2 rather than
+beside tier 1.
+
+### The part that may be worth more than the headlessness
+
+`CONTRIBUTING.md` also says **DOSBox cannot measure performance**, and the method
+here is to count instructions in emitted `.asm` and apply documented 8086 timings
+by hand. The tables in §16, §26 and DECISIONS §27 were built that way.
+
+**An executor decodes every instruction anyway**, so accumulating a documented
+timing per instruction is nearly free - and it counts what actually *executed*,
+loop iterations included, which a static reading of the assembly structurally
+cannot. Given how much of `DECISIONS.md` is hand-assembled timing tables, this may
+be the stronger motivation.
+
+It would be a model rather than hardware - prefetch queue, bus waits, 8088 against
+8086 - but the project already reasons from documented timings, so a model using
+the same numbers is no worse and covers far more.
+
+### It is §31 read backwards
+
+§31 is dropping the assembler: emit `.COM` bytes directly, which needs an
+**encoding** table for the subset. This needs a **decoding** table for the same
+subset. Same knowledge, opposite directions, and either one makes the other much
+cheaper. §31's stated benefit - taking DOSBox out of the build - is this section's
+benefit too, which is a sign they are closer to one project than two.
+
+### What it does not do
+
+It does not replace tier 2. Graphics programs, `tennis`, and anything that blocks
+on input still need a real target, and most of `PITFALLS.md` was found on **86Box
+rather than DOSBox** - so the honest shape is four tiers: tier 1 in a second, this
+in seconds, DOSBox when pixels matter, and real hardware when timing does.
+
+### One thing that will be underestimated
+
+Thirty-nine mnemonics understates the decoder. NASM chooses among several
+encodings per mnemonic, and the decoder has to handle every form it picks, not
+every mnemonic it was given. No estimate is offered here: `CLAUDE.md`'s rule about
+stubs measuring floors the real design cannot reach applies to sizing a decoder
+from a table of mnemonics.
