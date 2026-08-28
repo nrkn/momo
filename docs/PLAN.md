@@ -216,19 +216,10 @@ nothing has yet wanted it.
   The word blitting is §27's finding arriving in a real program - that section
   concluded word views are worth doing today with no compiler change, and this is
   the program that cares.
-- **Sweep the Momo comments.** `STYLE.md` has the rule; this is the work. The
-  library files run 25-76% comment lines against the compiler's 9-26%, and what has
-  accumulated is record rather than description - `std/rand.momo` carries 48
-  comment lines over 15 of code, most of them about a generator that was replaced.
-  Measurements move to `DECISIONS.md`, directions to `PLAN.md`, and what stays is
-  what a stranger needs in order to use the routine or change it safely.
 
-  **`tennis` is exempt until its optimisation work lands.** Its comments are a
-  work-in-progress record rather than clutter - the word blitting, the sprites that
-  want unrolling, the dirty tracking that is deliberately waiting - and the
-  "Optimise `tennis`" item above is built entirely out of them. That item says as
-  much: *"The intended work was always known and is recorded in the source rather
-  than in any document."* Cleaning the comments first would delete the plan.
+  **Its comments come after the code.** `STYLE.md`'s comment rule exempts `tennis`
+  until this lands, because the notes above *are* the plan and tidying them first
+  would delete it.
 - **Rewrite `README.md`.** `CONTRIBUTING.md` records that it is provisional, in a
   register the other documents do not use, and that rewriting it waits on programs
   worth showing and on a draft written rather than generated.
@@ -331,6 +322,13 @@ All are set out in DESIGN §20 unless noted.
 section that was itself a plan - see the note at the top for why, and where to
 look for the rest.
 
+- **Sweep the Momo comments.** 2026-08-29. Less history than expected and more
+  stale fact: two citations of §21 after §21 was dissolved, six missing section
+  signs, a claim that port I/O did not exist yet, two counts in `std/io.momo` that
+  had drifted, and a `mlodemo` header describing paragraphs as unwrapped after
+  wrapping landed. `std/rand.momo` was the one file where the content was the
+  problem, and lost two thirds of its header. `tennis` is still exempt - see
+  Optimise `tennis`.
 - **Finish moving the record into `DECISIONS.md`.** 2026-08-28. §15, §16, §17,
   §18, §20, §22, §25, §26 and §27 - §27 dissolved entirely rather than splitting,
   and §16 spun out two designs of its own, §34 and §35. What remained at the end

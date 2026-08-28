@@ -16,9 +16,9 @@
 // What is on screen and what is not:
 //
 //   the frame, the panels, the borders, the alignment - all engine, all verified
-//   the paragraphs      drawn as single lines, clipped at their box. Wrapping is
-//                       the reflow seam and it is the last chunk; this is
-//                       precisely the picture that shows what it buys.
+//   the paragraphs      wrapped by mopaint, in the seam the engine leaves open
+//                       between sizeX and sizeY - the one thing on screen that
+//                       the engine does not do itself.
 
 include "lib/std/key.momo"
 
