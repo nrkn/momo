@@ -14,6 +14,24 @@ anyone working on the machine that has it.
 
 ## Writing files
 
+**Use whatever language you like to think; use the project's native tooling when
+touching its text.** Work out a number in Python, plot something, reason in it,
+throw a scratch script at an analysis - all fine. But anything whose output lands
+in this repo goes through Write, Edit, or Node: reading, rewriting, generating or
+sweeping a file is Node's job here, because Node is what this project already is
+and it reads and writes UTF-8 without being asked.
+
+This used to be conditional advice - *pass `encoding='utf-8'` on both ends* - and
+conditional advice is the wrong shape for a failure this quiet. It has to be
+remembered at every call site, and when it is forgotten nothing complains: tsc
+does not care, the suite stays green, and the damage is committed. The evidence
+is in the traps below, which record three separate Python incidents and a `§`
+that reached `resolver.ts` and sat there corrupted across several commits.
+
+Node is not a workaround, it is the shorter path. One session did roughly three
+hundred substitutions across this repo and the vector study through
+`readFileSync`/`writeFileSync` with `'utf8'`, and encoding never came up once.
+
 **Never write a file containing backslashes through a shell heredoc.** They get
 eaten: `"\\.momo"` becomes `"\.momo"`, which is invalid JSON. This produced two
 broken config files in one session, both silently, and neither failed loudly
@@ -79,8 +97,10 @@ does not, here. Anything containing `
 `, `
 `, a regex escape or a Windows path
 fails silently or asserts. This is the same rule as the shell-heredoc one above, and the
-same answer: **Edit and Write for anything with an escape in it.** A Python heredoc is
-fine for plain-text replacements and nothing else.
+same answer: **Edit and Write for anything with an escape in it.** It used to say a
+Python heredoc was fine for plain-text replacements; the rule at the top of this
+file supersedes that, and the entry stays because the failure mode is the heredoc
+rather than the language.
 
 **Git Bash `/tmp` is not Windows Python's `/tmp`.** Bash resolves it to
 `C:/Users/<user>/AppData/Local/Temp`; Python reads `/tmp` as `C:	mp` and finds nothing.
@@ -101,17 +121,26 @@ history to recover from. **Re-read a study doc before trusting an edit you made 
 the session**, and prefer one write per file over several across a session. The cause was
 never established, which is itself the reason to write it down.
 
-**Python's `read_text`/`write_text` default to cp1252 on Windows, not UTF-8.** A
-script that reads a file containing `§`, edits something unrelated and writes it
-back silently re-encodes every non-ASCII character on the way out: a comment
-reading `DESIGN.md §25` comes back holding a lone 0xA7, which is not valid UTF-8 at
-all. Nothing complains - tsc does not care, the suite stayed green, and it was
-found only by grepping for the byte. Then it gets worse, because Edit reads that
-byte as U+FFFD and writes the replacement character back, so a second pass leaves
-`§` followed by a `?` glyph instead of fixing it. **Pass `encoding='utf-8'` on both
-ends**, and prefer Edit for any file with a `§` in it - which, given the
-cross-reference convention, is most of them. A `read_text()` used only for matching
-is safe; it is the write that does the damage.
+**Python's `read_text`/`write_text` default to cp1252 on Windows, not UTF-8**, and
+this is the incident the rule at the top of this file exists for. A script that
+reads a file containing `§`, edits something unrelated and writes it back silently
+re-encodes every non-ASCII character on the way out: a comment reading
+`DESIGN.md §25` comes back holding a lone 0xA7, which is not valid UTF-8 at all.
+Nothing complains - tsc does not care, the suite stays green, and it was found
+only by grepping for the byte.
+
+Then it gets worse, and the second stage is the reason it survives. Something
+reads that invalid byte as U+FFFD and writes the replacement character back -
+`EF BF BD`, which **is** valid UTF-8. It round-trips cleanly, it looks like an
+ordinary character to every tool, and it stops resembling damage at all. One
+reached `resolver.ts` that way and sat there across several commits, found only
+because somebody happened to grep for what reads `DESIGN.md`.
+
+Worth knowing if a check for this is ever wanted: "is every file valid UTF-8"
+catches the first stage and **misses the second**, which is the one that actually
+survives in a repo. It would need to test for the replacement character
+separately. Measured at 70ms over 388 files, and deliberately not added - the
+suite's surface is a cost of its own, and agents run every test they can find.
 
 **`git checkout <file>` during a teeth check discards the work being tested.** The
 whole premise of a teeth check is that the change is not committed yet, so
