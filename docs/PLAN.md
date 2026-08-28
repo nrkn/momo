@@ -16,25 +16,44 @@ the number tells you the topic and the file tells you the status.
 
 ## What Done means here, and what it does not
 
-**Done starts empty, and only ever records items that were in Todo above it
-first.** Everything built before this file existed - the language itself, the
-standard library, `far`, `view`, `group`, port I/O, strength reduction, the vector
-and layout ports - is not listed here and will not be added retrospectively.
+Entries reach Done two ways, and the line between them is the whole of what makes
+this list trustworthy.
 
-That is a decision rather than an omission. Reconstructing the intent behind
-finished work, from commits and from documents written at the time, is forensics;
-and it would produce a list nobody could rely on. **A Done section that is almost
-complete reads as a record and is worse than an honestly empty one**, because the
-absence of an entry stops meaning anything.
+**A plan that was written down can be lifted here.** For a long time `DESIGN.md`
+was the only place intent had anywhere to live, so several of its sections were
+written as designs *before* they were built and then corrected rather than
+rewritten - its preamble names §16, §17 and §19. Where such a section says plainly
+what was planned, what landed and what was deferred, moving that here is
+**transcription**: the claim is already on the page, and the diff can be checked
+against it.
 
-So: do not look here for what was built before this file. Look at
+**A plan that exists only as commits cannot.** Working out from git history what
+somebody must have intended is **forensics** - inference wearing the clothes of a
+record - and it would produce a list nobody could rely on. **A Done section that
+is almost complete reads as a record and is worse than an honestly empty one**,
+because then the absence of an entry stops meaning anything.
+
+So the test for an entry is: **does a document already say this was planned?** If
+it does, lift it. If it would have to be inferred, it does not belong here - and
+that is not a gap to be filled in later.
+
+Work that was built without its plan ever being written down is therefore absent
+by design. Look instead at
 
 - **`git log`**, which is the actual record and does not drift;
 - **DESIGN §15**, which tracks the original acceptance bar and what met it;
 - **DESIGN §20**, whose settled entries say *"built; see §N"* beside the question
   they answered.
 
-An entry moves to Done as one line plus the date it landed.
+### Two kinds of entry
+
+An item that **passed through Todo** above moves down as one line plus the date it
+landed.
+
+An item **lifted** from a section that was itself a plan carries no date, and
+points at the section it came from instead. The date is not omitted out of
+laziness: recovering it means going to the commits, which is exactly the
+archaeology this file refuses. An undated entry is honest about what it is.
 
 ## Todo
 
