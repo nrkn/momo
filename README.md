@@ -130,7 +130,8 @@ errors in the Problems panel.
 
 | | |
 |---|---|
-| **`docs/DESIGN.md`** | The language and the reasoning behind every decision - including the three designed-but-unbuilt features and the long-term directions |
+| **`docs/DESIGN.md`** | The system as it stands, and the reasoning behind every decision |
+| **`docs/PLAN.md`** | What is going to be built, how sure that is, and the designs for what does not exist yet |
 | **`docs/STYLE.md`** | Code conventions |
 | **`docs/PITFALLS.md`** | What bites when writing Momo programs - symptom first, since that is what you will have |
 | **`docs/CONTRIBUTING.md`** | Orientation: layout, scripts, the tooling traps, and the practices that keep this honest |

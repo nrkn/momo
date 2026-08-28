@@ -5,11 +5,17 @@ A small imperative language that transpiles to **commented NASM** for a strict
 predecessor [Yuki](https://github.com/nrkn/yuki-js), whose Pong for a fantasy
 console is kept as `_reference/yuki.txt`.
 
-- **`DESIGN.md`** - the language, and *why* every decision was made, across 33
-  numbered sections. Read the relevant section before changing anything; the
-  rationale matters more than the rules. Numbers are stable and only appended,
-  since they are cited from source comments - §17 means `view` permanently, and
-  §21 is a redirect to where its contents went rather than a section.
+- **`DESIGN.md`** - the system as it stands, and *why* every decision was made.
+  Read the relevant section before changing anything; the rationale matters more
+  than the rules.
+- **`PLAN.md`** - what is going to be built, how sure that is, what is unsettled,
+  and the designs for the things that are not built yet. A design lives here until
+  it exists, then moves into `DESIGN.md`.
+
+  Section numbers are **one namespace across both**, stable and only ever
+  appended, because they are cited from source comments - §17 means `view`
+  permanently, and a number absent from `DESIGN.md` is in `PLAN.md` rather than
+  deleted. §21 is a redirect to where its contents went rather than a section.
 - **`STYLE.md`** - TypeScript and Momo conventions.
 - **`PITFALLS.md`** - what bites when writing Momo *programs*, as opposed to the
   gotchas below, which are about working on the compiler. Each entry leads with
@@ -28,7 +34,7 @@ shared/scenes/       data read by more than one project
 projects/            programs, as <category>/<name>/<name>.momo
 tests/compile/       tier 1 tests
 editor/vscode/       generated syntax highlighting
-docs/                this file, DESIGN.md, STYLE.md, PITFALLS.md
+docs/                this file, DESIGN.md, PLAN.md, STYLE.md, PITFALLS.md
 ```
 
 `README.md` stays in the root because that is where it is read from, and so do
