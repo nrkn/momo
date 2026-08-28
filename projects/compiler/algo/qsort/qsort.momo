@@ -5,7 +5,7 @@
 //
 // Two views name the two regions rather than spelling the arithmetic at every
 // access: the values, and the pending (lo, hi) ranges above them. That is what
-// `view` is for (DESIGN 17), and it also gets the indices bounds-checked, which
+// `view` is for (DESIGN §17), and it also gets the indices bounds-checked, which
 // raw `_heapw` never is.
 //
 // The generator is std/rand rather than one written here. A local copy used to

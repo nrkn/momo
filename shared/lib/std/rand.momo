@@ -1,44 +1,21 @@
 // std/rand.momo - a 16-bit xorshift generator.
 //
-// Good enough for a game, not for anything else. Period 65535, and - unlike the
-// LCG this replaced - **every bit is as good as every other**, so callers do not
-// have to know which ones to take.
+// Good enough for a game, not for anything else. Period 65535, and **every bit is
+// as good as every other** - so a caller takes the value as it comes, and nothing
+// has to know which bits are safe to use.
 //
-// That is the whole reason for the change. A power-of-two-modulus LCG has
-// short-period low bits: bit k repeats every 2^(k+1) calls. The consequences
-// were neither obvious nor small:
+// **It costs roughly twice what a power-of-two LCG would**, in the region of 400
+// cycles on an 8086. Worth paying a few times a frame, worth knowing before
+// calling it per pixel: a 64000-pixel fill notices and nothing else will.
 //
-//   randomBelow(2)            period 4     - a coin flip that cycles H H T T
-//   randomBelow(16)           period 32
-//   u8(nextRandom())          period 256
-//   u8(nextRandom() >> 1)     period 512   - a visible band every 1.6 scanlines
-//
-// Non-power-of-two arguments were fine, which is why nothing noticed. All of the
-// above are 65535 now. Statistically the two generators are a wash at this state
-// width; it is the absence of weak bits that is worth having.
-//
-// **It is about twice the cost** - roughly 400 cycles against 207 on an 8086 -
-// and that is worth paying for a routine a game calls a few times a frame, but
-// worth knowing before calling it in a loop. Two thirds of the difference is
-// codegen rather than algorithm: `x ^ (x << 7)` reloads `x` and takes the
-// push/pop path because the right side is not a leaf, and `shl ax, cl` costs
-// 8 + 4n where seven separate `shl ax, 1` would cost 14. §26's unroll would
-// bring it to about 1.5x. A 64000-pixel fill notices; nothing else will.
-//
-// The 400 predates peephole 14, which took three of those reloads out of this
-// routine - one per step, plus the return. The figure has not been re-derived,
-// so read it as the shape of the cost rather than the current number.
-//
-// A wider state is the only way to do materially better: 16 bits caps
-// consecutive-pair coverage at about half of the 65536 possible. Fine for dice,
-// loot and combat. Procedural noise wants something else entirely - a positional
-// hash, a pure function of coordinates rather than a stream - which is a
-// different primitive, not a better version of this one.
+// Sixteen bits of state is the ceiling here - consecutive pairs cover about half
+// the 65536 possible, which is fine for dice, loot and combat. **Procedural noise
+// wants something else entirely**, a positional hash that is a pure function of
+// coordinates rather than a stream. That is a different primitive, not a better
+// version of this one, so it does not belong in this file.
 
-// `local`, so the state is reachable only from this file. It was public until
-// there was a way to say otherwise, which left the guard below with a hole in
-// it: a program could write `randomSeed = 0` directly and walk past the one
-// check that keeps the generator alive.
+// `local`, so the state is reachable only from this file - otherwise a program
+// could write `randomSeed = 0` directly and walk straight past the guard below.
 local u16 randomSeed = 42
 
 // Zero is a fixed point: xorshift would return it forever. Mapped rather than
@@ -54,9 +31,8 @@ u16 nextRandom() {
   return randomSeed
 }
 
-// No bit-picking needed any more - the low bits carry the full period, so the
-// modulo takes the value as it comes. `n` must not be zero: an 8086 divide by
-// zero raises INT 0.
+// The low bits carry the full period, so the modulo takes the value as it comes.
+// `n` must not be zero: an 8086 divide by zero raises INT 0.
 u16 randomBelow(u16 n) => nextRandom() % n
 
 // Inclusive on both ends.

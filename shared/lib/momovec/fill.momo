@@ -4,7 +4,7 @@
 // this machine.** Nonzero asks only whether the winding is zero, never what it is,
 // and two's complement gives that for free: a true winding of -1 is 65535, which
 // is not zero and therefore inside, and incrementing wraps it back to 0. So this
-// declares `u16 winding` and DESIGN 4's rule that u16 does not mix with signed
+// declares `u16 winding` and DESIGN §4's rule that u16 does not mix with signed
 // types never comes up.
 //
 // Even-odd would have been cheaper by one bit per crossing and would render the

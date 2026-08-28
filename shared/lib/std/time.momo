@@ -1,9 +1,9 @@
 // std/time.momo - the BIOS tick counter, and waiting on it.
 //
 // The BIOS maintains a 32-bit tick count at 0040:006C, incremented by the timer
-// interrupt 18.2065 times a second - the PIT's 1193182 Hz divided by 65536. That
-// is the only clock a program has here until port I/O exists (DESIGN.md 22),
-// since reprogramming the PIT for a finer one needs `out`.
+// interrupt 18.2065 times a second - the PIT's 1193182 Hz divided by 65536. A
+// finer clock means reprogramming the PIT, which port I/O (DESIGN §22) makes
+// possible and nothing here does.
 //
 // **The resolution is 55ms.** Enough to pace a turn-based game, a roguelike, or
 // anything that moves a few times a second. Not enough for smooth animation, and

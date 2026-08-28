@@ -39,7 +39,7 @@
 // library may call forward into its caller and the call compiles to a direct
 // `call` with no indirection. That is how one rasteriser serves a harness that
 // prints numbers and a demo that writes VRAM, with no runtime cost and without
-// waiting on DESIGN 19 or 21.
+// waiting on DESIGN §19.
 //
 // What a program must supply:
 //
@@ -53,7 +53,7 @@ const screenH = 200
 
 // Coordinates are i16 and not u16, deliberately. A control point clipped at the
 // edge of the canvas goes negative, and a step direction is signed by
-// construction - so DESIGN 4's rule that u16 does not mix with signed types means
+// construction - so DESIGN §4's rule that u16 does not mix with signed types means
 // picking one and staying there. Signed is the one that can represent the inputs.
 const i16 xMin = 0
 const i16 yMin = 0

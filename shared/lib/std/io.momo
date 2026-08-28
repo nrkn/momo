@@ -5,9 +5,9 @@
 // putNumber's own workings. These are NOT `local`, deliberately, and the reason
 // is the round trip rather than the language: the printer splices every include
 // into one file, so a private loses the owner its label is named after, and
-// `npm test` skips any program containing one. 22 programs include this file, so
-// marking these three private cost 19 of the 48 round-trip assertions - which is
-// most of the only test the parser has.
+// `npm test` skips any program containing one. Most programs include this file,
+// so marking these three private would cost most of the round-trip tier - which is
+// the only test the parser has.
 //
 // The `io` prefix is the pre-`local` answer to collisions and it still works.
 // Contrast `randomSeed` in std/rand.momo, which is `local` because a program
