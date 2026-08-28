@@ -81,6 +81,25 @@ so it doubles as a check on the codegen design:
 - Reach for braces when the body is multi-statement, when a comment belongs
   inside it, or when the line would wrap.
 
+- **Comments say what a reader needs, not how the code got here.** The TypeScript
+  in `src/momo/` is the standard and mostly meets it - `analysis.ts` opens with
+  ten lines saying what the file is, why recursion is rejected and why both halves
+  live there, over 447 lines of code. The Momo libraries have drifted well past
+  that: they run **25-76% comment lines against the TypeScript's 9-26%**, and
+  `std/rand.momo` carries 48 comment lines over 15 of code.
+
+  What accumulated is **record rather than description** - the periods of an LCG
+  that no longer exists, a cycle count that says of itself that it predates
+  peephole 14 and has not been re-derived, a paragraph on what a wider state would
+  buy. That is the same interleaving `DECISIONS.md` was created to undo, one level
+  down, and the same split applies: **a measurement goes to `DECISIONS.md`, a
+  direction goes to `PLAN.md`**, and what stays in the file is what somebody needs
+  in order to use the routine or change it safely.
+
+  The test is the stranger the documents are written for. They have not read the
+  commit, they do not know what was there before, and they are looking something
+  up rather than reading it through.
+
 ## Prose
 
 `DESIGN.md`, `CONTRIBUTING.md` and this file already share a voice, and it is not
