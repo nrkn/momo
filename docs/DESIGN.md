@@ -25,13 +25,16 @@ paper even when nothing needs it yet. Momo is where they finally have to compile
 and §16 and §17 both did, close enough to what was written down that the sections
 needed correcting rather than rewriting.
 
-**Status.** §1-§18 and §22 describe what is built. §19, §23, §24 and §25 are designed
-and not yet built, and say so in their headings. §20 collects open questions, §21
-longer-term directions. Section numbers are stable - `group` was built where it
-sits rather than renumbered into the built range, because the numbers are
-referenced from source comments and from each other, and the planned sections are
-appended past the open-ended ones for the same reason rather than filed beside
-§19 where they belong by kind.
+**Numbering.** Section numbers are stable and only ever appended. `group` was
+built where it sat rather than renumbered into the built range, because the
+numbers are cited from source comments and from each other - there are around 140
+such citations outside this file, so §17 means `view` permanently. §21 is a
+redirect rather than a section for the same reason: what was there is now §26-§33,
+and the number is kept because deleting it would break references while reusing it
+would silently point them somewhere else.
+
+That policy has one consequence worth stating plainly: **numeric order is not
+topic order**, and it never will be. What a section is about is in its heading.
 
 ---
 
@@ -907,7 +910,7 @@ reference file exceed 128 bytes under this codegen.
 
     - The bound is not protecting correctness. It is protecting the claim that
       one line of emitted assembly is one instruction, which is what makes
-      counting the `.asm` a valid way to reason about speed (§21) on a machine
+      counting the `.asm` a valid way to reason about speed (§26, §27) on a machine
       DOSBox cannot time.
     - Emitting the tight form *always* and letting NASM expand what does not
       reach would be optimal by construction, delete this pass and the expansion
@@ -918,7 +921,7 @@ reference file exceed 128 bytes under this codegen.
     of it, so the question was never really about code size: it was whether the
     emitted assembly may contain a line that is not the instruction that runs.
     It may not. One line is one instruction, the reader can count what they see,
-    and §21's tables mean what they say - on a machine DOSBox cannot time, that
+    and the tables in §26 and §27 mean what they say - on a machine DOSBox cannot time, that
     correspondence is the whole of how performance is reasoned about here, and it
     is what "the output is the product, not an intermediate" (§1) is asserting.
     38 bytes is not a price worth paying for it, and the expanded form stays
@@ -1673,7 +1676,7 @@ far       u8[64000] pixels    = 0xA000          // mode 13h
 const far u8[]      font      = 0xF000:0xFA6E   // ROM 8x8 font, read-only
 ```
 
-> **A hosted backend (§21) needs this.** If graphics went through `int 10h` per
+> **A hosted backend (§30) needs this.** If graphics went through `int 10h` per
 > pixel, every hosted target would have to shim each call and maintain its own
 > framebuffer. With `far`, both DOS and hosted backends simply write memory. That
 > moves this up the priority list - it is not only the fast path on real hardware.
@@ -1875,15 +1878,15 @@ shape - 64 far writes per call, one segment - and measured over a full screen of
 
 | | share | |
 |---|---|---|
-| Inner loop machinery | 30.2% | register counter, short jumps (§21) |
+| Inner loop machinery | 30.2% | register counter, short jumps (§29) |
 | Index recomputation | 23.4% | `dest`/`src` reloaded per pixel; SI and DI are free (§9) |
 | `push`/`pop` per pixel | 9.6% | saving AL while the index is computed |
-| The remaining `* 320` | 5.7% | odd residue 5, so behind `-o` (§21) |
+| The remaining `* 320` | 5.7% | odd residue 5, so behind `-o` (§26) |
 | **ES load** | **2.1%** | what hoisting removes, net of `push es`/`pop es` |
 | The two `shl` reduction left behind | 2.1% | unrolling would make this ~0.6% |
 
 Hoisting is last but one, in the shape it was designed for. That table is *after*
-§21's strength reduction, which took the screen from 19.7M cycles to 18.0M - the
+§26's strength reduction, which took the screen from 19.7M cycles to 18.0M - the
 row that read "multiplies in row setup, 15.2%" is gone, and the two shifts that
 replaced it are now smaller than the ES load itself.
 
@@ -2401,6 +2404,27 @@ a compile-time parameter.
 Compile-time parameters also preserve the no-pointers property that `poke8` gives
 up, so where both fit, this is the more Momo-shaped answer.
 
+### Higher-order and generic routines
+
+This section stops at array and view parameters. Two natural extensions were left
+out because each is a distinct feature rather than an increment:
+
+- **Routine parameters** - `sub forEach( u8[] a, sub visit( u8 ) )`. Callbacks
+  that cost nothing at runtime, since specialisation turns them into a direct
+  `call`. Needs function *types* in parameter lists, which the grammar has no
+  notion of.
+- **Group parameters** - `sub update( group mobs )`, meaning "any group carrying
+  these fields". That is structural typing, and the deepest of the three.
+
+Both would reuse this section's monomorphisation wholesale; the cost is in the
+type system, not the backend.
+
+Worth recording that the case which wanted the first of these did not need it.
+`tiger` and `tigerpic` differ in one routine, and the rasteriser
+never learns which: a library file may call a routine the *program* defines, and
+it compiles to a direct `call`. That is what routine parameters would have been
+for, and it needed no language feature at all.
+
 ---
 
 ## 20. Open questions
@@ -2506,637 +2530,45 @@ up, so where both fit, this is the more Momo-shaped answer.
   change the shape again.
 
 - **`asm { }` passthrough** for hand-written NASM. Probably not needed for a long time.
-- **Strength reduction for powers of two** - **built; see §21.** `i * 4`
+- **Strength reduction for powers of two** - **built; see §26.** `i * 4`
   emitted a `mul` (~120 cycles on an 8086) where two `shl` do, and `x / 8` a
   `div` (~160) where `shr` does. Faster *and* smaller, so it lives in the
-  normal emitter rather than behind a flag; §21 records how far to take it and
+  normal emitter rather than behind a flag; §26 records how far to take it and
   the two traps involved.
+- **What precision does constant folding happen at?** - **open; the analysis is
+  in §32.** The folder runs on the host's numbers, so `30000 * 30000 / 30000`
+  folds exactly and lands in a `u16`, at a precision the language itself cannot
+  express. That is defensible, but it is an accident of the host rather than a
+  decision, and it is listed here because it is a *language* question that
+  happens to have been noticed while thinking about self-hosting. Three ways out
+  are set out there; none is chosen.
 
 ---
 
 ## 21. Longer-term directions
 
-Not planned like §17 and §19 - these are directions rather than designs.
-
-### CPU target levels
-
-`momo` currently emits strict 8086 and puts `cpu 8086` at the top of every file
-so NASM enforces it. A `--cpu` flag would raise that ceiling. The interesting
-thing is how unevenly the levels pay:
-
-| Target | What it actually buys |
-|---|---|
-| **186** | `shl r/m, imm8` - we emit `mov cl, n` / `shl ax, cl` today. Also `push imm`, and three-operand `imul r, r/m, imm` for index scaling. Small but real. |
-| **286** (real mode) | Almost nothing. Its additions are protected-mode machinery a `.COM` never touches. Faster timings, same instructions. |
-| **386** (real mode) | Large. `setcc` removes the branchy bool materialisation. **Near `jcc`** removes the inverted-jump-over-`jmp` idiom entirely - the ugliest thing in the current output. `movzx`/`movsx` replace `xor ah, ah` and `cbw`. Scaled index addressing removes the `shl` before array indexing. |
-
-So the useful steps are **8086 -> 186** (modest) and **-> 386** (transformative).
-286 is a rounding error.
-
-One thing to note: **386 is not purely a backend switch.** Its 32-bit registers
-would make `u32`/`i32` sensible, which changes the type rules in §4 - the "all
-arithmetic happens in 16 bits" core rule becomes "in the target's word size".
-Everything downstream of that follows.
-
-### `-o`
-
-A single level, meaning "do your best" - no `-O1`/`-O2` ladder.
-
-Readable output currently rules out anything that breaks the line-by-line
-mapping between source and assembly: register allocation across statements,
-common subexpression elimination, loop-invariant hoisting. Those are what `-o`
-would unlock.
-
-**Comments would stay, and explain the optimisation** - which makes the optimised
-output a teaching artifact rather than just a faster one:
-
-```nasm
-; ---- value = n / 10
-; [-o] constant divisor replaced with a reciprocal multiply
-        mov     ax, [n]
-        mov     dx, 0CCCDh
-        mul     dx
-        shr     dx, 3
-```
-
-Two things worth separating out, though:
-
-- **Some optimisations are both faster and clearer**, so they should never be
-  behind a flag. Branch relaxation - a short `jcc` when the target is provably in
-  range - tidies the output rather than obscuring it. Strength reduction is the
-  bigger one; see below.
-- **Reciprocal division is a weaker win on an 8086 than it looks.** `mul` is
-  ~120 cycles against `div` at ~160, so the saving is perhaps 20%, not the 5x it
-  becomes on a 486. Dividing by a power of two is the real prize.
-
-### Strength reduction: how far to go
-
-**Factor, do not bit-decompose.** The obvious split of `x * 80` into `64 + 16`
-needs two shift chains and a temporary. Factoring as `5 << 4`, with `5` as
-`(x << 2) + x`, is better on both counts:
-
-| `x * 80` | cycles | bytes |
-|---|---|---|
-| `mov bx, 80` + `mul bx` | ~128 | 5 |
-| bit split, `64 + 16` | 25 | 24 |
-| factored, `(x*4 + x) << 4` | **17** | **16** |
-
-The rule is: pull out the largest power of two, then handle the odd residue.
-
-`simplerl`'s `tileAt` is `map[y * mapW + x]` with `mapW = 20`, and today that
-emits `mov bx, 20` / `mul bx`. Factored, `20 = 5 << 2` and `5 = (y << 2) + y`:
-
-```nasm
-        mov     bx, ax
-        shl     ax, 1
-        shl     ax, 1           ; y * 4
-        add     ax, bx          ; y * 5
-        shl     ax, 1
-        shl     ax, 1           ; y * 20
-```
-
-13 cycles against ~128 - about 10x, for seven extra bytes, and `draw` runs it
-`mapW x mapH` = 200 times per full redraw.
-
-Three tiers, with the cutoff between the first two:
-
-- **Unconditional - built.** Powers of two for `*`, and for unsigned `/` and `%`.
-  Division is the clear case: `x / 8` as `shr` is ~24 cycles against ~160, and it
-  is *smaller*. `x % 8` becomes `and ax, 7`. There is no tradeoff to weigh.
-
-  **Every** power of two, not just up to eight as this section first said: that
-  cap was more conservative than the numbers need. `mov bx, n` + `mul bx` is
-  5 bytes and ~125 cycles; `mov cl, k` + `shl ax, cl` is 4 bytes and at worst 68,
-  so the shift wins on both counts at any shift width.
-
-  Signed `/` and `%` are deliberately left as `idiv`, which is what the trap
-  below asks for. Signed `*` **is** reduced - `shl` is bit-identical to a
-  multiply in the low 16 bits, so the sign never enters into it.
-
-  Measured on `tilefill`, which has two `* 8` per row: 8.5% off a
-  full screen, ~4.13s to ~3.78s at 4.77MHz. The estimate beforehand was 9.7%,
-  and the shortfall is entirely the first trap below - it assumed a shift of
-  three cost ~6 cycles, where through CL it costs 20. Unrolling would recover
-  the rest.
-- **Behind `-o`.** Odd residues of 3, 5, 7 and 9, which covers 10, 40, 80, 160
-  and 320 - practically every 2D stride is `2^k x small`, so this catches almost
-  everything real with no search.
-- **Never.** General shift-add chain search. GCC ships tables for this; the
-  return past the tier above is negligible.
-
-Two traps:
-
-- **`shl ax, cl` is slow on an 8086** - 8 + 4n cycles, so shifting by four
-  through CL costs 24 where four separate `shl ax, 1` cost 8. The current rule
-  ("unroll if the count is 2 or less, otherwise use CL") is *size*-optimal and
-  actively poor for speed. Under `-o` it should unroll to about 8.
-
-  **Strength reduction made this trap load-bearing rather than theoretical.**
-  Reducing `* 8` produces a shift of three, which is exactly where CL becomes
-  slow - 20 cycles against 6 unrolled, for 2 bytes. So the reduction delivers
-  about 80% of what it could, and the remainder is one policy decision away.
-  Left alone deliberately: unrolling trades size for speed everywhere, not only
-  in reduced multiplies, and that is what `-o` is for.
-- **Signed division by a power of two is not just `sar`.** `sar` rounds toward
-  minus infinity while division rounds toward zero, so `-7 / 2` yields -4 rather
-  than -3. The value must be biased by `2^k - 1` when negative first - about five
-  instructions, still far cheaper than `idiv`, but a correctness trap rather than
-  a tuning detail. The same applies to `%`. Handling only the unsigned case is a
-  reasonable first cut.
-
-Two consequences fall out for free:
-
-- **The static analysis adapts automatically**, because it counts the pushes
-  actually emitted rather than modelling where pushes ought to be. Fewer
-  temporaries under `-o` simply produce a smaller number.
-- **The e2e suite becomes an optimiser test.** Every program must produce
-  byte-identical output with and without `-o`. That is a strong correctness
-  property, and it costs nothing beyond running the suite twice.
-
-### Word copies and data alignment: two optimisations, measured
-
-Prompted by an obvious question about `tilefill` - if the tiles are word aligned,
-could a `u16` view copy two pixels at a time and halve the loop? The answer turned
-out to be two separate optimisations of very different value, and the alignment
-half is worth less than it looks.
-
-The premise was also false. `tiles` sits at **0x2F7, which is odd**. Nothing in
-Momo aligns user data; only `_heap` gets `align 2`. A `.COM` puts data at
-`0x100 + code size`, so the parity of the whole data section is an accident of how
-much code precedes it, and one extra instruction anywhere above flips it. It does
-not affect correctness - the 8086 permits unaligned word access, which §17's rules
-already say - only speed.
-
-**The inner loop, counted.** `pixels[dest + col] = tiles[src + col]` plus its test
-and increment is **19 instructions**, of which **two** touch pixel data. Everything
-else recomputes both addresses and reloads ES. It performs **7 misaligned word
-accesses** per pixel: the loop test reads `col`, the body reads `src`, `col`,
-`dest`, `col`, and `inc word [col]` both reads and writes.
-
-Applying the documented 8086 table (accumulator forms at 10, `8 + EA` otherwise,
-`jcc` taken at 16, `inc word [mem]` at 21, a segment override at 2) gives ~182
-cycles per pixel, and the misalignment adds 7 x 4 = 28.
-
-| per tile (64 pixels) | 8086 | 8088 |
-|---|---|---|
-| as built | ~13,400 | ~13,900 |
-| word views, 32 iterations | ~7,000 (-48%) | ~7,200 (-48%) |
-| aligned scalars only | ~11,600 (-13%) | no change |
-| both | ~6,100 (-55%) | ~7,200 (-48%) |
-
-**The word-view half is the prize, and it needs no compiler work at all.** §17
-already expresses it: `view u16[64] tileWords = tiles[0]` over the `u8[128]` set,
-`view u16[32000] pixelWords = pixels[0]` over the far region. It needs no division
-either - halve the constants instead, 320 -> 160 and 8 -> 4, and pass the tile
-offset in words. The destination stays even for free, since both terms of
-`(ty * 8 + row) * 160 + tx * 4` are. The saving is not two bytes per `mov`; it is
-paying that 19-instruction preamble 32 times instead of 64, which is why it holds
-up on an 8088 too.
-
-**The alignment half is smaller and target-dependent.** An 8088's external bus is
-8 bits, so a word access is two bus cycles whether aligned or not - the penalty
-this would remove does not exist there. It is a true-8086 optimisation, and most
-of these machines were 8088s. §21's CPU target levels are about the *instruction
-set*; bus width is a second axis, and nothing in Momo currently has a place to say
-which one it is tuning for.
-
-**And reordering alone cannot deliver alignment.** Sorting the scalars words-first
-is free and deterministic in itself, but it only makes every word share the parity
-of the block start - and that parity comes from the code size, which the compiler
-never learns, because it emits NASM source rather than bytes. Sorted, a program
-whose data base lands odd has *all* its words misaligned instead of some. So the
-package is `align 2` once at the data base plus the sort, not the sort alone.
-
-The `align 2` costs at most one byte for the entire program, which settles the
-question of whether a byte-sized scalar could be tucked into the padding slot to
-make it free: it could not, since only NASM knows whether a slot is needed, and it
-would be saving one byte. The cost worth weighing is not the byte. It is that
-sorting by width scatters each routine's locals between the word group and the
-byte group, and the data section currently shows a routine's whole frame in one
-place. That is a readability trade against a 13%-on-one-chip gain, and readable
-output is the product (§9).
-
-Verdict: **the word views are worth doing in a program that cares, today, with no
-compiler change. The alignment work waits for a reason to prefer the 8086 over the
-8088** - and if it ever comes, it arrives as `align 2` plus a width sort, with the
-locals-locality cost paid deliberately. `tilefill` itself stays as it is: it is the
-straightforward version on purpose, and §14 wants it readable more than fast.
-
-### Higher-order and generic routines
-
-§19 stops at array and view parameters. Two natural extensions were left out
-because each is a distinct feature rather than an increment:
-
-- **Routine parameters** - `sub forEach( u8[] a, sub visit( u8 ) )`. Callbacks
-  that cost nothing at runtime, since specialisation turns them into a direct
-  `call`. Needs function *types* in parameter lists, which the grammar has no
-  notion of.
-- **Group parameters** - `sub update( group mobs )`, meaning "any group carrying
-  these fields". That is structural typing, and the deepest of the three.
-
-Both would reuse §19's monomorphisation wholesale; the cost is in the type
-system, not the backend.
-
-### Hosted targets: JS, WASM, native
-
-These are **categorically different from a CPU port**, and the difference is the
-whole reason they are tractable: Momo's abstract machine does not change. Still
-16-bit, still one flat 64K, still statically allocated. The front end *and the
-resolver* carry over untouched - only the emitter and a shim layer differ.
-
-Not a new direction for the lineage, either. Momo's predecessor Yuki compiled to
-**JavaScript** - vaguely VM-shaped, but a JS program rather than a bytecode
-interpreter - so it reached toward a machine from inside the host. Momo starts at
-a real machine and would reach back up. The same territory approached from the
-opposite end, and the return trip should be the more faithful one: the machine
-here is documented hardware rather than one the language implied for itself.
-
-**The subset mindset is what makes this feasible at all.** A general DOS backend
-is DOSBox - a multi-year project. Momo can only *express* a handful of things:
-text mode, mode 13h, CGA, three interrupts, no port I/O, no EGA planar. So a
-hosted target does not emulate a PC; it models **the four things Momo can say**.
-
-**One design, three realisations.** All of them want the same thing: the
-real-mode address space as a byte array, plus shimmed interrupts.
-
-```
-                 +-- JS      (readable, debuggable, share by URL)
-~1MB linear  ----+-- WASM    (linear memory is native to it)
-memory + int     +-- native  (SDL2: fullscreen, audio, gamepads)
-```
-
-Doing any one makes the others largely free, because the shim contract is shared.
-
-#### The machine is the real-mode address space
-
-Once `far` (§16) exists, video memory is part of the addressable model - and a
-real-mode address is only `segment * 16 + offset`. So the hosted machine is the
-~1MB physical space, with the program's own segment placed inside it:
-
-```
-0x00000  ...  program segment (DS = CS = SS), 64K
-0xA0000  ...  mode 13h framebuffer,  64000 bytes
-0xB8000  ...  colour text buffer,     4000 bytes
-0xFFA6E  ...  ROM 8x8 font
-```
-
-`far u8[64000] pixels = 0xA000` resolves to linear `0xA0000` on every backend.
-No special case and no handle type - the same arithmetic the 8086 does.
-
-The shim also **pre-fills what the hardware would provide**: a font at
-`F000:FA6E`, so `const far u8[] font = 0xF000:0xFA6E` works unchanged. Palettes
-go through `int 10h AH=1012h`, a BIOS call - one of the places where excluding
-`in`/`out` from the subset turns out to help rather than hurt.
-
-#### Video is memory, not calls
-
-The shim does not intercept drawing. It **renders from a region and blits** -
-`requestAnimationFrame`, read the framebuffer, map through the palette, put to
-canvas.
-
-- **Faithful.** Real hardware has no present call either; the CRT scans memory
-  continuously. A display that simply tracks memory reproduces that, including
-  the tearing you would get by drawing mid-frame.
-- **Fast.** No per-pixel shim overhead, and a 64KB read per frame is nothing.
-
-This makes **`far` a prerequisite rather than an optimisation.** If graphics went
-through `int 10h` per pixel, every hosted backend would have to shim each call
-*and* maintain its own framebuffer. With `far`, both backends write memory and
-the only difference is who reads it afterwards.
-
-The technique is well-trodden: modelling a machine's memory-mapped interface and
-rendering from it is exactly how one models an Atari TIA in a browser. The PC is
-the easier case - TIA races the beam and must generate pixels per scanline, while
-PC video is a plain framebuffer you blit.
-
-#### One address space, not per-global variables
-
-`addr()`, `_heap`/`_heapw`, views (§17) and any future `peek`/`poke` all assume a
-single address space. Emitting idiomatic JS - a variable per global - breaks every
-one of them.
-
-There is a pleasing accident here: **`_heap` and `_heapw` are already an
-ArrayBuffer with two typed views.** The same trick keeps u16 access fast - `mem8`
-and `mem16` over one buffer - provided the emitter aligns u16 storage to even
-offsets, which it controls anyway. The memory report becomes the allocation plan
-verbatim.
-
-#### Emit from the typed AST, not from the assembly
-
-Momo has structured control flow - `if`, `while`, `for`, `break`, `continue` -
-which maps directly onto JS. Emitting from the *assembly* would need a
-program-counter dispatch loop and be unreadable; emitting from the AST gives
-output that reads like the source:
-
-```js
-// ---- if( tileAt( playerX, playerY ) == '#' )
-if (mem8[map + mem8[playerY] * 10 + mem8[playerX]] === 35) {
-```
-
-#### The `int`-only decision pays off again
-
-**The porting surface is exactly one function.** Every host interaction goes
-through `int`, so a backend shims `int21`, `int16` and `int10` - and only the
-handful of AH values the standard library actually uses.
-
-The alternative, swapping the standard library per platform, would need an
-`extern` concept and would break the "there are no externals" property from §10.
-Shimming the interrupt keeps programs portable *unchanged*, including any that
-call `int` directly.
-
-**The shims are the platform.** DOS uses real DOS, JS uses a canvas, native uses
-SDL2 - same program.
-
-#### Two things that fall out free
-
-- **Headless tests.** Tier 2 currently launches DOSBox per case; a JS backend
-  runs the same suite in about a second.
-- **Differential testing.** Run a program on both backends and compare output.
-  Any divergence is a bug in one of them, and you need not know which in advance.
-
-#### Wrinkles
-
-- **JS integer semantics.** Numbers are doubles, so every operation needs
-  masking - `& 0xFFFF` for u16, `<< 16 >> 16` to sign-extend i16, `| 0` or
-  `Math.trunc` for division. A missed mask is silent divergence from the 8086,
-  not a crash.
-- **Division by zero diverges.** The 8086 raises `INT 0`; JS yields `Infinity`.
-  Shim the check or document it.
-- **Native x86 is less different than it sounds.** `ax`, `bx` and the 16-bit
-  operations all still exist. The wrinkle is that 16-bit index registers cannot
-  index a 64-bit address space - so either `movzx` each index, or simply use the
-  same 64KB buffer as JS does, which preserves the whole model.
-
-#### Sequencing
-
-**JS first**, since "easy to share" is the goal and it is the most debuggable.
-WASM is arguably the better endpoint - linear memory is native to it - and native
-buys what neither can: real fullscreen, audio latency, gamepads, a shippable
-binary, at the cost of object formats, a linker, an SDL2 dependency and per-OS
-builds.
-
-### Dropping the assembler
-
-§1 records the toolchain as "NASM only. No linker, no `.obj`, no relocations."
-The endpoint of that trajectory is **no assembler either** - emit `.COM` bytes
-directly and drop the last external.
-
-This sounds like the largest of these directions and is close to the smallest,
-because of a decision taken for an unrelated reason. **The instruction subset in
-§1 is the entire specification.** An assembler that handles only what Momo
-itself emits needs:
-
-- Those mnemonics, in the operand forms the emitter actually produces:
-  immediate, `[label]`, `[label + disp]`, `[label + bx]`, register-register, and
-  the `al`/`ax` accumulator forms.
-- `db` `dw` `times` `equ` `org` `align`, and `cpu` as a no-op.
-- Labels including NASM's `.local` scoping, and one fixup pass for forward
-  jumps. Expressions no richer than `label + constant`.
-
-No macros, no sections, no object formats, no linking. That is a component of
-perhaps a thousand lines, not a rewrite of NASM. The subset was chosen so that
-NASM would enforce portability mechanically; that it also makes the toolchain
-self-containable is a payoff for a decision made about something else.
-
-#### What it buys, with no self-hosting at all
-
-- **The build stops needing DOSBox.** Assembly currently happens *inside* the
-  emulator, which is where the `-Z` capture, the `build.ok` marker file and
-  "DOSBox exits with its own status, not NASM's" all come from. That machinery
-  disappears; DOSBox is left doing only what it is for - running the program.
-- **Tier 2 gets cheaper**, and a further tier becomes possible: compare emitted
-  bytes without launching anything.
-- **1.6MB of bundled binaries leave the repository.**
-- **The 8086 becomes a viable host again.** The bundled NASM is a DPMI build
-  whose own README says "nothing older than a 386 is supported"; an assembler
-  written in Momo has no such floor.
-
-#### The check it costs, and how to keep it
-
-`cpu 8086` currently makes NASM enforce the instruction subset mechanically. A
-homegrown assembler enforces it *harder* - it cannot encode what it does not
-implement - but it stops being an independent opinion about whether the encoding
-is correct.
-
-Keep that with **differential assembly** while NASM is still here: assemble both
-ways, compare bytes, and treat any disagreement as a bug in the newcomer. The
-golden `.asm` tier (§14) already establishes the shape.
-
-The readable `.asm` stays a first-class output rather than becoming an
-intermediate. It is the headline feature; emitting bytes is an addition to it.
-
----
-
-### Self-hosting
-
-Momo compiling Momo - and, the actual goal, **compiling on the target rather
-than on a host.** Working on a modern machine is more comfortable and will stay
-the default; the appeal is having the tooling be consistent with the thing it
-produces. That, and it is a genuinely fun thing to attempt, which is a permitted
-reason in a project named after a cat.
-
-Two goals get conflated here, and separating them makes the near half reachable:
+Dissolved. What was here was nine unrelated things under one number, and one of
+them - strength reduction - was the specification `emitter.ts` cites for codegen
+that ships, inside a section opening with the words "directions rather than
+designs".
+
+They are now sections of their own, so that each can be cited, and so that a
+plan item can point at one rather than at all nine:
 
 | | |
 |---|---|
-| **Written in Momo** | Compiled by the TypeScript Momo to a hosted target (above), running with modern memory. Answers whether the *language* can express a compiler. |
-| **Running on the target** | The same source as DOS binaries, in 64KB. The destination. |
+| §26 | Strength reduction - built, with the tiers behind `-o` and the one refused |
+| §27 | Word copies and data alignment, measured |
+| §28 | CPU target levels |
+| §29 | `-o` |
+| §30 | Hosted targets: JS, WASM, native |
+| §31 | Dropping the assembler |
+| §32 | Self-hosting |
+| §33 | Other CPUs |
 
-The first is a stage on the way to the second, not a rival to it.
-
-#### The constraint is the memory model, not the CPU level
-
-386 is transformative for codegen, and irrelevant to this: **386 real mode still
-has 64KB segments**, and a `.COM` is still tiny model. Register width was never
-the ceiling.
-
-There is a twist, though. On-target compilation already requires a 386 *today*,
-because the bundled NASM is a DPMI program. So `momo/386` is a consequence of
-the machine rather than a prerequisite for the work - and if "Dropping the
-assembler" above lands first, the requirement evaporates entirely and true 8086
-self-hosting comes back into range.
-
-#### Recursion is not the blocker it looks like
-
-The obvious reading is: a recursive-descent parser is dozens of mutually
-recursive calls, Momo rejects recursion, therefore self-hosting needs real stack
-frames - which would cost the exact memory analysis (§12), the most load-bearing
-decision in the language.
-
-It does not follow. **Shunting-yard is naturally non-recursive**: an operator
-stack and an operand stack, both explicit, both on the heap. The precedence
-table is already data. Statements become a flat loop over a block-nesting stack,
-and the tree walks in the resolver and emitter are the same shape - with an
-array-of-nodes AST there are `u16` indices rather than pointers, so a worklist is
-the natural form regardless.
-
-§15 already reports `hanoi` - hand-rolled recursion with a resume point per
-frame, the genuinely awkward case - coming out fine. A parser is easier than
-that. Self-hosting is evidence *for* the ban, not against it.
-
-#### Four binaries, because the pipeline already is four
-
-The four stages are pure and separable, which is exactly the shape a
-memory-constrained compiler wants: **four `.COM` files communicating through
-intermediate files.** `lex` -> tokens, `parse` -> AST, `resolve` -> annotated AST,
-`emit` -> `.asm`. The `lex`, `parse` and `check` tools already dump those
-representations, so the on-disk formats are half-designed.
-
-The sizing forces it. `simplerl` is ~900 bytes of code, on the order of ten bytes per
-line of Momo; the compiler is ~5k lines of TypeScript, call it 6-8k lines of
-Momo once recursion is unrolled into explicit stacks. That is 60-80KB as a
-single binary - over the ceiling, and still uncomfortable if the estimate is
-half wrong. Split four ways it is roomy.
-
-(Deliberately rounded. Exact figures here go stale on any codegen change - the
-peephole work in §9 moved `simplerl` by 18 bytes - and the conclusion is robust to
-being wrong by a factor of two, which is the only precision that matters.)
-
-#### What it needs
-
-Almost nothing new, and less than when this was written. **`group` (§18), `len`
-(§5) and `_cf` (§10) are now built** - structure-of-arrays is how a token table
-or an AST wants to be held on this machine, and `_cf` means a failed read can be
-noticed. With `int 0x21` and `addr()` already working, file access is writable
-today; `cftest` opens one.
-
-What is still missing is §19's array parameters, for routines that take a buffer
-without one copy per call site.
-
-The one genuine gap is in §20's own table, which covers three cases of four:
-
-| | Address known | Segment |
-|---|---|---|
-| `far` | compile time | another one |
-| `view` | compile time | ours |
-| `peek`/`poke` | runtime | ours |
-| **missing** | **runtime** | **another one** |
-
-`INT 21h AH=48h` hands back a segment at runtime, so a DOS-allocated far block
-lands in the empty cell. That is the cheapest route to more memory: four
-tiny-model binaries with far blocks for the tables, no `.EXE`, no relocations, no
-linker, and code never split across segments.
-
-**Momo-0.** The bootstrap compiler need only compile *enough of Momo to compile
-itself*, not all of it - so drop tree-shaking, `include`, parameterised consts
-and the exact memory report. That also resolves a real tension: Momo's design
-has whole-program analysis baked in (the call graph for recursion and pruning,
-image size for `_hsize`), while a memory-constrained compiler wants to stream.
-Momo-0 simply does not owe those guarantees.
-
-#### The folder is wider than the language, and nobody decided that
-
-Constant folding runs on the host's numbers. In the TypeScript compiler those are
-JavaScript doubles, exact to 2^53 - so intermediates are evaluated at a precision
-Momo itself cannot express:
-
-```momo
-const wide     = 40000 + 40000     // 80000 - too wide to store
-const back     = wide - 20000      // 60000 - and this compiles
-
-const prod     = 30000 * 30000     // 900000000
-const narrowed = prod / 30000      // 30000
-```
-
-Both results land in a `u16` and both are right. Measured rather than assumed:
-those emit `mov word [a], 60000` and `mov word [b], 30000`.
-
-Only two things are checked. **Literals** must fit in 16 bits - the resolver
-rejects `1193182` outright, which is why the PIT's input frequency cannot be
-written down and a note table has to be generated elsewhere. And **results** must
-fit wherever they land. Between those two points the folder is effectively
-unbounded, and integer division folds the way runtime `/` does, so nothing
-disagrees.
-
-That is defensible and probably right: fold exactly, reject what does not fit.
-But it is an accident of the host rather than a decision, and **a Momo compiler
-written in Momo could not reproduce it.** Its own arithmetic is 16 bits, so it
-would fold `30000 * 30000` to whatever the low word holds and quietly disagree
-with the compiler that bootstrapped it - on a program both accept.
-
-Three ways out, none chosen:
-
-- **Narrow the promise.** Declare that folding happens in 16 bits and reject a
-  wide intermediate where it occurs rather than where it lands. Costs the
-  `40000 + 40000` shape, which nothing in the corpus uses, and makes the two
-  compilers agree by construction.
-- **Keep the promise and pay for it.** Momo-0 carries software 32-bit arithmetic
-  for the folder alone - `u16[2]` and a few routines, which §19's array
-  parameters would make readable. A real cost in a compiler already fighting for
-  64KB, for a case most programs never reach.
-- **Let them differ.** The bootstrap folds narrow, the self-hosted compiler folds
-  wide. Two compilers disagreeing about a legal program is the worst of the
-  three, and is listed only because it is what happens if nobody decides.
-
-The first is cheapest, the second is the more honest to what the language does
-today. What matters is that this is a **language** decision wearing an
-implementation's clothes, and it wants settling before a bootstrap exists rather
-than discovering it afterwards from a program that compiles differently.
-
-#### If the model has to give: a profile, not a dialect
-
-Should far data prove insufficient, the escape hatch is `.EXE` and a laxer
-memory model - but as a **target profile**, not a second language. Momo already
-has a target axis (CPU levels above, `momo/z80` below); memory model is a second
-axis of the same idea. A dialect means two languages to keep honest and every
-guarantee quoted with an asterisk.
-
-It costs less than it looks, and less than it did before §16 was built - ES is
-already emitted, already preserved across interrupts, already in the subset.
-**§12 survives** too: static allocation is static however many segments it spans,
-so the figures stay exact, per segment. What actually dies is CS, DS and SS
-staying uniform, and the mnemonic subset growing segment loads and `es:`
-prefixes. Only `.EXE` costs "no linker, no relocations", and the four-binary
-route avoids needing it.
-
-#### The hazard
-
-Everything else here gets built when something needs it. Self-hosting
-*manufactures* needs, and that is the risk: features justified by what the
-compiler wants rather than by what the language should be. Neither of Momo's
-distinguishing properties - readable commented output, an exact memory
-footprint - is served by the compiler being written in itself.
-
-Used well it is a forcing function that exercises §16-§20 against a demanding
-real program; used badly it is a reason to say yes to things. The tell is
-whether a feature still looks right with self-hosting struck out.
-
-So far the record is good, and none of it was actually driven by this section:
-`len` was wanted for a map height, `group` for an entity pool, `_cf` because
-DOS reports failure in carry and nothing could see it. The missing quadrant
-passes the same test - it was already latent in §20's table, and the use case
-only found it.
-
----
-
-### Other CPUs - `momo/z80`, `momo/6502`
-
-Unlike the hosted targets above, these **do** change the abstract machine. Very
-stretch, but worth knowing what would and would not carry.
-
-**Ports unchanged:** lexer, parser, AST, loader and `include`, the whole testing
-apparatus, and the call-graph analysis. Roughly the front half.
-
-**Ports in spirit, not in detail:** the type rules. "All arithmetic in 16 bits" is
-an 8086 decision - on a 6502 you would want 8-bit native with 16-bit synthesised,
-which changes the promotion rules and therefore the mixing matrix.
-
-**Does not port at all:** the emitter, the reserved register globals, `int` as
-the one primitive, the heap-at-end-of-image trick, and the whole standard library.
-
-The encouraging part is that **Momo's core model ports well**: static allocation,
-no recursion, globals as the calling convention, and an exact memory report are
-exactly how one hand-writes 6502 and Z80 anyway. The design is not 8086-shaped
-even though the backend is.
-
-Between the two, **Z80 is much the closer fit** - 16-bit register pairs, a flat
-64K with no segments (simpler than the 8086), and `LD A,(HL)` maps onto the
-existing "compute an address, then load" model. The 6502 is harder than it looks:
-no 16-bit registers at all, no multiply or divide, a fixed 256-byte stack, and
-`abs,X` indexing with an 8-bit index - so arrays over 256 bytes need a different
-addressing scheme entirely, not just a different instruction.
-
----
+Higher-order and generic routines moved into §19, which it extends rather than
+stands beside. This number is kept rather than reused: it is cited from outside
+this file, and a number that changes meaning is worse than one that redirects.
 
 ## 22. Port I/O
 
@@ -4240,3 +3672,603 @@ It does **not** reopen the conic cut in the vector study. One of that decision's
 arguments was 32-bit intermediates; the other three - nothing in the data produces an
 arc, an ellipse is not a segment, four winding directions against one `forceDir` - stand
 regardless.
+
+
+## 26. Strength reduction: how far to go
+
+**Factor, do not bit-decompose.** The obvious split of `x * 80` into `64 + 16`
+needs two shift chains and a temporary. Factoring as `5 << 4`, with `5` as
+`(x << 2) + x`, is better on both counts:
+
+| `x * 80` | cycles | bytes |
+|---|---|---|
+| `mov bx, 80` + `mul bx` | ~128 | 5 |
+| bit split, `64 + 16` | 25 | 24 |
+| factored, `(x*4 + x) << 4` | **17** | **16** |
+
+The rule is: pull out the largest power of two, then handle the odd residue.
+
+`simplerl`'s `tileAt` is `map[y * mapW + x]` with `mapW = 20`, and today that
+emits `mov bx, 20` / `mul bx`. Factored, `20 = 5 << 2` and `5 = (y << 2) + y`:
+
+```nasm
+        mov     bx, ax
+        shl     ax, 1
+        shl     ax, 1           ; y * 4
+        add     ax, bx          ; y * 5
+        shl     ax, 1
+        shl     ax, 1           ; y * 20
+```
+
+13 cycles against ~128 - about 10x, for seven extra bytes, and `draw` runs it
+`mapW x mapH` = 200 times per full redraw.
+
+Three tiers, with the cutoff between the first two:
+
+- **Unconditional - built.** Powers of two for `*`, and for unsigned `/` and `%`.
+  Division is the clear case: `x / 8` as `shr` is ~24 cycles against ~160, and it
+  is *smaller*. `x % 8` becomes `and ax, 7`. There is no tradeoff to weigh.
+
+  **Every** power of two, not just up to eight as this section first said: that
+  cap was more conservative than the numbers need. `mov bx, n` + `mul bx` is
+  5 bytes and ~125 cycles; `mov cl, k` + `shl ax, cl` is 4 bytes and at worst 68,
+  so the shift wins on both counts at any shift width.
+
+  Signed `/` and `%` are deliberately left as `idiv`, which is what the trap
+  below asks for. Signed `*` **is** reduced - `shl` is bit-identical to a
+  multiply in the low 16 bits, so the sign never enters into it.
+
+  Measured on `tilefill`, which has two `* 8` per row: 8.5% off a
+  full screen, ~4.13s to ~3.78s at 4.77MHz. The estimate beforehand was 9.7%,
+  and the shortfall is entirely the first trap below - it assumed a shift of
+  three cost ~6 cycles, where through CL it costs 20. Unrolling would recover
+  the rest.
+- **Behind `-o`.** Odd residues of 3, 5, 7 and 9, which covers 10, 40, 80, 160
+  and 320 - practically every 2D stride is `2^k x small`, so this catches almost
+  everything real with no search.
+- **Never.** General shift-add chain search. GCC ships tables for this; the
+  return past the tier above is negligible.
+
+Two traps:
+
+- **`shl ax, cl` is slow on an 8086** - 8 + 4n cycles, so shifting by four
+  through CL costs 24 where four separate `shl ax, 1` cost 8. The current rule
+  ("unroll if the count is 2 or less, otherwise use CL") is *size*-optimal and
+  actively poor for speed. Under `-o` it should unroll to about 8.
+
+  **Strength reduction made this trap load-bearing rather than theoretical.**
+  Reducing `* 8` produces a shift of three, which is exactly where CL becomes
+  slow - 20 cycles against 6 unrolled, for 2 bytes. So the reduction delivers
+  about 80% of what it could, and the remainder is one policy decision away.
+  Left alone deliberately: unrolling trades size for speed everywhere, not only
+  in reduced multiplies, and that is what `-o` is for.
+- **Signed division by a power of two is not just `sar`.** `sar` rounds toward
+  minus infinity while division rounds toward zero, so `-7 / 2` yields -4 rather
+  than -3. The value must be biased by `2^k - 1` when negative first - about five
+  instructions, still far cheaper than `idiv`, but a correctness trap rather than
+  a tuning detail. The same applies to `%`. Handling only the unsigned case is a
+  reasonable first cut.
+
+Two consequences fall out for free:
+
+- **The static analysis adapts automatically**, because it counts the pushes
+  actually emitted rather than modelling where pushes ought to be. Fewer
+  temporaries under `-o` simply produce a smaller number.
+- **The e2e suite becomes an optimiser test.** Every program must produce
+  byte-identical output with and without `-o`. That is a strong correctness
+  property, and it costs nothing beyond running the suite twice.
+
+## 27. Word copies and data alignment: two optimisations, measured
+
+Prompted by an obvious question about `tilefill` - if the tiles are word aligned,
+could a `u16` view copy two pixels at a time and halve the loop? The answer turned
+out to be two separate optimisations of very different value, and the alignment
+half is worth less than it looks.
+
+The premise was also false. `tiles` sits at **0x2F7, which is odd**. Nothing in
+Momo aligns user data; only `_heap` gets `align 2`. A `.COM` puts data at
+`0x100 + code size`, so the parity of the whole data section is an accident of how
+much code precedes it, and one extra instruction anywhere above flips it. It does
+not affect correctness - the 8086 permits unaligned word access, which §17's rules
+already say - only speed.
+
+**The inner loop, counted.** `pixels[dest + col] = tiles[src + col]` plus its test
+and increment is **19 instructions**, of which **two** touch pixel data. Everything
+else recomputes both addresses and reloads ES. It performs **7 misaligned word
+accesses** per pixel: the loop test reads `col`, the body reads `src`, `col`,
+`dest`, `col`, and `inc word [col]` both reads and writes.
+
+Applying the documented 8086 table (accumulator forms at 10, `8 + EA` otherwise,
+`jcc` taken at 16, `inc word [mem]` at 21, a segment override at 2) gives ~182
+cycles per pixel, and the misalignment adds 7 x 4 = 28.
+
+| per tile (64 pixels) | 8086 | 8088 |
+|---|---|---|
+| as built | ~13,400 | ~13,900 |
+| word views, 32 iterations | ~7,000 (-48%) | ~7,200 (-48%) |
+| aligned scalars only | ~11,600 (-13%) | no change |
+| both | ~6,100 (-55%) | ~7,200 (-48%) |
+
+**The word-view half is the prize, and it needs no compiler work at all.** §17
+already expresses it: `view u16[64] tileWords = tiles[0]` over the `u8[128]` set,
+`view u16[32000] pixelWords = pixels[0]` over the far region. It needs no division
+either - halve the constants instead, 320 -> 160 and 8 -> 4, and pass the tile
+offset in words. The destination stays even for free, since both terms of
+`(ty * 8 + row) * 160 + tx * 4` are. The saving is not two bytes per `mov`; it is
+paying that 19-instruction preamble 32 times instead of 64, which is why it holds
+up on an 8088 too.
+
+**The alignment half is smaller and target-dependent.** An 8088's external bus is
+8 bits, so a word access is two bus cycles whether aligned or not - the penalty
+this would remove does not exist there. It is a true-8086 optimisation, and most
+of these machines were 8088s. §28's CPU target levels are about the *instruction
+set*; bus width is a second axis, and nothing in Momo currently has a place to say
+which one it is tuning for.
+
+**And reordering alone cannot deliver alignment.** Sorting the scalars words-first
+is free and deterministic in itself, but it only makes every word share the parity
+of the block start - and that parity comes from the code size, which the compiler
+never learns, because it emits NASM source rather than bytes. Sorted, a program
+whose data base lands odd has *all* its words misaligned instead of some. So the
+package is `align 2` once at the data base plus the sort, not the sort alone.
+
+The `align 2` costs at most one byte for the entire program, which settles the
+question of whether a byte-sized scalar could be tucked into the padding slot to
+make it free: it could not, since only NASM knows whether a slot is needed, and it
+would be saving one byte. The cost worth weighing is not the byte. It is that
+sorting by width scatters each routine's locals between the word group and the
+byte group, and the data section currently shows a routine's whole frame in one
+place. That is a readability trade against a 13%-on-one-chip gain, and readable
+output is the product (§9).
+
+Verdict: **the word views are worth doing in a program that cares, today, with no
+compiler change. The alignment work waits for a reason to prefer the 8086 over the
+8088** - and if it ever comes, it arrives as `align 2` plus a width sort, with the
+locals-locality cost paid deliberately. `tilefill` itself stays as it is: it is the
+straightforward version on purpose, and §14 wants it readable more than fast.
+
+## 28. CPU target levels
+
+`momo` currently emits strict 8086 and puts `cpu 8086` at the top of every file
+so NASM enforces it. A `--cpu` flag would raise that ceiling. The interesting
+thing is how unevenly the levels pay:
+
+| Target | What it actually buys |
+|---|---|
+| **186** | `shl r/m, imm8` - we emit `mov cl, n` / `shl ax, cl` today. Also `push imm`, and three-operand `imul r, r/m, imm` for index scaling. Small but real. |
+| **286** (real mode) | Almost nothing. Its additions are protected-mode machinery a `.COM` never touches. Faster timings, same instructions. |
+| **386** (real mode) | Large. `setcc` removes the branchy bool materialisation. **Near `jcc`** removes the inverted-jump-over-`jmp` idiom entirely - the ugliest thing in the current output. `movzx`/`movsx` replace `xor ah, ah` and `cbw`. Scaled index addressing removes the `shl` before array indexing. |
+
+So the useful steps are **8086 -> 186** (modest) and **-> 386** (transformative).
+286 is a rounding error.
+
+One thing to note: **386 is not purely a backend switch.** Its 32-bit registers
+would make `u32`/`i32` sensible, which changes the type rules in §4 - the "all
+arithmetic happens in 16 bits" core rule becomes "in the target's word size".
+Everything downstream of that follows.
+
+## 29. `-o`
+
+A single level, meaning "do your best" - no `-O1`/`-O2` ladder.
+
+Readable output currently rules out anything that breaks the line-by-line
+mapping between source and assembly: register allocation across statements,
+common subexpression elimination, loop-invariant hoisting. Those are what `-o`
+would unlock.
+
+**Comments would stay, and explain the optimisation** - which makes the optimised
+output a teaching artifact rather than just a faster one:
+
+```nasm
+; ---- value = n / 10
+; [-o] constant divisor replaced with a reciprocal multiply
+        mov     ax, [n]
+        mov     dx, 0CCCDh
+        mul     dx
+        shr     dx, 3
+```
+
+Two things worth separating out, though:
+
+- **Some optimisations are both faster and clearer**, so they should never be
+  behind a flag. Branch relaxation - a short `jcc` when the target is provably in
+  range - tidies the output rather than obscuring it. Strength reduction is the
+  bigger one; see below.
+- **Reciprocal division is a weaker win on an 8086 than it looks.** `mul` is
+  ~120 cycles against `div` at ~160, so the saving is perhaps 20%, not the 5x it
+  becomes on a 486. Dividing by a power of two is the real prize.
+
+## 30. Hosted targets: JS, WASM, native
+
+These are **categorically different from a CPU port**, and the difference is the
+whole reason they are tractable: Momo's abstract machine does not change. Still
+16-bit, still one flat 64K, still statically allocated. The front end *and the
+resolver* carry over untouched - only the emitter and a shim layer differ.
+
+Not a new direction for the lineage, either. Momo's predecessor Yuki compiled to
+**JavaScript** - vaguely VM-shaped, but a JS program rather than a bytecode
+interpreter - so it reached toward a machine from inside the host. Momo starts at
+a real machine and would reach back up. The same territory approached from the
+opposite end, and the return trip should be the more faithful one: the machine
+here is documented hardware rather than one the language implied for itself.
+
+**The subset mindset is what makes this feasible at all.** A general DOS backend
+is DOSBox - a multi-year project. Momo can only *express* a handful of things:
+text mode, mode 13h, CGA, three interrupts, no port I/O, no EGA planar. So a
+hosted target does not emulate a PC; it models **the four things Momo can say**.
+
+**One design, three realisations.** All of them want the same thing: the
+real-mode address space as a byte array, plus shimmed interrupts.
+
+```
+                 +-- JS      (readable, debuggable, share by URL)
+~1MB linear  ----+-- WASM    (linear memory is native to it)
+memory + int     +-- native  (SDL2: fullscreen, audio, gamepads)
+```
+
+Doing any one makes the others largely free, because the shim contract is shared.
+
+### The machine is the real-mode address space
+
+Once `far` (§16) exists, video memory is part of the addressable model - and a
+real-mode address is only `segment * 16 + offset`. So the hosted machine is the
+~1MB physical space, with the program's own segment placed inside it:
+
+```
+0x00000  ...  program segment (DS = CS = SS), 64K
+0xA0000  ...  mode 13h framebuffer,  64000 bytes
+0xB8000  ...  colour text buffer,     4000 bytes
+0xFFA6E  ...  ROM 8x8 font
+```
+
+`far u8[64000] pixels = 0xA000` resolves to linear `0xA0000` on every backend.
+No special case and no handle type - the same arithmetic the 8086 does.
+
+The shim also **pre-fills what the hardware would provide**: a font at
+`F000:FA6E`, so `const far u8[] font = 0xF000:0xFA6E` works unchanged. Palettes
+go through `int 10h AH=1012h`, a BIOS call - one of the places where excluding
+`in`/`out` from the subset turns out to help rather than hurt.
+
+### Video is memory, not calls
+
+The shim does not intercept drawing. It **renders from a region and blits** -
+`requestAnimationFrame`, read the framebuffer, map through the palette, put to
+canvas.
+
+- **Faithful.** Real hardware has no present call either; the CRT scans memory
+  continuously. A display that simply tracks memory reproduces that, including
+  the tearing you would get by drawing mid-frame.
+- **Fast.** No per-pixel shim overhead, and a 64KB read per frame is nothing.
+
+This makes **`far` a prerequisite rather than an optimisation.** If graphics went
+through `int 10h` per pixel, every hosted backend would have to shim each call
+*and* maintain its own framebuffer. With `far`, both backends write memory and
+the only difference is who reads it afterwards.
+
+The technique is well-trodden: modelling a machine's memory-mapped interface and
+rendering from it is exactly how one models an Atari TIA in a browser. The PC is
+the easier case - TIA races the beam and must generate pixels per scanline, while
+PC video is a plain framebuffer you blit.
+
+### One address space, not per-global variables
+
+`addr()`, `_heap`/`_heapw`, views (§17) and any future `peek`/`poke` all assume a
+single address space. Emitting idiomatic JS - a variable per global - breaks every
+one of them.
+
+There is a pleasing accident here: **`_heap` and `_heapw` are already an
+ArrayBuffer with two typed views.** The same trick keeps u16 access fast - `mem8`
+and `mem16` over one buffer - provided the emitter aligns u16 storage to even
+offsets, which it controls anyway. The memory report becomes the allocation plan
+verbatim.
+
+### Emit from the typed AST, not from the assembly
+
+Momo has structured control flow - `if`, `while`, `for`, `break`, `continue` -
+which maps directly onto JS. Emitting from the *assembly* would need a
+program-counter dispatch loop and be unreadable; emitting from the AST gives
+output that reads like the source:
+
+```js
+// ---- if( tileAt( playerX, playerY ) == '#' )
+if (mem8[map + mem8[playerY] * 10 + mem8[playerX]] === 35) {
+```
+
+### The `int`-only decision pays off again
+
+**The porting surface is exactly one function.** Every host interaction goes
+through `int`, so a backend shims `int21`, `int16` and `int10` - and only the
+handful of AH values the standard library actually uses.
+
+The alternative, swapping the standard library per platform, would need an
+`extern` concept and would break the "there are no externals" property from §10.
+Shimming the interrupt keeps programs portable *unchanged*, including any that
+call `int` directly.
+
+**The shims are the platform.** DOS uses real DOS, JS uses a canvas, native uses
+SDL2 - same program.
+
+### Two things that fall out free
+
+- **Headless tests.** Tier 2 currently launches DOSBox per case; a JS backend
+  runs the same suite in about a second.
+- **Differential testing.** Run a program on both backends and compare output.
+  Any divergence is a bug in one of them, and you need not know which in advance.
+
+### Wrinkles
+
+- **JS integer semantics.** Numbers are doubles, so every operation needs
+  masking - `& 0xFFFF` for u16, `<< 16 >> 16` to sign-extend i16, `| 0` or
+  `Math.trunc` for division. A missed mask is silent divergence from the 8086,
+  not a crash.
+- **Division by zero diverges.** The 8086 raises `INT 0`; JS yields `Infinity`.
+  Shim the check or document it.
+- **Native x86 is less different than it sounds.** `ax`, `bx` and the 16-bit
+  operations all still exist. The wrinkle is that 16-bit index registers cannot
+  index a 64-bit address space - so either `movzx` each index, or simply use the
+  same 64KB buffer as JS does, which preserves the whole model.
+
+### Sequencing
+
+**JS first**, since "easy to share" is the goal and it is the most debuggable.
+WASM is arguably the better endpoint - linear memory is native to it - and native
+buys what neither can: real fullscreen, audio latency, gamepads, a shippable
+binary, at the cost of object formats, a linker, an SDL2 dependency and per-OS
+builds.
+
+## 31. Dropping the assembler
+
+§1 records the toolchain as "NASM only. No linker, no `.obj`, no relocations."
+The endpoint of that trajectory is **no assembler either** - emit `.COM` bytes
+directly and drop the last external.
+
+This sounds like the largest of these directions and is close to the smallest,
+because of a decision taken for an unrelated reason. **The instruction subset in
+§1 is the entire specification.** An assembler that handles only what Momo
+itself emits needs:
+
+- Those mnemonics, in the operand forms the emitter actually produces:
+  immediate, `[label]`, `[label + disp]`, `[label + bx]`, register-register, and
+  the `al`/`ax` accumulator forms.
+- `db` `dw` `times` `equ` `org` `align`, and `cpu` as a no-op.
+- Labels including NASM's `.local` scoping, and one fixup pass for forward
+  jumps. Expressions no richer than `label + constant`.
+
+No macros, no sections, no object formats, no linking. That is a component of
+perhaps a thousand lines, not a rewrite of NASM. The subset was chosen so that
+NASM would enforce portability mechanically; that it also makes the toolchain
+self-containable is a payoff for a decision made about something else.
+
+### What it buys, with no self-hosting at all
+
+- **The build stops needing DOSBox.** Assembly currently happens *inside* the
+  emulator, which is where the `-Z` capture, the `build.ok` marker file and
+  "DOSBox exits with its own status, not NASM's" all come from. That machinery
+  disappears; DOSBox is left doing only what it is for - running the program.
+- **Tier 2 gets cheaper**, and a further tier becomes possible: compare emitted
+  bytes without launching anything.
+- **1.6MB of bundled binaries leave the repository.**
+- **The 8086 becomes a viable host again.** The bundled NASM is a DPMI build
+  whose own README says "nothing older than a 386 is supported"; an assembler
+  written in Momo has no such floor.
+
+### The check it costs, and how to keep it
+
+`cpu 8086` currently makes NASM enforce the instruction subset mechanically. A
+homegrown assembler enforces it *harder* - it cannot encode what it does not
+implement - but it stops being an independent opinion about whether the encoding
+is correct.
+
+Keep that with **differential assembly** while NASM is still here: assemble both
+ways, compare bytes, and treat any disagreement as a bug in the newcomer. The
+golden `.asm` tier (§14) already establishes the shape.
+
+The readable `.asm` stays a first-class output rather than becoming an
+intermediate. It is the headline feature; emitting bytes is an addition to it.
+
+## 32. Self-hosting
+
+Momo compiling Momo - and, the actual goal, **compiling on the target rather
+than on a host.** Working on a modern machine is more comfortable and will stay
+the default; the appeal is having the tooling be consistent with the thing it
+produces. That, and it is a genuinely fun thing to attempt, which is a permitted
+reason in a project named after a cat.
+
+Two goals get conflated here, and separating them makes the near half reachable:
+
+| | |
+|---|---|
+| **Written in Momo** | Compiled by the TypeScript Momo to a hosted target (above), running with modern memory. Answers whether the *language* can express a compiler. |
+| **Running on the target** | The same source as DOS binaries, in 64KB. The destination. |
+
+The first is a stage on the way to the second, not a rival to it.
+
+### The constraint is the memory model, not the CPU level
+
+386 is transformative for codegen, and irrelevant to this: **386 real mode still
+has 64KB segments**, and a `.COM` is still tiny model. Register width was never
+the ceiling.
+
+There is a twist, though. On-target compilation already requires a 386 *today*,
+because the bundled NASM is a DPMI program. So `momo/386` is a consequence of
+the machine rather than a prerequisite for the work - and if "Dropping the
+assembler" above lands first, the requirement evaporates entirely and true 8086
+self-hosting comes back into range.
+
+### Recursion is not the blocker it looks like
+
+The obvious reading is: a recursive-descent parser is dozens of mutually
+recursive calls, Momo rejects recursion, therefore self-hosting needs real stack
+frames - which would cost the exact memory analysis (§12), the most load-bearing
+decision in the language.
+
+It does not follow. **Shunting-yard is naturally non-recursive**: an operator
+stack and an operand stack, both explicit, both on the heap. The precedence
+table is already data. Statements become a flat loop over a block-nesting stack,
+and the tree walks in the resolver and emitter are the same shape - with an
+array-of-nodes AST there are `u16` indices rather than pointers, so a worklist is
+the natural form regardless.
+
+§15 already reports `hanoi` - hand-rolled recursion with a resume point per
+frame, the genuinely awkward case - coming out fine. A parser is easier than
+that. Self-hosting is evidence *for* the ban, not against it.
+
+### Four binaries, because the pipeline already is four
+
+The four stages are pure and separable, which is exactly the shape a
+memory-constrained compiler wants: **four `.COM` files communicating through
+intermediate files.** `lex` -> tokens, `parse` -> AST, `resolve` -> annotated AST,
+`emit` -> `.asm`. The `lex`, `parse` and `check` tools already dump those
+representations, so the on-disk formats are half-designed.
+
+The sizing forces it. `simplerl` is ~900 bytes of code, on the order of ten bytes per
+line of Momo; the compiler is ~5k lines of TypeScript, call it 6-8k lines of
+Momo once recursion is unrolled into explicit stacks. That is 60-80KB as a
+single binary - over the ceiling, and still uncomfortable if the estimate is
+half wrong. Split four ways it is roomy.
+
+(Deliberately rounded. Exact figures here go stale on any codegen change - the
+peephole work in §9 moved `simplerl` by 18 bytes - and the conclusion is robust to
+being wrong by a factor of two, which is the only precision that matters.)
+
+### What it needs
+
+Almost nothing new, and less than when this was written. **`group` (§18), `len`
+(§5) and `_cf` (§10) are now built** - structure-of-arrays is how a token table
+or an AST wants to be held on this machine, and `_cf` means a failed read can be
+noticed. With `int 0x21` and `addr()` already working, file access is writable
+today; `cftest` opens one.
+
+What is still missing is §19's array parameters, for routines that take a buffer
+without one copy per call site.
+
+The one genuine gap is in §20's own table, which covers three cases of four:
+
+| | Address known | Segment |
+|---|---|---|
+| `far` | compile time | another one |
+| `view` | compile time | ours |
+| `peek`/`poke` | runtime | ours |
+| **missing** | **runtime** | **another one** |
+
+`INT 21h AH=48h` hands back a segment at runtime, so a DOS-allocated far block
+lands in the empty cell. That is the cheapest route to more memory: four
+tiny-model binaries with far blocks for the tables, no `.EXE`, no relocations, no
+linker, and code never split across segments.
+
+**Momo-0.** The bootstrap compiler need only compile *enough of Momo to compile
+itself*, not all of it - so drop tree-shaking, `include`, parameterised consts
+and the exact memory report. That also resolves a real tension: Momo's design
+has whole-program analysis baked in (the call graph for recursion and pruning,
+image size for `_hsize`), while a memory-constrained compiler wants to stream.
+Momo-0 simply does not owe those guarantees.
+
+### The folder is wider than the language, and nobody decided that
+
+Constant folding runs on the host's numbers. In the TypeScript compiler those are
+JavaScript doubles, exact to 2^53 - so intermediates are evaluated at a precision
+Momo itself cannot express:
+
+```momo
+const wide     = 40000 + 40000     // 80000 - too wide to store
+const back     = wide - 20000      // 60000 - and this compiles
+
+const prod     = 30000 * 30000     // 900000000
+const narrowed = prod / 30000      // 30000
+```
+
+Both results land in a `u16` and both are right. Measured rather than assumed:
+those emit `mov word [a], 60000` and `mov word [b], 30000`.
+
+Only two things are checked. **Literals** must fit in 16 bits - the resolver
+rejects `1193182` outright, which is why the PIT's input frequency cannot be
+written down and a note table has to be generated elsewhere. And **results** must
+fit wherever they land. Between those two points the folder is effectively
+unbounded, and integer division folds the way runtime `/` does, so nothing
+disagrees.
+
+That is defensible and probably right: fold exactly, reject what does not fit.
+But it is an accident of the host rather than a decision, and **a Momo compiler
+written in Momo could not reproduce it.** Its own arithmetic is 16 bits, so it
+would fold `30000 * 30000` to whatever the low word holds and quietly disagree
+with the compiler that bootstrapped it - on a program both accept.
+
+Three ways out, none chosen:
+
+- **Narrow the promise.** Declare that folding happens in 16 bits and reject a
+  wide intermediate where it occurs rather than where it lands. Costs the
+  `40000 + 40000` shape, which nothing in the corpus uses, and makes the two
+  compilers agree by construction.
+- **Keep the promise and pay for it.** Momo-0 carries software 32-bit arithmetic
+  for the folder alone - `u16[2]` and a few routines, which §19's array
+  parameters would make readable. A real cost in a compiler already fighting for
+  64KB, for a case most programs never reach.
+- **Let them differ.** The bootstrap folds narrow, the self-hosted compiler folds
+  wide. Two compilers disagreeing about a legal program is the worst of the
+  three, and is listed only because it is what happens if nobody decides.
+
+The first is cheapest, the second is the more honest to what the language does
+today. What matters is that this is a **language** decision wearing an
+implementation's clothes, and it wants settling before a bootstrap exists rather
+than discovering it afterwards from a program that compiles differently.
+
+### If the model has to give: a profile, not a dialect
+
+Should far data prove insufficient, the escape hatch is `.EXE` and a laxer
+memory model - but as a **target profile**, not a second language. Momo already
+has a target axis (CPU levels above, `momo/z80` below); memory model is a second
+axis of the same idea. A dialect means two languages to keep honest and every
+guarantee quoted with an asterisk.
+
+It costs less than it looks, and less than it did before §16 was built - ES is
+already emitted, already preserved across interrupts, already in the subset.
+**§12 survives** too: static allocation is static however many segments it spans,
+so the figures stay exact, per segment. What actually dies is CS, DS and SS
+staying uniform, and the mnemonic subset growing segment loads and `es:`
+prefixes. Only `.EXE` costs "no linker, no relocations", and the four-binary
+route avoids needing it.
+
+### The hazard
+
+Everything else here gets built when something needs it. Self-hosting
+*manufactures* needs, and that is the risk: features justified by what the
+compiler wants rather than by what the language should be. Neither of Momo's
+distinguishing properties - readable commented output, an exact memory
+footprint - is served by the compiler being written in itself.
+
+Used well it is a forcing function that exercises §16-§20 against a demanding
+real program; used badly it is a reason to say yes to things. The tell is
+whether a feature still looks right with self-hosting struck out.
+
+So far the record is good, and none of it was actually driven by this section:
+`len` was wanted for a map height, `group` for an entity pool, `_cf` because
+DOS reports failure in carry and nothing could see it. The missing quadrant
+passes the same test - it was already latent in §20's table, and the use case
+only found it.
+
+## 33. Other CPUs - `momo/z80`, `momo/6502`
+
+Unlike the hosted targets above, these **do** change the abstract machine. Very
+stretch, but worth knowing what would and would not carry.
+
+**Ports unchanged:** lexer, parser, AST, loader and `include`, the whole testing
+apparatus, and the call-graph analysis. Roughly the front half.
+
+**Ports in spirit, not in detail:** the type rules. "All arithmetic in 16 bits" is
+an 8086 decision - on a 6502 you would want 8-bit native with 16-bit synthesised,
+which changes the promotion rules and therefore the mixing matrix.
+
+**Does not port at all:** the emitter, the reserved register globals, `int` as
+the one primitive, the heap-at-end-of-image trick, and the whole standard library.
+
+The encouraging part is that **Momo's core model ports well**: static allocation,
+no recursion, globals as the calling convention, and an exact memory report are
+exactly how one hand-writes 6502 and Z80 anyway. The design is not 8086-shaped
+even though the backend is.
+
+Between the two, **Z80 is much the closer fit** - 16-bit register pairs, a flat
+64K with no segments (simpler than the 8086), and `LD A,(HL)` maps onto the
+existing "compute an address, then load" model. The 6502 is harder than it looks:
+no 16-bit registers at all, no multiply or divide, a fixed 256-byte stack, and
+`abs,X` indexing with an 8-bit index - so arrays over 256 bytes need a different
+addressing scheme entirely, not just a different instruction.

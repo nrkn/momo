@@ -156,7 +156,7 @@ const pitHz = 1193182
 
 The rule is about *literals*, not intermediates - a folded expression may exceed
 16 bits as long as every literal in it fits and the result fits where it lands
-(DESIGN §21 records why, and what it means for self-hosting). But it does mean
+(DESIGN §32 records why, and what it means for self-hosting). But it does mean
 the PIT's input frequency cannot appear in source, so `1193182 / hz` is not
 expressible even as a constant.
 

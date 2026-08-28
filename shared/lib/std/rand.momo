@@ -22,7 +22,7 @@
 // worth knowing before calling it in a loop. Two thirds of the difference is
 // codegen rather than algorithm: `x ^ (x << 7)` reloads `x` and takes the
 // push/pop path because the right side is not a leaf, and `shl ax, cl` costs
-// 8 + 4n where seven separate `shl ax, 1` would cost 14. §21's unroll would
+// 8 + 4n where seven separate `shl ax, 1` would cost 14. §26's unroll would
 // bring it to about 1.5x. A 64000-pixel fill notices; nothing else will.
 //
 // The 400 predates peephole 14, which took three of those reloads out of this

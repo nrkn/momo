@@ -5,11 +5,11 @@ A small imperative language that transpiles to **commented NASM** for a strict
 predecessor [Yuki](https://github.com/nrkn/yuki-js), whose Pong for a fantasy
 console is kept as `_reference/yuki.txt`.
 
-- **`DESIGN.md`** - the language, and *why* every decision was made. 25 sections:
-  built features (§1-§18 and §22), three designed-but-deferred (§19, §23, §24),
-  one half-built (§25, which opens by saying which half), open questions (§20),
-  and long-term directions (§21). Read the relevant section before changing
-  anything; the rationale matters more than the rules.
+- **`DESIGN.md`** - the language, and *why* every decision was made, across 33
+  numbered sections. Read the relevant section before changing anything; the
+  rationale matters more than the rules. Numbers are stable and only appended,
+  since they are cited from source comments - §17 means `view` permanently, and
+  §21 is a redirect to where its contents went rather than a section.
 - **`STYLE.md`** - TypeScript and Momo conventions.
 - **`PITFALLS.md`** - what bites when writing Momo *programs*, as opposed to the
   gotchas below, which are about working on the compiler. Each entry leads with
@@ -166,7 +166,7 @@ the host. Pinned to a fixed count it becomes repeatable, but its normal core
 charges roughly per *instruction* rather than modelling `mul` at 118 cycles
 against `shl` at 2 - so it would rank optimisations wrongly. Count instructions
 in the emitted `.asm` and apply documented 8086 timings instead; that is exact,
-and it is what the tables in DESIGN §16 and §21 are built from. Run under DOSBox
+and it is what the tables in DESIGN §16, §26 and §27 are built from. Run under DOSBox
 to check correctness, not speed.
 
 **`build/` keeps the output of everything ever built here**, including projects
@@ -340,7 +340,7 @@ three happened to sit.
 The two programs differ in one routine. `plot` decides whether a pixel becomes a
 number or a byte of video memory, and the rasteriser never learns which: a library
 file may call a routine the *program* defines, and it compiles to a direct `call`.
-That is what DESIGN §21's routine parameters would have been for, and it needed no
+That is what DESIGN §19's routine parameters would have been for, and it needed no
 language feature at all.
 
 `tzoom` is the tiger zoomed by a transform applied as geometry is READ rather

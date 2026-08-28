@@ -626,12 +626,12 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
 
   // ---- strength reduction ---------------------------------------------------
   //
-  // §21's unconditional tier: powers of two for `*`, and for unsigned `/` and
+  // §26's unconditional tier: powers of two for `*`, and for unsigned `/` and
   // `%`. Faster *and* smaller in every case, so it belongs in the ordinary
   // emitter rather than behind a flag - `mov bx, n` + `mul bx` is 5 bytes and
   // ~125 cycles, while `mov cl, k` + `shl ax, cl` is 4 bytes and at worst 68.
   //
-  // §21 caps `*` at eight, which was more conservative than the numbers need:
+  // §26 caps `*` at eight, which was more conservative than the numbers need:
   // even a shift of fifteen through CL beats a multiply on both counts, so every
   // power of two is reduced.
 
@@ -830,7 +830,7 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
       // Signed is left alone deliberately. `sar` rounds toward minus infinity
       // where division rounds toward zero, so -7 / 2 would give -4 rather than
       // -3; correcting it needs a bias when the value is negative, and that is a
-      // separate decision (§21). Unsigned has no such trap.
+      // separate decision (§26). Unsigned has no such trap.
       const by = powerOfTwo(constOf(node.right))
       if (by !== null && !isSigned(typeOf(node))) {
         if (node.operator === '/') {
@@ -1803,7 +1803,7 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
   // still build and still run. The bound exists so that the `.asm` says what
   // gets assembled: one line here means one instruction there. That matters
   // because counting instructions in the emitted text is how performance is
-  // reasoned about in this project (§21), DOSBox being unable to measure it.
+  // reasoned about in this project (§26, §27), DOSBox being unable to measure it.
   //
   // Anything unrecognised between a jump and its target aborts that inversion
   // rather than being guessed at. `align 2` before the heap is why the rule is
