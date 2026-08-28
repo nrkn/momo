@@ -396,6 +396,101 @@ right one.
 
 ---
 
+## 25. Fixed-point types
+
+Half built when this was written, and the half that exists cost more than predicted
+for a reason the design could not have measured.
+
+### The multiply: 5x, against 3x predicted
+
+**Cost: 5x an optimal multiply, measured.** The estimate was 3x, from four `mul`s at
+around 100 cycles against one `mul` and a `sar`.
+
+Counted off the emitted assembly rather than estimated: `shared/lib/std/fixed.momo`'s
+portable kernel is **54 instructions and about 901 cycles**, against 7 and about 181
+for the intrinsic. The gap is not where the section expected it.
+
+**The four-multiply design assumed byte multiplies, and Momo never emits one.** "`mul`
+on byte operands already gives a 16-bit result" is true of the instruction and false
+of this language: §4 promotes every byte operand to 16 bits before arithmetic, so
+`ah * bh` on two `u8`s emits `mul bx` at 118 cycles rather than `mul bl` at 70. Four
+*word* multiplies, not four byte multiplies. On top of that the byte halves shuttle
+through memory - 24 `mov`s - and each `>> 8` is `shl ax, cl` at 8 + 4n, which is 40
+cycles three times over.
+
+**So the kernel is correct as assembly and inexpressible as Momo**, which is a
+distinction the section did not draw. The estimate was made against the design; the
+measurement is against the output, and §16's rule about which of those to trust
+applies here as much as anywhere.
+
+### The difficulty was backwards
+
+The section treated the back end as the harder half. It is the simpler one. The
+four-mul synthesis exists only because §9 discards `DX`; an emitter-synthesised helper
+is a leaf that returns in AX, so nothing sees `DX` live across it, and the emitter
+already emits helpers of exactly that shape - one per distinct interrupt, literal
+baked in, pruned when unused. Around **130 cycles** for the byte-extraction sequence
+against roughly 900 for the portable kernel.
+
+**§1 anticipated this without knowing it.** `imul` is excluded there because "with no
+32-bit type we never read `DX`", and reading the high half of a product is exactly what
+this does - so that justification expired the moment the intrinsic arrived, and §1 now
+records a smaller reason instead.
+
+**And it stayed at 39.** `imul` would make signed fixed multiply one instruction, but
+`mulshr8` is unsigned and magnitude-and-sign goes around it in ordinary Momo - so the
+sign costs a few `neg`s in a routine that already exists rather than a mnemonic in the
+subset.
+
+### Order, and what predict-then-check bought
+
+The plan was **the Momo lowering first and the helper second**, because the helper is
+where the signed cases live and the Momo version is the reference it gets checked
+against. The other way round validates a magnitude-and-sign kernel against nothing.
+
+That order held, and predict-then-check paid: **thirteen products were derived by hand
+from the kernel and written into `fixmul.expected` before the program was ever run,
+and all thirteen matched first time.**
+
+**One caveat against the section's own advice.** It said *"ship the sugar, measure
+whether the 3x matters on something real, and only then spend anything on the back
+end"* - and the intrinsic was built before anything measured whether 5x mattered.
+
+The consumer arrived afterwards and says the multiply was never the constraint:
+`shared/lib/momovec/zoom.momo` and `tzoom` apply one `fixMul` per coordinate as
+geometry is read, and the zoomed tiger fits in 63,454 bytes of a 64 KB segment where
+baking it needed 84,914. What it costs is crossing-list capacity, not cycles. So the
+intrinsic is still unmeasured against a real workload - just no longer unmeasured
+against a real *program*.
+
+### A cost estimate deliberately left unmeasured
+
+Whether one helper per width or one taking the shift as a parameter is better was left
+to be decided against real callers. The arithmetic: `mov cl, n` then `shl ax, cl` costs
+8+4n where a folded constant of two or less unrolls to repeated `shl ax, 1`, and the
+kernel has two or three shifts in it - somewhere between **20% and 40% on top of 400
+cycles**.
+
+That range is arithmetic on the timings rather than a measurement, and it is the kind
+of figure this project has been wrong about before. Predict it properly before adopting
+either shape.
+
+### Two notes about other files
+
+**`rand.momo` was written up here quoting a header the file no longer had.** The
+section described it as a u16 LCG with *"period 512 - a visible band every 1.6
+scanlines"*; the LCG had been replaced with xorshift16 the day before, and those lines
+were its account of what got retired. The file may still want proportions -
+`randomBelow` is a `div` per call - but not for the reason given. **Nothing checked the
+quotation against the code it came from.**
+
+**It does not reopen the conic cut in the vector study.** One of that decision's four
+arguments was 32-bit intermediates; the other three - nothing in the data produces an
+arc, an ellipse is not a segment, four winding directions against one `forceDir` -
+stand regardless.
+
+---
+
 ## 26. Strength reduction
 
 ### What it measured, against what it predicted

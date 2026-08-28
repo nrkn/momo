@@ -2291,11 +2291,10 @@ the scale is preserved. The other reading promotes the `i16` to `i8.8` first, an
 two answers are 256x apart. Count is the useful one, and promotion is what a cast is
 for: `a * i8.8( n )`. §4 has no implicit promotion anywhere and this adds none.
 
-### Untyped constants are counts too, and this is the case that nearly got missed
+### Untyped constants are counts too
 
 The table above has a row for every named type and none for `untyped`, which is the type
-a literal carries until something fixes it. That is not a gap in the writing; it is the
-commonest expression in real code. `combineOperands` decides by *range* rather than by
+a literal carries until something fixes it - and the commonest expression in real code. `combineOperands` decides by *range* rather than by
 name, so nothing above catches `scale * 2`: the ranges combine, the result is a plain
 `i16`, and the scale is gone. That is the 256x error this section exists to prevent,
 arriving through the mechanism §4 added for convenience.
@@ -2314,7 +2313,6 @@ from context.
 
 Assignment takes the matching rule, and it lives in a different place in the code from
 the operator table: `i8.8 x = someI16` is an error for the same reason `i8.8 + i16` is.
-Easy to leave out, because nothing about `checkAssignable` points at this section.
 
 **So `i8.8 x = 2` is an error and `i8.8 x = 2.0` is how it is written.** That looks
 pedantic beside §4, where a literal adapts to its target and `u8 y = 2` is ordinary. It
@@ -2527,9 +2525,10 @@ section rejects 16.16 for, arriving by a different road. The helper has to be a 
 ### No new register pressure, which is the whole reason it is shaped this way
 
 `a * b` on 8.8 wants `(a*b) >> 8`, and §9 discards `DX` - so the naive lowering is
-silently wrong the moment the product exceeds a word. It does not need new codegen:
-**a 16x16->32 multiply synthesises from four 8x8->16 multiplies**, and `mul` on byte
-operands already gives a 16-bit result.
+silently wrong the moment the product exceeds a word.
+
+**The specification is a four-multiply synthesis.** A 16x16->32 multiply builds from
+four narrower ones:
 
 ```
 a*b = ah*bh*65536 + (ah*bl + al*bh)*256 + al*bl
@@ -2537,63 +2536,17 @@ a*b = ah*bh*65536 + (ah*bl + al*bh)*256 + al*bl
 
 so `(a*b) >> 8` is `ah*bh*256 + (ah*bl + al*bh) + (al*bl >> 8)`, all in 16-bit ops.
 Signed needs magnitude-and-sign around the unsigned kernel, which is where the bugs
-would live and wants predict-then-check rather than confidence.
+would live. `shared/lib/std/fixed.momo` keeps this as `fixMulUParts`.
 
-**Cost: 5x an optimal multiply, measured** - and the estimate here said 3x, from four
-`mul`s at around 100 cycles against one `mul` and a `sar`.
+**The fast path is `mulshr8( a, b )`** - the unsigned product of two words, shifted
+right by eight - and `fixMulU` is one line over it. The two are held against each
+other rather than trusted: `fixmul` runs both over 256 pairs on the target and
+requires agreement on every one.
 
-Counted off the emitted assembly rather than estimated: `shared/lib/std/fixed.momo`'s portable
-kernel is **54 instructions and about 901 cycles**, against 7 and about 181 for the
-intrinsic below. The gap is not where this section expected it.
-
-**The four-multiply design assumed byte multiplies, and Momo never emits one.** "`mul`
-on byte operands already gives a 16-bit result" is true of the instruction and false of
-this language: §4 promotes every byte operand to 16 bits before arithmetic, so
-`ah * bh` on two `u8`s emits `mul bx` at 118 cycles rather than `mul bl` at 70. Four
-word multiplies, not four byte multiplies. On top of that the byte halves shuttle
-through memory - 24 `mov`s - and each `>> 8` is `shl ax, cl` at 8 + 4n, which is 40
-cycles three times over.
-
-So the kernel is correct as assembly and inexpressible as Momo, which is a distinction
-this section did not draw. The estimate was made against the design; the measurement is
-against the output, and §16's rule about which of those to trust applies here as much as
-anywhere.
-
-That cost is a deliberate trade and it had an escape hatch that does not move the
-language. The sugar's *meaning* is defined by its lowering, so a faster implementation
-of the same meaning is an optimisation: the emitter can special-case the pattern, or a
-widening-multiply intrinsic can arrive, and no program changes. This section then said:
-*"Ship the sugar, measure whether the 3x matters on something real, and only then spend
-anything on the back end."*
-
-**The intrinsic arrived, and it is `mulshr8( a, b )`** - the unsigned product of two
-words, shifted right by eight. `shared/lib/std/fixed.momo`'s `fixMulU` is one line over it, and
-the four-multiply version is kept beside it as `fixMulUParts`, which is the
-specification and the thing the intrinsic is tested against: `fixmul` runs both
-over 256 pairs and requires agreement on every one.
-
-It needed **no new mnemonic**. The whole 32-bit product lives in `DX:AX` and is never
-named, which is exactly what §9 has always permitted, and `(a*b) >> 8` out of `DX:AX` is
-one byte from each half - two `mov`s, no shift, because no 8086 shift reaches across the
-pair anyway. Named for the machine operation rather than for fixed point, the way `peek8`
-is named for the machine rather than for "read a byte".
-
-The honest caveat stands, in a smaller form: it was built before anything measured
-whether 5x mattered, which is the opposite of what the sentence above advises.
-
-**The consumer now exists** - `shared/lib/momovec/zoom.momo` and `tzoom`, one `fixMul`
-per coordinate applied as geometry is read - and what it says is that the multiply was
-never the constraint. The zoomed tiger fits in 63,454 bytes of a 64 KB segment where
-baking it needed 84,914, and what it actually costs is crossing-list capacity rather than
-cycles. So the intrinsic is still unmeasured against a real workload; it is just no
-longer unmeasured against a real *program*.
-
-**Which has the difficulty backwards. The back end is simpler than the Momo kernel, not
-harder.** The four-mul synthesis exists only because §9 discards `DX`; an
-emitter-synthesised helper is a leaf that returns in AX, so nothing sees `DX` live across
-it. The emitter already emits helpers of exactly this shape, one per distinct interrupt
-with the literal baked in and pruned when unused. `(a*b) >> 8` out of `DX:AX` is then a
-byte extraction:
+It needs **no new mnemonic**. The whole 32-bit product lives in `DX:AX` and is never
+named, which is exactly what §9 has always permitted, and `(a*b) >> 8` out of `DX:AX`
+is one byte from each half - two `mov`s, no shift, because no 8086 shift reaches
+across the pair anyway:
 
 ```nasm
         mul     bx
@@ -2601,42 +2554,26 @@ byte extraction:
         mov     ah, dl
 ```
 
-Around 130 cycles for the sequence itself, against roughly 900 for the portable kernel as
-Momo actually emits it - see the measurement above.
+It is named for the machine operation rather than for fixed point, the way `peek8` is
+named for the machine rather than for "read a byte".
 
-**§1 anticipated this without knowing it.** `imul` is excluded there because "with no
-32-bit type we never read `DX`", and reading the high half of a product is exactly what
-this does - so that justification expired the moment the intrinsic arrived, and §1 now
-records a smaller reason instead.
+**The sugar's meaning is defined by its lowering**, so a faster implementation of the
+same meaning is an optimisation and no program changes.
 
-**And it stayed at 39.** `imul` would make signed fixed multiply one instruction, but
-`mulshr8` is unsigned and `shared/lib/std/fixed.momo` puts magnitude-and-sign around it in
-ordinary Momo - so the sign costs a few `neg`s in a routine that already exists rather
-than a mnemonic in the subset. That is the cheaper half of the trade and it keeps the
-number on the README true.
+**Two properties of the multiply, both worth knowing before relying on it.** It
+truncates toward zero rather than toward negative infinity, which buys
+`fixMul( -a, b ) == -fixMul( a, b )` at the cost of differing by one from an
+arithmetic shift; and -32768 has no magnitude in an `i16`, so the most negative 8.8
+value multiplies as though it were positive.
 
-None of which changes the order. **Build the Momo lowering first and the helper second**,
-because the helper is where the signed cases live and the Momo version is the reference it
-gets checked against. The other way round validates a magnitude-and-sign kernel against
-nothing, which is the wrong direction for the one part of this section already flagged as
-bug-prone. The escape hatch is worth holding in reserve rather than spending early.
-
-The Momo half is built, and predict-then-check paid: thirteen products were derived by
-hand from the kernel and written into `fixmul.expected` before the program was ever run,
-and all thirteen matched first time. Two properties came out of writing it rather than
-designing it, and `shared/lib/std/fixed.momo` documents both - it truncates toward zero rather
-than toward negative infinity, which buys `fixMul( -a, b ) == -fixMul( a, b )` at the cost
-of differing by one from an arithmetic shift; and -32768 has no magnitude in an i16, so
-the most negative 8.8 value multiplies as though it were positive.
-
-**This is why fixed point is the right shape and a 32-bit type is not.** §22 records
-what happened when port I/O assumed `DX` was free because §9 called it *"scratch and
-never live"*: a port has to stay in `DX` from the load until the `out`, and `mul` and
-`div` both write it. A *stored* 32-bit value is that problem everywhere - it needs `DX`
-live across arbitrary code - and that is a change to the accumulator model, which
-fifteen peepholes and every golden `.asm` stand on. Fixed point never stores a wide
-value: the 32-bit intermediate exists inside one expression and is never named, which
-is what §9 has always permitted.
+**This is why fixed point is the right shape and a 32-bit type is not.** DECISIONS
+§22 records what happened when port I/O assumed `DX` was free because §9 called it
+*"scratch and never live"*: a port has to stay in `DX` from the load until the `out`,
+and `mul` and `div` both write it. A *stored* 32-bit value is that problem
+everywhere - it needs `DX` live across arbitrary code - and that is a change to the
+accumulator model, which fifteen peepholes and every golden `.asm` stand on. Fixed
+point never stores a wide value: the 32-bit intermediate exists inside one expression
+and is never named.
 
 ### Division is the half this does not cover cleanly
 
@@ -2658,12 +2595,6 @@ feature. So the type checking takes all 48 spellings and **only 8.8 gets a multi
 scale with no helper is a clear "no multiply for this scale yet" rather than a wrong
 answer, and the choice between one helper per width and one taking the shift as a
 parameter then gets made against real callers instead of guessed at now.
-
-A shift parameter is not free. `mov cl, n` then `shl ax, cl` costs 8+4n where a folded
-constant of two or less unrolls to repeated `shl ax, 1`, and the kernel has two or three
-shifts in it - so somewhere between 20% and 40% on top of 400 cycles. That range is
-arithmetic on the timings rather than a measurement, and it is the kind of figure this
-project has been wrong about before, so predict it properly before adopting either shape.
 
 `i0.16` and `u0.16` want care whichever way that goes: a shift of 16 puts the entire
 product in `DX`, so the pure-fraction types are not one more row in the table.
@@ -2690,22 +2621,15 @@ first is much cheaper here.
 The opportunity is not wider numbers, it is **proportions without overflow**, and there
 is more of that waiting than expected.
 
-- **`shared/lib/std/rand.momo`** was written up here as a u16 LCG, quoting its own header on
-  *"period 512 - a visible band every 1.6 scanlines"*. That header describes a generator
-  the file no longer has: the LCG was replaced with xorshift16 the day before this section
-  was written, and those lines are its account of what got retired. The file may still
-  want proportions - `randomBelow` is a `div` per call - but not for the reason given, and
-  nothing checked the quotation against the code it came from.
 - **`shared/lib/momolo` has no proportional arithmetic at all**, and percent sizing was one of
   the things explicitly cut from the clay port. This is what it needs.
 - **`tennis`** carries shifts documented as port fidelity - `obj >> 2` - which
   a fixed type would express as what they mean rather than as what they do.
 - Gauges, aspect ratios, progress bars: the whole `(a*b)/c` family.
 
-It does **not** reopen the conic cut in the vector study. One of that decision's four
-arguments was 32-bit intermediates; the other three - nothing in the data produces an
-arc, an ellipse is not a segment, four winding directions against one `forceDir` - stand
-regardless.
+The record for this section - what the multiply cost against what was predicted,
+why the design had the difficulty backwards, and a header this section quoted from
+a file that no longer had it - is `DECISIONS.md` §25.
 
 ## 26. Strength reduction: how far to go
 
