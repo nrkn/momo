@@ -192,3 +192,78 @@ counts at any width, and the cap was pure caution.
 
 The tier now says every power of two. `emitter.ts` records the same correction
 beside the code.
+
+---
+
+## 27. Word copies and data alignment
+
+Two optimisations, measured. Neither is a rule, which is why this is the whole
+of §27 rather than part of it: it is a question somebody asked, costed, and
+answered, and the answer sent each half somewhere else - the word view to §17 as
+a technique, the alignment work to PLAN.md as a deferral with a trigger.
+Prompted by an obvious question about `tilefill` - if the tiles are word aligned,
+could a `u16` view copy two pixels at a time and halve the loop? The answer turned
+out to be two separate optimisations of very different value, and the alignment
+half is worth less than it looks.
+
+The premise was also false. `tiles` sits at **0x2F7, which is odd**. Nothing in
+Momo aligns user data; only `_heap` gets `align 2`. A `.COM` puts data at
+`0x100 + code size`, so the parity of the whole data section is an accident of how
+much code precedes it, and one extra instruction anywhere above flips it. It does
+not affect correctness - the 8086 permits unaligned word access, which §17's rules
+already say - only speed.
+
+**The inner loop, counted.** `pixels[dest + col] = tiles[src + col]` plus its test
+and increment is **19 instructions**, of which **two** touch pixel data. Everything
+else recomputes both addresses and reloads ES. It performs **7 misaligned word
+accesses** per pixel: the loop test reads `col`, the body reads `src`, `col`,
+`dest`, `col`, and `inc word [col]` both reads and writes.
+
+Applying the documented 8086 table (accumulator forms at 10, `8 + EA` otherwise,
+`jcc` taken at 16, `inc word [mem]` at 21, a segment override at 2) gives ~182
+cycles per pixel, and the misalignment adds 7 x 4 = 28.
+
+| per tile (64 pixels) | 8086 | 8088 |
+|---|---|---|
+| as built | ~13,400 | ~13,900 |
+| word views, 32 iterations | ~7,000 (-48%) | ~7,200 (-48%) |
+| aligned scalars only | ~11,600 (-13%) | no change |
+| both | ~6,100 (-55%) | ~7,200 (-48%) |
+
+**The word-view half is the prize, and it needs no compiler work at all.** §17
+already expresses it: `view u16[64] tileWords = tiles[0]` over the `u8[128]` set,
+`view u16[32000] pixelWords = pixels[0]` over the far region. It needs no division
+either - halve the constants instead, 320 -> 160 and 8 -> 4, and pass the tile
+offset in words. The destination stays even for free, since both terms of
+`(ty * 8 + row) * 160 + tx * 4` are. The saving is not two bytes per `mov`; it is
+paying that 19-instruction preamble 32 times instead of 64, which is why it holds
+up on an 8088 too.
+
+**The alignment half is smaller and target-dependent.** An 8088's external bus is
+8 bits, so a word access is two bus cycles whether aligned or not - the penalty
+this would remove does not exist there. It is a true-8086 optimisation, and most
+of these machines were 8088s. §28's CPU target levels are about the *instruction
+set*; bus width is a second axis, and nothing in Momo currently has a place to say
+which one it is tuning for.
+
+**And reordering alone cannot deliver alignment.** Sorting the scalars words-first
+is free and deterministic in itself, but it only makes every word share the parity
+of the block start - and that parity comes from the code size, which the compiler
+never learns, because it emits NASM source rather than bytes. Sorted, a program
+whose data base lands odd has *all* its words misaligned instead of some. So the
+package is `align 2` once at the data base plus the sort, not the sort alone.
+
+The `align 2` costs at most one byte for the entire program, which settles the
+question of whether a byte-sized scalar could be tucked into the padding slot to
+make it free: it could not, since only NASM knows whether a slot is needed, and it
+would be saving one byte. The cost worth weighing is not the byte. It is that
+sorting by width scatters each routine's locals between the word group and the
+byte group, and the data section currently shows a routine's whole frame in one
+place. That is a readability trade against a 13%-on-one-chip gain, and readable
+output is the product (§9).
+
+Verdict: **the word views are worth doing in a program that cares, today, with no
+compiler change. The alignment work waits for a reason to prefer the 8086 over the
+8088** - and if it ever comes, it arrives as `align 2` plus a width sort, with the
+locals-locality cost paid deliberately. `tilefill` itself stays as it is: it is the
+straightforward version on purpose, and §14 wants it readable more than fast.

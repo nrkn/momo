@@ -1855,6 +1855,14 @@ the need for `halloc` entirely.
 
 **Type punning without a cast** - `view u16[50] words = bytes[0]`.
 
+**Copying two bytes at a time**, which is the same thing put to work. A `u16` view
+over a byte array or a far region halves a copy loop, and needs no compiler
+support at all: `view u16[64] tileWords = tiles[0]` beside `view u16[32000]
+pixelWords = pixels[0]`, with the constants halved rather than divided - 320
+becomes 160, 8 becomes 4. The saving is not two bytes per `mov`, it is running the
+loop's whole preamble half as many times, which is why it holds up on an 8088 too.
+Measured at -48% for a tile blit; `DECISIONS.md` §27 has the counts.
+
 **An extent check arrays cannot give you.** A view knows its parent's length, so
 `view u8[50] q = bar[75]` on a `u8[100]` is rejected at the declaration -
 `75 + 50` overflows. The mistake is caught once, where it is written.
@@ -2923,74 +2931,16 @@ Two consequences fall out for free:
 The record for this section - what the reduction measured, and the cap this
 section originally set and had to lift - is `DECISIONS.md` §26.
 
-## 27. Word copies and data alignment: two optimisations, measured
+## 27. Word copies and data alignment
 
-Prompted by an obvious question about `tilefill` - if the tiles are word aligned,
-could a `u16` view copy two pixels at a time and halve the loop? The answer turned
-out to be two separate optimisations of very different value, and the alignment
-half is worth less than it looks.
+**Not a section of this document - the analysis is `DECISIONS.md` §27.** It is a
+question somebody asked about `tilefill`, measured and answered: could a `u16`
+view copy two pixels at a time and halve the loop?
 
-The premise was also false. `tiles` sits at **0x2F7, which is odd**. Nothing in
-Momo aligns user data; only `_heap` gets `align 2`. A `.COM` puts data at
-`0x100 + code size`, so the parity of the whole data section is an accident of how
-much code precedes it, and one extra instruction anywhere above flips it. It does
-not affect correctness - the 8086 permits unaligned word access, which §17's rules
-already say - only speed.
-
-**The inner loop, counted.** `pixels[dest + col] = tiles[src + col]` plus its test
-and increment is **19 instructions**, of which **two** touch pixel data. Everything
-else recomputes both addresses and reloads ES. It performs **7 misaligned word
-accesses** per pixel: the loop test reads `col`, the body reads `src`, `col`,
-`dest`, `col`, and `inc word [col]` both reads and writes.
-
-Applying the documented 8086 table (accumulator forms at 10, `8 + EA` otherwise,
-`jcc` taken at 16, `inc word [mem]` at 21, a segment override at 2) gives ~182
-cycles per pixel, and the misalignment adds 7 x 4 = 28.
-
-| per tile (64 pixels) | 8086 | 8088 |
-|---|---|---|
-| as built | ~13,400 | ~13,900 |
-| word views, 32 iterations | ~7,000 (-48%) | ~7,200 (-48%) |
-| aligned scalars only | ~11,600 (-13%) | no change |
-| both | ~6,100 (-55%) | ~7,200 (-48%) |
-
-**The word-view half is the prize, and it needs no compiler work at all.** §17
-already expresses it: `view u16[64] tileWords = tiles[0]` over the `u8[128]` set,
-`view u16[32000] pixelWords = pixels[0]` over the far region. It needs no division
-either - halve the constants instead, 320 -> 160 and 8 -> 4, and pass the tile
-offset in words. The destination stays even for free, since both terms of
-`(ty * 8 + row) * 160 + tx * 4` are. The saving is not two bytes per `mov`; it is
-paying that 19-instruction preamble 32 times instead of 64, which is why it holds
-up on an 8088 too.
-
-**The alignment half is smaller and target-dependent.** An 8088's external bus is
-8 bits, so a word access is two bus cycles whether aligned or not - the penalty
-this would remove does not exist there. It is a true-8086 optimisation, and most
-of these machines were 8088s. §28's CPU target levels are about the *instruction
-set*; bus width is a second axis, and nothing in Momo currently has a place to say
-which one it is tuning for.
-
-**And reordering alone cannot deliver alignment.** Sorting the scalars words-first
-is free and deterministic in itself, but it only makes every word share the parity
-of the block start - and that parity comes from the code size, which the compiler
-never learns, because it emits NASM source rather than bytes. Sorted, a program
-whose data base lands odd has *all* its words misaligned instead of some. So the
-package is `align 2` once at the data base plus the sort, not the sort alone.
-
-The `align 2` costs at most one byte for the entire program, which settles the
-question of whether a byte-sized scalar could be tucked into the padding slot to
-make it free: it could not, since only NASM knows whether a slot is needed, and it
-would be saving one byte. The cost worth weighing is not the byte. It is that
-sorting by width scatters each routine's locals between the word group and the
-byte group, and the data section currently shows a routine's whole frame in one
-place. That is a readability trade against a 13%-on-one-chip gain, and readable
-output is the product (§9).
-
-Verdict: **the word views are worth doing in a program that cares, today, with no
-compiler change. The alignment work waits for a reason to prefer the 8086 over the
-8088** - and if it ever comes, it arrives as `align 2` plus a width sort, with the
-locals-locality cost paid deliberately. `tilefill` itself stays as it is: it is the
-straightforward version on purpose, and §14 wants it readable more than fast.
+Both halves of the answer have landed somewhere more useful. The word view is a
+technique and is described in §17. The alignment work is deferred with a stated
+trigger and is a `PLAN.md` item. What remains is the measurement that settled it,
+which is a record rather than a rule.
 
 ---
 

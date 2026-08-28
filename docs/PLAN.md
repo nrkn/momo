@@ -69,10 +69,9 @@ nothing has yet wanted it.
 - **Fixed-point division.** DESIGN §25 is half built and says which half: `*` on
   8.8 lands, division does not, and §25 sets out why it is the awkward one.
 - **Finish moving the record into `DECISIONS.md`.** In progress, section by
-  section, as `DESIGN.md` is read through. Done: §15, §17, §18. Still to do: §16,
-  §20, §22, §25, §26, §27 - of which §16 and §25 are the large ones, and §27 may
-  dissolve entirely, since nothing cites it except as an example of a measured
-  table.
+  section, as `DESIGN.md` is read through. Done: §15, §17, §18, §26, §27 - the
+  last of which dissolved entirely rather than splitting. Still to do: §16, §20,
+  §22, §25, of which §16 and §25 are the large ones.
 
 ### Probably
 
@@ -128,6 +127,19 @@ nothing has yet wanted it.
   struck out.
 - **Other CPUs, `momo/z80` and `momo/6502`.** §33 - these do change the abstract
   machine, unlike the hosted targets.
+- **Align the data section.** DECISIONS §27 measured this at **-13% on a true
+  8086 and nothing at all on an 8088**, whose 8-bit bus pays two cycles for a word
+  access however it is aligned. Most of these machines were 8088s, so it waits for
+  a reason to prefer one over the other - and Momo has nowhere to say which it is
+  tuning for, since §28's CPU levels are about the instruction set and bus width
+  is a second axis.
+
+  If that reason arrives it is `align 2` at the data base **plus** a width sort,
+  not the sort alone: sorting only makes every word share the parity of the block
+  start, and that parity comes from the code size, which the compiler never learns
+  because it emits NASM source rather than bytes. The cost to weigh is not the one
+  padding byte but that sorting by width scatters each routine's locals across two
+  groups, where the data section currently shows a whole frame in one place.
 
 ## Questions
 

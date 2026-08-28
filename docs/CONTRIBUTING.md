@@ -182,7 +182,8 @@ the host. Pinned to a fixed count it becomes repeatable, but its normal core
 charges roughly per *instruction* rather than modelling `mul` at 118 cycles
 against `shl` at 2 - so it would rank optimisations wrongly. Count instructions
 in the emitted `.asm` and apply documented 8086 timings instead; that is exact,
-and it is what the tables in DESIGN §16, §26 and §27 are built from. Run under DOSBox
+and it is what the timing tables in §16, §26 and §27 are built from - the last
+of those now in DECISIONS.md, which is where a measurement lives. Run under DOSBox
 to check correctness, not speed.
 
 **`build/` keeps the output of everything ever built here**, including projects
