@@ -3,16 +3,49 @@
 What is going to be built, how sure that is, what is still unsettled - and the
 design of the things that are not built yet.
 
-Two parts. **The index below is the working half**: one line per item, a `§`
-pointing at its design, and items moving between the tiers and into Done. **The
-designs are the second half**, further down, and they are here rather than in
-`DESIGN.md` because `DESIGN.md` describes the system as it stands, and these are
-not part of it yet.
+It opens with the destination, which is context rather than work. Then two parts.
+**The index is the working half**: one line per item, a `§` pointing at its
+design, and items moving between the tiers and into Done. **The designs are the
+second half**, further down, and they are here rather than in `DESIGN.md` because
+`DESIGN.md` describes the system as it stands, and these are not part of it yet.
 
 When one gets built, its section moves into `DESIGN.md` and its item moves to
 Done. **The number goes with it.** Section numbers are one namespace across all
 three documents - §24 means interrupt handlers wherever it currently lives - so
 the number tells you the topic and the file tells you the status.
+
+## Where this is going
+
+`DESIGN.md` opens by saying what Momo is: a fantasy console, for real hardware.
+What follows from that is a tier of applications - a machine you can develop on
+without leaving it - and this is where they are named.
+
+**It is a destination, not a queue.** Nothing here is a Todo item until something
+makes it one, and the list below is deliberately not sorted by when it might
+happen.
+
+| | | wants |
+|---|---|---|
+| `momowad` | assets in bulk, with Doom-style PWAD overrides. Compatible with WAD at the container level, carrying our own lump types | file read and write |
+| `momoed` | the editor - an explorer beside a text pane, toggled away for width, and text modes `edit.com` never had | file I/O, a screen library |
+| `momode` | a graphical shell and launcher. Single-tasking, and windowed by screen offsets an aware program is handed | a mouse, and DOS memory management |
+| `momove` | a small vector editor, for icons and the like | a mouse, §37's geometric booleans |
+| `momopnt` | the library three image editors share - sprite, bitmap font, paint | a mouse, a palette library |
+| tilemap, sfx and music editors | the rest of the shape a fantasy console is expected to have | sound, which nothing here has touched |
+
+**Three capabilities are missing under all of it**: file read and write, a mouse,
+and sound. Everything else composes from what is built - and none of the three is
+far off. `cftest` already opens and closes a file on the target, §22's port I/O
+was justified partly by the PIT and the speaker, and §24 already records that a
+mouse callback is the one thing that would want `retf`.
+
+**This is deliberately not one section number.** §21 was dissolved because it was
+nine unrelated things under one number, and exactly the same mistake is available
+here. Each of these takes its own number when it is designed, and enters Todo when
+something wants it.
+
+It is also the likeliest thing to reach `CONTRIBUTING.md`'s first case for a
+branch, and by some margin.
 
 ## What Done means here, and what it does not
 
