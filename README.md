@@ -43,8 +43,9 @@ Three reasons.
 
 **Primarily, to write small games and tools.** Momo is meant to be used rather
 than admired. There is a roguelike, the standard library is a text-mode screen, a
-keyboard and strings, and the bar it is held to (`DESIGN.md` §15) is a list of
-programs that work, not of features that exist.
+keyboard and strings, and what it is measured against is a list of programs that
+work rather than features that exist - `docs/DECISIONS.md` §15 records the early
+version of that list, and what met it.
 
 **Secondarily, to show that x86 assembly is not overwhelming if you start with
 a small subset and work up.** Not by hiding the assembly - by shrinking it

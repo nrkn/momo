@@ -145,6 +145,21 @@ Consequences:
   quantity - see §12.
 - Top-level statements form the entry point, emitted at `org 100h`.
 
+### What banning recursion costs
+
+Less than it sounds. A recursive algorithm simply carries its own stack, which
+the heap already provides:
+
+- `qsort` keeps `(lo, hi)` ranges as pairs of words - a plain worklist.
+- `hanoi` needs a **resume point** per frame, so each frame is four words
+  (`n`, `from`, `to`, `stage`) and the loop becomes a state machine. This is the
+  genuinely awkward shape of hand-rolled recursion, and it came out fine.
+
+Both were written straight through with no compiler changes. What the ban buys in
+exchange is the exact stack figure in §12 - `hanoi` reports 10 bytes worst case
+along `entry > solve > pushFrame > frameSet > slotOf`, which would be unknowable
+with real recursion.
+
 ### Three callable forms
 
 | | | |
@@ -1422,62 +1437,14 @@ touches DOS and can use long descriptive names.
 
 ## 15. Acceptance test
 
-The original bar: the subset is "useful enough" if it compiles hello world,
-fizzbuzz, bubble sort, sieve of Eratosthenes, a string library and a text
-adventure. Yuki (`_reference/yuki.txt`) is the stretch target - nothing in that
-file trips the type rules.
+**A record rather than a standard, and it is in `DECISIONS.md` §15.** An early
+list of programs that would show the subset was useful enough - hello world,
+fizzbuzz, a sieve, a string library, a text adventure - with a table of what met
+it. Only the text adventure is outstanding, and it is a `PLAN.md` item.
 
-Where that stands:
-
-| | |
-|---|---|
-| Hello world | `hello` - hand-written asm, and trivial in Momo |
-| Fizzbuzz | inside `smoke`, verified end to end |
-| Arithmetic, arrays, loops, branches | `smoke` - every construct in one program |
-| A standard library | `shared/lib/std/io.momo` |
-| Dynamic allocation | `heaptest` - a bump allocator in Momo |
-| Compile-time tables | `consttst` |
-| Sieve of Eratosthenes | `sieve`, and `bitsiev` bit-packed on the heap |
-| Recursive algorithms | `qsort` (quicksort) and `hanoi` - explicit stacks on the heap |
-| Text-mode screen library | `shared/lib/std/screen.momo`, verified by `scrtest` |
-| String library | `shared/lib/std/str.momo`, verified by `strtest` |
-| Text adventure | not yet attempted |
-
-**Only the text adventure is left**, and nothing in the language blocks it. The
-string library was the last item with a missing feature behind it: routines take
-scalars, so it needed a runtime address, which is what `peek`/`poke` (§10) are.
-Graphics is not blocked either - §16 is built, so the text buffer and mode 13h are
-both addressable as memory.
-
-Two things have since joined the list that were never on the original bar:
-`grptest` for entity pools (§18), and `cftest`,
-which opens a file and notices when that fails - the first Momo program that
-could find out the machine said no. `viewtest` (§17) and
-`peektest` (§10) make four.
-
-**Dynamic allocation has an answer that is not an allocator.** `view` partitions
-the heap into named regions at compile time, so `heaptest`'s bump allocator is now
-the interesting case rather than the default one.
-
-### On banning recursion
-
-The ban costs less than it sounds. A recursive algorithm simply carries its own
-stack, which the heap already provides:
-
-- `qsort` keeps `(lo, hi)` ranges as pairs of words - a plain worklist.
-- `hanoi` needs a **resume point** per frame, so each frame is four words
-  (`n`, `from`, `to`, `stage`) and the loop becomes a state machine. This is the
-  genuinely awkward shape of hand-rolled recursion, and it came out fine.
-
-Both were written straight through with no compiler changes. What the ban buys in
-exchange is the exact stack figure in §12 - `hanoi` reports 10 bytes worst case
-along `entry > solve > pushFrame > frameSet > slotOf`, which would be unknowable
-with real recursion.
-
-The bit-packed sieve is the most demanding program written so far - 1000
-candidates in 126 bytes of heap, using `_heap[n >> 3]` with a runtime shift
-count. Writing it found two real bugs (§4, §6), which is exactly what it was
-for.
+It is kept as history because it is a true account of how the project decided it
+was working, and moved out of here because it long ago stopped describing the
+system and started being quoted as though it governed it.
 
 ---
 

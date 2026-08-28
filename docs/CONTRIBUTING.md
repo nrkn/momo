@@ -392,7 +392,7 @@ describes the voice it should have.
 Rewriting it waits on two things. **Programs worth showing**, first: `simplerl` is
 deliberately the smallest thing that counts as a game, the six demos cannot be
 tier-2 tested, and everything else under `projects/` is a fixture. A README
-that shows off wants something to show, and the text adventure (§15) or a scroller
+that shows off wants something to show, and the text adventure (a `PLAN.md` item) or a scroller
 once §22 is built are the candidates. And second, a draft **written rather than
 generated**, which is the other half of why it is waiting.
 

@@ -41,7 +41,7 @@ Work that was built without its plan ever being written down is therefore absent
 by design. Look instead at
 
 - **`git log`**, which is the actual record and does not drift;
-- **DESIGN §15**, which tracks the original acceptance bar and what met it;
+- **DECISIONS §15**, which records the original acceptance bar and what met it;
 - **DESIGN §20**, whose settled entries say *"built; see §N"* beside the question
   they answered.
 
@@ -63,16 +63,16 @@ nothing has yet wanted it.
 
 ### Definitely
 
-- **A text adventure.** DESIGN §15 - the last item on the original acceptance bar,
+- **A text adventure.** DECISIONS §15 - the last item on the original acceptance bar,
   and nothing in the language blocks it. Also what the README rewrite waits on,
   since a README that shows off wants something to show.
 - **Fixed-point division.** DESIGN §25 is half built and says which half: `*` on
   8.8 lands, division does not, and §25 sets out why it is the awkward one.
-- **Finish reorganising the documentation.** The unbuilt designs have moved here;
-  what remains open is whether the historical record - measurements taken,
-  estimates that missed, things tried and rejected - moves out of `DESIGN.md` into
-  a `DECISIONS.md`, and where the line falls between reasoning that explains a
-  rule and the record of how it was arrived at.
+- **Finish moving the record into `DECISIONS.md`.** In progress, section by
+  section, as `DESIGN.md` is read through. Done: §15, §17, §18. Still to do: §16,
+  §20, §22, §25, §26, §27 - of which §16 and §25 are the large ones, and §27 may
+  dissolve entirely, since nothing cites it except as an example of a measured
+  table.
 
 ### Probably
 
@@ -80,7 +80,6 @@ nothing has yet wanted it.
   and why it is safe, but not where in the emitter it is implemented or whether it
   is built at all - which is how entries 4 and 5 stood as fiction for a long time.
   Fifteen entries to check against the emitter.
-
 - **Compile-time array parameters.** §19 - designed in full, and the case that
   most wanted it (`drawString` over many messages) was met by `peek`/`poke`
   instead.
@@ -373,7 +372,7 @@ adjacent entity-pool pattern needs none either: with `bool alive` in the group,
 allocation is usually a scan for the first dead slot, which is a routine over the
 pool holding no private state.
 
-For: the text adventure (§15) is the remaining acceptance item, it is by nature a
+For: the text adventure (DECISIONS §15) is the remaining acceptance item, it is by nature a
 larger single-file program, and a parser with scratch state, an inventory and room
 flags is where clusters of this shape would appear if they appear anywhere.
 
@@ -939,7 +938,7 @@ and the tree walks in the resolver and emitter are the same shape - with an
 array-of-nodes AST there are `u16` indices rather than pointers, so a worklist is
 the natural form regardless.
 
-§15 already reports `hanoi` - hand-rolled recursion with a resume point per
+§2 already reports `hanoi` - hand-rolled recursion with a resume point per
 frame, the genuinely awkward case - coming out fine. A parser is easier than
 that. Self-hosting is evidence *for* the ban, not against it.
 

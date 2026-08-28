@@ -45,6 +45,63 @@ cannot happen is the same aspect in two places.
 
 ---
 
+## 15. Acceptance test
+
+An early answer to "is this subset useful enough yet", from when that was still
+an open question. It survived many iterations of DESIGN.md and acquired more
+standing than it was ever given - README still calls it "the bar it is held to" -
+which is why it sits here now: it is a true account of how the project decided it
+was working, and it stopped describing the system a long time ago.
+
+Its one outstanding entry is a `PLAN.md` item rather than a line in this table,
+because it is the only part still carrying intent.
+
+### The bar, and what met it
+
+The original bar: the subset is "useful enough" if it compiles hello world,
+fizzbuzz, bubble sort, sieve of Eratosthenes, a string library and a text
+adventure. Yuki (`_reference/yuki.txt`) is the stretch target - nothing in that
+file trips the type rules.
+
+Where that stands:
+
+| | |
+|---|---|
+| Hello world | `hello` - hand-written asm, and trivial in Momo |
+| Fizzbuzz | inside `smoke`, verified end to end |
+| Arithmetic, arrays, loops, branches | `smoke` - every construct in one program |
+| A standard library | `shared/lib/std/io.momo` |
+| Dynamic allocation | `heaptest` - a bump allocator in Momo |
+| Compile-time tables | `consttst` |
+| Sieve of Eratosthenes | `sieve`, and `bitsiev` bit-packed on the heap |
+| Recursive algorithms | `qsort` (quicksort) and `hanoi` - explicit stacks on the heap |
+| Text-mode screen library | `shared/lib/std/screen.momo`, verified by `scrtest` |
+| String library | `shared/lib/std/str.momo`, verified by `strtest` |
+| Text adventure | not yet attempted |
+
+**Only the text adventure is left**, and nothing in the language blocks it. The
+string library was the last item with a missing feature behind it: routines take
+scalars, so it needed a runtime address, which is what `peek`/`poke` (§10) are.
+Graphics is not blocked either - §16 is built, so the text buffer and mode 13h are
+both addressable as memory.
+
+Two things have since joined the list that were never on the original bar:
+`grptest` for entity pools (§18), and `cftest`,
+which opens a file and notices when that fails - the first Momo program that
+could find out the machine said no. `viewtest` (§17) and
+`peektest` (§10) make four.
+
+**Dynamic allocation has an answer that is not an allocator.** `view` partitions
+the heap into named regions at compile time, so `heaptest`'s bump allocator is now
+the interesting case rather than the default one.
+
+The bit-packed sieve is the most demanding program written so far - 1000
+candidates in 126 bytes of heap, using `_heap[n >> 3]` with a runtime shift
+count. Writing it found two real bugs (§4, §6), which is exactly what it was
+for.
+
+---
+
 ## 17. `view`
 
 Written out in full before it was built - `DESIGN.md`'s preamble names §16, §17
