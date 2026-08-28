@@ -2125,6 +2125,18 @@ handy - not worth the confusion on their own.
 
 ---
 
+## 19. Compile-time array parameters
+
+**Designed, not built - the section is in `PLAN.md`.** Routines take scalars only,
+so `memcpy`, `fill` and `drawString` cannot be written as reusable library code;
+allowing arrays and views as parameters, resolved at compile time, is what would
+close that.
+
+The number stays here so the gap does not read as something deleted, and so the
+citations that use it keep resolving.
+
+---
+
 ## 20. Open questions
 
 - **Real functions.** a typed routine is sugar over globals, so it still cannot recurse or
@@ -2485,6 +2497,24 @@ means the logic is right, not that the program works.
 - **Interrupt control.** `cli`/`sti` would be needed to retime the PIT or install a
   handler; both are separate features with their own reasons, and neither is
   needed to scroll.
+
+---
+
+## 23. `scope`
+
+**Designed, not built - the section is in `PLAN.md`.** `local` (§11) gave a
+declaration an owner, and the only owner it can name is the file that writes it.
+`scope` is the same idea with a second: a named block of declarations whose
+privates belong to it rather than to the file.
+
+---
+
+## 24. Interrupt handlers
+
+**Designed, not built - the section is in `PLAN.md`.** A handler is a routine the
+hardware calls - the timer every tick, the keyboard on every press and release.
+Momo cannot write one, because a handler ends in `iret` rather than `ret` and
+there is no way to say so. Music is the case polling cannot substitute for.
 
 ---
 
@@ -3126,3 +3156,19 @@ compiler change. The alignment work waits for a reason to prefer the 8086 over t
 8088** - and if it ever comes, it arrives as `align 2` plus a width sort, with the
 locals-locality cost paid deliberately. `tilefill` itself stays as it is: it is the
 straightforward version on purpose, and §14 wants it readable more than fast.
+
+---
+
+## Sections 28-33: designed, not built
+
+Six more sections carry numbers but no text here, because what they describe does
+not exist yet. All are in `PLAN.md`:
+
+| | |
+|---|---|
+| §28 | CPU target levels - what `--cpu` would buy, and why 386 is not only a backend switch |
+| §29 | `-o` |
+| §30 | Hosted targets: JS, WASM, native |
+| §31 | Dropping the assembler |
+| §32 | Self-hosting |
+| §33 | Other CPUs - `momo/z80`, `momo/6502` |
