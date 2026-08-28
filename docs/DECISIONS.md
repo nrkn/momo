@@ -254,6 +254,72 @@ handy - not worth the confusion on their own.
 
 ---
 
+## 20. Questions that were answered
+
+§20 in `DESIGN.md` is the list of what is still unsettled. These are the entries
+that stopped being open, kept because how a question got settled is worth more
+than the fact that it did - and because for a while this was the closest thing the
+project had to a record of what had been built.
+
+### Graphics - no longer blocked (§16)
+
+`int 10h` needs no extra instructions but costs an interrupt per cell. Direct
+buffer access replaced that: `far` is built, so the text buffer and mode 13h are
+ordinary memory, and `view` names a row or a tile inside either.
+
+What remains open is a *library* rather than access to the hardware, and that is
+still in §20.
+
+### Port I/O - built (§22)
+
+Two instructions, needed for EGA/VGA planar modes, the PIT and the speaker. It was
+out of scope until a program wanted one of those.
+
+**By the time it was built three things wanted it, and the one that first argued
+for it was still not written** - the scroll. Timing and two-player input were the
+other two.
+
+### `bool _cf` - built (§10)
+
+DOS and BIOS report failure in carry, and nothing in Momo could see it. Read-only,
+and captured only when something reads it, so a program that ignores carry pays
+nothing.
+
+### `peek8`/`poke8`/`peek16`/`poke16` - built (§10)
+
+The rules, the addressing comparison and the argument against a runtime `view` are
+all §10's now, beside the feature. Three things about how the question was settled
+are worth keeping here.
+
+**It was not a blocker for colour, contrary to an earlier note in §20.** Writing
+coloured text always worked as long as the string was in scope, because indexing a
+known array is ordinary:
+
+```momo
+for ( i = 0; msg[i] != '$'; i++ ) {
+  writeAt( col + i, row, msg[i], attr )
+}
+```
+
+Inline always worked; only *factoring it into a library* needed an address
+parameter. The note claimed more than that for a long time.
+
+**Four builtins rather than a `_mem` array at offset zero.** `_mem[at]` reads
+nicely for bytes, but a `_memw` would scale its index by two, which is wrong when
+the index is a byte address - and that inconsistency sinks it.
+
+**The codegen prediction held.** §20 guessed roughly `mov bx, ax` / `mov al, [bx]`,
+and that is exactly what it emits.
+
+### Strength reduction for powers of two - built (§26)
+
+`i * 4` emitted a `mul` (~120 cycles on an 8086) where two `shl` do, and `x / 8` a
+`div` (~160) where `shr` does. Faster *and* smaller, so it lives in the normal
+emitter rather than behind a flag. §26 records how far to take it and the two traps
+involved, and DECISIONS §26 what it measured.
+
+---
+
 ## 26. Strength reduction
 
 ### What it measured, against what it predicted

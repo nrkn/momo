@@ -142,6 +142,20 @@ survives in a repo. It would need to test for the replacement character
 separately. Measured at 70ms over 388 files, and deliberately not added - the
 suite's surface is a cost of its own, and agents run every test they can find.
 
+**JavaScript's `String.replace` interprets `$` in the REPLACEMENT, and will
+silently duplicate a document.** `$&`, `` $` ``, `$'` and `$$` are substitution
+patterns wherever they appear in the replacement string - including inside text
+being inserted from a file. Splicing a block into `DECISIONS.md` that contained a
+Momo string terminator, `msg[i] != '$'`, put `$'` into the replacement, which
+means "everything after the match" - so two whole sections were duplicated into
+the middle of the file. `tsc` passed, the suite passed, and the only tell was a
+heading appearing twice.
+
+**Use `text.split(anchor).join(replacement)`**, which does no pattern
+interpretation at all. This matters most for exactly the operation it will be
+reached for: moving prose between documents, where the prose is not under your
+control and a `$` in a code example is ordinary.
+
 **`git checkout <file>` during a teeth check discards the work being tested.** The
 whole premise of a teeth check is that the change is not committed yet, so
 reverting a neutered guard "back to normal" through git takes the feature out
