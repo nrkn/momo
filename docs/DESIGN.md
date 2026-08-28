@@ -2878,20 +2878,13 @@ Three tiers, with the cutoff between the first two:
   Division is the clear case: `x / 8` as `shr` is ~24 cycles against ~160, and it
   is *smaller*. `x % 8` becomes `and ax, 7`. There is no tradeoff to weigh.
 
-  **Every** power of two, not just up to eight as this section first said: that
-  cap was more conservative than the numbers need. `mov bx, n` + `mul bx` is
-  5 bytes and ~125 cycles; `mov cl, k` + `shl ax, cl` is 4 bytes and at worst 68,
-  so the shift wins on both counts at any shift width.
+  **Every** power of two, at any shift width. `mov bx, n` + `mul bx` is 5 bytes
+  and ~125 cycles; `mov cl, k` + `shl ax, cl` is 4 bytes and at worst 68, so the
+  shift wins on both counts however wide the shift is.
 
   Signed `/` and `%` are deliberately left as `idiv`, which is what the trap
   below asks for. Signed `*` **is** reduced - `shl` is bit-identical to a
   multiply in the low 16 bits, so the sign never enters into it.
-
-  Measured on `tilefill`, which has two `* 8` per row: 8.5% off a
-  full screen, ~4.13s to ~3.78s at 4.77MHz. The estimate beforehand was 9.7%,
-  and the shortfall is entirely the first trap below - it assumed a shift of
-  three cost ~6 cycles, where through CL it costs 20. Unrolling would recover
-  the rest.
 - **Behind `-o`.** Odd residues of 3, 5, 7 and 9, which covers 10, 40, 80, 160
   and 320 - practically every 2D stride is `2^k x small`, so this catches almost
   everything real with no search.
@@ -2926,6 +2919,9 @@ Two consequences fall out for free:
 - **The e2e suite becomes an optimiser test.** Every program must produce
   byte-identical output with and without `-o`. That is a strong correctness
   property, and it costs nothing beyond running the suite twice.
+
+The record for this section - what the reduction measured, and the cap this
+section originally set and had to lift - is `DECISIONS.md` §26.
 
 ## 27. Word copies and data alignment: two optimisations, measured
 

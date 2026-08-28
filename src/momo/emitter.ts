@@ -631,9 +631,9 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
   // emitter rather than behind a flag - `mov bx, n` + `mul bx` is 5 bytes and
   // ~125 cycles, while `mov cl, k` + `shl ax, cl` is 4 bytes and at worst 68.
   //
-  // §26 caps `*` at eight, which was more conservative than the numbers need:
-  // even a shift of fifteen through CL beats a multiply on both counts, so every
-  // power of two is reduced.
+  // Every power of two is reduced, at any width - even a shift of fifteen
+  // through CL beats a multiply on both counts. §26 originally capped this at
+  // eight; DECISIONS §26 records why the cap was lifted.
 
   // The shift equivalent of multiplying or dividing by `value`, or null when it
   // is not a power of two. Zero and negatives fall through to `mul`; 1 gives a

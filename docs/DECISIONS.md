@@ -164,3 +164,31 @@ hpOf( target ) = 100                              // assigning "to a const"
 apparently assigning to a constant. Assignable lvalue-consts remain conceivable
 for other named computed locations, but they drop from compelling to occasionally
 handy - not worth the confusion on their own.
+
+---
+
+## 26. Strength reduction
+
+### What it measured, against what it predicted
+
+Measured on `tilefill`, which has two `* 8` per row: **8.5% off a full screen**,
+~4.13s to ~3.78s at 4.77MHz.
+
+**The estimate beforehand was 9.7%**, and the shortfall is entirely the first of
+§26's two traps: it assumed a shift of three cost ~6 cycles, where through CL it
+costs 20. Unrolling would recover the rest, and that is what `-o` (§29) is for.
+
+Worth keeping as an estimate that came in under rather than over. The prediction
+was made from an instruction count and was wrong by a knowable amount, for a
+reason the section already contained.
+
+### The cap it set and had to lift
+
+The unconditional tier originally reduced powers of two only **up to eight**, on
+the reasoning that a wider shift through CL might not pay. The numbers do not
+support that: `mov bx, n` + `mul bx` is 5 bytes and ~125 cycles, while
+`mov cl, k` + `shl ax, cl` is 4 bytes and at worst 68 - so the shift wins on both
+counts at any width, and the cap was pure caution.
+
+The tier now says every power of two. `emitter.ts` records the same correction
+beside the code.
