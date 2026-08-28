@@ -1,7 +1,7 @@
 // fit.momo - pass 1: fit sizing. A container wraps tightly around its
 // children.
 //
-// Port of src/momolo/fit.ts. This runs from closeBox rather than from a
+// Ported from the clay study. This runs from closeBox rather than from a
 // traversal of its own: children necessarily close before their parent does, so
 // by the time a parent closes its children already know their sizes. That is
 // what makes the pass free, and it is why this file has one caller instead of a
@@ -33,8 +33,7 @@ sub fitSize( u16 i ) {
   insetY = el[i].insetT + el[i].insetB
 
   // `max(n - 1, 0)` in the TypeScript. Unsigned, n = 0 makes `n - 1` 65535 and
-  // `max` then keeps it, so the branch is the port rather than a preference -
-  // see PORT.md, "Unsigned subtraction".
+  // `max` then keeps it, so the branch is the port rather than a preference.
   gaps = n == 0 ? 0 : el[i].gap * ( n - 1 )
 
   // The extent of the children alone, before the inset is added back on.

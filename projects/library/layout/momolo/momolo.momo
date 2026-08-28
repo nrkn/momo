@@ -22,8 +22,6 @@
 // Nothing here draws. `mlodemo` is the project that puts a scene on the screen,
 // and it shares these scenes rather than spelling them a second time - so the
 // picture you look at is built from the tree these numbers verified.
-//
-// See PORT.md in the clay study.
 
 include "lib/std/io.momo"
 include "scenes/shell.momo"

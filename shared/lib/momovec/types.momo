@@ -2,7 +2,7 @@
 //
 // Ported from the vector study, which distilled it out of a TypeScript port of
 // Alois Zingl's Bresenham curve algorithms. The study is the reference this is
-// held against, number for number - see its PORT.md and NOTES.md.
+// held against, number for number.
 //
 // Three things about the shape of this library are worth knowing before reading
 // any of it.

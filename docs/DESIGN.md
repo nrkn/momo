@@ -2274,7 +2274,7 @@ Not built: `/` between two fixed values, which wants the 24-bit numerator this s
 says Momo cannot express. And a runtime value still cannot cross scales *preserving its
 value*, because that is a shift - `raw` is the other half of that pair and needs none.
 Only 8.8 has a multiply; another fraction width would want its own helper with its own
-baked shift. `NEXT.md` in the vector study holds the order.
+baked shift.
 
 An earlier draft of this section said "lowered entirely in the parser". That is wrong,
 and it is wrong in a way that reaches as far as which test tier can see the feature at

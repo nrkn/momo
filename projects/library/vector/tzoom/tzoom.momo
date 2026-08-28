@@ -19,17 +19,16 @@
 // 5,439 pieces, none of which is stored - they are produced and drawn and thrown
 // away, which is the whole reason a zoom fits.
 //
-// `src/emit-zoom.ts` subdivides the same way to predict this, using the model of
-// `drawQuadAny` that `subdiv` already checks number for number. Run it with
-// `--scale=128` for a 0.5x zoom out, which needs no subdivision at all and was how
-// the transform was checked before this.
+// The study predicts this by subdividing the same way, using the model of
+// `drawQuadAny` that `subdiv` already checks number for number. A 0.5x zoom out
+// needs no subdivision at all, and was how the transform was checked before this.
 //
 // The digest is the tiger's, line for line, so the two projects are directly
 // comparable: 200 scanlines, 138 paths, one order hash.
 
 // The crossing budget, sized by the study against THIS dataset. Zoomed in, a path
 // covers three times the scanlines it does at 1x, so this is the one thing a zoom
-// really costs - see the study's LIMITS.md.
+// really costs.
 //
 // 1,536 against a measured worst single path of 1,122, at 3x. The tiger's own 1,024
 // is not enough and overflows, and the overflow is not benign: it draws spurious

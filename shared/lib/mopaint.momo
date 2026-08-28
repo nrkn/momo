@@ -1,7 +1,7 @@
 // mopaint.momo - the layer momolo does not have: colour, borders and text.
 //
-// Port of src/paint.ts from the clay study, and it sits outside shared/lib/momolo/ for
-// the same reason paint.ts sits outside src/momolo/ there. **This is not the
+// Ported from the clay study, where it also sat outside the engine and for the
+// same reason. **This is not the
 // engine.** It keeps a style table parallel to the element array, keyed by the
 // indices the builders hand back, and wraps those builders with ones that also
 // record a style. Nothing here computes a layout, and nothing in shared/lib/momolo/

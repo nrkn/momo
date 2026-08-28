@@ -1,7 +1,7 @@
 // types.momo - the element array, the builder's scratch stacks, and the one
 // accessor pass 1 needs.
 //
-// Port of src/momolo/types.ts from the clay study. See PORT.md there.
+// Ported from the clay study.
 //
 // momolo's `Element` is a flat record of integers with no nesting, which is
 // exactly what makes it a Momo `group`: each field becomes its own array
@@ -92,9 +92,9 @@ u16              childListLen
 // A parameterised const, so no call is emitted at all. The doubly nested index
 // this expands to - an array read inside an array index - was probed before
 // being relied on rather than reasoned about: it costs thirteen instructions
-// with no stack traffic, BX being reused as each index is consumed. PORT.md had
-// advised splitting it across two statements on the grounds that the codegen was
-// unknown. It is known now, and it is fine.
+// with no stack traffic, BX being reused as each index is consumed. Splitting it
+// across two statements was the cautious option while the codegen was unknown.
+// It is known now, and it is fine.
 const u16 childAt( u16 p, u16 k ) = childList[ el[p].childStart + k ]
 
 // ---- axis accessors --------------------------------------------------------

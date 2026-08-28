@@ -1,18 +1,18 @@
 // shell.momo - the scenes, and the pass sequence a caller drives.
 //
 // Six scenes, every one the same tree as a demo in the clay study's gallery, so
-// the numbers they produce can be held against the study's own. See PORT.md.
+// the numbers they produce can be held against the study's own.
 //
-// This is not the engine. It sits above the line with the study's src/demos.ts,
-// and like that file it writes the pass order out longhand rather than hiding it
-// behind an end() - the caller drives momolo, and momolo never calls out.
+// This is not the engine. It sits above the line, as its counterpart did in the
+// study, and writes the pass order out longhand rather than hiding it behind an
+// end() - the caller drives momolo, and momolo never calls out.
 //
 // Shared by two projects: `momolo` dumps the resolved boxes as numbers for the
 // cross-check, and `mlodemo` draws one of them on a text mode screen. They build
 // the same trees, so the picture is made of the tree the numbers verified.
 //
 // Colours come from std/screen.momo, which names the CGA sixteen exactly as the
-// study's src/palette.ts does. That was not an accident.
+// study does. That was not an accident.
 
 include "lib/mopaint.momo"
 include "lib/momolo/fit.momo"
@@ -107,8 +107,8 @@ sub runPasses {
 //
 // The study writes these as functions taking a closure. Momo has no closures, so
 // a wrapper becomes an open/close pair and the caller writes the body between
-// them - which is what PORT.md meant by "the openBox/closeBox pair is what ports,
-// and the closure is a TypeScript convenience only".
+// them: the openBox/closeBox pair is what ports, and the closure was a
+// TypeScript convenience only.
 
 // A caption above a strip of content.
 sub stripOpen( u16 caption ) {

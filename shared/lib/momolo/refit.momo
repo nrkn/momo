@@ -1,7 +1,7 @@
 // refit.momo - the reflow pass: re-accumulate heights after a caller has
 // changed some.
 //
-// Port of src/momolo/refit.ts. Pass 1 sized every container from children that
+// Ported from the clay study. Pass 1 sized every container from children that
 // had not been laid out yet. If a caller reflows between sizeX and sizeY -
 // because its content got taller once its width was known - those container
 // heights are stale, and every ancestor of the changed element stays wrong until

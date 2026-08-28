@@ -10,7 +10,7 @@
 // points against 8,014, which came to 84,914 bytes against a 64 KB segment. It
 // built, ran, and printed zeros. So the scale has to be applied as the geometry is
 // read, which is what this file is, and the extra segments a curve flattens into
-// are then generated on the fly and never stored. See the study's CLIP.md.
+// are then generated on the fly and never stored.
 //
 // **The multiply is `fixMul`, and this is what DESIGN §25 was for.** One multiply
 // per coordinate, no new codegen, and `mulshr8` makes it about 181 cycles rather

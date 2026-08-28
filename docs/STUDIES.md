@@ -34,9 +34,10 @@ live outside this repository and nobody who clones it has them.
 
 A reference to a study's files, sections or line numbers is useless to every
 reader of this repository except one, and worse than useless because it promises
-an explanation it cannot deliver. Sixteen such references accumulated across ten
-files before this was noticed; they said things like "see PORT.md, Sentinels"
-beside a paragraph that had already explained the sentinel.
+an explanation it cannot deliver. Twenty-six of them accumulated across thirteen
+files before this was noticed - some naming a document, some naming a TypeScript
+source file, and the commonest kind saying "see PORT.md, Sentinels" beside a
+paragraph that had already explained the sentinel.
 
 **Upstream is different and stays citable.** Clay, Zingl's paper and the
 Ghostscript tiger are public - a reader can go and look. So the shape is: cite

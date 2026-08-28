@@ -1,6 +1,6 @@
 // size.momo - pass 2: size. Settle every child's extent along one axis.
 //
-// Port of src/momolo/size.ts. Breadth-first from the root, run once per axis. A
+// Ported from the clay study. Breadth-first from the root, run once per axis. A
 // parent's size is final before its children are considered, which is what makes
 // one top-down sweep enough.
 //
@@ -94,7 +94,7 @@ local sub growInto( bool xAxis, u16 surplus ) {
     // The fourth sentinel test, and the one that collapses most usefully: with
     // no second size, `second - smallest` is 65535 minus something small, so
     // min() picks `even` - exactly what `second === none ? even : ...` says.
-    // shrink's mirror of this line does NOT collapse; see PORT.md, "Sentinels".
+    // shrink's mirror of this line does NOT collapse.
     add = min( second - smallest, even )
 
     if ( add == 0 ) {
@@ -116,7 +116,7 @@ local sub growInto( bool xAxis, u16 surplus ) {
 
     // Walked backwards so a child that reaches its maximum can be removed
     // without disturbing the entries still to be visited. `j - 1` rather than a
-    // descending index, because `j >= 0` is always true unsigned - see PORT.md.
+    // descending index, because `j >= 0` is always true unsigned.
     for ( j = candLen; j > 0; j-- ) {
       ci = cand[j - 1]
       if ( sizeOf( ci, xAxis ) != smallest ) continue
@@ -134,8 +134,8 @@ local sub growInto( bool xAxis, u16 surplus ) {
 // Take `deficit` back off the candidates, largest first. Returns whatever it
 // could not reclaim, which is exactly the amount that will overflow.
 //
-// The mirror of growInto, and the sentinel collapses here too - which PORT.md
-// predicted it would not, and which is worth the four lines to explain.
+// The mirror of growInto, and the sentinel collapses here too - which was
+// predicted not to happen, and which is worth the four lines to explain.
 //
 // The prediction was that `largest - second` against a 0 sentinel is `largest`,
 // so min( largest, even ) differs from `even` whenever even exceeds largest, and
@@ -207,9 +207,9 @@ local u16 shrinkFrom( bool xAxis, u16 deficit ) {
         // The TypeScript says `largest - 1 < minOf(...)`. Spelled as `largest <=
         // min` instead: the two agree for every size this can actually see, and
         // this one is also safe if `largest` were ever 0, where `largest - 1`
-        // would be 65535 and sail past the guard. PORT.md asked for that case to
-        // be asserted rather than assumed; it cannot be asserted in Momo, so it
-        // is made harmless instead.
+        // would be 65535 and sail past the guard. That case wants asserting
+        // rather than assuming, and Momo cannot assert - so it is made
+        // harmless instead.
         if ( largest <= minOf( ci, xAxis ) ) continue
 
         setSize( ci, xAxis, largest - 1 )

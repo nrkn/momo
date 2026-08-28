@@ -1,7 +1,7 @@
 // build.momo - the immediate-mode surface: the config block, begin, openBox,
 // closeBox, leaf.
 //
-// Port of src/momolo/build.ts. Elements are pushed onto one flat array as they
+// Ported from the clay study. Elements are pushed onto one flat array as they
 // open, and a parent collects its children when it closes. Every entry point
 // returns the element's index, and that index is the only handle momolo hands
 // out - it is how a caller joins its own tables onto the geometry without the
