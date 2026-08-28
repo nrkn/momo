@@ -12,10 +12,15 @@ console is kept as `_reference/yuki.txt`.
   and the designs for the things that are not built yet. A design lives here until
   it exists, then moves into `DESIGN.md`.
 
-  Section numbers are **one namespace across both**, stable and only ever
+  Section numbers are **one namespace across all three**, stable and only ever
   appended, because they are cited from source comments - §17 means `view`
   permanently, and a number absent from `DESIGN.md` is in `PLAN.md` rather than
   deleted. §21 is a redirect to where its contents went rather than a section.
+- **`DECISIONS.md`** - the record: what a choice cost, what was measured, what was
+  estimated and missed, what was tried and rejected. Same section numbers, so §18
+  is `group` there too - the number is the topic and the file is the aspect. It
+  exists because that material was interleaved with the description paragraph by
+  paragraph, which is what made `DESIGN.md` hard to read straight through.
 - **`PEEPHOLES.md`** - the fifteen local rewrites the emitter applies, and how one
   gets added. Its own document because it is a catalogue with its own numbering,
   cited by number from `emitter.ts`, and because it grows by sweeping emitted
@@ -38,8 +43,8 @@ shared/scenes/       data read by more than one project
 projects/            programs, as <category>/<name>/<name>.momo
 tests/compile/       tier 1 tests
 editor/vscode/       generated syntax highlighting
-docs/                this file, DESIGN.md, PLAN.md, PEEPHOLES.md, STYLE.md,
-                     PITFALLS.md
+docs/                this file, DESIGN.md, PLAN.md, DECISIONS.md,
+                     PEEPHOLES.md, STYLE.md, PITFALLS.md
 ```
 
 `README.md` stays in the root because that is where it is read from, and so do

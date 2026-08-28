@@ -36,8 +36,13 @@ would silently point them somewhere else.
 The numbers are **one namespace across the documents**, not this file's alone.
 This file holds the system as it stands; `PLAN.md` holds the designs for things
 that are not built yet, and a section carries its number across if it is ever
-built. So §24 means interrupt handlers wherever it currently sits - the number
-tells you the topic, the file tells you the status.
+built. `DECISIONS.md` holds the record for a section - what it cost, what was
+measured, what was tried and rejected - under that same number. So §24 means
+interrupt handlers wherever it currently sits: the number tells you the topic, and
+the file tells you which aspect.
+
+A number therefore appears in `DECISIONS.md` *as well as* here, which is intended.
+What cannot happen is the same aspect in two places.
 
 Two consequences worth stating plainly. **Numeric order is not topic order**, and
 it never will be - what a section is about is in its heading. And **a number
@@ -2107,21 +2112,8 @@ either, in the language: a view's parent is an array, and `_ax` is a scalar, so
 without being expressible in it (§17), which is the honest half of a claim this
 file used to make in full.
 
-### What it displaces
-
-An earlier idea - allowing a parameterised `const` whose body is an lvalue to be
-**assigned through** - was motivated almost entirely by wanting typed field
-accessors with a runtime index:
-
-```momo
-const u16 hpOf( u16 i ) = party[ i * 4 + 2 ]
-hpOf( target ) = 100                              // assigning "to a const"
-```
-
-`group` delivers that directly, with better syntax and without the squint of
-apparently assigning to a constant. Assignable lvalue-consts remain conceivable
-for other named computed locations, but they drop from compelling to occasionally
-handy - not worth the confusion on their own.
+The record for this section - what `group` displaced, and why that idea dropped
+from compelling to occasionally handy - is `DECISIONS.md` §18.
 
 ---
 
