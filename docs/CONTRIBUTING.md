@@ -270,6 +270,27 @@ peepholes as built that were never written, and carried a worst-case-stack
 formula that contradicted another section. Treat a claim about generated output
 as a hypothesis until the compiler agrees with it.
 
+**Two sweeps, every few sessions.** Neither is prompted by a change. Both are
+periodic, and the cadence has been something like every four or five sessions
+rather than anything fixed.
+
+- **Sweep for drift** between code, comments and documents. This one keeps paying:
+  a tier 1 assertion count that had not moved with the tests, a glob that gained a
+  directory level while the sentence describing it did not, a file header quoted
+  in a document after the file it came from had been rewritten, a paragraph about
+  branching written before the one branch happened. **Not one of those was noticed
+  by whoever caused it**, which is the argument for a sweep rather than for being
+  more careful.
+- **Sweep the emitted assembly for peephole opportunities.** `PEEPHOLES.md` has
+  the method under "How one gets added", and its first step - read emitted
+  assembly for a shape that repeats - *is* this sweep. Entries 12 and 13 were both
+  found that way, one from a probe written to see what a VRAM-to-VRAM copy
+  produced and one from reading an entry sequence and asking why an argument was
+  widened where an assignment beside it was not.
+
+They pair because they are the same motion: reading output rather than writing
+input, and finding things nobody was looking for.
+
 **Generated `.asm` must stay byte-identical** across any change that is not meant
 to alter behaviour. `npm test` enforces this for every project rather than
 leaving it to whoever remembers to read `git status`. When a change *is* meant
