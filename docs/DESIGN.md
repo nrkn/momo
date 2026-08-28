@@ -2139,119 +2139,8 @@ citations that use it keep resolving.
 
 ## 20. Open questions
 
-- **Real functions.** a typed routine is sugar over globals, so it still cannot recurse or
-  be reentrant. Genuine stack frames would bring back BP, `lea` and recursion -
-  and would destroy the exact static memory analysis, which is the trade that
-  keeps them out.
-- **Graphics** - **no longer blocked; see §16.** `int 10h` needs no extra ISA but
-  costs an interrupt per cell, and direct buffer access replaces that: `far` is
-  built, so the text buffer and mode 13h are ordinary memory, and `view` (§17)
-  names a row or a tile inside either. What is still open is a *library* - mode
-  setting, sprites, clipping - rather than any access to the hardware.
-- **Port I/O (`in`/`out`)** - **built; see §22.** Two instructions, needed for
-  EGA/VGA planar modes, the PIT, and the speaker. It was out of scope until a
-  program wanted one of those; by the time it was built three did, and the
-  scroll that first argued for it was still the one not yet written.
-- **`bool _cf`** - **built; see §10.** DOS and BIOS report failure in carry, and
-  nothing in Momo could see it. Read-only, and captured only when something
-  reads it, so a program that ignores carry pays nothing.
-- **`peek8`/`poke8`/`peek16`/`poke16`** - **built; see §10.** The only route to a
-  **runtime** address. `far` (§16) and `view` (§17) are both compile-time
-  addressing, so neither overlaps with this:
-
-  | | Address known | Segment |
-  |---|---|---|
-  | `far` | compile time | another one |
-  | `view` | compile time | ours |
-  | `peek`/`poke` | **runtime** | ours |
-
-  What they unlocked is **library routines that take a buffer** - `shared/lib/std/str.momo`
-  is now `strLen`, `strCopy`, `strCmp`, `strFind`, `memCopy` and `memFill`, and
-  `screen.momo` finally has a coloured `writeStrAt`, which the note below spent a
-  long time explaining the absence of.
-  §19 solves the same problem by a different route, and the two are complements
-  rather than rivals: compile-time parameters emit one copy per distinct
-  argument (fast, larger), `peek`/`poke` emit one copy total (smaller, indirect).
-  Twenty different messages want these; two large buffers want §19.
-
-  ```momo
-  sub fill( u16 at, u16 count, u8 value ) {
-    for ( i = 0; i < count; i++ ) {
-      poke8( at + i, value )
-    }
-  }
-  ```
-
-  **Not a blocker for colour, contrary to an earlier note here.** Writing
-  coloured text works today as long as the string is in scope, because indexing a
-  known array is ordinary:
-
-  ```momo
-  for ( i = 0; msg[i] != '$'; i++ ) {
-    writeAt( col + i, row, msg[i], attr )
-  }
-  ```
-
-  Inline works; only *factoring it into a library* needs an address parameter -
-  which it now has, so `screen.momo` carries the routine and no program needs the
-  loop above.
-
-  **On the tension with rejecting runtime views (§17):** a runtime view would be
-  a declared, typed, tracked construct - it would bless pointers as a first-class
-  concept, and everything would then want to be one. `peek`/`poke` are explicit
-  unsafe operations that look unsafe at every use site. That is the
-  `unsafe { *ptr }` distinction, not a contradiction. Turbo Pascal drew the same
-  line: no pointer arithmetic in ordinary code, but `Mem[]`/`MemW[]` as visible
-  escape hatches.
-
-  **Spelling:** four builtins rather than a `_mem` array at offset zero. `_mem[at]`
-  reads nicely for bytes, but a `_memw` would scale its index by two, which is
-  wrong when the index is a byte address - and that inconsistency sinks it.
-
-  Codegen is trivial: roughly `mov bx, ax` / `mov al, [bx]`. It was - that is
-  exactly what it emits.
-- **A direct-write path for `std/screen.momo`.** Every routine in it goes through
-  `int 10h`, which is an interrupt per cell. That was the only option when the
-  file was written; `far` (§16) and `view` (§17) have since made the B800:0000
-  text buffer ordinary memory, and `shared/lib/mopaint.momo` writes it directly - so the
-  capability is built and demonstrated, and only the library has not moved.
-
-  What stops it being obvious is that the two have different obligations.
-  `std/screen` must not disturb ES, because any caller may be mid-`far` access;
-  `mopaint` owns its whole frame and can. So the question is not "is direct
-  writing faster" - it is whether one library can offer both without the fast
-  path quietly breaking the slow one's guarantee, or whether the honest answer is
-  that `mopaint`'s existence already *is* the answer and `std/screen` should stay
-  what it is. Nothing has needed it yet: the programs that want speed are the
-  ones that already reach for `far` themselves.
-
-- **A raw scancode reader in `std`.** `std/key.momo` is `int 16h`, which blocks
-  and reports one key at a time. `tennis/t_kbd.momo` has the other
-  thing - IRQ1 masked, the 8042 polled directly, make and break tracked as level
-  state per player, plus the sticky latch a tap needs. Every hard-won entry in
-  `PITFALLS.md` came out of writing it, and none of that knowledge is in `shared/lib/`.
-
-  Port I/O (§22) is what made it possible, and it landed after `std/key.momo` was
-  written, so this is a gap rather than a decision. Against moving it: a raw
-  reader is not a drop-in for a blocking one, it needs shutdown discipline the
-  BIOS version does not (unmasking with a key held puts a keystroke at the DOS
-  prompt), and one game is a thin basis for an interface. A second program that
-  wants held-key input is the thing to wait for, and §24's chained `int 9` would
-  change the shape again.
-
-- **`asm { }` passthrough** for hand-written NASM. Probably not needed for a long time.
-- **Strength reduction for powers of two** - **built; see §26.** `i * 4`
-  emitted a `mul` (~120 cycles on an 8086) where two `shl` do, and `x / 8` a
-  `div` (~160) where `shr` does. Faster *and* smaller, so it lives in the
-  normal emitter rather than behind a flag; §26 records how far to take it and
-  the two traps involved.
-- **What precision does constant folding happen at?** - **open; the analysis is
-  in §32.** The folder runs on the host's numbers, so `30000 * 30000 / 30000`
-  folds exactly and lands in a `u16`, at a precision the language itself cannot
-  express. That is defensible, but it is an accident of the host rather than a
-  decision, and it is listed here because it is a *language* question that
-  happens to have been noticed while thinking about self-hosting. Three ways out
-  are set out there; none is chosen.
+**At the end of this file**, where it reads better: it is a postamble rather
+than a step in the sequence. The number is unchanged.
 
 ---
 
@@ -3172,3 +3061,121 @@ not exist yet. All are in `PLAN.md`:
 | §31 | Dropping the assembler |
 | §32 | Self-hosting |
 | §33 | Other CPUs - `momo/z80`, `momo/6502` |
+
+---
+
+## 20. Open questions
+
+- **Real functions.** a typed routine is sugar over globals, so it still cannot recurse or
+  be reentrant. Genuine stack frames would bring back BP, `lea` and recursion -
+  and would destroy the exact static memory analysis, which is the trade that
+  keeps them out.
+- **Graphics** - **no longer blocked; see §16.** `int 10h` needs no extra ISA but
+  costs an interrupt per cell, and direct buffer access replaces that: `far` is
+  built, so the text buffer and mode 13h are ordinary memory, and `view` (§17)
+  names a row or a tile inside either. What is still open is a *library* - mode
+  setting, sprites, clipping - rather than any access to the hardware.
+- **Port I/O (`in`/`out`)** - **built; see §22.** Two instructions, needed for
+  EGA/VGA planar modes, the PIT, and the speaker. It was out of scope until a
+  program wanted one of those; by the time it was built three did, and the
+  scroll that first argued for it was still the one not yet written.
+- **`bool _cf`** - **built; see §10.** DOS and BIOS report failure in carry, and
+  nothing in Momo could see it. Read-only, and captured only when something
+  reads it, so a program that ignores carry pays nothing.
+- **`peek8`/`poke8`/`peek16`/`poke16`** - **built; see §10.** The only route to a
+  **runtime** address. `far` (§16) and `view` (§17) are both compile-time
+  addressing, so neither overlaps with this:
+
+  | | Address known | Segment |
+  |---|---|---|
+  | `far` | compile time | another one |
+  | `view` | compile time | ours |
+  | `peek`/`poke` | **runtime** | ours |
+
+  What they unlocked is **library routines that take a buffer** - `shared/lib/std/str.momo`
+  is now `strLen`, `strCopy`, `strCmp`, `strFind`, `memCopy` and `memFill`, and
+  `screen.momo` finally has a coloured `writeStrAt`, which the note below spent a
+  long time explaining the absence of.
+  §19 solves the same problem by a different route, and the two are complements
+  rather than rivals: compile-time parameters emit one copy per distinct
+  argument (fast, larger), `peek`/`poke` emit one copy total (smaller, indirect).
+  Twenty different messages want these; two large buffers want §19.
+
+  ```momo
+  sub fill( u16 at, u16 count, u8 value ) {
+    for ( i = 0; i < count; i++ ) {
+      poke8( at + i, value )
+    }
+  }
+  ```
+
+  **Not a blocker for colour, contrary to an earlier note here.** Writing
+  coloured text works today as long as the string is in scope, because indexing a
+  known array is ordinary:
+
+  ```momo
+  for ( i = 0; msg[i] != '$'; i++ ) {
+    writeAt( col + i, row, msg[i], attr )
+  }
+  ```
+
+  Inline works; only *factoring it into a library* needs an address parameter -
+  which it now has, so `screen.momo` carries the routine and no program needs the
+  loop above.
+
+  **On the tension with rejecting runtime views (§17):** a runtime view would be
+  a declared, typed, tracked construct - it would bless pointers as a first-class
+  concept, and everything would then want to be one. `peek`/`poke` are explicit
+  unsafe operations that look unsafe at every use site. That is the
+  `unsafe { *ptr }` distinction, not a contradiction. Turbo Pascal drew the same
+  line: no pointer arithmetic in ordinary code, but `Mem[]`/`MemW[]` as visible
+  escape hatches.
+
+  **Spelling:** four builtins rather than a `_mem` array at offset zero. `_mem[at]`
+  reads nicely for bytes, but a `_memw` would scale its index by two, which is
+  wrong when the index is a byte address - and that inconsistency sinks it.
+
+  Codegen is trivial: roughly `mov bx, ax` / `mov al, [bx]`. It was - that is
+  exactly what it emits.
+- **A direct-write path for `std/screen.momo`.** Every routine in it goes through
+  `int 10h`, which is an interrupt per cell. That was the only option when the
+  file was written; `far` (§16) and `view` (§17) have since made the B800:0000
+  text buffer ordinary memory, and `shared/lib/mopaint.momo` writes it directly - so the
+  capability is built and demonstrated, and only the library has not moved.
+
+  What stops it being obvious is that the two have different obligations.
+  `std/screen` must not disturb ES, because any caller may be mid-`far` access;
+  `mopaint` owns its whole frame and can. So the question is not "is direct
+  writing faster" - it is whether one library can offer both without the fast
+  path quietly breaking the slow one's guarantee, or whether the honest answer is
+  that `mopaint`'s existence already *is* the answer and `std/screen` should stay
+  what it is. Nothing has needed it yet: the programs that want speed are the
+  ones that already reach for `far` themselves.
+
+- **A raw scancode reader in `std`.** `std/key.momo` is `int 16h`, which blocks
+  and reports one key at a time. `tennis/t_kbd.momo` has the other
+  thing - IRQ1 masked, the 8042 polled directly, make and break tracked as level
+  state per player, plus the sticky latch a tap needs. Every hard-won entry in
+  `PITFALLS.md` came out of writing it, and none of that knowledge is in `shared/lib/`.
+
+  Port I/O (§22) is what made it possible, and it landed after `std/key.momo` was
+  written, so this is a gap rather than a decision. Against moving it: a raw
+  reader is not a drop-in for a blocking one, it needs shutdown discipline the
+  BIOS version does not (unmasking with a key held puts a keystroke at the DOS
+  prompt), and one game is a thin basis for an interface. A second program that
+  wants held-key input is the thing to wait for, and §24's chained `int 9` would
+  change the shape again.
+
+- **`asm { }` passthrough** for hand-written NASM. Probably not needed for a long time.
+- **Strength reduction for powers of two** - **built; see §26.** `i * 4`
+  emitted a `mul` (~120 cycles on an 8086) where two `shl` do, and `x / 8` a
+  `div` (~160) where `shr` does. Faster *and* smaller, so it lives in the
+  normal emitter rather than behind a flag; §26 records how far to take it and
+  the two traps involved.
+- **What precision does constant folding happen at?** - **open; the analysis is
+  in §32.** The folder runs on the host's numbers, so `30000 * 30000 / 30000`
+  folds exactly and lands in a `u16`, at a precision the language itself cannot
+  express. That is defensible, but it is an accident of the host rather than a
+  decision, and it is listed here because it is a *language* question that
+  happens to have been noticed while thinking about self-hosting. Three ways out
+  are set out there; none is chosen.
