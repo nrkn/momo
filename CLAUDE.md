@@ -1,6 +1,6 @@
 # Momo - notes for Claude
 
-**Read `CONTRIBUTING.md` first.** Layout, pipeline, scripts, the traps that have
+**Read `docs/CONTRIBUTING.md` first.** Layout, pipeline, scripts, the traps that have
 cost real time, and the working practices this project holds to all live there,
 and all of them apply here. This file is only what differs when the contributor
 is an agent rather than a person at an editor - which is very little.

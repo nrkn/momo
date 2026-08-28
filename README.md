@@ -130,10 +130,10 @@ errors in the Problems panel.
 
 | | |
 |---|---|
-| **`DESIGN.md`** | The language and the reasoning behind every decision - including the three designed-but-unbuilt features and the long-term directions |
-| **`STYLE.md`** | Code conventions |
-| **`PITFALLS.md`** | What bites when writing Momo programs - symptom first, since that is what you will have |
-| **`CONTRIBUTING.md`** | Orientation: layout, scripts, the tooling traps, and the practices that keep this honest |
+| **`docs/DESIGN.md`** | The language and the reasoning behind every decision - including the three designed-but-unbuilt features and the long-term directions |
+| **`docs/STYLE.md`** | Code conventions |
+| **`docs/PITFALLS.md`** | What bites when writing Momo programs - symptom first, since that is what you will have |
+| **`docs/CONTRIBUTING.md`** | Orientation: layout, scripts, the tooling traps, and the practices that keep this honest |
 | **`CLAUDE.md`** | The handful of things that differ when the contributor is an agent |
 
 **For worked examples, read the programs.** Everything under `projects/` is a real

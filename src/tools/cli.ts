@@ -24,7 +24,7 @@ export const nasmDir = join(root, 'data', 'dos-nasm')
 export const confPath = join(root, 'data', 'dosbox.conf')
 export const compileTestsDir = join(root, 'tests', 'compile')
 export const editorDir = join(root, 'editor', 'vscode')
-export const designPath = join(root, 'DESIGN.md')
+export const designPath = join(root, 'docs', 'DESIGN.md')
 export const sharedRoot = sharedRootFor(root)
 
 // A project is a directory named for its entry file, so every path in it is the

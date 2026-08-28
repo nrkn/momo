@@ -28,7 +28,14 @@ shared/scenes/       data read by more than one project
 projects/            programs, as <category>/<name>/<name>.momo
 tests/compile/       tier 1 tests
 editor/vscode/       generated syntax highlighting
+docs/                this file, DESIGN.md, STYLE.md, PITFALLS.md
 ```
+
+`README.md` stays in the root because that is where it is read from, and so do
+`LICENSE`, `CLAUDE.md` and `AGENTS.md` - the last two because the tools that look
+for them look in the root and nowhere else. Everything else is documentation
+rather than front matter, and `docs/` is a directory GitHub already knows to check
+for a contributing guide.
 
 A project with more than one file prefixes its parts - `t_scr.momo` beside
 `tennis.momo` - and a library does not, because there is no entry file to
