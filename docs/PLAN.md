@@ -162,6 +162,27 @@ nothing has yet wanted it.
   `tennis` reduces 8 bits to 6 on the target, `tigerpic` has it done by the
   generator, and neither lives in a library. Nothing in the repo touches the DAC
   ports, though §22 made them reachable.
+- **A schema study.** A description of a data shape, rich enough that more than
+  validation comes out of it. Validation is the obvious use and the least
+  interesting: the same description should generate a **binary layout** - a reader
+  and a writer - a **property inspector** for an editor, and the **grammar of the
+  text format** that produces the data in the first place. That is the declarative
+  pipeline the scene work already has one instance of, generalised from geometry to
+  anything.
+
+  Two things would use it immediately. §41 leaves the lump-type question open -
+  Doom's WAD has no type field, so ours has to choose between markers, a name
+  prefix and a per-lump header - and a schema is what makes that choice once
+  instead of per asset kind. And `momopnt`'s three editors want property
+  inspectors over three different shapes, which is exactly where generating the
+  interface from the description pays for itself rather than being clever.
+
+  Scope undecided, as with the palette study, and that is the first job. Most of it
+  is host-side generation; what runs on the target is a reader, and a validator
+  only where data can arrive from a file rather than from the compiler.
+  There is prior work to model it on, across the author's own projects and
+  elsewhere, and auditing what exists is part of the first job rather than
+  something to finish before starting. `STUDIES.md` has the register entry.
 - **Record where each peephole lives.** `PEEPHOLES.md` says what each rewrite is
   and why it is safe, but not where in the emitter it is implemented or whether it
   is built at all - which is how entries 4 and 5 stood as fiction for a long time.

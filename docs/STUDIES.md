@@ -54,6 +54,7 @@ has this repository open. The reverse is not true and never will be.
 | clay study | [Clay](https://github.com/nicbarker/clay), `clay.h`, 5,058 lines | `shared/lib/momolo/`, §36 | no |
 | vector study | Alois Zingl, *Bresenham Curve Rasterizing Algorithms* (V20.15, 2020), by way of a TypeScript playground | `shared/lib/momovec/`, §37 | yes |
 | palette study | prior work by the author, 2024 | colour and palettes - scope undecided | planned, not built |
+| schema study | prior work by the author, not yet audited | schemas, and what can be generated from one | planned, not built |
 
 **momolo** (§36) is pure geometry - no text, colour, borders or drawing - which
 is the largest single departure from Clay. The name is six characters so it fits a DOS
@@ -73,6 +74,12 @@ than a public source, so "cite upstream" has nothing to point at - provenance is
 the author's own earlier project and that is the whole of it. It is the first
 study planned after this workflow was noticed rather than reconstructed, which
 makes it the test of whether this file is any good.
+
+**The schema study** has models like the other two, and they have not been audited
+yet - prior work across the author's own projects covers parts of this, and
+finding out how much is part of the study's first job rather than a prerequisite
+to naming it here. So the register cannot yet say what it distils, and that is a
+gap in this row rather than a departure from the definition above.
 
 ## The method
 
