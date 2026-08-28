@@ -1126,9 +1126,15 @@ route avoids needing it.
 
 Everything else here gets built when something needs it. Self-hosting
 *manufactures* needs, and that is the risk: features justified by what the
-compiler wants rather than by what the language should be. Neither of Momo's
-distinguishing properties - readable commented output, an exact memory
-footprint - is served by the compiler being written in itself.
+compiler wants rather than by what the language should be.
+
+An earlier draft went further, and said that neither of Momo's distinguishing
+properties - readable commented output, an exact memory footprint - is served by
+the compiler being written in itself. That is true, and it was answering the
+wrong question. What self-hosting serves is the goal `DESIGN.md` opens with: a
+machine you can develop on without leaving it. The hazard is unchanged, because
+it was never about motivation - a feature justified by what the compiler wants is
+a bad feature whether or not self-hosting is worth doing.
 
 Used well it is a forcing function that exercises §16-§20 against a demanding
 real program; used badly it is a reason to say yes to things. The tell is

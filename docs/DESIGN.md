@@ -8,6 +8,37 @@ Named after a cat, continuing the tradition set by
 `_reference/yuki.txt` is written in it, and is the reference point for "level of
 language" we are aiming at.
 
+**What it is.** A fantasy console, for real hardware.
+
+The phrase contradicts itself and both halves are load-bearing. A fantasy console
+invents its constraints - a fixed screen, a fixed palette, a memory ceiling -
+because working inside them is the point. Momo takes that posture toward
+constraints nobody invented: the 8086 subset, the 64 KB segment, the `.COM` in
+tiny model and the DOS underneath were somebody's actual machine. The aesthetic is
+the same; the authority is not.
+
+The difference runs the opposite way to how it sounds. A fantasy console can
+revise its specification when the specification turns out to be annoying, and this
+one cannot - so a design that meets the machine is finished rather than tuned.
+
+It is also the reason behind decisions the sections below argue for one at a time:
+the subsetted ISA (§1), no recursion (§2), output that is commented NASM meant to
+be read (§9), an exact static footprint (§12). Each has a local justification and
+each is also this. Where a decision looks austere, the constraint is doing work,
+and it is doing it deliberately.
+
+Two consequences are easy to mistake for carelessness. **Slow is acceptable where
+the work still gets done** - a small machine that takes its time is the aesthetic
+rather than a failure of it, and that licenses trades which would otherwise read
+as bad engineering. And **self-hosting is a goal rather than a stunt**: a machine
+you can develop on without leaving it is what the phrase describes. That is a
+different argument from the one §32 makes for itself, and §32 now says so.
+
+None of this is new. Yuki, named above, wrote its Pong for a fantasy console
+outright - `_reference/yuki.txt` is that program - so what changed in Momo is the
+hardware rather than the intent. What follows from it is a tier of applications,
+and that lives in `PLAN.md`; this file stays the language as it stands.
+
 **Why.** Three reasons, and this document is mostly the third.
 
 Primarily, to write small games and tools. Secondarily, to show that x86
