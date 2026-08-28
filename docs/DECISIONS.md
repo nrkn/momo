@@ -102,6 +102,93 @@ for.
 
 ---
 
+## 16. `far` regions and ES
+
+Written out in full before it was built, and corrected rather than rewritten when
+it landed. Most of what it got wrong, it got wrong about its own cost.
+
+### What it cost
+
+**The instruction cost was near zero, as expected.** `mov`, `push` and `pop` gain
+a segment-register operand class, and memory operands gain a `26h` prefix. No new
+mnemonics: the subset in §1 is unchanged.
+
+**Nothing was paid by programs that do not use it.** `push es`/`pop es` appear in
+the int helpers only once something has actually put a segment in ES, so adding
+the whole feature moved no existing generated output.
+
+Sizing beforehand: comparable to the heap work, slightly more - a `far` keyword
+and declaration form, a new symbol kind carrying segment, offset and extent, ES
+handling plus a tracking peephole in the emitter, and `push es`/`pop es` in the
+int helpers. The tracking peephole is the part that did not happen (§34).
+
+### Two things the design sketched wrongly
+
+**ES loads go through DX, not AX**, which is better than the section originally
+sketched. It had budgeted a push/pop under "setting ES needs AX"; §9 documents DX
+as scratch and never live, so no register needs saving at all for a far store
+with a constant index.
+
+**Redundant ES loads were claimed as a performance problem, and are a much
+smaller one than that.** The claim compared the ~6-cycle load against the ~16
+cycles of the store *in isolation* - a third again, which sounds serious.
+
+**That isolation was the error.** Measured against what Momo actually emits around
+the store, in a constant fill of mode 13h - the best case, no generator involved:
+
+| | cycles | share |
+|---|---|---|
+| Loop machinery - memory counter, expanded branch, `jmp` back | 85 | 55% |
+| `push`/`pop` saving AX while the index is computed | 27 | 18% |
+| The store itself | 16 | 10% |
+| **The ES load** | **6** | **4%** |
+
+The ES load is the smallest item in the loop, and the loop machinery is fourteen
+times larger. `rndpix` is worse still: its generator costs ~421 of ~588 cycles per
+pixel, leaving the ES load at **1%**.
+
+### And the blitter shape does not rescue it
+
+`tilefill` is the shape hoisting was designed for - 64 far writes per call, one
+segment - measured over a full screen of 1000 tiles at ~19.7M cycles:
+
+| | share | |
+|---|---|---|
+| Inner loop machinery | 30.2% | register counter, short jumps (§29) |
+| Index recomputation | 23.4% | `dest`/`src` reloaded per pixel; SI and DI are free (§9) |
+| `push`/`pop` per pixel | 9.6% | saving AL while the index is computed |
+| The remaining `* 320` | 5.7% | odd residue 5, so behind `-o` (§26) |
+| **ES load** | **2.1%** | what hoisting removes, net of `push es`/`pop es` |
+| The two `shl` reduction left behind | 2.1% | unrolling would make this ~0.6% |
+
+Hoisting is last but one, in the shape it was designed for.
+
+That table is *after* §26's strength reduction, which took the screen from 19.7M
+cycles to 18.0M - the row that read "multiplies in row setup, 15.2%" is gone, and
+the two shifts that replaced it are now smaller than the ES load itself.
+
+**The table is the performance roadmap**, and the order to work down it is: a
+register-held loop counter, then holding `dest` and `src` in SI and DI instead of
+reloading them, then the odd-residue multiply. Keep it measured rather than
+estimated - **every entry on it has been wrong at least once**.
+
+### Two options rejected
+
+**`AH=48h` is dropped, not deferred.** It buys DOS's bookkeeping - a memory
+control block the system knows about - which matters only for `EXEC` or going
+resident, neither of which Momo can do. Meanwhile DOS has already granted a `.COM`
+far more than its own segment (§13), so `AH=48h` fails until the program shrinks
+its own block with `AH=4Ah`, and shrinking invalidates `_hsize`. Cost with no
+benefit.
+
+**`=` rather than a dedicated keyword.** Everywhere else `=` means "has these
+contents", whereas for a `far` declaration it names an address - and Turbo Pascal
+used a separate word for exactly this (`absolute $B800:$0000`). Rejected anyway:
+`far` already announces that an address follows, and one more keyword is not worth
+the small gain in precision.
+
+---
+
 ## 17. `view`
 
 Written out in full before it was built - `DESIGN.md`'s preamble names §16, §17

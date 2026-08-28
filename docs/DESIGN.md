@@ -1450,9 +1450,9 @@ system and started being quoted as though it governed it.
 
 ## 16. `far` regions and ES
 
-**Built, except the hoisting below.** Every access reloads ES; `fartest`
-exercises it against the real text buffer, and is the worked example for this
-section (§14) - read it alongside the rules below.
+**Built.** Every access reloads ES; `fartest` exercises it against the real text
+buffer, and is the worked example for this section (§14) - read it alongside the
+rules below. Hoisting those reloads is designed and not built: §34.
 
 ```momo
 far       u16[2000] textCells = 0xB800          // text buffer, 80x25 cells
@@ -1470,10 +1470,9 @@ const far u8[]      font      = 0xF000:0xFA6E   // ROM 8x8 font, read-only
 > per-cell and per-pixel goes through memory. That is less work than shimming
 > and a better fit - a framebuffer is what the host has anyway.
 
-### Scope for v1
+### The address, and what may be a segment
 
-Both forms of the address, since the constant one alone cannot double-buffer
-mode 13h:
+Both forms, since the constant one alone cannot double-buffer mode 13h:
 
 ```momo
 far u8[64000] pixels     = 0xA000      // constant segment
@@ -1486,42 +1485,28 @@ far u8[64000] backBuffer = bufferSeg   // runtime, from a u16 variable
   reference re-read per access**, not a load-time snapshot - a snapshot would
   be useless, since `far` declarations are top-level and run before anything
   could have produced a segment.
-- **Runtime segments are never hoisted in v1.** The hoisting rule below is safe
-  for constants because ES is callee-saved. A runtime segment breaks that
-  reasoning in the one way §16 calls the worst possible failure: a callee that
-  reassigns the *variable* leaves our hoisted ES pointing at memory we no longer
-  mean, without ES itself being touched. Doing it properly needs "is this
-  variable assigned anywhere in the reachable call subtree", which the call
-  graph can answer - but nothing needs the speed yet, so v1 reloads per access
-  and the analysis waits for a program that cares. Not a discipline: the
-  compiler simply does not hoist them.
-- **`AH=48h` is dropped, not deferred.** It buys DOS's bookkeeping - a memory
-  control block the system knows about - which matters only for `EXEC` or going
-  resident, neither of which Momo can do. Meanwhile DOS has already granted a
-  `.COM` far more than its own segment (see §13), so `AH=48h` fails until the
-  program shrinks its own block with `AH=4Ah`, and shrinking invalidates
-  `_hsize`. Cost with no benefit. Reaching into that memory at all is out of
-  scope for now; when it returns it brings its own section.
-- **The first real user of the runtime form is probably not the back buffer.**
-  The text buffer is at `B800` on CGA and later but `B000` on MDA and Hercules,
-  which is a runtime decision read from the BIOS data area. `screen.momo` sets
-  mode 3 and so has always assumed colour, but a robust library would not.
+- **A runtime segment is never hoisted.** Hoisting (§34) is safe for a constant
+  because ES is callee-saved. A runtime segment breaks that reasoning in the one
+  way this section calls the worst possible failure: a callee that reassigns the
+  *variable* leaves a hoisted ES pointing at memory we no longer mean, without ES
+  itself being touched. Doing it properly needs "is this variable assigned
+  anywhere in the reachable call subtree", which the call graph can answer. Not a
+  discipline: the compiler simply does not hoist them.
+- **The text buffer's address is itself a runtime decision.** It is at `B800` on
+  CGA and later but `B000` on MDA and Hercules, read from the BIOS data area.
+  `screen.momo` sets mode 3 and so assumes colour; a more robust library would
+  not, and would want the runtime form.
 
-**What must stay true for the runtime form to drop in cleanly**, since v1 leads
-with the constant one: the symbol carries *where the segment comes from* rather
-than a constant; the syntax does not distinguish the two forms, so allowing a
-variable is a pure relaxation; and the ES tracker keys on the segment **source**,
+Three properties hold the two forms together, and are worth stating because they
+are what makes the runtime one a relaxation rather than a second feature: the
+symbol carries *where the segment comes from* rather than a constant; the syntax
+does not distinguish the two; and any ES tracking keys on the segment **source**,
 never on "ES has been loaded".
 
-### What it cost
+### Loading ES, and the order that makes it safe
 
-The instruction cost was near zero, as expected - `mov`, `push` and `pop` gain a
-segment-register operand class, and memory operands gain a `26h` prefix. No new
-mnemonics: the subset in §1 is unchanged.
-
-**ES loads go through DX, not AX**, which is better than this section originally
-sketched. §9 has always documented DX as scratch and never live, so the load
-disturbs neither the accumulator nor a computed index:
+**ES loads go through DX, not AX.** §9 documents DX as scratch and never live, so
+the load disturbs neither the accumulator nor a computed index:
 
 ```nasm
         mov     dx, 0xB800                  ; segment of cells
@@ -1529,8 +1514,7 @@ disturbs neither the accumulator nor a computed index:
         mov     [es:bx], ax
 ```
 
-That removes the push/pop this section budgeted for under "setting ES needs AX".
-A far store with a constant index now needs no register saved at all.
+A far store with a constant index needs no register saved at all.
 
 **Ordering is what makes nested access safe, and it is not optional.** ES is
 loaded *after* the index expression, never before, because the index may itself
@@ -1552,8 +1536,7 @@ segment - the failure this section names as the worst possible. It is handled by
 emission order rather than by analysis.
 
 **Nothing is paid by programs that do not use it.** `push es`/`pop es` appear in
-the int helpers only once something has actually put a segment in ES, so adding
-the whole feature moved no existing generated output.
+the int helpers only once something has actually put a segment in ES.
 
 ### The pieces
 
@@ -1571,10 +1554,9 @@ checking of *constant* indices. Momo has no runtime bounds checks anywhere, so
 this is consistent, not a special case. It is a declaration of intent that the
 compiler cannot verify; `far u16[2000] ... = 0xB800` is trusted.
 
-**`=`, not a new keyword.** Everywhere else `=` means "has these contents",
-whereas here it names an address - Turbo Pascal used a dedicated word for exactly
-this (`absolute $B800:$0000`). Rejected anyway: `far` already announces that an
-address follows, and one more keyword is not worth the small gain in precision.
+**`=`, not a new keyword**, even though everywhere else `=` means "has these
+contents" and here it names an address. `far` already announces that an address
+follows.
 
 **`const far`** makes a region read-only, reusing the `readonly` flag arrays
 already carry. The ROM font is genuinely immutable.
@@ -1623,94 +1605,14 @@ that use it - and it makes "ES is never disturbed by anything you call" an
 invariant rather than a discipline. That in turn is what makes the hoisting
 below simple.
 
-**Redundant ES loads - a performance question, and a smaller one than this
-section first claimed.** Every far access emits `mov dx, seg` / `mov es, dx`
-first: ~6 cycles against ~16 for the store itself (`9` + EA `5` + override `2`),
-so a third again *on the store in isolation*.
+**Every far access reloads ES**, at ~6 cycles against ~16 for the store itself
+(`9` + EA `5` + override `2`). Hoisting those reloads is designed and not built -
+§34 - and DECISIONS §16 has the measurements that put it low on the list.
 
-**That isolation was the error.** Measured against what Momo actually emits
-around the store, in a constant fill of mode 13h - the best case, no generator
-involved:
-
-| | cycles | share |
-|---|---|---|
-| Loop machinery - memory counter, expanded branch, `jmp` back | 85 | 55% |
-| `push`/`pop` saving AX while the index is computed | 27 | 18% |
-| The store itself | 16 | 10% |
-| **The ES load** | **6** | **4%** |
-
-So the ES load is the smallest item in the loop, and the loop machinery is
-fourteen times larger. `rndpix` is worse still: its generator costs ~421 of ~588
-cycles per pixel, leaving the ES load at **1%**.
-
-**And hoisting is not free, because it requires ES to be callee-saved.**
-`push es`/`pop es` is 18 cycles per call to any routine that touches ES, so:
-
-| Shape | Verdict |
-|---|---|
-| `plot( x, y, colour )` - one far write | saves 6, costs 18 - **net loss** |
-| A blitter - 64 writes per tile | saves 384, costs 18 - clear win |
-| `__entry` - nothing calls it, so no preservation | pure win, and ~1% |
-
-Break-even is three accesses, or a loop of three-plus iterations inside the
-routine. It rewards a routine that does a block of work and penalises the
-per-pixel one, which is the shape most people reach for first.
-
-**And the blitter shape does not rescue it.** `tilefill` is that
-shape - 64 far writes per call, one segment - and measured over a full screen of
-1000 tiles at ~19.7M cycles:
-
-| | share | |
-|---|---|---|
-| Inner loop machinery | 30.2% | register counter, short jumps (§29) |
-| Index recomputation | 23.4% | `dest`/`src` reloaded per pixel; SI and DI are free (§9) |
-| `push`/`pop` per pixel | 9.6% | saving AL while the index is computed |
-| The remaining `* 320` | 5.7% | odd residue 5, so behind `-o` (§26) |
-| **ES load** | **2.1%** | what hoisting removes, net of `push es`/`pop es` |
-| The two `shl` reduction left behind | 2.1% | unrolling would make this ~0.6% |
-
-Hoisting is last but one, in the shape it was designed for. That table is *after*
-§26's strength reduction, which took the screen from 19.7M cycles to 18.0M - the
-row that read "multiplies in row setup, 15.2%" is gone, and the two shifts that
-replaced it are now smaller than the ES load itself.
-
-So ES hoisting stays unbuilt: not wrong, just never the biggest thing left. The
-order to work down is the table - a register-held loop counter, then holding
-`dest` and `src` in SI and DI instead of reloading them, then the odd-residue
-multiply. **This table is the performance roadmap; keep it measured rather than
-estimated, since every entry on it has been wrong at least once.**
-
-> **Benchmarking note.** DOSBox cannot measure this. `cycles = auto` makes it
-> adjust its budget against host load, so wall-clock time measures the host; and
-> pinned to a fixed count, its normal core charges roughly per *instruction*
-> rather than modelling `mul` at 118 cycles against `shl` at 2. The numbers above
-> are counted from the emitted code against documented 8086 timings, which is
-> both exact and closer to real hardware. Run it under DOSBox to check
-> correctness, not speed.
-
-**The larger mitigation needs no compiler work.** Put the loop *inside* a routine
+**The mitigation that needs no compiler work.** Put the loop *inside* a routine
 that sets ES once, exactly as `repeatCell` amortises one interrupt over a whole
-run today. Good library shape recovers most of the cost; a tracker then collects
-the remainder.
-
-**Hoist per routine, not per basic block.** A block-local tracker - "which
-segment does ES hold, invalidated at any label" - sounds right and is nearly
-useless: **a loop body begins at a label**, so it would reload every iteration,
-which is exactly the tight-pixel-loop case worth optimising.
-
-The simpler rule works better. Scan a routine's far accesses; if they all name
-one segment - overwhelmingly the common case - emit a single load in the prologue
-and none inside. No dataflow analysis, just "does this routine touch exactly one
-segment?". A routine mixing two falls back to per-access loads.
-
-This only holds because ES is callee-saved: nothing the routine calls can disturb
-it. And it rewards the shape you would write anyway - a routine that does a block
-of work rather than scattering single writes.
-
-> Whatever the strategy, it must key on the segment **value**, not on "ES has
-> been loaded". `textCells[i] = pixels[j]` uses two different segments and must
-> reload between them. A naive flag would silently read the wrong memory - the
-> worst possible failure mode for this feature.
+run today. Good library shape recovers most of the cost, whatever the compiler
+later does.
 
 **Setting ES needs AX**, which may hold the value being stored. The existing
 `push ax` in the computed-index store path already covers this - set ES while the
@@ -1739,27 +1641,12 @@ free, so a back buffer in `_heap` would leave under 1.5KB for the image. It need
 a second segment, and therefore the runtime form - but not `AH=48h`: the memory
 past ours is already the program's (§13).
 
-**One primitive is missing, and it is not the one this section expected.** A
-`.COM` cannot learn its own segment. DOS does not report it - the program knows
-it only because CS=DS=ES=SS at entry - and the PSP holds the *parent's* PSP and
-the environment segment, neither of which is ours. So both routes are blocked by
-the same thing: memory past our segment needs our segment number, and `AH=48h`
-needs `AH=4Ah` first, which wants ES set to our own PSP.
-
-A read-only `_ds` whose read emits `mov ax, ds` closes it. Two bytes, no storage,
-no startup code, and `mov` already gained a segment-register operand class here,
-so no new mnemonic. Everything else already exists:
-
-```momo
-u16 ourSeg
-far u16[1] memTop = ourSeg:2        // PSP:0002 - the end of what DOS granted
-far u8[64000] backBuffer = bufSeg
-
-ourSeg = _ds
-```
-
-Worth doing after something can put pixels in a buffer - a back buffer with no
-blitter is memory with nothing to write into it.
+**A `.COM` cannot learn its own segment**, which is what actually blocks a second
+one. DOS does not report it - the program knows it only because CS=DS=ES=SS at
+entry - and the PSP holds the *parent's* PSP and the environment segment, neither
+of which is ours. Both routes to more memory are blocked by the same thing:
+reaching past our segment needs our segment number. A read-only `_ds` closes it
+and is designed but not built - §35.
 
 Worth separating from "unlocks graphics", which the constant form does on its
 own. What the runtime form buys is **space**, not addressing.
@@ -1767,11 +1654,9 @@ own. What the runtime form buys is **space**, not addressing.
 Text mode is 4000 bytes, so double buffering there is comfortable - and for a
 roguelike that is the interesting case anyway.
 
-### Rough sizing
-
-Comparable to the heap work, slightly more: a `far` keyword and declaration form,
-a new symbol kind carrying segment/offset/extent, ES handling plus the tracking
-peephole in the emitter, and `push es`/`pop es` in the int helpers.
+The record for this section - what it cost, what the design got wrong about its
+own cost, and the measurements that put ES hoisting near the bottom of the
+list - is `DECISIONS.md` §16.
 
 ---
 
@@ -2944,10 +2829,10 @@ which is a record rather than a rule.
 
 ---
 
-## Sections 28-33: designed, not built
+## Sections 28-35: designed, not built
 
-Six more sections carry numbers but no text here, because what they describe does
-not exist yet. All are in `PLAN.md`:
+Eight more sections carry numbers but no text here, because what they describe
+does not exist yet. All are in `PLAN.md`:
 
 | | |
 |---|---|
@@ -2957,6 +2842,8 @@ not exist yet. All are in `PLAN.md`:
 | §31 | Dropping the assembler |
 | §32 | Self-hosting |
 | §33 | Other CPUs - `momo/z80`, `momo/6502` |
+| §34 | Hoisting the ES load, which §16 leaves reloading per access |
+| §35 | `_ds`, so a program can learn its own segment |
 
 ---
 

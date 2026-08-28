@@ -69,9 +69,9 @@ nothing has yet wanted it.
 - **Fixed-point division.** DESIGN §25 is half built and says which half: `*` on
   8.8 lands, division does not, and §25 sets out why it is the awkward one.
 - **Finish moving the record into `DECISIONS.md`.** In progress, section by
-  section, as `DESIGN.md` is read through. Done: §15, §17, §18, §26, §27 - the
-  last of which dissolved entirely rather than splitting. Still to do: §16, §20,
-  §22, §25, of which §16 and §25 are the large ones.
+  section, as `DESIGN.md` is read through. Done: §15, §16, §17, §18, §26, §27 -
+  §27 dissolved entirely rather than splitting, and §16 spun out two designs of
+  its own, §34 and §35. Still to do: §20, §22, §25.
 
 ### Probably
 
@@ -127,6 +127,13 @@ nothing has yet wanted it.
   struck out.
 - **Other CPUs, `momo/z80` and `momo/6502`.** §33 - these do change the abstract
   machine, unlike the hosted targets.
+- **Hoist the ES load.** §34 - designed, not built. Measured at 4% of a mode 13h
+  fill loop, 2.1% of a `tilefill` screen and 1% of `rndpix`, so it is behind loop
+  machinery, index recomputation and the push/pop pair on every measurement taken.
+  Not wrong, just never the biggest thing left.
+- **`_ds`, so a program can learn its own segment.** §35 - two bytes, no storage,
+  no new mnemonic. It is what actually blocks a second segment, and therefore a
+  mode 13h back buffer. Worth doing after something can put pixels in a buffer.
 - **Align the data section.** DECISIONS §27 measured this at **-13% on a true
   8086 and nothing at all on an 8088**, whose 8-bit bus pays two cycles for a word
   access however it is aligned. Most of these machines were 8088s, so it waits for
@@ -1140,3 +1147,87 @@ no 16-bit registers at all, no multiply or divide, a fixed 256-byte stack, and
 addressing scheme entirely, not just a different instruction.
 
 ---
+
+---
+
+## 34. Hoisting the ES load
+
+Every far access emits `mov dx, seg` / `mov es, dx` before it. Hoisting lifts that
+out of a routine that only ever names one segment, so the load happens once in the
+prologue instead of per access.
+
+**Hoist per routine, not per basic block.** A block-local tracker - "which segment
+does ES hold, invalidated at any label" - sounds right and is nearly useless: **a
+loop body begins at a label**, so it would reload every iteration, which is
+exactly the tight-pixel-loop case worth optimising.
+
+The simpler rule works better. Scan a routine's far accesses; if they all name one
+segment - overwhelmingly the common case - emit a single load in the prologue and
+none inside. No dataflow analysis, just "does this routine touch exactly one
+segment?". A routine mixing two falls back to per-access loads.
+
+This only holds because ES is callee-saved (§16): nothing the routine calls can
+disturb it. And it rewards the shape you would write anyway - a routine that does
+a block of work rather than scattering single writes.
+
+**Whatever the strategy, it must key on the segment *value*, not on "ES has been
+loaded".** `textCells[i] = pixels[j]` uses two different segments and must reload
+between them. A naive flag would silently read the wrong memory, which §16 names
+as the worst possible failure mode for the feature.
+
+### It is not free, and often not worth it
+
+Hoisting requires ES to be callee-saved, and `push es`/`pop es` costs 18 cycles
+per call to any routine that touches ES:
+
+| Shape | Verdict |
+|---|---|
+| `plot( x, y, colour )` - one far write | saves 6, costs 18 - **net loss** |
+| A blitter - 64 writes per tile | saves 384, costs 18 - clear win |
+| `__entry` - nothing calls it, so no preservation | pure win, and ~1% |
+
+**Break-even is three accesses**, or a loop of three-plus iterations inside the
+routine. It rewards a routine that does a block of work and penalises the
+per-pixel one, which is the shape most people reach for first.
+
+### Why it is not built
+
+Not wrong, just never the biggest thing left. DECISIONS §16 measures it at **4% of
+a mode 13h fill loop, 2.1% of a `tilefill` screen, and 1% of `rndpix`** - in every
+case behind loop machinery, index recomputation and the push/pop pair. The
+roadmap there says what to do first, and hoisting is last but one on it.
+
+**Runtime segments are excluded even when this lands.** A callee that reassigns
+the segment *variable* leaves a hoisted ES pointing at memory the program no
+longer means, without ES itself being touched. Doing it properly needs "is this
+variable assigned anywhere in the reachable call subtree", which the call graph
+can answer - so it is possible rather than hard, and waits for a program that
+cares.
+
+---
+
+## 35. `_ds`, so a program can learn its own segment
+
+A read-only reserved global whose read emits `mov ax, ds`. Two bytes, no storage,
+no startup code, and no new mnemonic - `mov` already gained a segment-register
+operand class with §16.
+
+**What it unblocks is a second segment.** A `.COM` cannot learn where it is: DOS
+does not report it, the program knows it only because CS=DS=ES=SS at entry, and
+the PSP holds the *parent's* PSP and the environment segment rather than ours. So
+both routes to memory past our own are blocked by the same missing number.
+
+Everything else already exists:
+
+```momo
+u16 ourSeg
+far u16[1] memTop = ourSeg:2        // PSP:0002 - the end of what DOS granted
+far u8[64000] backBuffer = bufSeg
+
+ourSeg = _ds
+```
+
+**Sequencing.** Worth doing after something can put pixels in a buffer - a back
+buffer with no blitter is memory with nothing to write into it. Mode 13h is the
+case that wants it: the frame is 64000 bytes against a 65536-byte segment, so
+double buffering needs a second one. Text mode at 4000 bytes does not.
