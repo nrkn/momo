@@ -58,9 +58,7 @@ include "m_scene.momo"
 // only works for programs which happen to have scenes. The rasteriser knows about
 // paths; what groups them is the caller's business.
 sub strokeScene( u16 sceneIndex ) {
-  u16 q
-
-  for ( q = 0; q < scenePathCount[ sceneIndex ]; q++ ) {
+  for ( u16 q = 0; q < scenePathCount[ sceneIndex ]; q++ ) {
     strokePath( sceneFirstPath[ sceneIndex ] + q )
   }
 }
@@ -78,13 +76,9 @@ sub plot( i16 x, i16 y ) {
   newline()
 }
 
-u16 s
-u16 p
-u16 i
-
 // ---- the pixels stage ----
 
-for ( s = 0; s < len( sceneFirstPath ); s++ ) {
+for ( u16 s = 0; s < len( sceneFirstPath ); s++ ) {
   strokeScene( s )
 }
 
@@ -97,11 +91,11 @@ for ( s = 0; s < len( sceneFirstPath ); s++ ) {
 // emits, for the same reason: exactness beats readability in a file that exists to
 // be compared.
 
-for ( s = 0; s < len( sceneFirstPath ); s++ ) {
-  for ( p = 0; p < scenePathCount[ s ]; p++ ) {
+for ( u16 s = 0; s < len( sceneFirstPath ); s++ ) {
+  for ( u16 p = 0; p < scenePathCount[ s ]; p++ ) {
     pathEdges( sceneFirstPath[ s ] + p )
 
-    for ( i = 0; i < crossingCount; i++ ) {
+    for ( u16 i = 0; i < crossingCount; i++ ) {
       putNumber( cy[ i ] )
       space()
       putNumber( u16( cx[ i ] ) )
@@ -119,11 +113,11 @@ for ( s = 0; s < len( sceneFirstPath ); s++ ) {
 // emission, `sorted` catches a wrong ordering, and a sort that quietly dropped a
 // crossing would pass one and fail the other.
 
-for ( s = 0; s < len( sceneFirstPath ); s++ ) {
-  for ( p = 0; p < scenePathCount[ s ]; p++ ) {
+for ( u16 s = 0; s < len( sceneFirstPath ); s++ ) {
+  for ( u16 p = 0; p < scenePathCount[ s ]; p++ ) {
     pathEdgesSorted( sceneFirstPath[ s ] + p )
 
-    for ( i = 0; i < crossingCount; i++ ) {
+    for ( u16 i = 0; i < crossingCount; i++ ) {
       putNumber( cy[ i ] )
       space()
       putNumber( u16( cx[ i ] ) )
@@ -149,8 +143,6 @@ const modeFill = 1
 u8 spanMode
 
 sub emitSpan( u16 y, i16 x0, i16 x1 ) {
-  i16 x
-
   if ( spanMode == modeSpans ) {
     putNumber( y )
     space()
@@ -162,7 +154,7 @@ sub emitSpan( u16 y, i16 x0, i16 x1 ) {
     return
   }
 
-  for ( x = x0; x <= x1; x++ ) {
+  for ( i16 x = x0; x <= x1; x++ ) {
     plot( x, i16( y ) )
   }
 }
@@ -170,8 +162,8 @@ sub emitSpan( u16 y, i16 x0, i16 x1 ) {
 // Raw spans, straight from the walk.
 spanMode = modeSpans
 
-for ( s = 0; s < len( sceneFirstPath ); s++ ) {
-  for ( p = 0; p < scenePathCount[ s ]; p++ ) {
+for ( u16 s = 0; s < len( sceneFirstPath ); s++ ) {
+  for ( u16 p = 0; p < scenePathCount[ s ]; p++ ) {
     fillPath( sceneFirstPath[ s ] + p, false )
   }
 }
@@ -181,8 +173,8 @@ for ( s = 0; s < len( sceneFirstPath ); s++ ) {
 // every pixel, which is what makes either contract usable.
 spanMode = modeFill
 
-for ( s = 0; s < len( sceneFirstPath ); s++ ) {
-  for ( p = 0; p < scenePathCount[ s ]; p++ ) {
+for ( u16 s = 0; s < len( sceneFirstPath ); s++ ) {
+  for ( u16 p = 0; p < scenePathCount[ s ]; p++ ) {
     fillPath( sceneFirstPath[ s ] + p, true )
   }
 }
@@ -198,8 +190,8 @@ for ( s = 0; s < len( sceneFirstPath ); s++ ) {
 // from those two stages is where the numbers came from.
 spanMode = modeSpans
 
-for ( s = 0; s < len( sceneFirstPath ); s++ ) {
-  for ( p = 0; p < scenePathCount[ s ]; p++ ) {
+for ( u16 s = 0; s < len( sceneFirstPath ); s++ ) {
+  for ( u16 p = 0; p < scenePathCount[ s ]; p++ ) {
     strokeAndFillPath( sceneFirstPath[ s ] + p, false )
   }
 }

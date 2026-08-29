@@ -12,7 +12,6 @@ u16[4] words
 u8     scratch
 
 u16 at
-u16 i
 u16 total
 u16 seq
 
@@ -73,12 +72,12 @@ newline()
 // A runtime value rather than a constant, so the address and the value both
 // have to be computed and one of them saved.
 at = addr( bytes )
-for ( i = 0; i < 8; i++ ) {
+for ( u16 i = 0; i < 8; i++ ) {
   poke8( at + i, u8( i * 2 + 1 ) )
 }
 
 total = 0
-for ( i = 0; i < 8; i++ ) {
+for ( u16 i = 0; i < 8; i++ ) {
   total += peek8( at + i )
 }
 putNumber( total )                    // 1+3+5+7+9+11+13+15 = 64
@@ -86,7 +85,7 @@ newline()
 
 // The memcpy inner loop: a peek straight into a poke, byte to byte, which is
 // what the no-widening path exists for.
-for ( i = 0; i < 4; i++ ) {
+for ( u16 i = 0; i < 4; i++ ) {
   poke8( addr( words ) + i, peek8( addr( bytes ) + i ) )
 }
 putNumber( peek8( addr( words ) ) )   // 1

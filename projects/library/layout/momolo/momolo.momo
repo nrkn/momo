@@ -38,9 +38,7 @@ sub putField( u16 n ) {
 }
 
 sub dumpBoxes {
-  u16 i
-
-  for ( i = 0; i < elCount; i++ ) {
+  for ( u16 i = 0; i < elCount; i++ ) {
     putField( i )
     putField( el[i].x )
     putField( el[i].y )

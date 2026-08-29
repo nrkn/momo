@@ -96,17 +96,15 @@ u16 differ
 // until `a < 65535` fails never terminates, because 61455 + 4097 wraps to 16. A
 // u16 loop counter cannot be bounded by a value near the top of its own range.
 sub compare {
-  u16 i
-  u16 j
   u16 a
   u16 b
 
   checked = 0
   differ = 0
 
-  for ( i = 0; i < 16; i++ ) {
+  for ( u16 i = 0; i < 16; i++ ) {
     a = i * 4097
-    for ( j = 0; j < 16; j++ ) {
+    for ( u16 j = 0; j < 16; j++ ) {
       b = j * 4097
       checked = checked + 1
       if ( fixMulU( a, b ) != fixMulUParts( a, b ) ) {

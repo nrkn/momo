@@ -56,7 +56,6 @@ view u16[8] entities = _heap[16]
 u8[64] scratch
 view u8[32] scratchHalf = scratch[32]
 
-u16 i
 u16 total
 
 // ---- entry ----
@@ -106,7 +105,7 @@ newline()
 
 // A runtime index through a view: [label + bx], where the label is an equ.
 total = 0
-for ( i = 0; i < len( tail ); i++ ) {
+for ( u16 i = 0; i < len( tail ); i++ ) {
   tail[i] = u8( i * 3 + 1 )
   total += tail[i]
 }

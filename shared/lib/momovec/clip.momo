@@ -95,7 +95,6 @@ bool outsideY( i16 a, i16 b, i16 c ) {
 // it, which is the kind of duplicated invariant that has already cost this port a
 // commit.
 bool pathOutside( u16 pathIndex ) {
-  u16 k
   u16 at
   u16 op
   u16 count
@@ -117,7 +116,7 @@ bool pathOutside( u16 pathIndex ) {
   hiX = -32768
   hiY = -32768
 
-  for ( k = 0; k < count; k++ ) {
+  for ( u16 k = 0; k < count; k++ ) {
     op = opKind[ pathOpStart[ pathIndex ] + k ]
 
     // A move and a line carry one point, a quadratic two. Both of a quadratic's

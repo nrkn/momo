@@ -25,7 +25,6 @@ include "lib/momovec/clip.momo"
 sub walkPath(
   u16 pathIndex, bool wantPixels, bool wantEdges, bool closeSubpaths
 ) {
-  u16 k
   u16 at
   u16 op
   i16 curX
@@ -56,7 +55,7 @@ sub walkPath(
   curX = 0
   curY = 0
 
-  for ( k = 0; k < pathOpCount[ pathIndex ]; k++ ) {
+  for ( u16 k = 0; k < pathOpCount[ pathIndex ]; k++ ) {
     op = opKind[ pathOpStart[ pathIndex ] + k ]
 
     if ( op == opMove ) {

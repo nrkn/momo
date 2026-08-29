@@ -1437,7 +1437,7 @@ mopaint__wrapInto:
 ; ============================================== sub reflowAll ====
 
 reflowAll:
-; ---- for ( p = 0; p < paraCount; p++ ) {
+; ---- for ( u16 p = 0; p < paraCount; p++ ) {
         mov     word [reflowAll__p], 0
 .L105:
         mov     ax, [reflowAll__p]
@@ -1539,7 +1539,7 @@ mopaint__fillRect:
         pop     ax
         or      ax, bx
         mov     [mopaint__fillRect__cell], ax
-; ---- for ( r = 0; r < h; r++ ) {
+; ---- for ( u16 r = 0; r < h; r++ ) {
         mov     word [mopaint__fillRect__r], 0
 .L109:
         mov     ax, [mopaint__fillRect__r]
@@ -1565,7 +1565,7 @@ mopaint__fillRect:
         mov     bx, [mopaint__fillRect__x]
         add     ax, bx
         mov     [mopaint__fillRect__base], ax
-; ---- for ( c = 0; c < w; c++ ) {
+; ---- for ( u16 c = 0; c < w; c++ ) {
         mov     word [mopaint__fillRect__c], 0
 .L116:
         mov     ax, [mopaint__fillRect__c]
@@ -1712,7 +1712,7 @@ mopaint__drawRun:
         jb      .L126                       ; unsigned >=
         ret
 .L126:
-; ---- for ( i = 0; i < count; i++ ) {
+; ---- for ( u16 i = 0; i < count; i++ ) {
         mov     word [mopaint__drawRun__i], 0
 .L129:
         mov     ax, [mopaint__drawRun__i]
@@ -1832,7 +1832,7 @@ mopaint__drawText:
 ; ============================================== sub paintAll ====
 
 paintAll:
-; ---- for ( i = 0; i < elCount; i++ ) {
+; ---- for ( u16 i = 0; i < elCount; i++ ) {
         mov     word [paintAll__i], 0
 .L148:
         mov     ax, [paintAll__i]
@@ -2021,7 +2021,7 @@ paintAll:
         call    mopaint__drawText
         jmp     .L165
 .L164:
-; ---- for ( k = 0; k < st[i].lineCount; k++ ) {
+; ---- for ( u16 k = 0; k < st[i].lineCount; k++ ) {
         mov     word [paintAll__k], 0
 .L167:
         mov     ax, [paintAll__k]

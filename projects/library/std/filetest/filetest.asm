@@ -14,7 +14,7 @@ bufSize:        equ     64
 ; =========================================================== entry ====
 
 __entry:
-; ---- for ( i = 0; i < bufSize; i++ ) {
+; ---- for ( u16 i = 0; i < bufSize; i++ ) {
         mov     word [i], 0
 .L1:
         mov     ax, [i]
@@ -107,7 +107,7 @@ __entry:
         call    fileClose
 ; ---- same = 1
         mov     word [same], 1
-; ---- for ( i = 0; i < bufSize; i++ ) {
+; ---- for ( u16 i = 0; i < bufSize; i++ ) {
         mov     word [i], 0
 .L5:
         mov     ax, [i]
@@ -514,6 +514,7 @@ _di:            dw      0
 _cf:            db      0
 
 ; ---- variables ----
+i:              dw      0        ; u16
 putChar__c:     db      0        ; u8
 putNumber__n:   dw      0        ; u16
 file__fileBad:  db      0        ; bool
@@ -542,7 +543,6 @@ fileSeek__ret:  dw      0        ; u16
 fileSize__handle: dw      0        ; u16
 fileSize__ret:  dw      0        ; u16
 handle:         dw      0        ; u16
-i:              dw      0        ; u16
 n:              dw      0        ; u16
 size:           dw      0        ; u16
 same:           dw      0        ; u16

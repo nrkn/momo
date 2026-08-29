@@ -465,7 +465,7 @@ strFind:
 ; ============================================== sub memCopy ====
 
 memCopy:
-; ---- for ( i = 0; i < count; i++ ) {
+; ---- for ( u16 i = 0; i < count; i++ ) {
         mov     word [memCopy__i], 0
 .L40:
         mov     ax, [memCopy__i]
@@ -493,7 +493,7 @@ memCopy:
 ; ============================================== sub memFill ====
 
 memFill:
-; ---- for ( i = 0; i < count; i++ ) {
+; ---- for ( u16 i = 0; i < count; i++ ) {
         mov     word [memFill__i], 0
 .L44:
         mov     ax, [memFill__i]

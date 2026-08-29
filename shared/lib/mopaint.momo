@@ -253,12 +253,11 @@ local u16 wrapInto( u16 at, u16 limit ) {
 // inside its own pass, and momolo instead stops, lets this run, and carries the
 // answer up the tree when it resumes.
 sub reflowAll {
-  u16 p
   u16 i
   u16 first
   u16 n
 
-  for ( p = 0; p < paraCount; p++ ) {
+  for ( u16 p = 0; p < paraCount; p++ ) {
     i = paraEl[p]
     first = lineTop
     n = wrapInto( st[i].text, contentWidth( i ) )
@@ -295,19 +294,17 @@ sub useBrightBackgrounds {
 // reports overflow rather than preventing it, so a scene is free to hand this a
 // box that runs off the side.
 local sub fillRect( u16 x, u16 y, u16 w, u16 h, u8 ch, u8 attr ) {
-  u16 r
-  u16 c
   u16 base
   u16 cell
 
   cell = ch | ( attr << 8 )
 
-  for ( r = 0; r < h; r++ ) {
+  for ( u16 r = 0; r < h; r++ ) {
     if ( y + r >= screenRows ) break
 
     base = ( y + r ) * screenCols + x
 
-    for ( c = 0; c < w; c++ ) {
+    for ( u16 c = 0; c < w; c++ ) {
       if ( x + c >= screenCols ) break
       vram[ base + c ] = cell
     }
@@ -335,11 +332,9 @@ local sub drawFrame( u16 x, u16 y, u16 w, u16 h, u8 b, u8 attr ) {
 // A run of exactly `count` characters, for a wrapped line - which is a slice of a
 // longer string and so has no terminator of its own.
 local sub drawRun( u16 at, u16 count, u16 x, u16 y, u8 attr ) {
-  u16 i
-
   if ( y >= screenRows ) return
 
-  for ( i = 0; i < count; i++ ) {
+  for ( u16 i = 0; i < count; i++ ) {
     if ( x + i >= screenCols ) break
     vram[ y * screenCols + x + i ] = peek8( at + i ) | ( attr << 8 )
   }
@@ -363,12 +358,10 @@ local sub drawText( u16 at, u16 x, u16 y, u8 attr ) {
 }
 
 sub paintAll {
-  u16 i
-  u16 k
   u8  bg
   u8  fg
 
-  for ( i = 0; i < elCount; i++ ) {
+  for ( u16 i = 0; i < elCount; i++ ) {
     bg = st[i].bg
 
     if ( bg != transparent ) {
@@ -393,7 +386,7 @@ sub paintAll {
           color( st[i].fg, fg )
         )
       } else {
-        for ( k = 0; k < st[i].lineCount; k++ ) {
+        for ( u16 k = 0; k < st[i].lineCount; k++ ) {
           drawRun(
             lineAt[ st[i].line0 + k ],
             lineLen[ st[i].line0 + k ],

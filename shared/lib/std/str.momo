@@ -92,17 +92,13 @@ u16 strFind( u16 at, u8 ch ) {
 // `to` is above `from` will copy bytes over themselves. Deliberate - the reverse
 // loop that fixes it costs every caller that does not need it.
 sub memCopy( u16 to, u16 from, u16 count ) {
-  u16 i
-
-  for ( i = 0; i < count; i++ ) {
+  for ( u16 i = 0; i < count; i++ ) {
     poke8( to + i, peek8( from + i ) )
   }
 }
 
 sub memFill( u16 at, u16 count, u8 value ) {
-  u16 i
-
-  for ( i = 0; i < count; i++ ) {
+  for ( u16 i = 0; i < count; i++ ) {
     poke8( at + i, value )
   }
 }

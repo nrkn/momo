@@ -326,7 +326,7 @@ isMove:
 ; ============================================== sub draw ====
 
 draw:
-; ---- for( y = 0; y < mapH; y++ ){
+; ---- for( u8 y = 0; y < mapH; y++ ){
         mov     byte [draw__y], 0
 .L30:
         mov     al, [draw__y]
@@ -334,7 +334,7 @@ draw:
         jb      .L33                        ; unsigned <
         jmp     .L32
 .L33:
-; ---- for( x = 0; x < mapW; x++ ){
+; ---- for( u8 x = 0; x < mapW; x++ ){
         mov     byte [draw__x], 0
 .L34:
         mov     al, [draw__x]
@@ -466,8 +466,8 @@ oldPy:          db      0        ; u8
 lastKey:        dw      0        ; u16
 isMove__key:    db      0        ; u8
 isMove__ret:    db      0        ; bool
-draw__x:        db      0        ; u8
 draw__y:        db      0        ; u8
+draw__x:        db      0        ; u8
 draw__ch:       db      0        ; u8
 
 ; ---- arrays ----

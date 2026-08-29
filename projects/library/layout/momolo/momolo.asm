@@ -1528,7 +1528,7 @@ mopaint__wrapInto:
 ; ============================================== sub reflowAll ====
 
 reflowAll:
-; ---- for ( p = 0; p < paraCount; p++ ) {
+; ---- for ( u16 p = 0; p < paraCount; p++ ) {
         mov     word [reflowAll__p], 0
 .L116:
         mov     ax, [reflowAll__p]
@@ -4921,7 +4921,7 @@ putField:
 ; ============================================== sub dumpBoxes ====
 
 dumpBoxes:
-; ---- for ( i = 0; i < elCount; i++ ) {
+; ---- for ( u16 i = 0; i < elCount; i++ ) {
         mov     word [dumpBoxes__i], 0
 .L536:
         mov     ax, [dumpBoxes__i]

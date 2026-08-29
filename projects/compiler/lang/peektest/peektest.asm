@@ -113,7 +113,7 @@ __entry:
 ; ---- at = addr( bytes )
         mov     ax, bytes                   ; link-time constant
         mov     [at_], ax
-; ---- for ( i = 0; i < 8; i++ ) {
+; ---- for ( u16 i = 0; i < 8; i++ ) {
         mov     word [i], 0
 .L1:
         mov     ax, [i]
@@ -136,7 +136,7 @@ __entry:
 .L3:
 ; ---- total = 0
         mov     word [total], 0
-; ---- for ( i = 0; i < 8; i++ ) {
+; ---- for ( u16 i = 0; i < 8; i++ ) {
         mov     word [i], 0
 .L5:
         mov     ax, [i]
@@ -165,7 +165,7 @@ __entry:
         call    putNumber
 ; ---- newline()
         call    newline
-; ---- for ( i = 0; i < 4; i++ ) {
+; ---- for ( u16 i = 0; i < 4; i++ ) {
         mov     word [i], 0
 .L9:
         mov     ax, [i]
@@ -386,11 +386,11 @@ _si:            dw      0
 _di:            dw      0
 
 ; ---- variables ----
+i:              dw      0        ; u16
 putChar__c:     db      0        ; u8
 putNumber__n:   dw      0        ; u16
 scratch:        db      0        ; u8
 at_:            dw      0        ; u16
-i:              dw      0        ; u16
 total:          dw      0        ; u16
 seq:            dw      0        ; u16
 whereTo__ret:   dw      0        ; u16

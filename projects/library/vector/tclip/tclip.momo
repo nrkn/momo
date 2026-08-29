@@ -55,10 +55,9 @@ u16 currentPath
 // program defines this instead. Fifth thing in this library to bind late, after `plot`,
 // `emitSpan`, `strokeScene` and `drawQuadAny`.
 sub emitClipped( u16 y, i16 x0, i16 x1 ) {
-  i16 x
   u16 ux
 
-  for ( x = x0; x <= x1; x++ ) {
+  for ( i16 x = x0; x <= x1; x++ ) {
     if ( x >= 0 && x <= xMax ) {
       ux = u16( x )
 
@@ -95,15 +94,12 @@ sub plotClipped( i16 x, i16 y ) {
   orderHash = orderHash * 31 + ux + uy
 }
 
-u16 i
-u16 p
-
-for ( i = 0; i < screenH; i++ ) {
+for ( u16 i = 0; i < screenH; i++ ) {
   rowPixels[i] = 0
   rowSumX[i] = 0
 }
 
-for ( p = 0; p < subjectPaths; p++ ) {
+for ( u16 p = 0; p < subjectPaths; p++ ) {
   pathPixels[p] = 0
 }
 
@@ -117,7 +113,7 @@ captureClipPath( clipPathIndex )
 // time. The order matters because `orderHash` is order-sensitive, and the study
 // computes it the same way round. Getting this wrong would match every count and fail
 // the hash, which is exactly what the hash is there to catch.
-for ( p = 0; p < subjectPaths; p++ ) {
+for ( u16 p = 0; p < subjectPaths; p++ ) {
   currentPath = p
 
   if ( pathHasFill[p] != 0 ) {
@@ -125,7 +121,7 @@ for ( p = 0; p < subjectPaths; p++ ) {
   }
 }
 
-for ( p = 0; p < subjectPaths; p++ ) {
+for ( u16 p = 0; p < subjectPaths; p++ ) {
   currentPath = p
 
   if ( pathHasStroke[p] != 0 ) {
@@ -135,7 +131,7 @@ for ( p = 0; p < subjectPaths; p++ ) {
 
 // ---- the digest ----
 
-for ( i = 0; i < screenH; i++ ) {
+for ( u16 i = 0; i < screenH; i++ ) {
   putNumber( i )
   space()
   putNumber( rowPixels[i] )
@@ -144,7 +140,7 @@ for ( i = 0; i < screenH; i++ ) {
   newline()
 }
 
-for ( p = 0; p < subjectPaths; p++ ) {
+for ( u16 p = 0; p < subjectPaths; p++ ) {
   putNumber( p )
   space()
   putNumber( pathFill[p] )

@@ -75,9 +75,7 @@ sub mode13 {
 // the generator - 117 shifts done on a machine that has a shift instruction to
 // spare rather than on one that does not.
 sub loadPalette {
-  u16 i
-
-  for ( i = 0; i < paletteSize; i++ ) {
+  for ( u16 i = 0; i < paletteSize; i++ ) {
     _ax = 0x1010
     _bx = i
     _dh = palR[i]
@@ -103,14 +101,11 @@ sub plot( i16 x, i16 y ) {
 // Spans arrive already clipped, so this needs no bounds test of its own - which is
 // the whole value of clipping at the span rather than the pixel.
 sub emitSpan( u16 y, i16 x0, i16 x1 ) {
-  i16 x
-
-  for ( x = x0; x <= x1; x++ ) {
+  for ( i16 x = x0; x <= x1; x++ ) {
     pixels[ y * screenW + u16( x ) ] = ink
   }
 }
 
-u16 p
 u16 held
 
 saveMode()
@@ -119,7 +114,7 @@ loadPalette()
 
 // Paths in order, each filled then stroked. Array order IS declaration order for an
 // immediate-mode builder, so this is paint order - no command list, nothing to sort.
-for ( p = 0; p < maxPaths; p++ ) {
+for ( u16 p = 0; p < maxPaths; p++ ) {
   if ( pathHasFill[p] != 0 ) {
     ink = pathFill[p]
     fillPath( p, true )

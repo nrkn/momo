@@ -600,9 +600,14 @@ order, deliberately, so the two agree about storage by construction.
 
 What that hid showed up the first time real code adopted the sugar. Lifting a
 counter to the top of a body puts it before declarations it was written after, so
-**`momolo` came out with 14 data labels repositioned** - same names, same widths,
-same footprint, and not one changed instruction. The design had claimed "no storage
+`momolo` came out with 14 data labels repositioned - same names, same widths, same
+footprint, and not one changed instruction. The design had claimed "no storage
 moves and no instruction changes"; the second half held and the first did not.
+
+Sweeping the rest of the corpus put a figure on it: **34 labels repositioned across
+23 of the 47 projects, and zero changed instructions in any of them.** Every changed
+line in every `.asm` was classified rather than sampled - 326 source-quote comments,
+68 data declarations forming an identical multiset, and nothing else at all.
 
 The lesson is not that the pair is wrong. It is that a twin you *choose* tests
 exactly the claim you chose it for, and reads as though it tested more. The golden

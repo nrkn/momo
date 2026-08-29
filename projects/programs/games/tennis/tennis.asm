@@ -668,7 +668,7 @@ setPixel:
 ; ============================================== sub drawLineHorizontal ====
 
 drawLineHorizontal:
-; ---- for( x = x1; x <= x2; x++ ){
+; ---- for( u16 x = x1; x <= x2; x++ ){
         mov     al, [drawLineHorizontal__x1]
         xor     ah, ah                      ; u8 -> u16
         mov     [drawLineHorizontal__x], ax
@@ -696,7 +696,7 @@ drawLineHorizontal:
 ; ============================================== sub drawLineVertical ====
 
 drawLineVertical:
-; ---- for( y = y1; y <= y2; y++ ){
+; ---- for( u16 y = y1; y <= y2; y++ ){
         mov     al, [drawLineVertical__y1]
         xor     ah, ah                      ; u8 -> u16
         mov     [drawLineVertical__y], ax
@@ -724,7 +724,7 @@ drawLineVertical:
 ; ============================================== sub drawBackground ====
 
 drawBackground:
-; ---- for( dy = 0; dy < scoreTopWord; dy++ ){
+; ---- for( u16 dy = 0; dy < scoreTopWord; dy++ ){
         mov     word [drawBackground__dy], 0
 .L93:
         mov     ax, [drawBackground__dy]
@@ -744,7 +744,7 @@ drawBackground:
         inc     word [drawBackground__dy]
         jmp     .L93
 .L95:
-; ---- for( dy = scoreTopWord; dy < screenWord; dy++ ){
+; ---- for( u16 dy = scoreTopWord; dy < screenWord; dy++ ){
         mov     word [drawBackground__dy], 26880
 .L97:
         mov     ax, [drawBackground__dy]
@@ -785,7 +785,7 @@ drawPlayfield:
 ; ============================================== sub drawNet ====
 
 drawNet:
-; ---- for( net = 0; net < 5; net++ ){
+; ---- for( u8 net = 0; net < 5; net++ ){
         mov     byte [drawNet__net], 0
 .L101:
         mov     al, [drawNet__net]
@@ -1020,7 +1020,7 @@ drawSprite:
         mov     bx, 25
         mul     bx                          ; low 16 bits are sign-agnostic
         mov     [drawSprite__tile], ax
-; ---- for( j = 0; j < spriteH; j++ ){
+; ---- for( u8 j = 0; j < spriteH; j++ ){
         mov     byte [drawSprite__j], 0
 .L105:
         mov     al, [drawSprite__j]
@@ -1028,7 +1028,7 @@ drawSprite:
         jb      .L108                       ; unsigned <
         jmp     .L107
 .L108:
-; ---- for( i = 0; i < spriteW; i++ ){
+; ---- for( u8 i = 0; i < spriteW; i++ ){
         mov     byte [drawSprite__i], 0
 .L109:
         mov     al, [drawSprite__i]
@@ -1887,9 +1887,9 @@ drawBall__subPxY2: dw      0        ; i16
 clearBall__subPxX: dw      0        ; i16
 clearBall__subPxY: dw      0        ; i16
 clearBall__subPxY2: dw      0        ; i16
-drawSprite__tile: dw      0        ; u16
-drawSprite__i:  db      0        ; u8
 drawSprite__j:  db      0        ; u8
+drawSprite__i:  db      0        ; u8
+drawSprite__tile: dw      0        ; u16
 drawScore__digitTens: db      0        ; u8
 drawScore__digitOnes: db      0        ; u8
 hitPaddle__yOffset: dw      0        ; i16

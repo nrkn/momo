@@ -95,7 +95,6 @@ u16[screenH] rowCount
 u16[screenH + 1] runStart
 
 sub sortCrossings {
-  u16 i
   u16 y
   u16 at
   u16 running
@@ -111,7 +110,7 @@ sub sortCrossings {
     rowCount[y] = 0
   }
 
-  for ( i = 0; i < crossingCount; i++ ) {
+  for ( u16 i = 0; i < crossingCount; i++ ) {
     rowCount[ cy[i] ] += 1
   }
 
@@ -129,7 +128,7 @@ sub sortCrossings {
     rowCount[y] = 0
   }
 
-  for ( i = 0; i < crossingCount; i++ ) {
+  for ( u16 i = 0; i < crossingCount; i++ ) {
     y = cy[i]
     at = runStart[y] + rowCount[y]
 
@@ -147,7 +146,7 @@ sub sortCrossings {
     from = runStart[y]
     to = runStart[y + 1]
 
-    for ( i = from + 1; i < to; i++ ) {
+    for ( u16 i = from + 1; i < to; i++ ) {
       keyX = sx_[i]
       keyDir = sd_[i]
       k = i
@@ -165,7 +164,7 @@ sub sortCrossings {
 
   // Back into the live arrays. y is unchanged by the insertion pass - a run holds
   // one scanline by construction - so it is copied rather than recomputed.
-  for ( i = 0; i < crossingCount; i++ ) {
+  for ( u16 i = 0; i < crossingCount; i++ ) {
     cy[i] = sy_[i]
     cx[i] = sx_[i]
     cdir[i] = sd_[i]

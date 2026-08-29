@@ -77,14 +77,12 @@ bool clipCapturing
 bool clipActive
 
 sub clearClipPath {
-  u16 i
-
   clipSpanCount = 0
   clipOverflowed = false
   clipCapturing = false
   clipActive = false
 
-  for ( i = 0; i < screenH; i++ ) {
+  for ( u16 i = 0; i < screenH; i++ ) {
     clipRowStart[i] = 0
     clipRowCount[i] = 0
   }

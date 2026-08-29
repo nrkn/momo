@@ -56,12 +56,11 @@ sub emitSpan( u16 y, i16 x0, i16 x1 ) {
   newline()
 }
 
-u16 c
 u16 at
 
 clearSubdiv()
 
-for ( c = 0; c < caseCount; c++ ) {
+for ( u16 c = 0; c < caseCount; c++ ) {
   at = c * 6
 
   drawQuadAny(

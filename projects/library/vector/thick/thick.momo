@@ -58,9 +58,7 @@ u16 currentPath
 // Spans arrive already clipped, so no bounds test here - the same arrangement as
 // the tiger, and the reason clipping happens at the span rather than the pixel.
 sub emitSpan( u16 y, i16 x0, i16 x1 ) {
-  i16 x
-
-  for ( x = x0; x <= x1; x++ ) {
+  for ( i16 x = x0; x <= x1; x++ ) {
     plot( x, i16( y ) )
   }
 }
@@ -84,15 +82,12 @@ sub plot( i16 x, i16 y ) {
   orderHash = orderHash * 31 + ux + uy
 }
 
-u16 i
-u16 p
-
-for ( i = 0; i < screenH; i++ ) {
+for ( u16 i = 0; i < screenH; i++ ) {
   rowPixels[i] = 0
   rowSumX[i] = 0
 }
 
-for ( p = 0; p < maxPaths; p++ ) {
+for ( u16 p = 0; p < maxPaths; p++ ) {
   pathPixels[p] = 0
 }
 
@@ -100,7 +95,7 @@ orderHash = 0
 
 // One stroke per path, filled. No stroke pass at all - a ribbon path has nothing
 // to outline.
-for ( p = 0; p < maxPaths; p++ ) {
+for ( u16 p = 0; p < maxPaths; p++ ) {
   currentPath = p
 
   fillPath( p, true )
@@ -108,7 +103,7 @@ for ( p = 0; p < maxPaths; p++ ) {
 
 // ---- the digest ----
 
-for ( i = 0; i < screenH; i++ ) {
+for ( u16 i = 0; i < screenH; i++ ) {
   putNumber( i )
   space()
   putNumber( rowPixels[i] )
@@ -117,7 +112,7 @@ for ( i = 0; i < screenH; i++ ) {
   newline()
 }
 
-for ( p = 0; p < maxPaths; p++ ) {
+for ( u16 p = 0; p < maxPaths; p++ ) {
   putNumber( p )
   space()
   putNumber( pathFill[p] )

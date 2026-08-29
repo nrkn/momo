@@ -408,7 +408,7 @@ sortCrossings:
         inc     word [sortCrossings__y]
         jmp     .L59
 .L61:
-; ---- for ( i = 0; i < crossingCount; i++ ) {
+; ---- for ( u16 i = 0; i < crossingCount; i++ ) {
         mov     word [sortCrossings__i], 0
 .L63:
         mov     ax, [sortCrossings__i]
@@ -486,7 +486,7 @@ sortCrossings:
         inc     word [sortCrossings__y]
         jmp     .L71
 .L73:
-; ---- for ( i = 0; i < crossingCount; i++ ) {
+; ---- for ( u16 i = 0; i < crossingCount; i++ ) {
         mov     word [sortCrossings__i], 0
 .L75:
         mov     ax, [sortCrossings__i]
@@ -580,7 +580,7 @@ sortCrossings:
         mov     bx, ax
         mov     ax, [runStart + bx]
         mov     [sortCrossings__to], ax
-; ---- for ( i = from + 1; i < to; i++ ) {
+; ---- for ( u16 i = from + 1; i < to; i++ ) {
         mov     ax, [sortCrossings__from]
         inc     ax
         mov     [sortCrossings__i], ax
@@ -673,7 +673,7 @@ sortCrossings:
         inc     word [sortCrossings__y]
         jmp     .L79
 .L81:
-; ---- for ( i = 0; i < crossingCount; i++ ) {
+; ---- for ( u16 i = 0; i < crossingCount; i++ ) {
         mov     word [sortCrossings__i], 0
 .L92:
         mov     ax, [sortCrossings__i]
@@ -2037,7 +2037,7 @@ pathOutside:
         mov     word [pathOutside__hiX], 32768
 ; ---- hiY = -32768
         mov     word [pathOutside__hiY], 32768
-; ---- for ( k = 0; k < count; k++ ) {
+; ---- for ( u16 k = 0; k < count; k++ ) {
         mov     word [pathOutside__k], 0
 .L288:
         mov     ax, [pathOutside__k]
@@ -2219,7 +2219,7 @@ walkPath:
         mov     word [walkPath__curX], 0
 ; ---- curY = 0
         mov     word [walkPath__curY], 0
-; ---- for ( k = 0; k < pathOpCount[ pathIndex ]; k++ ) {
+; ---- for ( u16 k = 0; k < pathOpCount[ pathIndex ]; k++ ) {
         mov     word [walkPath__k], 0
 .L329:
         mov     ax, [walkPath__k]

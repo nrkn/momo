@@ -17,7 +17,7 @@ __entry:
         mov     byte [player__y], 20
 ; ---- player.hp = 100
         mov     word [player__hp], 100
-; ---- for( i = 0; i < len( mob ); i++ ){
+; ---- for( u8 i = 0; i < len( mob ); i++ ){
         mov     byte [i], 0
 .L1:
         mov     al, [i]
@@ -60,7 +60,7 @@ __entry:
         mov     byte [mob__alive + 2], 0
 ; ---- total = 0
         mov     word [total], 0
-; ---- for( i = 0; i < len( mob ); i++ ){
+; ---- for( u8 i = 0; i < len( mob ); i++ ){
         mov     byte [i], 0
 .L5:
         mov     al, [i]
@@ -107,7 +107,7 @@ __entry:
         call    putNumber
 ; ---- newline()
         call    newline
-; ---- for( i = 0; i < len( mob ); i++ ){
+; ---- for( u8 i = 0; i < len( mob ); i++ ){
         mov     byte [i], 0
 .L12:
         mov     al, [i]
@@ -259,12 +259,12 @@ _si:            dw      0
 _di:            dw      0
 
 ; ---- variables ----
+i:              db      0        ; u8
 putChar__c:     db      0        ; u8
 putNumber__n:   dw      0        ; u16
 player__x:      db      0        ; u8
 player__y:      db      0        ; u8
 player__hp:     dw      0        ; u16
-i:              db      0        ; u8
 total:          dw      0        ; u16
 putNumber__i:   db      0        ; u8
 

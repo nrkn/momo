@@ -31,7 +31,7 @@ __entry:
         mov     ax, [allocPtr]
         shr     ax, 1                       ; / 2 is >> 1
         mov     [block], ax
-; ---- for (i = 0; i < 8; i++) {
+; ---- for (u16 i = 0; i < 8; i++) {
         mov     word [i], 0
 .L4:
         mov     ax, [i]
@@ -55,7 +55,7 @@ __entry:
 .L6:
 ; ---- total = 0
         mov     word [total], 0
-; ---- for (i = 0; i < 8; i++) {
+; ---- for (u16 i = 0; i < 8; i++) {
         mov     word [i], 0
 .L8:
         mov     ax, [i]
@@ -232,13 +232,13 @@ _si:            dw      0
 _di:            dw      0
 
 ; ---- variables ----
+i:              dw      0        ; u16
 putChar__c:     db      0        ; u8
 putNumber__n:   dw      0        ; u16
 hp:             dw      0        ; u16
 allocSize:      dw      0        ; u16
 allocPtr:       dw      0        ; u16
 block:          dw      0        ; u16
-i:              dw      0        ; u16
 total:          dw      0        ; u16
 putNumber__i:   db      0        ; u8
 

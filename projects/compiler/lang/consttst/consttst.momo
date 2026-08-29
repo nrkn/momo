@@ -20,7 +20,6 @@ u16 double(u8 n) => n * 2
 
 const plusOne(u8 n) = double(n) + 1
 
-u16 i
 u16 runtime
 
 // ---- entry ----
@@ -39,7 +38,7 @@ putNumber(min(sqr(4), sqr(3)))
 newline()
 
 // the compile-time table
-for (i = 0; i < 6; i++) {
+for (u16 i = 0; i < 6; i++) {
   putNumber(squares[i])
   putChar(' ')
 }

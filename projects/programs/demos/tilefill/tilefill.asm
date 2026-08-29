@@ -28,7 +28,7 @@ __entry:
         mov     word [_ax], 19
 ; ---- int 0x10
         call    int10
-; ---- for( ty = 0; ty < tilesDown; ty++ ){
+; ---- for( u8 ty = 0; ty < tilesDown; ty++ ){
         mov     byte [ty], 0
 .L1:
         mov     al, [ty]
@@ -36,7 +36,7 @@ __entry:
         jb      .L4                         ; unsigned <
         jmp     .L3
 .L4:
-; ---- for( tx = 0; tx < tilesAcross; tx++ ){
+; ---- for( u8 tx = 0; tx < tilesAcross; tx++ ){
         mov     byte [tx], 0
 .L5:
         mov     al, [tx]
@@ -107,7 +107,7 @@ readKey:
 ; ============================================== sub blit ====
 
 blit:
-; ---- for( row = 0; row < tileH; row++ ){
+; ---- for( u16 row = 0; row < tileH; row++ ){
         mov     word [blit__row], 0
 .L12:
         mov     ax, [blit__row]
@@ -143,7 +143,7 @@ blit:
         pop     ax
         add     ax, bx
         mov     [blit__src], ax
-; ---- for( col = 0; col < tileW; col++ ){
+; ---- for( u16 col = 0; col < tileW; col++ ){
         mov     word [blit__col], 0
 .L16:
         mov     ax, [blit__col]
@@ -251,10 +251,10 @@ _si:            dw      0
 _di:            dw      0
 
 ; ---- variables ----
+ty:             db      0        ; u8
+tx:             db      0        ; u8
 readKey__ret:   dw      0        ; u16
 savedMode:      db      0        ; u8
-tx:             db      0        ; u8
-ty:             db      0        ; u8
 blit__from:     dw      0        ; u16
 blit__tx:       db      0        ; u8
 blit__ty:       db      0        ; u8

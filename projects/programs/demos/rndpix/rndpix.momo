@@ -11,7 +11,6 @@ include "lib/std/rand.momo"
 far u8[64000] pixels = 0xA000
 
 u8  savedMode
-u16 i
 
 // ---- entry ----
 
@@ -25,7 +24,7 @@ savedMode = _al & 0x7F
 _ax = 0x0013
 int 0x10
 
-for( i = 0; i < len( pixels ); i++ ){
+for( u16 i = 0; i < len( pixels ); i++ ){
   // Any byte of the generator will do - std/rand.momo is xorshift, so the low
   // bits are as good as the high ones. An earlier version of this took bits 1..8
   // of an LCG, which repeat every 512 calls and banded the image every 1.6

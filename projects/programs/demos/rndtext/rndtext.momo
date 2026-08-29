@@ -12,7 +12,6 @@ include "lib/std/rand.momo"
 far u16[2000] cells = 0xB800
 
 u8  savedMode
-u16 i
 
 // ---- entry ----
 
@@ -27,7 +26,7 @@ savedMode = _al & 0x7F
 setTextMode()
 hideCursor()
 
-for( i = 0; i < len( cells ); i++ ){
+for( u16 i = 0; i < len( cells ); i++ ){
   // A random word is already a random character in a random colour, so no
   // arithmetic is needed beyond one mask. Bit 15 is bit 7 of the attribute -
   // the blink bit on default hardware - and a screen of blinking cells is

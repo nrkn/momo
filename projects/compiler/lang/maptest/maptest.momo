@@ -13,13 +13,11 @@ const u8[] map = "########"
 
 const tileAt(u16 x, u16 y) = map[y * mapWidth + x]
 
-u16 x
-u16 y
 u16 walls
 
 // Print it back, row by row.
-for (y = 0; y < mapHeight; y++) {
-  for (x = 0; x < mapWidth; x++) {
+for (u16 y = 0; y < mapHeight; y++) {
+  for (u16 x = 0; x < mapWidth; x++) {
     putChar(tileAt(x, y))
   }
   newline()
@@ -27,8 +25,8 @@ for (y = 0; y < mapHeight; y++) {
 
 // Count walls, so the length is checked too.
 walls = 0
-for (y = 0; y < mapHeight; y++) {
-  for (x = 0; x < mapWidth; x++) {
+for (u16 y = 0; y < mapHeight; y++) {
+  for (u16 x = 0; x < mapWidth; x++) {
     if (tileAt(x, y) == '#') walls++
   }
 }

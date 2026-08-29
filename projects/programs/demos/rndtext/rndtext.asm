@@ -19,7 +19,7 @@ __entry:
         call    setTextMode
 ; ---- hideCursor()
         call    hideCursor
-; ---- for( i = 0; i < len( cells ); i++ ){
+; ---- for( u16 i = 0; i < len( cells ); i++ ){
         mov     word [i], 0
 .L1:
         mov     ax, [i]
@@ -212,11 +212,11 @@ _si:            dw      0
 _di:            dw      0
 
 ; ---- variables ----
+i:              dw      0        ; u16
 readKey__ret:   dw      0        ; u16
 rand__randomSeed: dw      42        ; u16 = 42
 nextRandom__ret: dw      0        ; u16
 savedMode:      db      0        ; u8
-i:              dw      0        ; u16
 
 ; ============================================================ heap ====
 ; No storage is emitted - a .COM owns everything past its image, so

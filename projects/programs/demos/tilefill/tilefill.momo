@@ -46,23 +46,19 @@ const u8[] tiles = [
 ]
 
 u8  savedMode
-u8  tx
-u8  ty
 
 // Copies one tile to grid position (tx, ty). `from` is a byte offset into
 // `tiles`. Sixty-four far writes per call, which is the shape §16's ES hoisting
 // would reward - one segment load for the routine instead of one per pixel.
 sub blit( u16 from, u8 tx, u8 ty ) {
-  u16 row
-  u16 col
   u16 dest
   u16 src
 
-  for( row = 0; row < tileH; row++ ){
+  for( u16 row = 0; row < tileH; row++ ){
     dest = ( u16( ty ) * tileH + row ) * screenW + u16( tx ) * tileW
     src  = from + row * tileW
 
-    for( col = 0; col < tileW; col++ ){
+    for( u16 col = 0; col < tileW; col++ ){
       pixels[ dest + col ] = tiles[ src + col ]
     }
   }
@@ -78,8 +74,8 @@ savedMode = _al & 0x7F
 _ax = 0x0013
 int 0x10
 
-for( ty = 0; ty < tilesDown; ty++ ){
-  for( tx = 0; tx < tilesAcross; tx++ ){
+for( u8 ty = 0; ty < tilesDown; ty++ ){
+  for( u8 tx = 0; tx < tilesAcross; tx++ ){
     if( ( ( tx + ty ) & 1 ) == 0 ){
       blit( 0, tx, ty )
     } else {

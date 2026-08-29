@@ -24,7 +24,7 @@ modeFill:       equ     1
 ; =========================================================== entry ====
 
 __entry:
-; ---- for ( s = 0; s < len( sceneFirstPath ); s++ ) {
+; ---- for ( u16 s = 0; s < len( sceneFirstPath ); s++ ) {
         mov     word [s], 0
 .L1:
         mov     ax, [s]
@@ -38,7 +38,7 @@ __entry:
         inc     word [s]
         jmp     .L1
 .L3:
-; ---- for ( s = 0; s < len( sceneFirstPath ); s++ ) {
+; ---- for ( u16 s = 0; s < len( sceneFirstPath ); s++ ) {
         mov     word [s], 0
 .L5:
         mov     ax, [s]
@@ -46,7 +46,7 @@ __entry:
         jb      .L8                         ; unsigned <
         jmp     .L7
 .L8:
-; ---- for ( p = 0; p < scenePathCount[ s ]; p++ ) {
+; ---- for ( u16 p = 0; p < scenePathCount[ s ]; p++ ) {
         mov     word [p], 0
 .L9:
         mov     ax, [p]
@@ -70,7 +70,7 @@ __entry:
         add     ax, bx
         mov     [pathEdges__pathIndex], ax
         call    pathEdges
-; ---- for ( i = 0; i < crossingCount; i++ ) {
+; ---- for ( u16 i = 0; i < crossingCount; i++ ) {
         mov     word [i], 0
 .L13:
         mov     ax, [i]
@@ -116,7 +116,7 @@ __entry:
         inc     word [s]
         jmp     .L5
 .L7:
-; ---- for ( s = 0; s < len( sceneFirstPath ); s++ ) {
+; ---- for ( u16 s = 0; s < len( sceneFirstPath ); s++ ) {
         mov     word [s], 0
 .L17:
         mov     ax, [s]
@@ -124,7 +124,7 @@ __entry:
         jb      .L20                        ; unsigned <
         jmp     .L19
 .L20:
-; ---- for ( p = 0; p < scenePathCount[ s ]; p++ ) {
+; ---- for ( u16 p = 0; p < scenePathCount[ s ]; p++ ) {
         mov     word [p], 0
 .L21:
         mov     ax, [p]
@@ -148,7 +148,7 @@ __entry:
         add     ax, bx
         mov     [pathEdgesSorted__pathIndex], ax
         call    pathEdgesSorted
-; ---- for ( i = 0; i < crossingCount; i++ ) {
+; ---- for ( u16 i = 0; i < crossingCount; i++ ) {
         mov     word [i], 0
 .L25:
         mov     ax, [i]
@@ -196,7 +196,7 @@ __entry:
 .L19:
 ; ---- spanMode = modeSpans
         mov     byte [spanMode], 0
-; ---- for ( s = 0; s < len( sceneFirstPath ); s++ ) {
+; ---- for ( u16 s = 0; s < len( sceneFirstPath ); s++ ) {
         mov     word [s], 0
 .L29:
         mov     ax, [s]
@@ -204,7 +204,7 @@ __entry:
         jb      .L32                        ; unsigned <
         jmp     .L31
 .L32:
-; ---- for ( p = 0; p < scenePathCount[ s ]; p++ ) {
+; ---- for ( u16 p = 0; p < scenePathCount[ s ]; p++ ) {
         mov     word [p], 0
 .L33:
         mov     ax, [p]
@@ -237,7 +237,7 @@ __entry:
 .L31:
 ; ---- spanMode = modeFill
         mov     byte [spanMode], 1
-; ---- for ( s = 0; s < len( sceneFirstPath ); s++ ) {
+; ---- for ( u16 s = 0; s < len( sceneFirstPath ); s++ ) {
         mov     word [s], 0
 .L37:
         mov     ax, [s]
@@ -245,7 +245,7 @@ __entry:
         jb      .L40                        ; unsigned <
         jmp     .L39
 .L40:
-; ---- for ( p = 0; p < scenePathCount[ s ]; p++ ) {
+; ---- for ( u16 p = 0; p < scenePathCount[ s ]; p++ ) {
         mov     word [p], 0
 .L41:
         mov     ax, [p]
@@ -278,7 +278,7 @@ __entry:
 .L39:
 ; ---- spanMode = modeSpans
         mov     byte [spanMode], 0
-; ---- for ( s = 0; s < len( sceneFirstPath ); s++ ) {
+; ---- for ( u16 s = 0; s < len( sceneFirstPath ); s++ ) {
         mov     word [s], 0
 .L45:
         mov     ax, [s]
@@ -286,7 +286,7 @@ __entry:
         jb      .L48                        ; unsigned <
         jmp     .L47
 .L48:
-; ---- for ( p = 0; p < scenePathCount[ s ]; p++ ) {
+; ---- for ( u16 p = 0; p < scenePathCount[ s ]; p++ ) {
         mov     word [p], 0
 .L49:
         mov     ax, [p]
@@ -543,7 +543,7 @@ sortCrossings:
         inc     word [sortCrossings__y]
         jmp     .L85
 .L87:
-; ---- for ( i = 0; i < crossingCount; i++ ) {
+; ---- for ( u16 i = 0; i < crossingCount; i++ ) {
         mov     word [sortCrossings__i], 0
 .L89:
         mov     ax, [sortCrossings__i]
@@ -621,7 +621,7 @@ sortCrossings:
         inc     word [sortCrossings__y]
         jmp     .L97
 .L99:
-; ---- for ( i = 0; i < crossingCount; i++ ) {
+; ---- for ( u16 i = 0; i < crossingCount; i++ ) {
         mov     word [sortCrossings__i], 0
 .L101:
         mov     ax, [sortCrossings__i]
@@ -715,7 +715,7 @@ sortCrossings:
         mov     bx, ax
         mov     ax, [runStart + bx]
         mov     [sortCrossings__to], ax
-; ---- for ( i = from + 1; i < to; i++ ) {
+; ---- for ( u16 i = from + 1; i < to; i++ ) {
         mov     ax, [sortCrossings__from]
         inc     ax
         mov     [sortCrossings__i], ax
@@ -808,7 +808,7 @@ sortCrossings:
         inc     word [sortCrossings__y]
         jmp     .L105
 .L107:
-; ---- for ( i = 0; i < crossingCount; i++ ) {
+; ---- for ( u16 i = 0; i < crossingCount; i++ ) {
         mov     word [sortCrossings__i], 0
 .L118:
         mov     ax, [sortCrossings__i]
@@ -2172,7 +2172,7 @@ pathOutside:
         mov     word [pathOutside__hiX], 32768
 ; ---- hiY = -32768
         mov     word [pathOutside__hiY], 32768
-; ---- for ( k = 0; k < count; k++ ) {
+; ---- for ( u16 k = 0; k < count; k++ ) {
         mov     word [pathOutside__k], 0
 .L314:
         mov     ax, [pathOutside__k]
@@ -2354,7 +2354,7 @@ walkPath:
         mov     word [walkPath__curX], 0
 ; ---- curY = 0
         mov     word [walkPath__curY], 0
-; ---- for ( k = 0; k < pathOpCount[ pathIndex ]; k++ ) {
+; ---- for ( u16 k = 0; k < pathOpCount[ pathIndex ]; k++ ) {
         mov     word [walkPath__k], 0
 .L355:
         mov     ax, [walkPath__k]
@@ -2971,7 +2971,7 @@ strokeAndFillPath:
 ; ============================================== sub strokeScene ====
 
 strokeScene:
-; ---- for ( q = 0; q < scenePathCount[ sceneIndex ]; q++ ) {
+; ---- for ( u16 q = 0; q < scenePathCount[ sceneIndex ]; q++ ) {
         mov     word [strokeScene__q], 0
 .L447:
         mov     ax, [strokeScene__q]
@@ -3044,7 +3044,7 @@ emitSpan:
 ; ---- return
         ret
 .L451:
-; ---- for ( x = x0; x <= x1; x++ ) {
+; ---- for ( i16 x = x0; x <= x1; x++ ) {
         mov     ax, [emitSpan__x0]
         mov     [emitSpan__x], ax
 .L454:
@@ -3103,6 +3103,9 @@ _si:            dw      0
 _di:            dw      0
 
 ; ---- variables ----
+s:              dw      0        ; u16
+p:              dw      0        ; u16
+i:              dw      0        ; u16
 putChar__c:     db      0        ; u8
 putStr__at:     dw      0        ; u16
 putNumber__n:   dw      0        ; u16
@@ -3179,9 +3182,6 @@ strokeAndFillPath__tidy: db      0        ; bool
 strokeScene__sceneIndex: dw      0        ; u16
 plot__x:        dw      0        ; i16
 plot__y:        dw      0        ; i16
-s:              dw      0        ; u16
-p:              dw      0        ; u16
-i:              dw      0        ; u16
 spanMode:       db      0        ; u8
 emitSpan__y:    dw      0        ; u16
 emitSpan__x0:   dw      0        ; i16

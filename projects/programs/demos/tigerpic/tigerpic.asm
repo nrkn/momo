@@ -28,7 +28,7 @@ __entry:
         call    mode13
 ; ---- loadPalette()
         call    loadPalette
-; ---- for ( p = 0; p < maxPaths; p++ ) {
+; ---- for ( u16 p = 0; p < maxPaths; p++ ) {
         mov     word [p], 0
 .L1:
         mov     ax, [p]
@@ -201,7 +201,7 @@ sortCrossings:
         inc     word [sortCrossings__y]
         jmp     .L29
 .L31:
-; ---- for ( i = 0; i < crossingCount; i++ ) {
+; ---- for ( u16 i = 0; i < crossingCount; i++ ) {
         mov     word [sortCrossings__i], 0
 .L33:
         mov     ax, [sortCrossings__i]
@@ -279,7 +279,7 @@ sortCrossings:
         inc     word [sortCrossings__y]
         jmp     .L41
 .L43:
-; ---- for ( i = 0; i < crossingCount; i++ ) {
+; ---- for ( u16 i = 0; i < crossingCount; i++ ) {
         mov     word [sortCrossings__i], 0
 .L45:
         mov     ax, [sortCrossings__i]
@@ -373,7 +373,7 @@ sortCrossings:
         mov     bx, ax
         mov     ax, [runStart + bx]
         mov     [sortCrossings__to], ax
-; ---- for ( i = from + 1; i < to; i++ ) {
+; ---- for ( u16 i = from + 1; i < to; i++ ) {
         mov     ax, [sortCrossings__from]
         inc     ax
         mov     [sortCrossings__i], ax
@@ -466,7 +466,7 @@ sortCrossings:
         inc     word [sortCrossings__y]
         jmp     .L49
 .L51:
-; ---- for ( i = 0; i < crossingCount; i++ ) {
+; ---- for ( u16 i = 0; i < crossingCount; i++ ) {
         mov     word [sortCrossings__i], 0
 .L62:
         mov     ax, [sortCrossings__i]
@@ -1830,7 +1830,7 @@ pathOutside:
         mov     word [pathOutside__hiX], 32768
 ; ---- hiY = -32768
         mov     word [pathOutside__hiY], 32768
-; ---- for ( k = 0; k < count; k++ ) {
+; ---- for ( u16 k = 0; k < count; k++ ) {
         mov     word [pathOutside__k], 0
 .L258:
         mov     ax, [pathOutside__k]
@@ -2012,7 +2012,7 @@ walkPath:
         mov     word [walkPath__curX], 0
 ; ---- curY = 0
         mov     word [walkPath__curY], 0
-; ---- for ( k = 0; k < pathOpCount[ pathIndex ]; k++ ) {
+; ---- for ( u16 k = 0; k < pathOpCount[ pathIndex ]; k++ ) {
         mov     word [walkPath__k], 0
 .L299:
         mov     ax, [walkPath__k]
@@ -2633,7 +2633,7 @@ mode13:
 ; ============================================== sub loadPalette ====
 
 loadPalette:
-; ---- for ( i = 0; i < paletteSize; i++ ) {
+; ---- for ( u16 i = 0; i < paletteSize; i++ ) {
         mov     word [loadPalette__i], 0
 .L391:
         mov     ax, [loadPalette__i]
@@ -2715,7 +2715,7 @@ plot:
 ; ============================================== sub emitSpan ====
 
 emitSpan:
-; ---- for ( x = x0; x <= x1; x++ ) {
+; ---- for ( i16 x = x0; x <= x1; x++ ) {
         mov     ax, [emitSpan__x0]
         mov     [emitSpan__x], ax
 .L407:
@@ -2822,6 +2822,7 @@ _si:            dw      0
 _di:            dw      0
 
 ; ---- variables ----
+p:              dw      0        ; u16
 readKey__ret:   dw      0        ; u16
 coordOutOfRange: db      0        ; bool
 inCoordRange__v: dw      0        ; i16
@@ -2897,7 +2898,6 @@ plot__y:        dw      0        ; i16
 emitSpan__y:    dw      0        ; u16
 emitSpan__x0:   dw      0        ; i16
 emitSpan__x1:   dw      0        ; i16
-p:              dw      0        ; u16
 held:           dw      0        ; u16
 sortCrossings__i: dw      0        ; u16
 sortCrossings__y: dw      0        ; u16

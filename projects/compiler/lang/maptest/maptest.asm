@@ -12,13 +12,13 @@ mapHeight:      equ     5
 ; =========================================================== entry ====
 
 __entry:
-; ---- for (y = 0; y < mapHeight; y++) {
+; ---- for (u16 y = 0; y < mapHeight; y++) {
         mov     word [y], 0
 .L1:
         mov     ax, [y]
         cmp     ax, 5
         jae     .L3                         ; unsigned <
-; ---- for (x = 0; x < mapWidth; x++) {
+; ---- for (u16 x = 0; x < mapWidth; x++) {
         mov     word [x], 0
 .L5:
         mov     ax, [x]
@@ -47,13 +47,13 @@ __entry:
 .L3:
 ; ---- walls = 0
         mov     word [walls], 0
-; ---- for (y = 0; y < mapHeight; y++) {
+; ---- for (u16 y = 0; y < mapHeight; y++) {
         mov     word [y], 0
 .L9:
         mov     ax, [y]
         cmp     ax, 5
         jae     .L11                        ; unsigned <
-; ---- for (x = 0; x < mapWidth; x++) {
+; ---- for (u16 x = 0; x < mapWidth; x++) {
         mov     word [x], 0
 .L13:
         mov     ax, [x]
@@ -220,10 +220,10 @@ _si:            dw      0
 _di:            dw      0
 
 ; ---- variables ----
+y:              dw      0        ; u16
+x:              dw      0        ; u16
 putChar__c:     db      0        ; u8
 putNumber__n:   dw      0        ; u16
-x:              dw      0        ; u16
-y:              dw      0        ; u16
 walls:          dw      0        ; u16
 putNumber__i:   db      0        ; u8
 

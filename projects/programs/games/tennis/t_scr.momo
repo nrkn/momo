@@ -67,17 +67,13 @@ sub setPixel( u16 x, u16 y, u8 color ) {
 // efficient to write them by hand - fix later
 
 sub drawLineHorizontal(  u8 y, u8 x1, u8 x2, u8 color ){
-  u16 x
-
-  for( x = x1; x <= x2; x++ ){
+  for( u16 x = x1; x <= x2; x++ ){
     setPixel( x, y, color )
   }
 }
 
 sub drawLineVertical( u8 x, u8 y1, u8 y2, u8 color ){
-  u16 y
-
-  for( y = y1; y <= y2; y++ ){
+  for( u16 y = y1; y <= y2; y++ ){
     setPixel( x, y, color )
   }
 }

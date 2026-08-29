@@ -411,7 +411,7 @@ compare:
         mov     word [checked], 0
 ; ---- differ = 0
         mov     word [differ], 0
-; ---- for ( i = 0; i < 16; i++ ) {
+; ---- for ( u16 i = 0; i < 16; i++ ) {
         mov     word [compare__i], 0
 .L24:
         mov     ax, [compare__i]
@@ -424,7 +424,7 @@ compare:
         mov     bx, 4097
         mul     bx                          ; low 16 bits are sign-agnostic
         mov     [compare__a], ax
-; ---- for ( j = 0; j < 16; j++ ) {
+; ---- for ( u16 j = 0; j < 16; j++ ) {
         mov     word [compare__j], 0
 .L28:
         mov     ax, [compare__j]

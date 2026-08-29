@@ -111,7 +111,7 @@ __entry:
         call    newline
 ; ---- total = 0
         mov     word [total], 0
-; ---- for ( i = 0; i < len( tail ); i++ ) {
+; ---- for ( u16 i = 0; i < len( tail ); i++ ) {
         mov     word [i], 0
 .L1:
         mov     ax, [i]
@@ -406,9 +406,9 @@ _si:            dw      0
 _di:            dw      0
 
 ; ---- variables ----
+i:              dw      0        ; u16
 putChar__c:     db      0        ; u8
 putNumber__n:   dw      0        ; u16
-i:              dw      0        ; u16
 total:          dw      0        ; u16
 putNumber__i:   db      0        ; u8
 

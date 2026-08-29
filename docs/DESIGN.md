@@ -3162,8 +3162,9 @@ which is how **131 of the 170** `for` statements under `projects/` and `shared/`
 were spelled when this was designed. That count is the whole case for it: nothing
 here is expressive, and the feature is that a convention every C-family language
 shares stops being spelled in two lines. The figure is fixed at the date rather
-than maintained, because adoption moves it - `shared/lib/momolo/` took 21 of them
-in the first sweep.
+than maintained, because adoption moved it immediately: **129 loops across 37
+files** took it in the first sweep, leaving seven counters that are read after
+their own loop and keep their declarations.
 
 ### It is sugar, and that is assertable rather than arguable
 
@@ -3178,10 +3179,13 @@ a leak.
 
 **Storage does move, though, and only the corpus showed it.** Lifting to the top of
 the body puts a counter *before* the declarations it was written after, so the data
-section comes out in a different order - 14 labels repositioned when `momolo`
-adopted this, against not one changed instruction. Same labels, same widths, same
-footprint; §12's analysis is untouched, because reordering identical storage cannot
-change what it adds up to.
+section comes out in a different order - **34 labels repositioned across 23 of the
+47 projects**, against not one changed instruction anywhere. Same labels, same
+widths, same footprint; §12's analysis is untouched, because reordering identical
+storage cannot change what it adds up to. The one thing it could touch is which
+words land on even addresses, and DECISIONS §27 already measured that as -13% on a
+true 8086 and nothing on an 8088 - unmanaged today either way, since the parity
+comes from the code size and the compiler emits text rather than bytes.
 
 The pair could not have caught that, and it is worth knowing why: its twin is
 written in the *lifted* order on purpose, so the two agree about the data section

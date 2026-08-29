@@ -13,7 +13,7 @@ __entry:
 ; ---- seedRandom(1234)
         mov     word [seedRandom__s], 1234
         call    seedRandom
-; ---- for (i = 0; i < 6; i++) {
+; ---- for (u16 i = 0; i < 6; i++) {
         mov     word [i], 0
 .L1:
         mov     ax, [i]
@@ -37,7 +37,7 @@ __entry:
 ; ---- seedRandom(1234)
         mov     word [seedRandom__s], 1234
         call    seedRandom
-; ---- for (i = 0; i < 6; i++) {
+; ---- for (u16 i = 0; i < 6; i++) {
         mov     word [i], 0
 .L5:
         mov     ax, [i]
@@ -270,6 +270,7 @@ _si:            dw      0
 _di:            dw      0
 
 ; ---- variables ----
+i:              dw      0        ; u16
 putChar__c:     db      0        ; u8
 putNumber__n:   dw      0        ; u16
 rand__randomSeed: dw      42        ; u16 = 42
@@ -280,7 +281,6 @@ randomBelow__ret: dw      0        ; u16
 randomBetween__low: dw      0        ; u16
 randomBetween__high: dw      0        ; u16
 randomBetween__ret: dw      0        ; u16
-i:              dw      0        ; u16
 putNumber__i:   db      0        ; u8
 
 ; ---- arrays ----

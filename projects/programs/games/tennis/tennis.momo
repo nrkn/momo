@@ -59,14 +59,12 @@ keyboardBegin()
 // -- main
 
 sub drawBackground( u16 color ) {
-  u16 dy
-
   // demos the word blitting we will use extensively later
-  for( dy = 0; dy < scoreTopWord; dy++ ){
+  for( u16 dy = 0; dy < scoreTopWord; dy++ ){
     pxwords[ dy ] = color
   }
 
-  for( dy = scoreTopWord; dy < screenWord; dy++ ){
+  for( u16 dy = scoreTopWord; dy < screenWord; dy++ ){
     pxwords[ dy ] = blackW
   }
 }
@@ -79,11 +77,10 @@ sub drawPlayfield {
 }
 
 sub drawNet {
-  u8 net
   u8 netY
 
   // we should precompute this, it doesn't change, but this is fine for now
-  for( net = 0; net < 5; net++ ){
+  for( u8 net = 0; net < 5; net++ ){
     netY = playTop + 3 + net * 14
 
     drawLineVertical( centerX, netY, netY + 8, green )
@@ -165,13 +162,11 @@ sub clearBall {
 
 sub drawSprite( u8 index, u8 dx, u8 dy ){
   u16 tile
-  u8  i
-  u8  j
 
   tile = index * spriteSize
 
-  for( j = 0; j < spriteH; j++ ){
-    for( i = 0; i < spriteW; i++ ){
+  for( u8 j = 0; j < spriteH; j++ ){
+    for( u8 i = 0; i < spriteW; i++ ){
       setPixel( i + dx, j + dy, textSprites[ tile ] )
 
       tile++

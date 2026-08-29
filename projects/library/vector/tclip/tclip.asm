@@ -25,7 +25,7 @@ maxSubdivDepth: equ     16
 ; =========================================================== entry ====
 
 __entry:
-; ---- for ( i = 0; i < screenH; i++ ) {
+; ---- for ( u16 i = 0; i < screenH; i++ ) {
         mov     word [i], 0
 .L1:
         mov     ax, [i]
@@ -45,7 +45,7 @@ __entry:
         inc     word [i]
         jmp     .L1
 .L3:
-; ---- for ( p = 0; p < subjectPaths; p++ ) {
+; ---- for ( u16 p = 0; p < subjectPaths; p++ ) {
         mov     word [p], 0
 .L5:
         mov     ax, [p]
@@ -65,7 +65,7 @@ __entry:
 ; ---- captureClipPath( clipPathIndex )
         mov     word [captureClipPath__pathIndex], 138
         call    captureClipPath
-; ---- for ( p = 0; p < subjectPaths; p++ ) {
+; ---- for ( u16 p = 0; p < subjectPaths; p++ ) {
         mov     word [p], 0
 .L9:
         mov     ax, [p]
@@ -90,7 +90,7 @@ __entry:
         inc     word [p]
         jmp     .L9
 .L11:
-; ---- for ( p = 0; p < subjectPaths; p++ ) {
+; ---- for ( u16 p = 0; p < subjectPaths; p++ ) {
         mov     word [p], 0
 .L16:
         mov     ax, [p]
@@ -114,7 +114,7 @@ __entry:
         inc     word [p]
         jmp     .L16
 .L18:
-; ---- for ( i = 0; i < screenH; i++ ) {
+; ---- for ( u16 i = 0; i < screenH; i++ ) {
         mov     word [i], 0
 .L23:
         mov     ax, [i]
@@ -148,7 +148,7 @@ __entry:
         inc     word [i]
         jmp     .L23
 .L25:
-; ---- for ( p = 0; p < subjectPaths; p++ ) {
+; ---- for ( u16 p = 0; p < subjectPaths; p++ ) {
         mov     word [p], 0
 .L27:
         mov     ax, [p]
@@ -425,7 +425,7 @@ sortCrossings:
         inc     word [sortCrossings__y]
         jmp     .L66
 .L68:
-; ---- for ( i = 0; i < crossingCount; i++ ) {
+; ---- for ( u16 i = 0; i < crossingCount; i++ ) {
         mov     word [sortCrossings__i], 0
 .L70:
         mov     ax, [sortCrossings__i]
@@ -503,7 +503,7 @@ sortCrossings:
         inc     word [sortCrossings__y]
         jmp     .L78
 .L80:
-; ---- for ( i = 0; i < crossingCount; i++ ) {
+; ---- for ( u16 i = 0; i < crossingCount; i++ ) {
         mov     word [sortCrossings__i], 0
 .L82:
         mov     ax, [sortCrossings__i]
@@ -597,7 +597,7 @@ sortCrossings:
         mov     bx, ax
         mov     ax, [runStart + bx]
         mov     [sortCrossings__to], ax
-; ---- for ( i = from + 1; i < to; i++ ) {
+; ---- for ( u16 i = from + 1; i < to; i++ ) {
         mov     ax, [sortCrossings__from]
         inc     ax
         mov     [sortCrossings__i], ax
@@ -690,7 +690,7 @@ sortCrossings:
         inc     word [sortCrossings__y]
         jmp     .L86
 .L88:
-; ---- for ( i = 0; i < crossingCount; i++ ) {
+; ---- for ( u16 i = 0; i < crossingCount; i++ ) {
         mov     word [sortCrossings__i], 0
 .L99:
         mov     ax, [sortCrossings__i]
@@ -2054,7 +2054,7 @@ pathOutside:
         mov     word [pathOutside__hiX], 32768
 ; ---- hiY = -32768
         mov     word [pathOutside__hiY], 32768
-; ---- for ( k = 0; k < count; k++ ) {
+; ---- for ( u16 k = 0; k < count; k++ ) {
         mov     word [pathOutside__k], 0
 .L295:
         mov     ax, [pathOutside__k]
@@ -2236,7 +2236,7 @@ walkPath:
         mov     word [walkPath__curX], 0
 ; ---- curY = 0
         mov     word [walkPath__curY], 0
-; ---- for ( k = 0; k < pathOpCount[ pathIndex ]; k++ ) {
+; ---- for ( u16 k = 0; k < pathOpCount[ pathIndex ]; k++ ) {
         mov     word [walkPath__k], 0
 .L336:
         mov     ax, [walkPath__k]
@@ -2830,7 +2830,7 @@ clearClipPath:
         mov     byte [clipCapturing], 0
 ; ---- clipActive = false
         mov     byte [clipActive], 0
-; ---- for ( i = 0; i < screenH; i++ ) {
+; ---- for ( u16 i = 0; i < screenH; i++ ) {
         mov     word [clearClipPath__i], 0
 .L428:
         mov     ax, [clearClipPath__i]
@@ -3205,7 +3205,7 @@ captureClipPath:
 ; ============================================== sub emitClipped ====
 
 emitClipped:
-; ---- for ( x = x0; x <= x1; x++ ) {
+; ---- for ( i16 x = x0; x <= x1; x++ ) {
         mov     ax, [emitClipped__x0]
         mov     [emitClipped__x], ax
 .L489:
@@ -3401,6 +3401,8 @@ _si:            dw      0
 _di:            dw      0
 
 ; ---- variables ----
+i:              dw      0        ; u16
+p:              dw      0        ; u16
 putChar__c:     db      0        ; u8
 putStr__at:     dw      0        ; u16
 putNumber__n:   dw      0        ; u16
@@ -3491,8 +3493,6 @@ emitClipped__x0: dw      0        ; i16
 emitClipped__x1: dw      0        ; i16
 plotClipped__x: dw      0        ; i16
 plotClipped__y: dw      0        ; i16
-i:              dw      0        ; u16
-p:              dw      0        ; u16
 putNumber__i:   db      0        ; u8
 sortCrossings__i: dw      0        ; u16
 sortCrossings__y: dw      0        ; u16

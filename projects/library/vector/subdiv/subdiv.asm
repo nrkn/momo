@@ -20,7 +20,7 @@ caseCount:      equ     18
 __entry:
 ; ---- clearSubdiv()
         call    clearSubdiv
-; ---- for ( c = 0; c < caseCount; c++ ) {
+; ---- for ( u16 c = 0; c < caseCount; c++ ) {
         mov     word [c], 0
 .L1:
         mov     ax, [c]
@@ -1598,6 +1598,7 @@ _si:            dw      0
 _di:            dw      0
 
 ; ---- variables ----
+c:              dw      0        ; u16
 putChar__c:     db      0        ; u8
 putStr__at:     dw      0        ; u16
 putNumber__n:   dw      0        ; u16
@@ -1653,7 +1654,6 @@ drawQuadAny__wantPixels: db      0        ; bool
 drawQuadAny__wantEdges: db      0        ; bool
 plot__x:        dw      0        ; i16
 plot__y:        dw      0        ; i16
-c:              dw      0        ; u16
 at_:            dw      0        ; u16
 putNumber__i:   db      0        ; u8
 drawLine__dx:   dw      0        ; i16
