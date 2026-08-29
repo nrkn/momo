@@ -184,10 +184,6 @@ nothing has yet wanted it.
   There is prior work to model it on, across the author's own projects and
   elsewhere, and auditing what exists is part of the first job rather than
   something to finish before starting. `STUDIES.md` has the register entry.
-- **Record where each peephole lives.** `PEEPHOLES.md` says what each rewrite is
-  and why it is safe, but not where in the emitter it is implemented or whether it
-  is built at all - which is how entries 4 and 5 stood as fiction for a long time.
-  Fifteen entries to check against the emitter.
 - **Compile-time array parameters.** §19 - designed in full, and the case that
   most wanted it (`drawString` over many messages) was met by `peek`/`poke`
   instead.
@@ -323,6 +319,12 @@ All are set out in DESIGN §20 unless noted.
 section that was itself a plan - see the note at the top for why, and where to
 look for the rest.
 
+- **Record where each peephole lives.** 2026-08-29. All fifteen are built, which
+  was the thing worth finding out - 4 and 5 were fiction here once. `PEEPHOLES.md`
+  carries a table of function names rather than line numbers, and each entry was
+  located in `emitter.ts` *and* checked against the 46 committed `.asm` files,
+  because a call site proves the code exists and only the output proves it fires.
+  Three entries were corrected by the audit.
 - **Sweep the Momo comments.** 2026-08-29. Less history than expected and more
   stale fact: two citations of §21 after §21 was dissolved, six missing section
   signs, a claim that port I/O did not exist yet, two counts in `std/io.momo` that

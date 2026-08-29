@@ -38,17 +38,61 @@ obvious from any single one of them:
 4. **Adopt the golden diff case by case.** 7-11 landed together that way, and the
    point of reading every hunk is that each one should be a shape you recognise.
 
-## What this list does not record
+## Where each one lives
 
-Each entry says what the rewrite is and, usually, why it is safe. **None says
-where in the emitter it lives, or carries a field asserting that it is built at
-all.** That absence is not cosmetic: entries 4 and 5 were listed here as built for
-a long time and were not, and nothing in the document could have contradicted
-them.
+Audited 2026-08-29 against `emitter.ts` and the 46 committed `.asm` files. **All
+fifteen are built**, which was not a foregone conclusion: 4 and 5 stood here as
+fiction for a long time and nothing in the document could have contradicted them.
 
-Filling that in means checking fifteen entries against the emitter, which is a
-separate pass rather than part of moving the text - so it is recorded in
-`PLAN.md` instead of guessed at here.
+**Function names rather than line numbers, deliberately.** A line number is stale
+the next time anything is inserted above it, and this table exists to stop the
+document drifting rather than to give it a new way to.
+
+Each was located in the emitter *and* checked against emitted output, because a
+call site proves the code exists and only the output proves it fires.
+
+| | implemented in | how it was checked |
+|---|---|---|
+| 1 | `isLeaf`, `loadIntoBx`, `emitOperands` | `mov ax, [divN]` / `mov bx, [divD]` in `smoke` - no stack round trip |
+| 2 | `storeConstant`, `storeImmediateTo` | 1,101 byte-immediate stores |
+| 3 | `emitCall` | a four-argument `writeAt` in `simplerl` with no push/pop |
+| 4 | `byteTypeOf`, `emitByteLoad`, `storeTo` | three widen-then-store sites left, all of them the gap below |
+| 5 | `emitTruthTest` | 366 `test al, al` |
+| 6 | the cast branch of `emitExpression` | no adjacent double widening anywhere |
+| 7 | `emitCompare` for the test, `emitExpression` and `emitBoolFromJump` for the load | 75 `xor ax, ax`, 997 `test` |
+| 8 | `byteCompareOperand`, `emitCompare` | 56 `cmp al,` |
+| 9 | `storeConstant`, and the `poke` path of `emitStatement` | 103 immediates through a computed index |
+| 10 | the `+1`/`-1` branch of `emitExpression`, and `emitUpdate` | 606 `inc`, 183 `dec` |
+| 11 | `emitLoop` | `simplerl`'s `while( true )` emits no test at all |
+| 12 | `byteTypeOf` | `fartest`: `mov al, [es:2]` then a byte store, no widening |
+| 13 | `emitValueToLabel`, `storeToLabel`, `storeImmediateTo` | 1,381 immediates straight into a slot |
+| 14 | `previousInstruction`, `isDeadReload`, `ins` | no store-then-reload pair anywhere |
+| 15 | `jumpIf`, `branchBound`, `tightenBranches` | 1,750 of 2,224 conditional jumps tightened |
+
+### Three things the audit corrected
+
+**3's condition is narrower than the entry said.** The guard is
+`args.length > 1 && args.some(containsCall)` - several arguments *and* one of them
+containing a call, which is what could clobber a slot already filled. Several
+arguments alone is not enough, so `writeAt( playerX, playerY, '@', playerAttr )`
+takes four arguments and touches the stack not at all. The entry above now says
+so; it used to imply the count was the whole test.
+
+**4's gap is one site wider than the entry said.** It read "`maptest` and
+`simplerl` each keep a dead `xor ah, ah`". The count is one in `maptest` and two
+in `simplerl`, and all three are the same shape - `map[ y * mapW + x ]` reached
+through a parameterised const.
+
+**15's figures are from a smaller repository.** "542 of 636 branches" was measured
+before the vector library landed. The proportion has held: 1,750 of 2,224
+conditional jumps are tightened now, against 542 of 636 then. The entry keeps its
+original numbers because they are what the change measured; this is what the same
+count says today.
+
+One thing worth knowing rather than fixing: **12's only committed exerciser is
+`fartest`**. It was found from a probe of a VRAM-to-VRAM copy, and no committed
+program has that shape - so the entry rests on two `mov al, [es:...]` in a
+language test rather than on the blitter it was written for.
 
 ## The catalogue
 
@@ -64,11 +108,13 @@ than seven.
 `x = 0` is `mov byte [x], 0`, with no
 round trip through AX.
 
-### 3. Single-argument calls skip the argument stack
+### 3. Calls skip the argument stack unless an argument contains a call
 
-The push/pop pair that
-protects an already-filled parameter slot is only needed when there are
-several arguments to protect (§7).
+The push/pop pair protects a parameter slot that is already filled, and only an
+argument that *calls* something can clobber one - slots are globals (§7). So the
+guard is two conditions rather than one: more than one argument, **and** at least
+one of them containing a call. Four arguments that are all leaves or constants
+touch the stack not at all, which is what `writeAt` does in `simplerl`.
 
 ### 4. Same-width copy skips widening
 
@@ -157,9 +203,9 @@ and this one disagreeing about `x = 0`, which is worse than a byte.
 
 **A bare load reached through a parameterised const is still widened.** The
 expansion of `tileAt( x, y )` *is* `map[ y * mapW + x ]`, but `byteTypeOf`
-sees a `CallExpression` and stops, so `maptest` and `simplerl` each keep a
-dead `xor ah, ah`. That gap is older than this peephole and sits in 4 as
-much as here - `ch = tileAt( x, y )` pays it too.
+sees a `CallExpression` and stops, so `maptest` keeps one dead `xor ah, ah`
+and `simplerl` keeps two. That gap is older than this peephole and sits in 4
+as much as here - `ch = tileAt( x, y )` pays it too.
 
 ### 14. A load of what the line above just stored is dead
 
