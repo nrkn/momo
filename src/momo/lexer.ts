@@ -39,6 +39,36 @@ const escapeCode = (ch: string): number => {
   return -1
 }
 
+// A `unit` (§39) names a type without being a reserved word, so the parser
+// cannot tell `px x = 40` from two identifiers by shape alone. This is where that
+// is settled: after a file is scanned, every `unit NAME` in it is collected and
+// the matching identifiers are promoted to `type` tokens.
+//
+// Two consequences worth knowing. Within a file the scan runs first, so a unit
+// may be used above its own declaration. Across files it cannot: `knownUnits`
+// arrives from what the loader has already included, which is the same
+// declare-before-use every other name here obeys.
+//
+// The alternative was a symbol table in the parser, which is C's typedef problem
+// and would make `px x` a declaration or not depending on what came before it.
+// Promoting here keeps the parser deciding by token kind alone, as it always has.
+export const unitNamesIn = (tokens: Token[]): string[] => {
+  const names: string[] = []
+  for (let i = 0; i < tokens.length - 1; i++) {
+    const token = tokens[i]
+    if (token.kind === 'keyword' && token.text === 'unit' && tokens[i + 1].kind === 'ident') {
+      names.push(tokens[i + 1].text)
+    }
+  }
+  return names
+}
+
+export const promoteUnits = (tokens: Token[], units: Set<string>): void => {
+  for (const token of tokens) {
+    if (token.kind === 'ident' && units.has(token.text)) token.kind = 'type'
+  }
+}
+
 export const tokenize = (source: string, file: string): Token[] => {
   const tokens: Token[] = []
 

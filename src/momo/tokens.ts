@@ -30,9 +30,14 @@ export type Token = {
   col: number
 }
 
-// Type names are reserved words. That is what lets the parser decide, with one
-// token of lookahead and no symbol table, that a statement is a declaration -
-// and what makes `u8(x)` unambiguously a cast rather than a call.
+// The built-in type names, and reserved words. Being a distinct token kind is
+// what lets the parser decide with one token of lookahead that a statement is a
+// declaration, and what makes `u8(x)` unambiguously a cast rather than a call.
+//
+// A `unit` (§39) is a type name too and is not reserved, so the lexer promotes
+// declared unit names to this kind before the parser sees them. The parser stays
+// context-free that way, and the type-or-identifier line stays in the stage that
+// already draws it.
 export const typeNames = ['u8', 'i8', 'u16', 'i16', 'bool']
 
 export const keywords = [
@@ -41,6 +46,7 @@ export const keywords = [
   'group',
   'far',
   'view',
+  'unit',
   'local',
   'sub',
   'fn',

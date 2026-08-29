@@ -22,7 +22,7 @@ import { dirname, isAbsolute, join, resolve as resolvePath } from 'node:path'
 
 import type { Program, Statement } from './ast.js'
 import { raise, type Location } from './diagnostics.js'
-import { tokenize } from './lexer.js'
+import { promoteUnits, tokenize, unitNamesIn } from './lexer.js'
 import { parse } from './parser.js'
 
 export type LoadResult = {
@@ -58,6 +58,35 @@ export const load = (
     raise(at, `cannot find include "${request}"`)
   }
 
+  // A first walk, for `unit` names only (§39). It has to happen before anything
+  // is parsed: a unit makes its name a type, the lexer is what marks a token as
+  // one, and a file is parsed before the includes inside it are visited - so by
+  // the time an included unit was known, the file that uses it would already be
+  // an AST.
+  //
+  // Includes are found in the token stream rather than by parsing, which is the
+  // whole reason this is cheap. Units end up program-wide rather than
+  // include-ordered, so a unit may be used above or before its declaration, which
+  // is one fewer rule than the alternative.
+  const units = new Set<string>()
+  const scanned = new Set<string>()
+
+  const scanUnits = (path: string) => {
+    const real = canonical(path)
+    if (scanned.has(real)) return
+    scanned.add(real)
+
+    const tokens = tokenize(readFileSync(real, 'utf8'), real)
+    for (const name of unitNamesIn(tokens)) units.add(name)
+
+    for (let i = 0; i < tokens.length - 1; i++) {
+      const token = tokens[i]
+      if (token.kind !== 'keyword' || token.text !== 'include') continue
+      const target = tokens[i + 1]
+      if (target.kind === 'string') scanUnits(locate(target.str, real, target))
+    }
+  }
+
   const visit = (path: string) => {
     const real = canonical(path)
     if (seen.has(real)) return
@@ -67,7 +96,10 @@ export const load = (
     sources.set(real, source)
     files.push(real)
 
-    for (const statement of parse(tokenize(source, real)).body) {
+    const tokens = tokenize(source, real)
+    promoteUnits(tokens, units)
+
+    for (const statement of parse(tokens).body) {
       if (statement.type === 'IncludeStatement') {
         visit(locate(statement.path, real, statement))
         continue
@@ -77,6 +109,7 @@ export const load = (
   }
 
   const entry = canonical(entryPath)
+  scanUnits(entry)
   visit(entry)
 
   return {
