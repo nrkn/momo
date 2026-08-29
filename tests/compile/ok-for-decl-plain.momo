@@ -1,0 +1,64 @@
+// The twin of ok-for-decl-sugar.momo, written the way it has to be written
+// without DESIGN §44. The two must emit the same instructions.
+//
+// Declaration order matches what the lifting produces, so the data section
+// matches too - the identity check only compares code, but a pair that differs
+// only in the sugar is a better twin than one that also reorders storage.
+
+u8 t
+
+u8 total = 0
+
+sub twice {
+  u8 i
+
+  for ( i = 0; i < 3; i++ ) {
+    total = total + i
+  }
+
+  for ( i = 0; i < 4; i++ ) {
+    total = total + i
+  }
+}
+
+sub nested {
+  u16 a
+  u8 b
+
+  for ( a = 0; a < 2; a++ ) {
+    for ( b = 0; b < 2; b++ ) {
+      total = total + b
+    }
+  }
+}
+
+sub blocks {
+  u8 k
+
+  if ( total > 0 ) {
+    for ( k = 0; k < 2; k++ ) {
+      total = total + k
+    }
+  }
+
+  for ( k = 0; k < 3; k++ ) {
+    total = total + k
+  }
+}
+
+sub arrowed {
+  u8 z
+
+  for ( z = 0; z < 2; z++ ) {
+    total = total + z
+  }
+}
+
+twice()
+nested()
+blocks()
+arrowed()
+
+for ( t = 0; t < 2; t++ ) {
+  total = total + t
+}

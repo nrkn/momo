@@ -1,0 +1,7 @@
+// EXPECT-ERROR: needs a value here
+// A declaration with nothing to assign is the load-time reading §5 refuses.
+u8 n = 0
+
+for ( u8 i; n < 3; n++ ) {
+  n = n
+}

@@ -1,0 +1,52 @@
+// DESIGN §44: the counter declared in a for's init clause.
+//
+// The twin of ok-for-decl-plain.momo, and the pair has to emit the same
+// instructions - see the identity tier in test.ts. Every shape the lifting has
+// to get right is here: two loops sharing a name, two widths nested, a loop
+// inside a block sharing its counter with one outside it, an arrow body, and a
+// loop at the top level of the file rather than in a routine.
+
+u8 total = 0
+
+sub twice {
+  for ( u8 i = 0; i < 3; i++ ) {
+    total = total + i
+  }
+
+  for ( u8 i = 0; i < 4; i++ ) {
+    total = total + i
+  }
+}
+
+sub nested {
+  for ( u16 a = 0; a < 2; a++ ) {
+    for ( u8 b = 0; b < 2; b++ ) {
+      total = total + b
+    }
+  }
+}
+
+// The declaration lifts to the top of the body rather than into the if, or the
+// second loop would be reading a counter declared inside a block it is not in.
+sub blocks {
+  if ( total > 0 ) {
+    for ( u8 k = 0; k < 2; k++ ) {
+      total = total + k
+    }
+  }
+
+  for ( u8 k = 0; k < 3; k++ ) {
+    total = total + k
+  }
+}
+
+sub arrowed => for ( u8 z = 0; z < 2; z++ ) { total = total + z }
+
+twice()
+nested()
+blocks()
+arrowed()
+
+for ( u8 t = 0; t < 2; t++ ) {
+  total = total + t
+}

@@ -420,6 +420,13 @@ const sqr(u8 n) = n * n                 // parameterised const: one expression
   The alternative - emitting the initialiser as code where it is written - was
   rejected for that asymmetry, and hoisting for a sharper reason: running an
   initialiser on routine entry is a **prologue**, and §2 has none.
+
+  **A `for` is the one place `TYPE name = value` may be written below the top
+  level, and it is not an exception to any of the above.** §44 lifts the
+  declaration to the top of the body and leaves the assignment in the clause, so
+  what reaches this rule is a declaration with no initialiser beside an ordinary
+  store - and the store runs every time control arrives, because everything in
+  that clause does. `npm run desugar` shows the two statements.
 - **`sub name { }`** for routines that return nothing; a leading type for those
   that return a value. `=>` introduces a single-expression or single-statement
   body. There is no `->`.
@@ -3133,9 +3140,183 @@ does not.
 
 ---
 
+## 44. Declaring the counter in a `for`
+
+**Built.** The counter of a three-clause `for` is declared in its init clause
+rather than on the line above. `ok-for-decl-sugar.momo` is the worked example, and
+`ok-for-decl-plain.momo` beside it is the same program written the long way:
+
+```momo
+for ( u8 i = 0; i < n; i++ ) { ... }
+```
+
+It lowers by lifting the declaration to the enclosing declaration space and
+leaving the assignment where it was written:
+
+```momo
+u8 i
+for ( i = 0; i < n; i++ ) { ... }
+```
+
+which is what **131 of the 170** `for` statements under `projects/` and `shared/`
+already say by hand. That count is the whole case for it: nothing here is
+expressive, and the feature is that a convention every C-family language shares
+stops being spelled in two lines.
+
+### It is sugar, and that is assertable rather than arguable
+
+No storage moves and no instruction changes. The lifted declaration takes the same
+static slot the hand-written one takes, and the init clause emits the same
+assignment it emits today. §39's method applies unchanged: a pair of files
+identical but for the spelling, required to emit the same instructions. The golden
+tier cannot make that check on its own - it compares committed output against
+itself and would agree with a leak.
+
+**Measured**: 120 instructions, identical. The only difference anywhere in the two
+emitted files is the emitter's source-quote comment, which quotes the line that was
+written and so differs on purpose - which is why the check compares code only, and
+is the same reason §39's pair does.
+
+### Two loops, one name, which is the common case rather than the corner
+
+Scoping is flat, global and per-sub, with no block scope, and `locals` is one map
+per routine. So a second `for ( u8 i = 0; ... )` in the same routine collides with
+`"i" is already declared in this scope` - and two counting loops in a row is
+ordinary code, not an edge.
+
+**Two `for` declarations of the same name and type in one body share the slot.** A
+mismatch - `u8 i` in one and `u16 i` in the next - is an error rather than a silent
+second variable. That is one rule and no new concept, and it is *smaller* than C's
+semantics rather than equal to them: C gives each loop its own variable, this gives
+them one slot, and for a counter initialised on entry there is no observable
+difference.
+
+**The sharing is between two `for` declarations, and the design did not say so.**
+Against a declaration written out in full - `u8 i` at the top of a routine and
+`for ( u8 i = 0; ... )` below it - the answer is the collision it already was,
+because scoping is flat and there is nothing for the second to shadow. That reading
+is the better one anyway: the two spellings in one body are confusing code, and
+`"i" is already declared in this scope` says what to drop.
+
+It also keeps the whole feature in the parser. The sharing is a dedupe of the
+frame a body's lifted declarations collect in, so **the resolver is untouched** -
+it never sees a second declaration and needs no rule of its own, the same way it
+never learns about `=>`.
+
+Real block scope is the alternative and the resolver already declines it, at the
+top of `resolver.ts`: locals are statically allocated, so a block-scoped variable
+would be another static slot under a different name, all cost and no benefit. That
+reasoning is unchanged here.
+
+### The scope is flatter than the spelling suggests, and that is not new
+
+`i` outlives the loop and holds its terminal value. Every other C-family language
+scopes it to the braces, so the spelling imports an expectation the language does
+not honour.
+
+It is not a new exception, though. §5 already requires the reader to know that a
+declaration inside a routine is static: its `putBar` example exists to say that a
+*second call* finds `n` still at 3. This extends a rule that is already load-bearing
+to one more position rather than adding a second rule beside it. It still wants a
+sentence in §5, because the reader arriving from C will not have that rule in hand.
+
+### No initialiser reaches a for-init, which is what §5's rule turns on
+
+§5 says an initialiser is a **load-time value and is only allowed at the top
+level**, and records that emitting one as code where it is written was rejected for
+its asymmetry. `for ( u8 i = 0; ... )` looks like exactly that alternative, and
+whether it is was the last thing this section had open.
+
+It is not, because the parser lowers it. What reaches the resolver is a declaration
+carrying no initialiser and an ordinary assignment statement in the init clause, so
+**no initialiser exists in a for-init position at any point anything downstream can
+see.** `resolveVariableDeclaration` refuses one with a single guard - `!atTopLevel
+&& node.init` - and a lowered declaration has no `init` for that guard to find. The
+resolver never learns this happened.
+
+That is the mechanism the language already runs on rather than a special case built
+for it. `=>`, `else if`, compound assignment, prefix and postfix `++`, adjacent
+string literals and `group`'s `.` are all surface forms the parser turns into
+something else, and §7 says of `=>` that the resolver and emitter never see it.
+
+**§5's reasoning points the same way**, read closely. An initialiser is honest only
+where "before the program runs" and "when control reaches this line" are the same
+moment - and inside a for-init clause they are emphatically not, which is precisely
+why the form has to lower to an assignment. The rule decides which of two readings
+applies; it does not forbid the characters. What §5 rejected was a declaration in a
+body silently *staying* an initialiser and running once. This one runs every time,
+visibly, because everything in that clause does.
+
+So what is left is a reading cost rather than an exception to own: `u8 i = 0`
+inside the parentheses is two statements, and a reader has to know it. That is one
+sentence in §5, and `npm run desugar` shows it, which is what that tool is for.
+
+### Where the lifted declaration goes
+
+**To the top of the routine body**, or of the file's own statement sequence for a
+loop written at the top level.
+
+This wanted deciding rather than discovering, because both candidates are valid
+Momo, both reparse to the same AST and both emit the same instructions - so the
+**round trip cannot catch an inconsistent choice**, which is unusual here. The
+other candidate is immediately before the loop that declared it, which is more
+faithful to what was written. It loses to the sharing rule above: one slot can
+serve two loops in different blocks, scoping is flat, and placing the declaration
+inside whichever block came first would put it inside an `if` while serving a loop
+outside it. Valid, and misleading. The top of the body cannot read wrong.
+
+The design put this on the printer, and it is the parser's. The parser collects a
+body's lifted declarations and unshifts them when the body closes, so the position
+is in the AST before the printer sees it - and **the printer needed no change at
+all**, which is the strongest thing anyone can say about a claim to be sugar. The
+round trip covers the new syntax because it already compiles every `ok-` file.
+
+### Rules
+
+- **Three-clause `for` only.** A declaration in the init clause, never in the test
+  or update.
+- **One declaration**, not a list. `for ( u8 i = 0, j = 0; ... )` is an error;
+  there is no comma declarator anywhere else in the language and this is not the
+  place to introduce one.
+- **An ordinary scalar variable, and nothing else** - which follows from §5 rather
+  than being stipulated here. `for ( u8[4] buf = [ 1, 2, 3, 4 ]; ... )` cannot
+  lower at all: Momo has no array assignment, so there is nothing to lower the
+  initialiser *to*, and load-time is the only thing an array initialiser could ever
+  be. That is §5's own argument, unchanged. The same test disposes of the rest -
+  `const` has no storage to assign, a `view` is a compile-time alias with nothing
+  to assign, a `far` region is top-level-only because a hardware address is not
+  scoped, and `local` inside a routine is already refused with its own message.
+- **The initialiser is required.** `for ( u8 i; ...; ... )` declares without
+  assigning, which is the load-time reading this section spent a heading avoiding.
+- **Same name and type reuses the slot; a mismatch is an error.**
+- **A sub-local still shadows a global**, exactly as a hand-written declaration in
+  a routine does. No new rule.
+
+### What it cost, and what is still out
+
+**The parser and nothing else.** One function, a stack of frames for a body's
+lifted declarations, and the exclusions. The resolver, the emitter and the printer
+are untouched.
+
+The error messages were most of the work, which is worth recording because it is
+not where the effort was expected. Nine ways to write it wrong were probed. Five
+already said something useful - four purpose-written, and the collision against a
+full declaration reusing the resolver's existing message. The other four failed as
+`expected ";" but found ","` or `expected ident but found "const"`, which say what
+the parser wanted rather than what the writer should do, and got messages of their
+own. That is `STYLE.md`'s bar rather than a nicety: each of those four excludes
+something for a reason §5 supplies, and an error that names none of it leaves the
+reason unreachable.
+
+Out: block scope, comma declarators, and any inference of the type. Momo is
+type-first everywhere and a counter's type is observable in §4's mixing - `u8 i`
+against `u16 i` is a different program - so it is written rather than derived.
+
+---
+
 ## Sections designed, but not built
 
-Eleven sections carry numbers but no text here, because what they describe does
+Twelve sections carry numbers but no text here, because what they describe does
 not exist yet. All are in `PLAN.md`. The heading names no range deliberately - the
 set stopped being contiguous the moment one of them was built.
 
@@ -3152,6 +3333,7 @@ set stopped being contiguous the moment one of them was built.
 | §41 | `momowad` - asset storage |
 | §42 | A test tier below DOSBox |
 | §43 | The screen library |
+| §45 | `for ( x in a )` and `for ( x of a )`, which §44 declares the bindings for |
 
 ---
 

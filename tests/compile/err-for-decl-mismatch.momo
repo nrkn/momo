@@ -1,0 +1,11 @@
+// EXPECT-ERROR: one name is one slot here
+// Two loops may share a counter, but then they have to agree about its type -
+// the alternative is two variables with one name.
+u8 n = 0
+
+sub s {
+  for ( u8 i = 0; i < 3; i++ ) { n = n }
+  for ( u16 i = 0; i < 3; i++ ) { n = n }
+}
+
+s()

@@ -1,0 +1,12 @@
+// EXPECT-ERROR: is already declared in this scope
+// Sharing is between two for declarations. Against one written out in full it
+// is a collision, because scoping is flat and there is nothing to shadow.
+u8 n = 0
+
+sub s {
+  u8 i
+
+  for ( u8 i = 0; i < 3; i++ ) { n = n }
+}
+
+s()

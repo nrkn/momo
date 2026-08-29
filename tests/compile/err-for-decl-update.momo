@@ -1,0 +1,7 @@
+// EXPECT-ERROR: not the third
+// The counter is declared in the first clause. The third runs every iteration.
+u8 n = 0
+
+for ( n = 0; n < 3; u8 j = 1 ) {
+  n = n
+}

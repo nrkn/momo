@@ -1,0 +1,8 @@
+// EXPECT-ERROR: a for cannot declare an array
+// §44: with no array assignment there is nothing to lower an initialiser to,
+// so load-time is all one could ever be - which is §5's own reasoning.
+u8 n = 0
+
+for ( u8[4] buf = [ 1, 2, 3, 4 ]; n < 2; n++ ) {
+  n = n
+}

@@ -539,6 +539,74 @@ stand regardless.
 
 ---
 
+## 44. Declaring the counter in a `for`
+
+### The design put one decision on the wrong stage
+
+§44 gave the printer a heading of its own - where the lifted declaration should
+go - and reasoned the answer out correctly. The placement is the parser's. It
+collects a body's lifted declarations and unshifts them as the body closes, so the
+position is settled in the AST before the printer is reached, and **the printer
+needed no change at all.**
+
+That is worth more than a correction. A feature claiming to be sugar wants
+evidence, and "the stage that turns an AST back into source never learned this
+exists" is stronger than anything the suite asserts. The design had budgeted a
+printer change; the budget was wrong in the useful direction.
+
+### One rule was stated more broadly than it can hold
+
+"Same name and type reuses the slot" does not survive meeting a declaration
+written out in full. `u8 i` at the top of a routine with `for ( u8 i = 0; ... )`
+below it cannot share, because scoping is flat and there is nothing for the second
+to shadow. So the rule is that sharing is between two `for` declarations, and
+anything else is the collision it already was.
+
+The narrower rule is the better one, which is why it cost nothing to adopt: two
+spellings of one declaration in one body is confusing code, and `"i" is already
+declared in this scope` says exactly what to drop.
+
+That is two builds in a row where a rule in the design met a case the design had
+not tried - §39's was what a unit combines with under `*` and `/`. One widened and
+one narrowed, which is the argument for writing a rule as a claim that can be
+wrong rather than as a definition.
+
+### The error messages were most of the work, and nobody predicted that
+
+Nine ways to write it wrong were probed. Five already said something useful. The
+other four - a comma list, and `const`, `view` or `local` in the clause - came out
+as `expected ";" but found ","` or `expected ident but found "const"`, naming what
+the parser wanted rather than what the writer should do.
+
+Each of those four excludes something for a reason §5 supplies, and an error
+naming none of it leaves that reason unreachable. Writing them was more of the
+change than the lifting was.
+
+### What it cost
+
+159 lines in `parser.ts`, and nothing in the resolver, the emitter or the printer.
+Tier 1 went from 378 to 390: nine compile tests, two more round trips because that
+tier already compiles every `ok-` file, and §39's unit-identity assertion
+generalised into an identity tier carrying two pairs.
+
+The measurement it exists for: **120 instructions, identical.** The only difference
+anywhere in the two emitted files is the emitter's source-quote comment, which
+quotes the line that was written and so differs on purpose.
+
+### The question that took longest closed in no code at all
+
+Whether `for ( u8 i = 0; ... )` is the asymmetry §5 rejected took three rounds of
+discussion, and the answer had been sitting in `resolveVariableDeclaration` the
+whole time: the guard is `!atTopLevel && node.init`, and a lifted declaration has
+no `init` for it to find.
+
+Nothing needed writing. What the design had done was frame a mechanical question as
+a judgement call, then argue one side of it - which is why it read as unresolved
+while the argument itself kept sounding fine. Worth watching for: a section that
+advocates is a section that has stopped checking whether the code already decided.
+
+---
+
 ## 39. `unit`
 
 ### The design had a hole where the parser meets the lexer

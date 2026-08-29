@@ -1,0 +1,7 @@
+// EXPECT-ERROR: a for declares a counter and nothing else
+// A const has no storage to assign, so there is nothing to lift.
+u8 n = 0
+
+for ( const c = 0; n < 3; n++ ) {
+  n = n
+}

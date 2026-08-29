@@ -1,0 +1,7 @@
+// EXPECT-ERROR: a for declares one counter, not a list
+// There is no comma declarator anywhere else in the language.
+u8 n = 0
+
+for ( u8 i = 0, j = 0; i < 3; i++ ) {
+  n = n
+}

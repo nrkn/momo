@@ -33,6 +33,7 @@ import type {
   TypeName,
   TypeNode,
   UnitDeclaration,
+  VariableDeclaration,
   ViewDeclaration,
   WhileStatement,
 } from './ast.js'
@@ -640,7 +641,57 @@ export const parse = (tokens: Token[]): Program => {
   // `=>` desugars here and nowhere else - a typed routine wraps the expression
   // in a `return`, a sub wraps the statement as-is - so the resolver and emitter
   // never see it.
+  // ---- §44: the counter declared in a `for` ----------------------------------
+  //
+  // `for ( u8 i = 0; ... )` lifts the declaration to the top of the enclosing
+  // routine body - or of the file's own statement sequence - and leaves the
+  // assignment in the clause. So what reaches the resolver is a declaration with
+  // no initialiser plus an ordinary assignment, and nothing downstream ever meets
+  // an initialiser in a position DESIGN §5 does not allow one in.
+  //
+  // The body rather than the block the loop sits in: the sharing rule below lets
+  // one slot serve loops in different blocks, and a declaration printed inside
+  // whichever `if` came first would be serving a loop outside it.
+  const hoistFrames: VariableDeclaration[][] = []
+
+  const describeTypeNode = (node: TypeNode): string => {
+    const written = node.unit ?? node.name
+    if (node.unit || node.frac === 0) return written
+    return `${written}.${node.frac}`
+  }
+
+  // Two loops in one body declaring the same counter share the slot instead of
+  // colliding, which is what makes two counting loops in a row ordinary code.
+  // Deduping here means the resolver never sees a second declaration and needs
+  // no rule of its own.
+  const hoist = (declaration: VariableDeclaration) => {
+    const frame = hoistFrames[hoistFrames.length - 1]
+    if (!frame) throw new Error('internal: a for declaration with no body to lift it to')
+
+    const existing = frame.find((other) => other.name === declaration.name)
+    if (!existing) {
+      frame.push(declaration)
+      return
+    }
+
+    if (describeTypeNode(existing.typeNode) !== describeTypeNode(declaration.typeNode)) {
+      raise(
+        declaration,
+        `"${declaration.name}" was already declared by another for as ` +
+          `${describeTypeNode(existing.typeNode)}, and this one says ` +
+          `${describeTypeNode(declaration.typeNode)} - one name is one slot here`,
+      )
+    }
+  }
+
   const parseRoutineBody = (returnType: TypeName | null): BlockStatement => {
+    hoistFrames.push([])
+    const block = parseRoutineBodyOnly(returnType)
+    block.body.unshift(...(hoistFrames.pop() ?? []))
+    return block
+  }
+
+  const parseRoutineBodyOnly = (returnType: TypeName | null): BlockStatement => {
     if (!at('op', '=>')) {
       skipNewlines()
       return parseBlock()
@@ -1146,15 +1197,113 @@ export const parse = (tokens: Token[]): Program => {
     }
   }
 
+  // A declaration in a `for`'s init clause (§44). What comes back is the
+  // assignment alone - the declaration goes to `hoist`, so no caller sees one and
+  // the resolver never learns a declaration was written in this position.
+  const parseForDeclaration = (): Statement => {
+    const start = peek()
+    const typeNode = parseTypeNode()
+    const name = expect('ident')
+
+    // §5 covers arrays by its own reasoning rather than by an exception: with no
+    // array assignment in the language there is nothing to lower an array
+    // initialiser *to*, so load-time is the only thing one could ever be.
+    if (typeNode.array) {
+      raise(
+        typeNode,
+        `a for cannot declare an array - "${name.text}" would need an array` +
+          ' assignment to lower its initialiser to, and there is none',
+      )
+    }
+
+    if (!at('op', '=')) {
+      raise(
+        peek(),
+        `"${name.text}" needs a value here - write "for ( ` +
+          `${describeTypeNode(typeNode)} ${name.text} = 0; ..." - a declaration` +
+          ' with nothing to assign would be a load-time value',
+      )
+    }
+    advance()
+
+    const value = parseExpression()
+
+    // There is no comma declarator anywhere else in the language, and without
+    // this the failure lands on `expected ";" but found ","`, which says what
+    // the parser wanted rather than what the writer should do.
+    if (at('op', ',')) {
+      raise(
+        peek(),
+        'a for declares one counter, not a list - declare the others above the loop',
+      )
+    }
+
+    const endLine = previous().line
+
+    hoist({
+      type: 'VariableDeclaration',
+      name: name.text,
+      typeNode,
+      init: null,
+      file: start.file,
+      line: start.line,
+      col: start.col,
+      endLine,
+    })
+
+    return {
+      type: 'AssignmentStatement',
+      operator: '=',
+      target: {
+        type: 'Identifier',
+        name: name.text,
+        file: name.file,
+        line: name.line,
+        col: name.col,
+      },
+      value,
+      file: start.file,
+      line: start.line,
+      col: start.col,
+      endLine,
+    }
+  }
+
   const parseForStatement = (): ForStatement => {
     const start = expect('keyword', 'for')
     expect('op', '(')
 
-    const init = at('op', ';') ? null : parseSimpleStatement()
+    let init: Statement | null = null
+    if (!at('op', ';')) {
+      // A counter is an ordinary scalar and nothing else (§44). Each of these
+      // has its own reason to be excluded - a `const` has no storage to assign,
+      // a `view` is a compile-time alias with nothing to assign, a `far` region
+      // is top-level only, and `local` names a file as the owner - but without
+      // this they all fail as `expected ident`, which names none of them.
+      for (const word of ['const', 'view', 'far', 'local']) {
+        if (at('keyword', word)) {
+          raise(
+            peek(),
+            `a for declares a counter and nothing else - ${word} needs a` +
+              ' declaration of its own, above the loop',
+          )
+        }
+      }
+
+      init = at('type') ? parseForDeclaration() : parseSimpleStatement()
+    }
+
     expect('op', ';')
     const test = at('op', ';') ? null : parseExpression()
     expect('op', ';')
-    const update = at('op', ')') ? null : parseSimpleStatement()
+
+    let update: Statement | null = null
+    if (!at('op', ')')) {
+      if (at('type')) {
+        raise(peek(), 'a for declares its counter in the first clause, not the third')
+      }
+      update = parseSimpleStatement()
+    }
 
     expect('op', ')')
     skipNewlines()
@@ -1399,6 +1548,11 @@ export const parse = (tokens: Token[]): Program => {
 
   // ---- program --------------------------------------------------------------
 
+  // The outermost hoist frame (§44), for a `for` written at the top level of a
+  // file rather than inside a routine. The loader splices each file's body where
+  // its include stood, so a counter lifted here stays with the file that wrote it.
+  hoistFrames.push([])
+
   const body: Statement[] = []
   skipNewlines()
 
@@ -1406,6 +1560,8 @@ export const parse = (tokens: Token[]): Program => {
     body.push(parseStatement())
     skipNewlines()
   }
+
+  body.unshift(...(hoistFrames.pop() ?? []))
 
   return { type: 'Program', body, file: tokens[0].file, line: 1, col: 1 }
 }

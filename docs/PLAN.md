@@ -131,19 +131,13 @@ at all, which makes one a floor rather than a measurement.
   since a README that shows off wants something to show.
 - **Fixed-point division.** DESIGN §25 is half built and says which half: `*` on
   8.8 lands, division does not, and §25 sets out why it is the awkward one.
-- **Declaring the loop counter in a `for`.** §44 - `for ( u8 i = 0; ... )` rather
-  than a declaration on the line above, which is what 131 of the 170 `for`
-  statements here already say by hand. Costs nothing and says so the way §39 did,
-  by a matched pair that has to emit the same instructions. One thing wants
-  settling before a line is written: §5 rejected emitting an initialiser as code
-  where it stands, and this is that, in one position.
 - **`for ( x in a )` and `for ( x of a )`.** §45 - a counter bound to a thing
   rather than to a number, and a name bound to the indexed access rather than to a
   copy of it. `in` is `len`, which already spans arrays, sized `far` regions and
   indexed groups; `of` is where a `group` body stops repeating `mob[ i ].`, and it
-  needs no record type to do it. `in` wants §44 first, since that is what declares
-  its counter. 34 of the 170 loops here walk a full extent, which is four times
-  fewer than count something else - §45 has the split, and the prediction it
+  needs no record type to do it. `in` builds on §44, which is now built and
+  declares its counter. 34 of the 170 loops here walk a full extent, which is four
+  times fewer than count something else - §45 has the split, and the prediction it
   corrected.
 
 ### Probably
@@ -334,6 +328,13 @@ All are set out in DESIGN §20 unless noted.
 section that was itself a plan - see the note at the top for why, and where to
 look for the rest.
 
+- **Declaring the loop counter in a `for`.** 2026-08-29. §44, now in `DESIGN.md`,
+  and the record is DECISIONS §44. The parser lifts the declaration and leaves the
+  assignment behind, so the resolver, the emitter and the printer are all
+  untouched, and the pair of files that have to emit the same instructions do -
+  120 of them, identical. The one thing the design left open closed on the
+  mechanism rather than on a judgement: nothing downstream ever meets an
+  initialiser, so §5's rule needed no exception.
 - **`unit`.** 2026-08-29. §39, now in `DESIGN.md`, and the record is DECISIONS
   §39. A named numeric type whose values will not mix with another unit's without
   a cast, and the first feature here to subtract a permission rather than add
@@ -1904,146 +1905,6 @@ Nothing, for the table, the query and the descriptor - they are `int 10h`, `far`
 `view` and data, and the window handshake needs nothing either. What is blocked is
 the storage question if the table becomes a lump (§38, §41), and the backing stores
 (§35).
-
----
-
-## 44. Declaring the counter in a `for`
-
-**Designed, not built.** The counter of a three-clause `for` is declared in its
-init clause rather than on the line above:
-
-```momo
-for ( u8 i = 0; i < n; i++ ) { ... }
-```
-
-It lowers by lifting the declaration to the enclosing declaration space and
-leaving the assignment where it was written:
-
-```momo
-u8 i
-for ( i = 0; i < n; i++ ) { ... }
-```
-
-which is what **131 of the 170** `for` statements under `projects/` and `shared/`
-already say by hand. That count is the whole case for it: nothing here is
-expressive, and the feature is that a convention every C-family language shares
-stops being spelled in two lines.
-
-### It is sugar, and that is assertable rather than arguable
-
-No storage moves and no instruction changes. The lifted declaration takes the same
-static slot the hand-written one takes, and the init clause emits the same
-assignment it emits today. §39's method applies unchanged: a pair of files
-identical but for the spelling, required to emit the same instructions. The golden
-tier cannot make that check on its own - it compares committed output against
-itself and would agree with a leak.
-
-### Two loops, one name, which is the common case rather than the corner
-
-Scoping is flat, global and per-sub, with no block scope, and `locals` is one map
-per routine. So a second `for ( u8 i = 0; ... )` in the same routine collides with
-`"i" is already declared in this scope` - and two counting loops in a row is
-ordinary code, not an edge.
-
-**A for-init declaration whose name and type match one already in the same space
-reuses it.** A mismatch - `u8 i` above and `u16 i` below - is an error rather than
-a silent second variable. That is one rule and no new concept, and it is *smaller*
-than C's semantics rather than equal to them: C gives each loop its own variable,
-this gives them one slot, and for a counter that is initialised on entry there is
-no observable difference.
-
-Real block scope is the alternative and the resolver already declines it, at the
-top of `resolver.ts`: locals are statically allocated, so a block-scoped variable
-would be another static slot under a different name, all cost and no benefit. That
-reasoning is unchanged here.
-
-### The scope is flatter than the spelling suggests, and that is not new
-
-`i` outlives the loop and holds its terminal value. Every other C-family language
-scopes it to the braces, so the spelling imports an expectation the language does
-not honour.
-
-It is not a new exception, though. §5 already requires the reader to know that a
-declaration inside a routine is static: its `putBar` example exists to say that a
-*second call* finds `n` still at 3. This extends a rule that is already load-bearing
-to one more position rather than adding a second rule beside it. It still wants a
-sentence in §5, because the reader arriving from C will not have that rule in hand.
-
-### No initialiser reaches a for-init, which is what §5's rule turns on
-
-§5 says an initialiser is a **load-time value and is only allowed at the top
-level**, and records that emitting one as code where it is written was rejected for
-its asymmetry. `for ( u8 i = 0; ... )` looks like exactly that alternative, and
-whether it is was the last thing this section had open.
-
-It is not, because the parser lowers it. What reaches the resolver is a declaration
-carrying no initialiser and an ordinary assignment statement in the init clause, so
-**no initialiser exists in a for-init position at any point anything downstream can
-see.** `resolveVariableDeclaration` refuses one with a single guard - `!atTopLevel
-&& node.init` - and a lowered declaration has no `init` for that guard to find. The
-resolver never learns this happened.
-
-That is the mechanism the language already runs on rather than a special case built
-for it. `=>`, `else if`, compound assignment, prefix and postfix `++`, adjacent
-string literals and `group`'s `.` are all surface forms the parser turns into
-something else, and §7 says of `=>` that the resolver and emitter never see it.
-
-**§5's reasoning points the same way**, read closely. An initialiser is honest only
-where "before the program runs" and "when control reaches this line" are the same
-moment - and inside a for-init clause they are emphatically not, which is precisely
-why the form has to lower to an assignment. The rule decides which of two readings
-applies; it does not forbid the characters. What §5 rejected was a declaration in a
-body silently *staying* an initialiser and running once. This one runs every time,
-visibly, because everything in that clause does.
-
-So what is left is a reading cost rather than an exception to own: `u8 i = 0`
-inside the parentheses is two statements, and a reader has to know it. That is one
-sentence in §5, and `npm run desugar` shows it, which is what that tool is for.
-
-### Where the printer puts the hoisted declaration
-
-**At the top of the routine body**, or of the statement sequence for a loop at file
-level. This wants deciding rather than discovering, because both candidates are
-valid Momo, both reparse to the same AST and both emit the same instructions - so
-the **round trip cannot catch an inconsistent choice**, which is unusual here and
-is the reason to write it down. The printer has produced two bugs in a week.
-
-The other candidate is immediately before the loop that declared it, which is more
-faithful to what was written. It loses to the reuse rule below: one slot can serve
-two loops in different blocks, scoping is flat, and printing the declaration inside
-whichever block came first would put it inside an `if` while serving a loop outside
-it. Valid, and misleading. The top of the body cannot read wrong.
-
-### Rules
-
-- **Three-clause `for` only.** A declaration in the init clause, never in the test
-  or update.
-- **One declaration**, not a list. `for ( u8 i = 0, j = 0; ... )` is an error;
-  there is no comma declarator anywhere else in the language and this is not the
-  place to introduce one.
-- **An ordinary scalar variable, and nothing else** - which follows from §5 rather
-  than being stipulated here. `for ( u8[4] buf = [ 1, 2, 3, 4 ]; ... )` cannot
-  lower at all: Momo has no array assignment, so there is nothing to lower the
-  initialiser *to*, and load-time is the only thing an array initialiser could ever
-  be. That is §5's own argument, unchanged. The same test disposes of the rest -
-  `const` has no storage to assign, a `view` is a compile-time alias with nothing
-  to assign, a `far` region is top-level-only because a hardware address is not
-  scoped, and `local` inside a routine is already refused with its own message.
-- **The initialiser is required.** `for ( u8 i; ...; ... )` declares without
-  assigning, which is the load-time reading this section spent a heading avoiding.
-- **Same name and type reuses the slot; a mismatch is an error.**
-- **A sub-local still shadows a global**, exactly as a hand-written declaration in
-  a routine does. No new rule.
-
-### Scope of the first build
-
-In: the declaration, the reuse rule, the printer lowering it back to two lines so
-the round trip sees what the parser built, and the matched pair asserting no
-instruction moved.
-
-Out: block scope, comma declarators, and any inference of the type. Momo is
-type-first everywhere and a counter's type is observable in §4's mixing - `u8 i`
-against `u16 i` is a different program - so it is written rather than derived.
 
 ---
 
