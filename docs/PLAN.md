@@ -131,6 +131,14 @@ at all, which makes one a floor rather than a measurement.
   since a README that shows off wants something to show.
 - **Fixed-point division.** DESIGN §25 is half built and says which half: `*` on
   8.8 lands, division does not, and §25 sets out why it is the awkward one.
+- **`bracket`.** §48 - a declaration naming an open/close pair, and a block form
+  that calls them around a body written in place. momolo builds trees by
+  convention today: nothing catches a box left open, and the result is a wrong
+  tree with no diagnostic - which is the failure shape `closeBox`'s own comment
+  calls the worst available. Parser sugar, zero runtime cost, additive to every
+  existing call site, and smaller than §39 because the disambiguator is a brace
+  after a complete call rather than anything the lexer must know. 25 of the 30
+  opens in `shell.momo` are bracketable, measured.
 - **`block`.** §47 - three routines over the word `arena` already reads, saying
   where the block DOS gave us ends and whether a region fits in it. Twenty lines
   and no compiler change, and it opens the mode 13h back buffer, §41's asset
@@ -320,6 +328,12 @@ All are set out in DESIGN §20 unless noted.
   **Expressing the tree as data** and walking it removes the problem rather than
   solving it, and is where a scene format points - at the cost that a static tree
   cannot loop or take parameters, which the existing scenes do.
+
+  **§48 is the answer this now has**, and it is a fourth option the paragraph
+  above missed: a *declaration* form naming two routines as a pair. Not a macro
+  system, because there is no substitution and no arbitrary code, and not a
+  library name in the compiler, because the library names its own pairs. The
+  question stays here until it is built, and §48 carries the design.
 
 - **Does Momo want a third namespacing mechanism?** Arbitrary const trees for
   organisation, whose leaves are ordinary consts - name mangling and nothing more
@@ -2186,3 +2200,169 @@ smallest value where the naive expression is wrong.
 A double-buffered mode 13h back buffer, which is what DESIGN §20's open graphics
 question keeps circling; the far arena for assets that §41 wants; and §43's
 backing stores. All three are §40 rows that have been open since §35 landed.
+
+---
+
+## 48. `bracket` - an open/close pair the compiler closes
+
+**Designed, not built.** A declaration that names two routines as a pair, and a
+block form that calls them around a body written in place:
+
+```momo
+bracket box    = boxOpen     / closeBox
+bracket panel  = panelOpen   / closeBox
+bracket framed = panelFramed / closeBox
+bracket strip  = stripOpen   / stripClose
+
+framed( black, border, lightGray ) {
+  labelPaint( addr( sCentred ), yellow, black )
+
+  cfgGrowW()
+  cfg.gap = u
+  box {
+    swatchGrow( addr( sA ), darkGray )
+    swatchGrow( addr( sB ), darkGray )
+  }
+}
+```
+
+It lowers in the parser, the way `=>` does: the open with its arguments, the body,
+then the close. Zero runtime cost, and the emitted code is what the open/body/close
+sequence emits today - which the identity-pair method §44 and §45 used asserts
+directly rather than claiming.
+
+### The problem is correctness before it is ergonomics
+
+momolo represents nesting by convention. `closeBox` carries no evidence of what it
+closes, so indentation is the only structure and nothing reads it. Four failures,
+and the first is not a style complaint:
+
+| | today | with a bracket |
+|---|---|---|
+| finishing with boxes still open | a wrong tree and **no diagnostic** | impossible |
+| one `closeBox()` too many | swallowed by the `openDepth == 0` guard | impossible |
+| closing at the wrong depth | indentation lies, nothing checks | impossible |
+| a wrapper owning two opens | the caller has to know | the pair owns it |
+
+`closeBox`'s own comment says why the first one matters: *"a wrong answer with no
+diagnostic is the worst shape a bug can take"*. It guards the underflow it can see
+and says plainly that an unbalanced close is a caller bug it cannot diagnose. The
+over-open case has no guard at all, because there is nowhere to put one - nothing
+in the library knows the caller has finished.
+
+### Why this is not the macro system the question rejected
+
+DESIGN §20 asks how a nested structure should be built and rejects parser sugar
+twice over: *"a general form for it is a macro system and a specific one puts a
+library's name in the compiler"*. **A declaration form is the third option.** There
+is no substitution, no hygiene question and no arbitrary code - a bracket names two
+routines that already exist - and the compiler learns only that two names pair,
+never `momolo`.
+
+It is also **additive**. Every routine and every existing call site keeps working;
+a bracket declaration adds a spelling rather than replacing one, so adoption is per
+call site and reversible. After §45's sweep found less than its design promised,
+that matters: this can be tried on one scene and abandoned cheaply.
+
+### It needs no lexer involvement, which §39 did
+
+§39's hard part was where the knowledge that `px` is a type lives, because
+type-or-identifier is a lexer decision. This has no such question. The
+disambiguator is a `{` **after** a complete call, and both shapes are parse errors
+today - `f() { }` gives `expected end of statement but found "{"`, and so does
+`f {`. So the parser reads a call statement and then looks for a brace, with no
+symbol table, no promoted tokens and no first walk in the loader.
+
+That makes it a materially smaller feature than §39, and it is worth saying because
+the surface looks similar from a distance.
+
+### The wrapper limit, measured rather than asserted
+
+A routine whose opens outlive its body can never be a block, so `stripOpen` stays
+written the unbalanced way. The question is how much of the corpus that excludes,
+and the answer is little:
+
+```
+shell.momo     25 opens bracketable    5 not - one wrapper pair
+mopaint.momo    0 opens bracketable    5 not - the openers themselves
+```
+
+**25 of 30 in the scene.** `mopaint`'s five are the definitions of `boxOpen`,
+`panelOpen` and `panelFramed` - routines whose whole job is to leave a box open,
+which is the layer boundary rather than a limit. And the one real wrapper is still
+usable where it is called, because `stripClose` owns both of its closes.
+
+### What it does not fix, and one new way to misread
+
+`cfg` stays outside the block:
+
+```momo
+cfgGrowW()
+cfg.gap = u
+box { ... }
+```
+
+That is unchanged semantically - the carrier is out of band today too - but the
+block boundary now *looks* like a scope, and a reader may reasonably expect `cfg`
+calls inside it to configure it. They would configure the next box instead.
+
+DESIGN §20 already calls the carrier "the same discomfort one step along". This
+does not address it and slightly sharpens it, which is the strongest argument for
+eventually giving the openers real parameters rather than a mutable global.
+
+### `defer` is the other half, and is not this
+
+The resource shape is different. `fileOpen` returns a handle and `fileClose` takes
+it back, so the pair is value-carrying, and what goes wrong is an early `return`
+leaking one rather than a miscount:
+
+```momo
+h = fileOpen( name, readMode )
+defer fileClose( h )
+```
+
+That is also a parser rewrite - no unwinding, no exceptions, so it is "emit these
+calls before every exit from this block, in reverse" - and bare blocks already
+exist to scope it. But it is **not free**: the call is emitted once per exit path,
+so a routine with three returns pays three times, and it puts sugar into control
+flow, which nothing else here does.
+
+The distinction that keeps them apart: **`defer` makes a close reliable, a bracket
+makes it mandatory.** You can forget to write a `defer`. Forgetting is momolo's
+entire problem, and leaking on an early return is `file`'s. If `defer` is wanted it
+takes its own number.
+
+### Rules
+
+- **The pair is two routine names.** Not expressions, not routines defined later by
+  parameter - the same "arguments must be names" §19 already asks for.
+- **Arguments go to the open.** The close takes none, which is what makes the 1:2
+  wrapper work: whatever `stripClose` owns is its business.
+- **The body is a block**, and `box { }` is legal and means an empty one - which
+  reads better than `boxOpen()` and `closeBox()` on consecutive lines, a shape that
+  currently needs a comment in `shell.momo` to say it is deliberate.
+- **A bracket is not a routine**, so it cannot be called, passed or aliased. It is a
+  spelling for a pair of calls.
+- **Several brackets may share a close.** `box`, `panel` and `framed` all end in
+  `closeBox`, and nothing about that is special.
+- **No early exit out of a bracket body** in the first build - `return` inside one
+  would skip the close, which is exactly the failure the feature exists to remove.
+  Refuse it rather than emit the close on that path, and revisit if it bites.
+
+### Scope of a first build
+
+In: the declaration, the block form, the parser lowering, the `return` refusal, and
+a matched pair asserting no instruction moved.
+
+Out: `defer`, value-carrying pairs, brackets over anything but two named routines,
+and any attempt to fix the `cfg` carrier - that is a library design and belongs
+with whoever rewrites the openers to take parameters.
+
+### What wanted it
+
+momolo, which is one library and the wrong thing to count. It sits under `momoed`,
+`momode` and `momopnt`, so its call sites are every screen of every application
+this repository is heading toward - and the corpus holds one scene because building
+one is currently unpleasant, which is the floor-not-a-measurement problem the note
+under Todo describes. Tree building recurs beyond layout as well: a scene format,
+a document outline, nested windows in §43.
