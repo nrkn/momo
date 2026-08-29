@@ -177,3 +177,23 @@ as `node.line < 0`, and make the harness read the tally rather than the failures
 the cost of a change by stubbing it out, and twice the real version came in higher - by
 77 bytes once, because a stub removes a call site that the real design still has to
 keep. Useful for "is this worth doing", not for "what will this cost".
+
+**A section move is a large deletion, and that is where an overrun hides.** Moving
+a design out of `PLAN.md` into `DESIGN.md` removes a hundred-odd lines from one
+file and adds them to another, so a range or anchor edit that ends too late looks
+exactly like the change working. One did: 905cc83 meant to take the `unit` Todo
+item and the §39 section, and took another 188 lines with them - the tail of
+Probably, all of Maybe, all of Questions and half of Done - stopping in the middle
+of a list. `git diff --stat` reported what a section move reports, `npm test` was
+green because nothing reads `PLAN.md`, and the commit message's 378/378 was true.
+It was found a session later, from three finished items left reading as work that
+had not happened.
+
+This one belongs to editing without eyes on the result. Somebody cutting a
+selection in an editor watches the extra hundred lines go; an edit expressed as a
+pattern over text nobody re-reads does not get that. Same family as the
+`String.replace` entry above, and the same answer.
+
+**Diff the structure, not the content.** `grep -nE '^#{1,3} '` over the file before
+and after, and check that only the intended heading is gone. Worth doing for any
+edit that removes more than it adds.
