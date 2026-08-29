@@ -94,6 +94,16 @@ Three tiers, by how likely a thing is to happen rather than how large it is.
 **Maybe** is not a waiting room for good ideas - it is where something sits when
 nothing has yet wanted it.
 
+That last test is weaker for sugar than for anything else here, and is worth
+applying with the difference in mind. **Sugar over a construct that already exists
+has a visible longhand**, so the corpus can be counted: §44's 131 loops and §45's
+34 are the feature written out by hand. A new capability has no longhand - nothing
+looks like §23's `scope` un-had, because without it a program makes a file or does
+not encapsulate at all. So for a new construct "nothing has wanted it" means what
+it appears to mean, and for sugar it means only that the long form was tolerable.
+What was restructured, or never written, to avoid the long form appears in no count
+at all, which makes one a floor rather than a measurement.
+
 ### Definitely
 
 - **Finish the vector library.** `shared/lib/momovec/` is the largest thing in
@@ -230,10 +240,12 @@ nothing has yet wanted it.
   construction with no structural comparison anywhere. `momopnt`, one toolkit
   under three editors, is where the want would arrive.
 - **`in` over a count.** §45 - `for ( u8 i in maxPaths )` for `0 .. maxPaths - 1`,
-  which would cover §44's 131 loops and §45's thirty-four in one form. Out of §45's
-  first build because it makes `in` mean two things, an extent in one operand and
-  a value in the other, for a gain §44 has already mostly taken. Here rather than
-  rejected because nothing has wanted it, which is what this tier is for.
+  which would cover §44's 131 loops and §45's thirty-four in one form. Here rather
+  than in §45's first build because it makes `in` mean two things - an extent in
+  one operand position and a plain value in the other - for a gain §44 has already
+  mostly taken. **Not for want of a customer**: the 131 loops are this written out
+  longhand, which is more evidence than anything else in this tier has, and the
+  note under Todo is about exactly this case.
 - **`--cpu` target levels.** §28. 186 is modest, 286 is a rounding error, 386 is
   transformative - and 386 would change §4's type rules, so it is not only a
   backend switch.
