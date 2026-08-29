@@ -152,10 +152,11 @@ nothing has yet wanted it.
   wants settling before any of it is written: a runtime screen width costs nothing
   now and about 7x once §29 lands, because §26's odd-residue tier was designed for
   exactly these strides.
-- **A test tier below DOSBox.** §42 - and the first move is one environment
-  variable, not a project: DOSBox is SDL-based, so `SDL_VIDEODRIVER=dummy` may end
-  the window-stealing outright. If it does not, §42 is the executor, which is worth
-  as much for counting cycles exactly as for being headless.
+- **A test tier below DOSBox.** §42 - an executor that decodes the assembled
+  `.COM`. The headless half is done and cost two flags rather than a project, so
+  what is left is counting cycles exactly: the timing tables in §16, §26 and
+  DECISIONS §27 are assembled by hand from static readings of the assembly, and an
+  executor would count what actually ran.
 - **A palette and colour study.** Scope undecided, and that is the first job -
   most of the model is host-side work, so the interesting Momo library is small.
   `STUDIES.md` has the register entry. Two consumers already exist and disagree:
@@ -1877,28 +1878,27 @@ depend on it.
 
 ## 42. A test tier below DOSBox
 
-**Designed, not built.** Running the non-graphical tier 2 programs without an
-emulator window - and, as a consequence that may matter more, counting cycles
-exactly.
+**Designed, not built.** An executor that decodes the assembled `.COM`, to count
+cycles exactly - and, until 2026-08-29, to run tier 2 without an emulator window.
 
-### The problem is disruption, not speed
+### The window half is done, and cost two flags
 
-Tier 2 opens and closes a DOSBox window per program, thirty-five times, taking
-focus each time. It works and it has worked for a long time; it is simply hostile
-to the machine it runs on, which makes it something you avoid running.
+Tier 2 used to open and close a DOSBox window per program, thirty-five times,
+taking focus each time. `SDL_VIDEODRIVER=dummy` hides the emulator window and
+`-noconsole` hides the status window DOSBox opens beside it on Windows. Both are
+defaults in `e2e.ts`, the driver is overridable so a run can still be watched, and
+the full tier now runs with nothing on screen in the same time it took before.
 
-### Try the free thing first
+**How that was checked is the part worth keeping.** A pass could not distinguish
+"ran headless" from "ignored the variable", because this tier reads a file either
+way. So an invalid driver name was set instead: the run failed at assembly, which
+is what proves DOSBox reads the variable at all.
 
-DOSBox is SDL-based, and SDL renders to nothing under `SDL_VIDEODRIVER=dummy`:
+**86Box is SDL2 too**, so the same two flags may well reach the accurate emulator
+without the fork that looked necessary. Untested.
 
-```bash
-SDL_VIDEODRIVER=dummy npm run test:e2e
-```
-
-One variable, no fork, and it either solves this outright or justifies the rest of
-this section. **86Box is SDL2 as well**, so the same trick may reach the accurate
-emulator without the fork that looked necessary. This should be tried before
-anything here is built.
+**So the disruption argument for this section is spent**, and what remains is the
+cycle counting below - which was the stronger half in any case.
 
 ### What an executor would actually have to cover
 

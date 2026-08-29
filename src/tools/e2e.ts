@@ -46,11 +46,25 @@ import { loadToolchain } from './toolchain.js'
 // without a human. DESIGN §9 recorded the gap; this closes it.
 const runTimeoutMs = 120_000
 
-const runDosbox = (exe: string, args: string[]): Promise<'ok' | 'timeout'> =>
+const runDosbox = (exe: string, args: string[], cwd: string): Promise<'ok' | 'timeout'> =>
   new Promise((resolveRun) => {
     const child = spawn(exe, args, {
       stdio: 'ignore',
-      env: { ...process.env, SDL_VIDEO_CENTERED: '0', SDL_VIDEO_WINDOW_POS: '0,0' },
+      // `-noconsole` below does not silence DOSBox, it redirects: stdout.txt and
+      // stderr.txt are written to the working directory. Run from the project's
+      // build directory so they land beside the run they describe, and inside the
+      // one directory that is already ignored.
+      cwd,
+      // Headless by default. This tier reads a file and never the screen, so the
+      // window buys nothing - and 35 of them taking focus in a row is the reason
+      // the tier gets avoided. Overridable, because watching a run is still how a
+      // hang gets diagnosed.
+      env: {
+        ...process.env,
+        SDL_VIDEODRIVER: process.env.SDL_VIDEODRIVER ?? 'dummy',
+        SDL_VIDEO_CENTERED: '0',
+        SDL_VIDEO_WINDOW_POS: '0,0',
+      },
     })
 
     let timedOut = false
@@ -98,12 +112,17 @@ const buildAndRun = async (exe: string, project: string): Promise<string> => {
   await writeFile(join(buildDir, 'build.bat'), script, 'ascii')
 
   const outcome = await runDosbox(exe, [
+    // The other half of running headless. SDL_VIDEODRIVER hides the emulator
+    // window; this hides the status window DOSBox opens beside it on Windows,
+    // which does not steal focus but does cover whatever it lands on. Nothing is
+    // lost: stdio is ignored here, and success is read from a marker file.
+    '-noconsole',
     '-conf', confPath,
     '-c', `mount c "${buildDir}"`,
     '-c', `mount d "${nasmDir}"`,
     '-c', 'c:',
     '-c', 'call c:\\build.bat',
-  ])
+  ], buildDir)
 
   // Reported before the assembly check, because a timeout says nothing about
   // whether NASM was happy - the program may well have assembled and then failed

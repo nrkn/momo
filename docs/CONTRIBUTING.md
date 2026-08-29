@@ -118,7 +118,7 @@ npm run memory -- <project>   # exact static footprint
 npm run desugar -- <project>  # the program with its surface sugar lowered
 
 npm test                      # tier 1: compile, golden .asm, types, lexing, ~1s
-npm run test:e2e              # tier 2: run in DOSBox, compare output
+npm run test:e2e              # tier 2: run in DOSBox headless, compare output
 
 npm run grammar               # regenerate the grammar from tokens.ts
 npm run editor:install        # copy the extension to ~/.vscode/extensions
