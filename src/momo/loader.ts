@@ -22,7 +22,7 @@ import { dirname, isAbsolute, join, resolve as resolvePath } from 'node:path'
 
 import type { Program, Statement } from './ast.js'
 import { raise, type Location } from './diagnostics.js'
-import { promoteUnits, tokenize, unitNamesIn } from './lexer.js'
+import { promoteUnits, tokenize, unitDeclarationsIn } from './lexer.js'
 import { parse } from './parser.js'
 
 export type LoadResult = {
@@ -68,7 +68,7 @@ export const load = (
   // whole reason this is cheap. Units end up program-wide rather than
   // include-ordered, so a unit may be used above or before its declaration, which
   // is one fewer rule than the alternative.
-  const units = new Set<string>()
+  const units = new Map<string, string>()
   const scanned = new Set<string>()
 
   const scanUnits = (path: string) => {
@@ -77,7 +77,7 @@ export const load = (
     scanned.add(real)
 
     const tokens = tokenize(readFileSync(real, 'utf8'), real)
-    for (const name of unitNamesIn(tokens)) units.add(name)
+    for (const [name, storage] of unitDeclarationsIn(tokens)) units.set(name, storage)
 
     for (let i = 0; i < tokens.length - 1; i++) {
       const token = tokens[i]

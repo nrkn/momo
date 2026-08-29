@@ -1,0 +1,8 @@
+// EXPECT-ERROR: different units do not combine
+// Two units of the same storage are still two units. This is the whole point.
+unit px = u16
+unit ms = u16
+px a
+ms b
+u16 out
+out = u16( a + b )

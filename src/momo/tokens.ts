@@ -28,6 +28,11 @@ export type Token = {
   file: string
   line: number
   col: number
+  // Set only on a `unit` name the lexer promoted to a `type` token (§39): the
+  // spelling of the storage type it stands for, so the parser can decode it
+  // without a table of its own. `text` stays the unit's own name, which is what
+  // errors and the printer want to say.
+  storage?: string
 }
 
 // The built-in type names, and reserved words. Being a distinct token kind is

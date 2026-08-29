@@ -3029,9 +3029,113 @@ It also opens a file that is not there, and checks the failure reports DOS error
 
 ---
 
+## 39. `unit`
+
+**Built.** A named numeric type whose values will not mix with another unit's
+without a cast. Entirely compile time - nothing reaches the emitter, and no
+program is a byte larger or a cycle slower for using one. `unittest` is the worked
+example (§14).
+
+```momo
+unit px = u16
+unit ms = i8.8
+
+px x = 40
+ms t = 1.5
+
+x = t              // error: cannot put ms in px - it needs a cast
+x = px( u16( t ) ) // fine, and now says what it is
+```
+
+### What it is checked against
+
+Storage comes from §4's table and scale from §25; a unit is a third axis, decided
+by neither. `null` - unitless - is what every value was before this existed.
+
+| | |
+|---|---|
+| same unit | mixes as §4 says, and the result carries the unit |
+| different units | an error, whatever the widths or the scales |
+| comparison | `bool`, which carries nothing |
+| an untyped constant | takes the unit of whatever it meets |
+| a *typed* unitless value | an error - it means something, and what it means is the question |
+| `unit` with a plain count, `*` or `/` | keeps the unit |
+| `unit / unit`, same unit | unitless: a ratio is a plain number |
+| `unit * unit` | an error - that is an area, and there is no name for one here |
+| a shift | keeps the unit; the count counts bits |
+
+**An untyped constant adopting the unit is what makes this usable**, and it is
+§25's conclusion reached again: without it `x + 1` needs a cast, every expression
+grows one, and casts nobody reads are worse than no checking at all.
+
+**The design widened one rule during the build.** It had said a unit combines with
+an *untyped* value under `*` and `/`; it takes any unitless value. A runtime count
+is exactly as dimensionless as a literal one, and `w * n` in a loop is ordinary
+code that the narrow rule would have rejected.
+
+### `unit` subtracts a permission, which nothing else here does
+
+Every other feature in this document adds something. This one refuses expressions
+§4 currently allows, and that is the whole of its value: the mistake it catches is
+one the type checker previously had no opinion about.
+
+`tennis` is what asked for it, and had been paying for the absence by hand -
+`subgridToPx`, `subPxY`, and a comment reading `// subgrid units`. The unit was in
+the identifier, which is the part a compiler cannot check.
+
+### Where the knowledge that `px` is a type lives
+
+**The design did not settle this, and it is the one architecturally interesting
+part.** Type names are a *lexer* decision here - `u8` and friends become a distinct
+token kind, which is what lets the parser tell a declaration from an expression
+with one token of lookahead, and `u8( x )` from a call. A unit name is a user
+identifier and gets no such help.
+
+It is settled in the lexer, not the parser. After a file is scanned, its
+`unit NAME = TYPE` declarations are collected and matching identifiers are
+promoted to type tokens, carrying the storage spelling with them. **The parser
+gains no symbol table**, which is what a parser-side answer would have meant: C's
+typedef problem, where `px x` is a declaration or not depending on what came
+before it.
+
+The loader needed a first walk for it. A file is parsed before the includes inside
+it are visited, so by the time an included unit was known the file using it would
+already be an AST. That walk finds includes in the token stream rather than by
+parsing, which is what keeps it cheap, and it makes units **program-wide rather
+than include-ordered** - so a unit may be used above its own declaration, which is
+one rule fewer than the alternative.
+
+### What it cost
+
+Nothing at runtime, which is asserted rather than argued: `ok-unit-typed.momo` and
+`ok-unit-plain.momo` are the same program with and without units, and tier 1
+requires them to emit the same instructions. The golden tier cannot make that
+check - it compares committed output against itself, and would agree with a leak.
+
+In the compiler, a `unit` field beside `frac` on `Resolved` and on every symbol
+that carries a type, and it is **required** for the reason §25 made `frac`
+required: a forgotten one is a silent loss of exactly what the feature exists to
+catch. Thirty-two construction sites, all found by the type checker.
+
+And one cost with no way to avoid it: **a new keyword takes a name away from
+programs.** One test file was using `unit` as a variable.
+
+### Units are viral at a library boundary
+
+Worth knowing before reaching for one. Everything in `shared/lib/std/` takes plain
+types, so a unit value has to be cast to be printed, poked, or passed anywhere -
+`putNumber( u16( width + height ) )` rather than `putNumber( width + height )`.
+
+That is the feature working: the cast marks where a measured quantity stops being
+one and becomes a number. But it means a unit is most useful inside a body of code
+that shares it, and least useful at the edge where that code meets a library that
+does not.
+
+---
+
 ## Sections designed, but not built
 
-Twelve sections carry numbers but no text here, because what they describe does
+Eleven sections carry numbers but no text here, because what they describe does
 not exist yet. All are in `PLAN.md`. The heading names no range deliberately - the
 set stopped being contiguous the moment one of them was built.
 
@@ -3044,7 +3148,6 @@ set stopped being contiguous the moment one of them was built.
 | §32 | Self-hosting |
 | §33 | Other CPUs - `momo/z80`, `momo/6502` |
 | §34 | Hoisting the ES load, which §16 leaves reloading per access |
-| §39 | `unit` - a numeric type that will not mix with another without a cast |
 | §40 | Memory past the segment |
 | §41 | `momowad` - asset storage |
 | §42 | A test tier below DOSBox |

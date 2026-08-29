@@ -1,0 +1,5 @@
+// EXPECT-ERROR: is itself a unit
+// A unit stands for storage. Chaining them would make the storage a question
+// rather than a fact, for no gain anybody has asked for.
+unit px = u16
+unit inch = px

@@ -1,0 +1,29 @@
+// The other half of the pair. Identical to `ok-unit-typed.momo` except that the
+// units are gone and every use is spelled as the storage it stood for.
+//
+// The casts stay, because they are not what units added: `u16( a + b )` is a
+// narrowing a plain program writes too. What differs between the two files is
+// only which type name is written, which is the whole claim.
+
+u16  a
+u16  b
+u16 n
+i8.8  t
+
+u16 out
+u16 ratio
+
+a = 40
+b = 25
+n = 3
+t = 1.5
+
+out = u16( a + b )
+out = u16( a - b )
+out = u16( a * n )
+out = u16( a * 2 )
+out = u16( a << 1 )
+ratio = a / b
+out = u16( n > 0 ? a : b )
+out = u16( u16( n ) )
+out = u16( raw i16( t ) )

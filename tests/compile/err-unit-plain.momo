@@ -1,0 +1,8 @@
+// EXPECT-ERROR: write px( ... ) if that is what it is
+// A runtime u16 is not a count the way a literal is - it is a value that means
+// something, and the something is what the unit is for.
+unit px = u16
+px a
+u16 n
+u16 out
+out = u16( a + n )

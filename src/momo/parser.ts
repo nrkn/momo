@@ -32,6 +32,7 @@ import type {
   Statement,
   TypeName,
   TypeNode,
+  UnitDeclaration,
   ViewDeclaration,
   WhileStatement,
 } from './ast.js'
@@ -66,7 +67,15 @@ const describe = (token: Token): string => {
 //
 // Both places a type token is consumed - a declaration and a cast - go through
 // here, which keeps the legal set decided in exactly one place.
-const readType = (token: Token): { name: TypeName; frac: number } => {
+const readType = (token: Token): { name: TypeName; frac: number; unit?: string } => {
+  // A unit token stands for its storage, and the lexer put that spelling on it
+  // (§39). Decoding the storage rather than the name is what keeps the rest of
+  // this file, and everything after it, unaware that units exist.
+  if (token.storage !== undefined) {
+    const storage = readType({ ...token, text: token.storage, storage: undefined })
+    return { name: storage.name, frac: storage.frac, unit: token.text }
+  }
+
   const dot = token.text.indexOf('.')
   if (dot < 0) return { name: token.text as TypeName, frac: 0 }
 
@@ -289,6 +298,7 @@ export const parse = (tokens: Token[]): Program => {
         type: 'CastExpression',
         to: target.name,
         toFrac: target.frac,
+        toUnit: target.unit,
         raw: false,
         argument,
         file: token.file,
@@ -312,6 +322,7 @@ export const parse = (tokens: Token[]): Program => {
           type: 'CastExpression',
           to: target.name,
           toFrac: target.frac,
+          toUnit: target.unit,
           raw: true,
           argument,
           file: token.file,
@@ -518,6 +529,7 @@ export const parse = (tokens: Token[]): Program => {
       type: 'TypeNode',
       name: read.name,
       frac: read.frac,
+      unit: read.unit,
       array,
       size,
       file: token.file,
@@ -596,6 +608,7 @@ export const parse = (tokens: Token[]): Program => {
         params,
         returnType,
         returnFrac: typeNode ? typeNode.frac : 0,
+        returnUnit: typeNode ? typeNode.unit : undefined,
         body,
         file: start.file,
         line: start.line,
@@ -747,6 +760,37 @@ export const parse = (tokens: Token[]): Program => {
   // The offset may be any constant expression - unlike a far segment, which is
   // restricted to a literal or a name because it has to load into a register.
   // This one folds into an `equ`, so `tiles[64 * 2]` costs nothing to allow.
+  // `unit px = u16` (§39). The name arrives as a `type` token rather than an
+  // identifier, because the lexer has already promoted it - which is also why
+  // this can be parsed with no table of its own.
+  const parseUnitDeclaration = (): UnitDeclaration => {
+    const start = expect('keyword', 'unit')
+
+    // Either kind. The name arrives as a `type` token when the lexer collected
+    // this declaration, and as a plain identifier when it did not - which happens
+    // exactly when the storage is malformed, and the resolver has better to say
+    // about that than "expected a type" would.
+    if (!at('type') && !at('ident')) {
+      raise(peek(), 'a unit needs a name and a storage type - write "unit px = u16"')
+    }
+    const name = advance()
+
+    expect('op', '=')
+    const storage = parseTypeNode()
+
+    if (storage.array) raise(storage, 'a unit stands for a scalar type, not an array')
+
+    return {
+      type: 'UnitDeclaration',
+      name: name.text,
+      storage,
+      file: start.file,
+      line: start.line,
+      col: start.col,
+      endLine: previous().line,
+    }
+  }
+
   const parseViewDeclaration = (readonly: boolean, start: Token): ViewDeclaration => {
     expect('keyword', 'view')
     const typeNode = parseTypeNode()
@@ -927,6 +971,7 @@ export const parse = (tokens: Token[]): Program => {
       params,
       returnType: typeNode.name,
       returnFrac: typeNode.frac,
+      returnUnit: typeNode.unit,
       body,
       file: start.file,
       line: start.line,
@@ -1227,6 +1272,7 @@ export const parse = (tokens: Token[]): Program => {
       if (token.text === 'group') return parseGroupDeclaration()
       if (token.text === 'far') return parseFarDeclaration(false, token)
       if (token.text === 'view') return parseViewDeclaration(false, token)
+      if (token.text === 'unit') return parseUnitDeclaration()
       if (token.text === 'sub') return parseSubDeclaration()
       if (token.text === 'fn') {
         // Migration aid - delete once the old spelling is out of muscle memory.

@@ -52,20 +52,32 @@ const escapeCode = (ch: string): number => {
 // The alternative was a symbol table in the parser, which is C's typedef problem
 // and would make `px x` a declaration or not depending on what came before it.
 // Promoting here keeps the parser deciding by token kind alone, as it always has.
-export const unitNamesIn = (tokens: Token[]): string[] => {
-  const names: string[] = []
-  for (let i = 0; i < tokens.length - 1; i++) {
-    const token = tokens[i]
-    if (token.kind === 'keyword' && token.text === 'unit' && tokens[i + 1].kind === 'ident') {
-      names.push(tokens[i + 1].text)
-    }
+// `unit px = u16` - the name, and the spelling of what it stands for. Matched by
+// shape rather than parsed, which is all this needs: a malformed declaration is
+// simply not collected here and the parser reports it in the ordinary way.
+export const unitDeclarationsIn = (tokens: Token[]): Map<string, string> => {
+  const found = new Map<string, string>()
+
+  for (let i = 0; i < tokens.length - 3; i++) {
+    if (tokens[i].kind !== 'keyword' || tokens[i].text !== 'unit') continue
+    const name = tokens[i + 1]
+    const equals = tokens[i + 2]
+    const storage = tokens[i + 3]
+    if (name.kind !== 'ident') continue
+    if (equals.kind !== 'op' || equals.text !== '=') continue
+    if (storage.kind !== 'type') continue
+    found.set(name.text, storage.text)
   }
-  return names
+
+  return found
 }
 
-export const promoteUnits = (tokens: Token[], units: Set<string>): void => {
+export const promoteUnits = (tokens: Token[], units: Map<string, string>): void => {
   for (const token of tokens) {
-    if (token.kind === 'ident' && units.has(token.text)) token.kind = 'type'
+    const storage = units.get(token.text)
+    if (token.kind !== 'ident' || storage === undefined) continue
+    token.kind = 'type'
+    token.storage = storage
   }
 }
 

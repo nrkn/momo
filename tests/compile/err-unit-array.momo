@@ -1,0 +1,2 @@
+// EXPECT-ERROR: a unit stands for a scalar type, not an array
+unit row = u8[4]

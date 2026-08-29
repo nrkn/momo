@@ -46,6 +46,11 @@ export type TypeNode = Located & {
   frac: number
   array: boolean
   size: Expression | null // `u8[4]` has one, `u8[]` does not
+  // The unit this was written as, when it was written as one (DESIGN §39).
+  // `name` and `frac` are the storage it stands for, exactly as they are for a
+  // fixed-point spelling - so everything downstream that wants storage keeps
+  // reading them and never learns about units.
+  unit?: string
 }
 
 // ---- expressions ------------------------------------------------------------
@@ -155,6 +160,7 @@ export type CastExpression = Located & {
   type: 'CastExpression'
   to: TypeName
   toFrac: number // fraction bits of the target type, 0 when it is not fixed
+  toUnit?: string // the unit it was written as, if it was one (§39)
   // `raw i16( x )`: keep the bits, change what they are read as. An ordinary cast
   // across a scale boundary preserves the VALUE and so implies a shift; this one
   // is the other half, and the lowering of `*` needs it at both ends.
@@ -270,6 +276,15 @@ export type FarDeclaration = Spanned & {
 // The three shapes are told apart by the TypeNode alone, exactly as they are for
 // an ordinary declaration: `u8[50]` sized, `u8[]` the remainder of the parent,
 // and `u8` a scalar alias for one element.
+// `unit px = u16` (DESIGN §39). A named type that will not mix with another
+// unit without a cast - checked entirely in the resolver, and gone by the time
+// anything is emitted.
+export type UnitDeclaration = Spanned & {
+  type: 'UnitDeclaration'
+  name: string
+  storage: TypeNode
+}
+
 export type ViewDeclaration = Spanned & {
   type: 'ViewDeclaration'
   name: string
@@ -345,6 +360,7 @@ export type ConstFunctionDeclaration = Spanned & {
   params: Parameter[]
   returnType: TypeName | null // null means infer from the body
   returnFrac: number // fraction bits of the declared return type, else 0
+  returnUnit?: string // the unit it was declared as, if it was one (§39)
   body: Expression
   local?: boolean
   // Set by the resolver, and not an assembly label - a parameterised const is
@@ -389,6 +405,7 @@ export type RoutineDeclaration = Spanned & {
   params: Parameter[]
   returnType: TypeName | null
   returnFrac: number
+  returnUnit?: string
   body: BlockStatement
   label?: string // set by the resolver; the call graph and emitter key on it
   local?: boolean
@@ -475,6 +492,7 @@ export type Statement =
   | GroupDeclaration
   | FarDeclaration
   | ViewDeclaration
+  | UnitDeclaration
   | RoutineDeclaration
   | BlockStatement
   | IfStatement

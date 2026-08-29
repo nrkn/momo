@@ -1,0 +1,33 @@
+// Half of the pair behind §39's central claim: a unit is checked and then it is
+// gone. `ok-unit-plain.momo` is the same program with the units taken out, and
+// tier 1 requires both to emit exactly the same instructions.
+//
+// Keep the two in step. A difference here is either a real leak into the emitter
+// or an edit that only landed on one of them, and the assertion cannot tell those
+// apart - it only says they stopped agreeing.
+
+unit px = u16
+unit ms = i8.8
+
+px  a
+px  b
+u16 n
+ms  t
+
+u16 out
+u16 ratio
+
+a = 40
+b = 25
+n = 3
+t = 1.5
+
+out = u16( a + b )
+out = u16( a - b )
+out = u16( a * n )
+out = u16( a * 2 )
+out = u16( a << 1 )
+ratio = a / b
+out = u16( n > 0 ? a : b )
+out = u16( px( n ) )
+out = u16( raw i16( t ) )

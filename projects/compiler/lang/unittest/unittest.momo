@@ -1,0 +1,61 @@
+// unittest.momo - `unit`, the type that will not mix with another (DESIGN §39).
+//
+// Every number printed here is arithmetic, because a unit has nothing of its own
+// to print: it is checked and then it is gone. What this program demonstrates is
+// that the checking did not change any of the answers - the rules it enforces are
+// about which expressions are legal, never about what a legal one computes.
+//
+// What is NOT here is everything the rules reject. Those live in tests/compile/
+// as err- cases, because a program that fails to compile cannot also run.
+
+include "lib/std/io.momo"
+
+unit px = u16
+unit ms = u16
+
+px  width
+px  height
+ms  elapsed
+u16 count
+
+// ---- entry ----
+
+// An untyped constant takes the unit of whatever it meets, which is the rule
+// that makes the feature usable rather than a cast generator.
+width = 40
+height = 25
+elapsed = 1000
+count = 3
+
+// Same unit: ordinary arithmetic, and the result is still that unit.
+putNumber( u16( width + height ) )
+putChar( ' ' )
+putNumber( u16( width - height ) )
+putChar( ' ' )
+
+// A quantity scaled by a plain count stays the quantity. `count` is a runtime
+// u16 rather than a literal, which is the case §39's table did not name.
+putNumber( u16( width * count ) )
+putChar( ' ' )
+putNumber( u16( width * 2 ) )
+putChar( ' ' )
+
+// Two of the same unit divided is a plain number - the one place a unit is
+// deliberately dropped.
+putNumber( width / height )
+newline()
+
+// A cast is how a value crosses between units, and how it leaves them.
+elapsed = ms( count )
+putNumber( u16( elapsed ) )
+putChar( ' ' )
+
+width = px( u16( elapsed ) + 4 )
+putNumber( u16( width ) )
+newline()
+
+// Comparisons of the same unit are ordinary, and yield bool rather than a unit.
+putNumber( u16( width > height ) )
+putChar( ' ' )
+putNumber( u16( elapsed == ms( 3 ) ) )
+newline()

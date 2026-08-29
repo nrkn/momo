@@ -58,7 +58,10 @@ const escapeString = (value: string): string => {
 // in as an i16 with four fraction bits and has to go back out as `i12.4`, or the
 // round trip in section 14 compiles a different program from the one it read.
 const printType = (node: TypeNode): string => {
-  const name = spell(node.name, node.frac)
+  // A unit prints as itself, not as its storage (§39). Printing `u16` where the
+  // source said `px` would compile - and would be a different program, because
+  // the unit is exactly what the type checking is about.
+  const name = node.unit ?? spell(node.name, node.frac)
   if (!node.array) return name
   if (!node.size) return `${name}[]`
   return `${name}[${printExpression(node.size)}]`
@@ -204,7 +207,10 @@ export const printExpression = (node: Expression): string => {
       // `i16( 1 )`, which parses and means 256 times less. The round trip caught
       // exactly that.
       return (
-        `${node.raw ? 'raw ' : ''}${spell(node.to, node.toFrac)}` +
+        // The unit, not the storage, for the same reason `spell` is used rather
+        // than `node.to`: printing `u16( x )` where the source said `px( x )`
+        // compiles and means something else (§39).
+        `${node.raw ? 'raw ' : ''}${node.toUnit ?? spell(node.to, node.toFrac)}` +
         `( ${printExpression(node.argument)} )`
       )
 
@@ -302,6 +308,9 @@ export const printStatement = (node: Statement, depth = 0): string => {
         node.returnType || node.params.length ? printParams(node.params) : ''
       return `${pad}${head}${params} ${printBlock(node.body.body, depth)}`
     }
+
+    case 'UnitDeclaration':
+      return `${pad}unit ${node.name} = ${printType(node.storage)}`
 
     case 'BlockStatement':
       return `${pad}${printBlock(node.body, depth)}`

@@ -1,0 +1,8 @@
+// EXPECT-ERROR: that is an area
+// A unit system this size has no name for px squared, so it says so rather
+// than quietly producing a px.
+unit px = u16
+px a
+px b
+u16 out
+out = u16( a * b )

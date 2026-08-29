@@ -491,7 +491,36 @@ lexAssertions()
 const lexCount = passed + failures.length - typeCount
 const compileCount = compileTests()
 const goldenCount = goldenTests()
+// ---- units leave no trace (DESIGN §39) ---------------------------------------
+//
+// The claim is that a unit is checked and then gone, and this is the claim rather
+// than an argument for it: two files identical but for their units have to emit
+// the same instructions. Anything that leaked into codegen shows up here as a
+// difference, which is what the golden tier cannot see - it compares committed
+// output against itself, and would happily agree with a leak.
+//
+// Source quotes come out for the same reason the round trip drops them: the two
+// files say different things, on purpose.
+const unitIdentityTests = (): number => {
+  const typed = join(compileDir, 'ok-unit-typed.momo')
+  const plain = join(compileDir, 'ok-unit-plain.momo')
+  const sources = new Map<string, string>()
+
+  try {
+    const a = compile(typed, sharedRoot, sources).assembly
+    const b = compile(plain, sharedRoot, sources).assembly
+    const difference = firstDifference(codeOnly(a).join('\n'), codeOnly(b).join('\n'))
+    check('units leave no trace', difference === null, difference ?? '')
+  } catch (error) {
+    if (!isMomoError(error)) throw error
+    check('units leave no trace', false, formatError(sources, error))
+  }
+
+  return 1
+}
+
 const roundTripCount = roundTripTests()
+const unitCount = unitIdentityTests()
 const subsetCount = subsetTests()
 
 for (const failure of failures) console.error(`  FAIL  ${failure}`)
@@ -500,7 +529,7 @@ const total = passed + failures.length
 console.log(
   `\n${passed}/${total} passed` +
     `  (${compileCount} compile tests, ${goldenCount} golden, ${typeCount} type` +
-    `, ${lexCount} lex, ${roundTripCount} round trip, ${subsetCount} subset)`,
+    `, ${lexCount} lex, ${roundTripCount} round trip, ${unitCount} unit, ${subsetCount} subset)`,
 )
 
 if (failures.some((failure) => failure.includes('first difference'))) {

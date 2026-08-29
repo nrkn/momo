@@ -539,6 +539,62 @@ stand regardless.
 
 ---
 
+## 39. `unit`
+
+### The design had a hole where the parser meets the lexer
+
+The section said the mechanism was §25 generalised, and for the type checking it
+was: a tag beside the storage type, required on `Resolved` so a forgotten one is
+a compile error, thirty-two construction sites found by the type checker. That
+half went exactly as written.
+
+What it had not noticed is that §25 rides on types that were already reserved
+words. A unit name is a user identifier, and type-or-identifier is decided in the
+lexer here - which is what lets the parser tell a declaration from an expression
+with one token of lookahead, and `u8( x )` from a call. Nothing in the design
+said where the knowledge that `px` is a type was supposed to live.
+
+It went in the lexer, which promotes declared unit names to type tokens, rather
+than in the parser, which would have been C's typedef problem: `px x` a
+declaration or not depending on what came before it. The loader needed a first
+walk to make it work at all, because a file is parsed before the includes inside
+it are visited.
+
+**A design can be complete about the half it is looking at.** This one argued the
+type rules carefully and never asked how the parser would know, and the answer
+turned out to be the only part with an architectural consequence.
+
+### One rule was too narrow to survive contact
+
+The table said a unit combines with an *untyped* value under `*` and `/`. Written
+that way, `w * n` with a runtime count is an error - which is ordinary code, and
+the rule was widened to any unitless value. A runtime count is exactly as
+dimensionless as a literal one.
+
+### What the tests caught that nothing else would have
+
+The round trip found the printer emitting `u16( x )` where the source said
+`px( x )`. Same storage, different program - and it would have been invisible in
+the golden tier, which compares committed output against itself. That is the
+second bug the round trip has caught this week, both in the printer, and both
+only because it compiles a program twice and compares.
+
+### What it did not cost
+
+Nothing at runtime, and that is now an assertion rather than a claim: two files
+identical but for their units have to emit the same instructions. Worth having as
+a test rather than an argument, because the argument is exactly the kind that
+stays true right up until it does not.
+
+### And one thing to know before using it
+
+Units are viral at a library boundary. Everything in `std` takes plain types, so
+a unit has to be cast to be printed or passed - `putNumber( u16( width ) )`. That
+is the feature working rather than a defect, but it means a unit pays off inside
+a body of code that shares it and costs at the edge where it meets one that does
+not.
+
+---
 ## 38. File I/O
 
 ### The design's central claim held

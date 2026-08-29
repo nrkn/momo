@@ -1,0 +1,6 @@
+// EXPECT-ERROR: cannot put ms in px
+unit px = u16
+unit ms = u16
+px a
+ms b
+a = b
