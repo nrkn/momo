@@ -1162,10 +1162,22 @@ nothing from it. §23 designs the second owner - a named block of declarations
 inside a file - and it is deliberately the same marker and the same three-level
 lookup rather than a mechanism of its own.
 
-It also displaced most of the prefix convention. `ioBase`, `screenCols` and
-`strEnd` were a file boundary written out by hand, one identifier at a time -
-which is what §11 meant by "as C managed for fifty years", C's `static` being the
-same idea under a worse keyword.
+It also displaced part of the prefix convention - but less of it than this used to
+claim, and the difference is worth drawing because it decides what `local` may be
+applied to.
+
+`ioBase` is the real case: it is read only inside `std/io.momo`, so the prefix
+there is a file boundary written out by hand, one identifier at a time, which is
+what "as C managed for fifty years" meant - C's `static` being the same idea under
+a worse keyword.
+
+**`screenCols` and `strEnd` are not that**, and were listed here as though they
+were. `screenCols` is read by `std/screen.momo` and `shared/lib/mopaint.momo`;
+`strEnd` by those two and `std/str.momo`. Their prefix is a *namespace* rather
+than a hidden boundary - it says which library a public name belongs to - and
+`local` on either would break the files that read it. A prefix on a shared name
+and a prefix standing in for a private look identical in the source, and only the
+readers tell them apart.
 
 **What it cost elsewhere.** The call graph and pruning were keyed on a routine's
 *source name*, which `local` makes ambiguous: two files may each declare
