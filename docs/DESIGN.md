@@ -3623,7 +3623,7 @@ already answers it.
 
 ## Sections designed, but not built
 
-Twelve sections carry numbers but no text here, because what they describe does
+Thirteen sections carry numbers but no text here, because what they describe does
 not exist yet. All are in `PLAN.md`. The heading names no range deliberately - the
 set stopped being contiguous the moment one of them was built.
 
@@ -3641,6 +3641,7 @@ set stopped being contiguous the moment one of them was built.
 | §42 | A test tier below DOSBox |
 | §43 | The screen library |
 | §46 | `alias` - a name for an indexed access, which §45's `of` is one case of |
+| §47 | `block` - the memory past the segment as a library, spun out of §40 |
 
 ---
 

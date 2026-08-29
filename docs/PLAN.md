@@ -131,6 +131,12 @@ at all, which makes one a floor rather than a measurement.
   since a README that shows off wants something to show.
 - **Fixed-point division.** DESIGN §25 is half built and says which half: `*` on
   8.8 lands, division does not, and §25 sets out why it is the awkward one.
+- **`block`.** §47 - three routines over the word `arena` already reads, saying
+  where the block DOS gave us ends and whether a region fits in it. Twenty lines
+  and no compiler change, and it opens the mode 13h back buffer, §41's asset
+  arena and §43's backing stores - the best ratio of downstream to surface on this
+  list. It spun out of §40 the way §34 and §35 spun out of §16: the small
+  buildable piece, leaving that section the genuinely blocked ES half.
 
 ### Probably
 
@@ -2072,3 +2078,111 @@ it, and `of`'s substitution reused unchanged.
 Out: aliasing an expression rather than an indexed name, aliasing whole rows or
 sub-arrays - that is a runtime `view` and §17 refused it for reasons that still
 hold - and any spelling that lets a binding cross a routine boundary.
+
+---
+
+## 47. `block` - the memory past the segment, as a library
+
+**Designed, not built.** Three routines answering where the block DOS gave us
+ends and whether a region fits inside it. `arena` (§40) proved the mechanism; this
+is the twenty lines that make it usable without every program re-deriving it.
+
+**It is deliberately not an allocator.** §40 already settles that: *"`view` (§17) is
+often the better answer... A program that knows its regions at compile time should
+not be allocating."* A mode 13h back buffer is exactly such a program - one region,
+64,000 bytes, known when it is written. The stateful arena is kept below as the
+alternative to revisit when a second caller exists.
+
+### What the language decides rather than the design
+
+None of this is a preference, and all of it is worth stating so nobody re-opens it:
+
+- **It hands out segments.** §16 allows a `far` region's address to be "a constant
+  or a plain `u16` variable, never an arbitrary expression", so a `u16` segment is
+  the only runtime currency there is.
+- **The program declares the region; the library only says where.** `far`
+  declarations are top-level with constant sizes, so no routine can return one.
+- **Granularity is paragraphs**, because the machine's is.
+- **The base is `PSP:0x0002`.** §13 names it as the robust source and nothing else
+  knows where the block ends.
+- **The floor is `_ds + 0x1000`.** Our own 64 KB is addressable without a segment
+  register and already holds the image and the heap.
+- **Failure returns 0.** Momo has no exceptions, and `dstest` already rests on DOS
+  never loading a `.COM` at segment 0.
+- **There is no `free`.** That is what makes it not an allocator, and §40 assigns
+  the tagged, purgeable version to the zone, which it says is one design with §41.
+
+### The surface
+
+```momo
+u16  blockEnd()                       // segment one past the end of our block
+u16  blockBase()                      // first segment past our own addressable 64 KB
+bool blockFits( u16 seg, u16 bytes )  // does a region of that size fit there?
+```
+
+and the whole of the back buffer case:
+
+```momo
+include "lib/std/block.momo"
+
+u16 bufSeg
+far u8[64000] backBuffer = bufSeg
+
+bufSeg = blockBase()
+if ( !blockFits( bufSeg, 64000 ) ) { ... no room, say so and stop ... }
+```
+
+### One arithmetic trap, worth writing down before it is hit
+
+Rounding bytes up to paragraphs is `( bytes + 15 ) >> 4`, and that **overflows a
+`u16` above 65,520** - which is inside the range a caller can pass. Write it as
+`( bytes >> 4 ) + ( ( bytes & 15 ) != 0 ? 1 : 0 )` instead. The same care applies
+to `seg + paragraphs` in `blockFits`: compare against the space remaining rather
+than computing the end, or a high segment wraps and the answer comes back true.
+
+### It initialises itself, which is a pattern this repo does not have yet
+
+A `far` region needs a `u16` holding `_ds`, and `_ds` is not known at assembly
+time - so §5 forbids initialising that variable in its declaration, and §2 has no
+prologue to do it in.
+
+**A library's own top-level statement solves it.** An included file's top-level
+statements are spliced where the include stands, and they run before the
+program's own: `blockSeg = _ds` at the head of `block.momo` lands at the head of
+`__entry`. That is verified rather than assumed.
+
+Two things follow, and the second is the reason this has a heading. It carries an
+ordering rule - the include must precede any use, which is where includes go
+anyway. And **no file in `shared/lib/std/` has a top-level statement today**, so
+this establishes the pattern rather than following it. Worth deciding deliberately
+rather than discovering later that the standard library grew a startup sequence.
+
+### Alternatives, kept for when this is built
+
+Each was weighed and set aside rather than missed. The recommendation is the
+surface above; these are what to reconsider if it does not survive contact.
+
+| | for | against |
+|---|---|---|
+| **A stateful bump arena** instead of three pure routines | earns its place with two or more regions, or sizes computed at runtime; `heaptest` shows the idiom is at home here | needs state, an init story and a policy, for a case §40 says should not be allocating at all |
+| **An explicit `blockInit()`** instead of self-initialisation | no new pattern in `std/`, no ordering rule, nothing runs that a program did not ask for | forgetting it hands out garbage segments, which on this machine is silent corruption - the worst failure shape available |
+| **Paragraphs** rather than bytes in the interface | the full 1 MB range, and it matches the machine | every caller writes the rounding by hand, which is where the trap above lives |
+| **Starting at the heap top** rather than above our own segment | uses the tail of our own 64 KB instead of stranding it | §13's `_hsize` is a conservative floor, so the boundary between two allocators would be fuzzy - and a fuzzy boundary between allocators is how heaps get corrupted |
+| **Verifying by write and read-back** rather than trusting `PSP:0x0002` | catches an emulator or a loader that lies | the word is the DOS contract, and `arena` already round-trips once, which may be all the checking anyone needs |
+| **Naming it `arena`** | the obvious word | taken by the test project, and §40 reserves *zone* for §41's - `block` says what it is, which is the thing DOS handed us |
+
+### Testing
+
+`arena` already covers the mechanism. What this adds is a project exercising the
+three routines against known-invariant answers - `blockEnd() > blockBase()`,
+`blockFits` true for a small region and false for one that cannot fit under any
+allocation - none of which depends on how much memory the machine has.
+
+The rounding trap wants a unit-style case of its own at 65,521 bytes, which is the
+smallest value where the naive expression is wrong.
+
+### What it unblocks
+
+A double-buffered mode 13h back buffer, which is what DESIGN §20's open graphics
+question keeps circling; the far arena for assets that §41 wants; and §43's
+backing stores. All three are §40 rows that have been open since §35 landed.
