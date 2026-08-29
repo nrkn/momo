@@ -1,0 +1,76 @@
+// filetest.momo - std/file.momo, end to end (DESIGN §38).
+//
+// A round trip needs nothing on the disk beforehand: the program creates its own
+// file, writes a pattern, closes it, reopens it, reads it back and compares. So
+// every number printed is one this run produced, and there is no fixture to go
+// missing or go stale.
+//
+// The pattern is deliberately not one repeated byte. A short read, a stuck index
+// or a buffer that never got written would still compare equal against a run of
+// zeroes, and would not against this.
+
+include "lib/std/io.momo"
+include "lib/std/file.momo"
+
+const u8[] name    = "FILETEST.TMP\0"
+const u8[] missing = "NOSUCH.XYZ\0"
+
+const bufSize = 64
+
+u8[bufSize] out
+u8[bufSize] back
+
+u16 handle
+u16 i
+u16 n
+u16 size
+u16 same
+
+// ---- entry ----
+
+for ( i = 0; i < bufSize; i++ ) {
+  out[i] = u8( i * 3 + 1 )
+}
+
+// ---- write it ----
+
+handle = fileCreate( addr( name ) )
+putNumber( u16( fileFailed() ) )
+putChar( ' ' )
+
+n = fileWrite( handle, addr( out ), bufSize )
+putNumber( n )
+putChar( ' ' )
+
+fileClose( handle )
+
+// ---- read it back ----
+
+handle = fileOpen( addr( name ), fileReadOnly )
+size = fileSize( handle )
+putNumber( size )
+putChar( ' ' )
+
+n = fileRead( handle, addr( back ), bufSize )
+putNumber( n )
+newline()
+
+fileClose( handle )
+
+same = 1
+for ( i = 0; i < bufSize; i++ ) {
+  if ( back[i] != out[i] ) same = 0
+}
+putNumber( same )
+putChar( ' ' )
+
+// ---- and a file that is not there ----
+//
+// The failure path matters as much as the success one: a library that reported
+// everything as fine would pass every check above.
+
+handle = fileOpen( addr( missing ), fileReadOnly )
+putNumber( u16( fileFailed() ) )
+putChar( ' ' )
+putNumber( fileError() )
+newline()

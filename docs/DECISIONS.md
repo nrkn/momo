@@ -491,6 +491,34 @@ stand regardless.
 
 ---
 
+## 38. File I/O
+
+### The design's central claim held
+
+It said none of this was a language feature, and none of it was: no resolver
+change, no emitter change, no grammar, and not one existing `.asm` moved. The
+prediction for `filetest` - `0 64 64 64`, then `1 1 2` - was written into the
+`.expected` before the program was ever run, and matched first time.
+
+### `local` cost the round-trip tier, and was taken back out
+
+The status pair and its capture helper were written `local`, which is what §11 is
+for and looked obviously right. The tally said otherwise: tier 1 went to 348 with
+the round trip **unchanged at 61**, because the printer splices every include into
+one file and `npm test` skips any program containing a private - so `filetest` was
+in the compile and golden tiers and absent from the one test the parser has.
+
+`std/io.momo` had already weighed this and written the answer down: the test is
+whether a writable copy is a **correctness hole**, as `randomSeed` is. Writing
+`fileBad` only makes a program lie to itself about its own last call, which is not
+that. So the `local` came off, the `file` prefix does the same job it did before
+§11 existed, and the round trip went to 62 - one for `filetest`, and one for every
+program that ever reads a file.
+
+**The tally is what caught it.** Nothing failed, and the feature worked either way;
+the only symptom was a number that did not move when a program was added.
+
+---
 ## 35. `_ds`
 
 ### Three places had to agree that it has no storage

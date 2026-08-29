@@ -1,0 +1,131 @@
+// std/file.momo - DOS files by handle (DESIGN §38).
+//
+// Six calls over `int 0x21`, and a status pair beside them. Every routine
+// captures the outcome before it returns, so a caller asks `fileFailed()` rather
+// than reading `_cf` - `_cf` holds the carry from the most recent int, and
+// anything that prints would overwrite it before the caller looked.
+//
+// **A buffer has to live in this program's segment.** DOS takes it as DS:DX and
+// nothing here can move DS, so `at` is an offset from `addr( something )` and a
+// file bigger than what fits is read in pieces.
+//
+// Filenames are NUL-terminated. '$' is a print convention and nothing to do with
+// this.
+
+const fileReadOnly  = 0
+const fileWriteOnly = 1
+const fileReadWrite = 2
+
+const fileFromStart   = 0
+const fileFromCurrent = 1
+const fileFromEnd     = 2
+
+// NOT `local`, deliberately, and for the reason std/io.momo gives: the printer
+// splices every include into one file, so a private loses the owner its label is
+// named after, and `npm test` skips any program containing one. This file is
+// meant to be included widely, so marking these private would cost the round-trip
+// tier for every program that ever reads a file - and the round trip is the only
+// test the parser has.
+//
+// The `file` prefix is the pre-`local` answer and it still works. The test
+// io.momo sets is whether a writable copy is a correctness hole, as `randomSeed`
+// is: writing these only makes a program lie to itself about its own last call,
+// which is not the same thing.
+bool fileBad = false
+u16  fileErr = 0
+
+// Run immediately after the int, before anything else has a chance to issue one.
+// A call cannot disturb either value - only another int can - so all six routines
+// share this instead of repeating it.
+sub fileCapture {
+  fileBad = _cf
+  fileErr = fileBad ? _ax : 0
+}
+
+// Whether the last call failed, and the DOS error code if it did.
+bool fileFailed() => fileBad
+u16 fileError() => fileErr
+
+// AH=3Dh. Returns a handle, or 0 if it failed.
+u16 fileOpen( u16 at, u8 mode ) {
+  _ah = 0x3D
+  _al = mode
+  _dx = at
+  int 0x21
+  fileCapture()
+
+  return fileBad ? 0 : _ax
+}
+
+// AH=3Ch - creates, or truncates one that is already there. Attribute 0 is an
+// ordinary file.
+u16 fileCreate( u16 at ) {
+  _ah = 0x3C
+  _cx = 0
+  _dx = at
+  int 0x21
+  fileCapture()
+
+  return fileBad ? 0 : _ax
+}
+
+// AH=3Eh.
+sub fileClose( u16 handle ) {
+  _ah = 0x3E
+  _bx = handle
+  int 0x21
+  fileCapture()
+}
+
+// AH=3Fh. Returns the bytes actually read, which is short of `count` at end of
+// file and 0 on failure - so a caller that needs to tell those apart asks
+// `fileFailed()`.
+u16 fileRead( u16 handle, u16 at, u16 count ) {
+  _ah = 0x3F
+  _bx = handle
+  _cx = count
+  _dx = at
+  int 0x21
+  fileCapture()
+
+  return fileBad ? 0 : _ax
+}
+
+// AH=40h. A short write is how DOS reports a full disk, and is not an error.
+u16 fileWrite( u16 handle, u16 at, u16 count ) {
+  _ah = 0x40
+  _bx = handle
+  _cx = count
+  _dx = at
+  int 0x21
+  fileCapture()
+
+  return fileBad ? 0 : _ax
+}
+
+// AH=42h. The position DOS wants is 32 bits, so it arrives as two words and a
+// file under 64 KB passes 0 for `high`. Returns the low word of the new
+// position, which is the whole of it for such a file.
+u16 fileSeek( u16 handle, u8 whence, u16 high, u16 low ) {
+  _ah = 0x42
+  _al = whence
+  _bx = handle
+  _cx = high
+  _dx = low
+  int 0x21
+  fileCapture()
+
+  return fileBad ? 0 : _ax
+}
+
+// ---- over the top of those ------------------------------------------------
+
+// The size of an open file under 64 KB, leaving the position back at the start.
+u16 fileSize( u16 handle ) {
+  u16 size
+
+  size = fileSeek( handle, fileFromEnd, 0, 0 )
+  fileSeek( handle, fileFromStart, 0, 0 )
+
+  return size
+}

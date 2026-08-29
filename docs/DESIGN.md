@@ -2914,9 +2914,80 @@ headers, which are the right weight for something still finding its shape.
 
 ---
 
+## 38. File I/O
+
+**Built.** DOS files by handle, in `shared/lib/std/file.momo`: open, create,
+close, read, write and seek, with `fileSize` over the top. `filetest` is the
+worked example (§14).
+
+**None of it is a language feature**, which is the thing worth knowing about this
+section. `int`, the register builtins, `addr()` and `_cf` (§10) are between them
+everything file handles need, and `cftest` had already opened a real file before
+any of this existed. It is the second design met by what was already there, after
+§37's routine indirection.
+
+```momo
+handle = fileCreate( addr( name ) )
+n      = fileWrite( handle, addr( out ), 64 )
+fileClose( handle )
+```
+
+### A buffer has to live in this segment
+
+DOS takes it as **DS:DX**. The register builtins are AX, BX, CX, DX, SI and DI -
+there is no `_ds` to write and no `_es` at all, `far` (§16) drives ES for its own
+accesses rather than offering it, and `_ds` (§35) reads DS without moving it. So
+`DS = CS` holds everywhere and cannot be suspended for the length of a call.
+
+Every read and write therefore lands in the program's own segment, and anything
+larger stages through a `view` of `_heap` (§17) and copies out to `far` memory.
+A mechanism for pointing DS elsewhere across one call is **rejected rather than
+overlooked**: `DS = CS` is what makes every global a bare displacement (§10), and
+§16 already records what that discipline costs for the register that does *not*
+underpin the memory model.
+
+### The capture rule, which is where the design earned its keep
+
+`_cf` holds the carry from the **most recent** `int`, so a library that left it
+for the caller to read would be correct exactly until somebody put a `putStr`
+between the call and the check.
+
+So every routine captures before it returns. `fileCapture` does it once and the
+six share it - safe because a `call` cannot disturb `_cf` or `_ax`, only another
+`int` can, and the emitted sequence is `call int21` then `call fileCapture` with
+nothing in between.
+
+`fileFailed()` and `fileError()` are what a caller asks. A short read is not a
+failure: it is end of file, and telling the two apart is what the status pair is
+for.
+
+### What is out of scope, and one collision
+
+Directory enumeration, attributes, rename and delete. Enumeration is out for a
+reason rather than for tidiness: `FindFirst` writes to the Disk Transfer Area,
+which defaults to **PSP:0080h - the command tail**. A program that enumerates a
+directory destroys its own arguments unless it reads them first or moves the DTA
+with `AH=1Ah`. Neither is hard; both are invisible until they bite.
+
+Handles are finite: a `.COM` inherits twenty with five already open, leaving
+fifteen. Ample for an editor, thin for a shell that keeps assets mapped.
+
+### The test needs nothing on the disk
+
+`filetest` creates its own file, writes a pattern, closes it, reopens it, reads it
+back and compares - so every number it prints is one that run produced, and there
+is no fixture to go missing or stale. The pattern is deliberately not one repeated
+byte, because a short read or a buffer that was never written would compare equal
+against a run of zeroes.
+
+It also opens a file that is not there, and checks the failure reports DOS error
+2. A library that reported everything as fine would pass every other check in it.
+
+---
+
 ## Sections designed, but not built
 
-Thirteen sections carry numbers but no text here, because what they describe does
+Twelve sections carry numbers but no text here, because what they describe does
 not exist yet. All are in `PLAN.md`. The heading names no range deliberately - the
 set stopped being contiguous the moment one of them was built.
 
@@ -2929,7 +3000,6 @@ set stopped being contiguous the moment one of them was built.
 | §32 | Self-hosting |
 | §33 | Other CPUs - `momo/z80`, `momo/6502` |
 | §34 | Hoisting the ES load, which §16 leaves reloading per access |
-| §38 | File I/O |
 | §39 | `unit` - a numeric type that will not mix with another without a cast |
 | §40 | Memory past the segment |
 | §41 | `momowad` - asset storage |
