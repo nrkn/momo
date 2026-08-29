@@ -134,6 +134,27 @@ nothing has yet wanted it.
   storage type and this is that tag generalised, so the mechanism is shipped. What
   wanted it is `tennis`, which encodes its two coordinate spaces in identifiers -
   `subPxY`, `subgridToPx`, `// subgrid units` - because nothing else can.
+- **Teach the printer to lower `local`.** The desugar round trip is the only test
+  the parser has, and it skips every program that *loads* a private - about a
+  fifth of the corpus, including `tennis`, `momolo`, `simplerl` and the file that
+  exists to test `local`. DESIGN §14 has the mechanism and the prices paid so far.
+
+  The fix is for the printer to emit a private under the mangled name the resolver
+  gives it anyway - `rand__randomSeed` - rather than preserving the `local`
+  modifier, which is what it already does for every other piece of sugar. One
+  cost: the printer would need resolved input to tell a private from a global it
+  shadows, where today it never looks at a label.
+
+  **`npm run desugar` showing mangled names is a gain rather than a price.** That
+  tool exists to show what a program actually is once its sugar is lowered, and
+  §11 implements `local` as precisely this rename - so the one mechanism the
+  desugar output currently hides is the one a reader most needs to see.
+
+  What it buys is the parser's only test covering the programs most likely to
+  break it, and libraries getting `local` back without a coverage bill. Right now
+  a tool limitation is deciding whether a library may use a language feature,
+  which is the wrong way round - `std/file.momo` had a private taken out for it
+  this week.
 - **The screen library.** §43 - a table of modes with the shape of a pixel in it,
   a yes/no/maybe query that resolves by setting a mode and reading it back, and the
   current-screen descriptor `momode` would set to put a program in a window. Mode

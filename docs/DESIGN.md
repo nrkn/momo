@@ -1416,8 +1416,8 @@ their contract will not move. Everything else is tested end to end.
 **The desugar round trip is the only test of the parser.** `npm run desugar`
 prints a program back as Momo from its AST, by which point the parser has already
 lowered `=>`, `else if`, prefix and postfix `++` and adjacent string literals, and
-the loader has spliced every `include`. Tier 1 prints all 60 programs and compile
-tests, compiles the printed copy, and requires the same code from both.
+the loader has spliced every `include`. Tier 1 prints every program and compile
+test, compiles the printed copy, and requires the same code from both.
 
 It asserts nothing about how the AST is arranged - only that printing and parsing
 are inverse - so it survives every refactor that keeps the meaning, which is the
@@ -1429,8 +1429,11 @@ by construction: no comments, different wrapping, sugar lowered. So the `; ---- 
 lines come out and everything else has to match - every instruction, every label,
 every inline comment about a widening or a jump choice.
 
-**`local` is the one thing it cannot round-trip**, and the test skips those 13
-cases rather than weakening what it asserts for the other 47. Printing splices
+**`local` is the one thing it cannot round-trip**, and the test skips those cases
+rather than weakening what it asserts for the rest - about a fifth of the corpus,
+with the count `npm test` prints being what is actually asserted. The skipped set
+includes `tennis`, `momolo`, `simplerl` and `ok-local.momo`: the largest program,
+the layout engine, the game, and the file that exists to test `local`. Printing splices
 every include into one file, and `local` names a file as its owner - so the
 boundary that gives a private its identity is exactly what printing destroys. A
 private from `rand.momo` comes back owned by the printed file, and two files that
@@ -1441,19 +1444,35 @@ to.
 **The skip is transitive, which makes `local` in a library expensive.** A program
 is skipped if any statement it *loads* is private, so one `local` in a widely
 included file removes every consumer from the only test the parser has. That is
-why 13 cases are skipped where far fewer files use the keyword, and it is worth
+why so many cases are skipped where eight files use the keyword, and it is worth
 pricing before adding a private to `shared/lib/`:
 
 - `local u16 randomSeed` in `std/rand.momo` costs the six programs that include
   it, and pays for itself - it closes a hole where a program could write past the
   guard that keeps the generator alive.
 - Marking `putNumber`'s three consts private in `std/io.momo` was tried and
-  reverted. 22 programs include that file, so it cost 19 of the 48 assertions -
-  most of the tier - to enforce something the `io` prefix already achieves for
-  three values nothing can write.
+  reverted. 22 programs included that file at the time, so it cost 19 of the 48
+  assertions then standing - most of the tier - to enforce something the `io`
+  prefix already achieves for three values nothing can write. More programs
+  include it now, so the bill would be larger.
+- `std/file.momo` was written with a private status pair and had it taken back
+  out for the same reason, before anything but its own test could feel it.
 
 The rule that falls out: a private in a library wants a correctness reason, not a
 tidiness one. `local` on a program's own file is free, because nothing includes it.
+
+**This could be closed, and is not.** The printer *preserves* `local` as a
+modifier where it could **lower** it, the way it already lowers `=>` - emitting a
+private under `rand__randomSeed`, which is exactly the label the resolver gives it
+anyway. Every AST node already carries the file it was written in, so nothing is
+missing. What it would cost is that the printer needs resolved input to tell a
+private from a global it shadows, where today it goes AST in, source out and never
+looks at a label. The mangled names would then appear in `npm run desugar`, which
+is the tool doing its job rather than a price: §11 implements `local` as exactly
+this rename, so it is currently the one mechanism that output hides.
+
+`PLAN.md` carries it as work, because a tool limitation deciding whether a library
+may use a language feature is the wrong way round.
 
 `tests/compile/ok-precedence.momo` exists for it. Bracketing is where a printer
 goes wrong, and a program only catches that if it contains an expression whose
