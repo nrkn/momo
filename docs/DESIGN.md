@@ -3490,6 +3490,28 @@ field accesses - `el` 177, `player` 33, `st` 30, `held` 24, `mob` 8 - and they
 cluster: a five-line body in `momolo/fit.momo` reads `el[ci]` four times, and the
 four statements below it read `el[i]` twelve times. That is what `of` is for.
 
+### What adoption actually found, which is thinner than the above
+
+Classifying all 160 loops put 12 on a `len( X )` bound, 39 on a const that also
+sizes some X, and 109 on neither. **Eight took `in` and one file took `of`**, which
+is the honest yield and is worth writing down beside the paragraph promising more.
+
+The 39 do not adopt in bulk. `screenH` and `maxPaths` are a dimension and a
+capacity that several arrays share, so `for ( y in rowPixels )` would be correct
+and would name one of six co-sized arrays as though the loop were about it. The
+loop is about screen rows, and `screenH` says so.
+
+**And `of` has almost no site here.** Every array loop it can reach turned out to
+be a single-access fill or clear - `pathPixels[p] = 0` six times over, `pixels[i] =
+u8( nextRandom() )` - where naming a binding costs a reader more than `X[ i ]` did.
+`of` pays for itself on a *group*, where the binding names an entity, and on a body
+dense enough to repeat the access; the corpus's dense bodies are momolo's, and
+those are indexed by computed indices that `of` cannot reach at all.
+
+That is the measurement rather than a disappointment: `of` is built, costs nothing,
+and `grptest` uses it. But a reader deciding whether to reach for it should know
+that one program in the repository does.
+
 ### The general form this is a special case of, and why it is not here
 
 Most of those 281 are **not reachable by `of`**, and that is the finding rather

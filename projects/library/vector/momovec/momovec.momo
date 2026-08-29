@@ -78,7 +78,7 @@ sub plot( i16 x, i16 y ) {
 
 // ---- the pixels stage ----
 
-for ( u16 s = 0; s < len( sceneFirstPath ); s++ ) {
+for ( u16 s in sceneFirstPath ) {
   strokeScene( s )
 }
 
@@ -91,7 +91,7 @@ for ( u16 s = 0; s < len( sceneFirstPath ); s++ ) {
 // emits, for the same reason: exactness beats readability in a file that exists to
 // be compared.
 
-for ( u16 s = 0; s < len( sceneFirstPath ); s++ ) {
+for ( u16 s in sceneFirstPath ) {
   for ( u16 p = 0; p < scenePathCount[ s ]; p++ ) {
     pathEdges( sceneFirstPath[ s ] + p )
 
@@ -113,7 +113,7 @@ for ( u16 s = 0; s < len( sceneFirstPath ); s++ ) {
 // emission, `sorted` catches a wrong ordering, and a sort that quietly dropped a
 // crossing would pass one and fail the other.
 
-for ( u16 s = 0; s < len( sceneFirstPath ); s++ ) {
+for ( u16 s in sceneFirstPath ) {
   for ( u16 p = 0; p < scenePathCount[ s ]; p++ ) {
     pathEdgesSorted( sceneFirstPath[ s ] + p )
 
@@ -162,7 +162,7 @@ sub emitSpan( u16 y, i16 x0, i16 x1 ) {
 // Raw spans, straight from the walk.
 spanMode = modeSpans
 
-for ( u16 s = 0; s < len( sceneFirstPath ); s++ ) {
+for ( u16 s in sceneFirstPath ) {
   for ( u16 p = 0; p < scenePathCount[ s ]; p++ ) {
     fillPath( sceneFirstPath[ s ] + p, false )
   }
@@ -173,7 +173,7 @@ for ( u16 s = 0; s < len( sceneFirstPath ); s++ ) {
 // every pixel, which is what makes either contract usable.
 spanMode = modeFill
 
-for ( u16 s = 0; s < len( sceneFirstPath ); s++ ) {
+for ( u16 s in sceneFirstPath ) {
   for ( u16 p = 0; p < scenePathCount[ s ]; p++ ) {
     fillPath( sceneFirstPath[ s ] + p, true )
   }
@@ -190,7 +190,7 @@ for ( u16 s = 0; s < len( sceneFirstPath ); s++ ) {
 // from those two stages is where the numbers came from.
 spanMode = modeSpans
 
-for ( u16 s = 0; s < len( sceneFirstPath ); s++ ) {
+for ( u16 s in sceneFirstPath ) {
   for ( u16 p = 0; p < scenePathCount[ s ]; p++ ) {
     strokeAndFillPath( sceneFirstPath[ s ] + p, false )
   }

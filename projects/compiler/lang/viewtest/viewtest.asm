@@ -111,7 +111,7 @@ __entry:
         call    newline
 ; ---- total = 0
         mov     word [total], 0
-; ---- for ( u16 i = 0; i < len( tail ); i++ ) {
+; ---- for ( u16 i in tail ) {
         mov     word [i], 0
 .L1:
         mov     ax, [i]

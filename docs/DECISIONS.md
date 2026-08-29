@@ -600,6 +600,28 @@ This is the second time in two features that adopting into real code found what
 the pair could not. §44's was data ordering; this one is a slot the design never
 thought to count.
 
+### The sweep found less than the design implied, and the reason is worth having
+
+160 loops classified: 12 already bounded by `len( X )`, 39 by a const that also
+sizes some array, 109 by neither. **Eight adopted `in`. One file adopted `of`.**
+
+Two things ate the rest. The 39 are dimensions and capacities shared across several
+arrays - `screenH` sizes six of them - so naming one would have said the loop was
+about it when the loop is about screen rows. And every array loop `of` could reach
+turned out to be a **single-access fill or clear**: `pathPixels[p] = 0`, six times
+across the vector programs, plus two more of the same shape. A binding costs a
+reader something and buys nothing when the access appears once, so `X[ i ] = 0`
+stays.
+
+The design had said `of` earns its place on density and pointed at momolo's 281
+indexed field accesses. It was right about the principle and wrong about the reach:
+momolo's dense bodies index by `childAt( i, k )` and by routine parameters, which
+`of` cannot bind to. What is left for it is groups, and one program uses one.
+
+That is not a reason to regret building it - it costs nothing, it is correct, and
+the alias binding it is a special case of is the thing with the 281 sites. It is a
+reason for §45 to say plainly how thin the ground is, which it now does.
+
 ### The improvement that came out of the worst message
 
 `m` bare lowers to `mob[ c ]` with no field, and §18 answered that with `"mob" is

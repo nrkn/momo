@@ -24,7 +24,7 @@ modeFill:       equ     1
 ; =========================================================== entry ====
 
 __entry:
-; ---- for ( u16 s = 0; s < len( sceneFirstPath ); s++ ) {
+; ---- for ( u16 s in sceneFirstPath ) {
         mov     word [s], 0
 .L1:
         mov     ax, [s]
@@ -38,7 +38,7 @@ __entry:
         inc     word [s]
         jmp     .L1
 .L3:
-; ---- for ( u16 s = 0; s < len( sceneFirstPath ); s++ ) {
+; ---- for ( u16 s in sceneFirstPath ) {
         mov     word [s], 0
 .L5:
         mov     ax, [s]
@@ -116,7 +116,7 @@ __entry:
         inc     word [s]
         jmp     .L5
 .L7:
-; ---- for ( u16 s = 0; s < len( sceneFirstPath ); s++ ) {
+; ---- for ( u16 s in sceneFirstPath ) {
         mov     word [s], 0
 .L17:
         mov     ax, [s]
@@ -196,7 +196,7 @@ __entry:
 .L19:
 ; ---- spanMode = modeSpans
         mov     byte [spanMode], 0
-; ---- for ( u16 s = 0; s < len( sceneFirstPath ); s++ ) {
+; ---- for ( u16 s in sceneFirstPath ) {
         mov     word [s], 0
 .L29:
         mov     ax, [s]
@@ -237,7 +237,7 @@ __entry:
 .L31:
 ; ---- spanMode = modeFill
         mov     byte [spanMode], 1
-; ---- for ( u16 s = 0; s < len( sceneFirstPath ); s++ ) {
+; ---- for ( u16 s in sceneFirstPath ) {
         mov     word [s], 0
 .L37:
         mov     ax, [s]
@@ -278,7 +278,7 @@ __entry:
 .L39:
 ; ---- spanMode = modeSpans
         mov     byte [spanMode], 0
-; ---- for ( u16 s = 0; s < len( sceneFirstPath ); s++ ) {
+; ---- for ( u16 s in sceneFirstPath ) {
         mov     word [s], 0
 .L45:
         mov     ax, [s]

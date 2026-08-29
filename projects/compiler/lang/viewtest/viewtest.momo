@@ -105,7 +105,7 @@ newline()
 
 // A runtime index through a view: [label + bx], where the label is an equ.
 total = 0
-for ( u16 i = 0; i < len( tail ); i++ ) {
+for ( u16 i in tail ) {
   tail[i] = u8( i * 3 + 1 )
   total += tail[i]
 }
