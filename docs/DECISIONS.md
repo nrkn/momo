@@ -590,6 +590,26 @@ what to do.
 
 Writing them was more of the change than the lifting was.
 
+### The pair agreed about the data section because it was built to
+
+The identity pair asserts that two files identical but for the sugar emit the same
+instructions, and `codeOnly` strips only the source-quote comments - so the data
+section is compared too, and the pair passed on it. That looked like evidence and
+was not: `ok-for-decl-plain.momo` was written with its declarations in the *lifted*
+order, deliberately, so the two agree about storage by construction.
+
+What that hid showed up the first time real code adopted the sugar. Lifting a
+counter to the top of a body puts it before declarations it was written after, so
+**`momolo` came out with 14 data labels repositioned** - same names, same widths,
+same footprint, and not one changed instruction. The design had claimed "no storage
+moves and no instruction changes"; the second half held and the first did not.
+
+The lesson is not that the pair is wrong. It is that a twin you *choose* tests
+exactly the claim you chose it for, and reads as though it tested more. The golden
+tier is what covered the rest, which is the argument for adopting a feature across
+the corpus rather than only demonstrating it: 47 files that must not move are a
+larger instrument than any two files can be.
+
 ### What it cost
 
 159 lines in `parser.ts`, and nothing in the resolver, the emitter or the printer.

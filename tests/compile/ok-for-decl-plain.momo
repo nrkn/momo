@@ -2,8 +2,10 @@
 // without DESIGN §44. The two must emit the same instructions.
 //
 // Declaration order matches what the lifting produces, so the data section
-// matches too - the identity check only compares code, but a pair that differs
-// only in the sugar is a better twin than one that also reorders storage.
+// matches too. That is deliberate and it is a limit worth knowing: the pair tests
+// the instruction claim exactly, and the ordering one not at all, because the twin
+// was chosen to agree about storage. Lifting really does reorder a data section -
+// `momolo` moved 14 labels adopting this - and the golden tier is what covers it.
 
 u8 t
 

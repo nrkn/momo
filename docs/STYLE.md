@@ -81,6 +81,26 @@ so it doubles as a check on the codegen design:
 - Reach for braces when the body is multi-statement, when a comment belongs
   inside it, or when the line would wrap.
 
+- **Declare a counter in the `for` when the loop is all it is for.** §44 lifts the
+  declaration to the top of the body either way, so both spellings produce the same
+  slot and the choice is purely about reading:
+
+  ```momo
+  for ( u16 k = 0; k < n; k++ ) { ... }
+  ```
+
+  The test is what a routine's declaration block is *for*: state the routine keeps.
+  A counter that dies with its loop is not that. `sizeAxis` in momolo went from
+  eleven locals to nine on this and lost nothing a reader needed, and `candRemove`
+  lost its block entirely. Where a counter is read after the loop or shared with
+  the code around it, it belongs in the block - scoping is flat, so both spellings
+  work and this is taste rather than a rule.
+
+  Several loops sharing one counter is where it pays least, and that is worth
+  saying rather than glossing: five `for ( u16 k = 0; ... )` is more text than one
+  `u16 k` and five bare headers. It still reads better, because what remains above
+  is then only what outlives a loop - but it is close.
+
 - **Comments say what a reader needs, not how the code got here.** The test is the
   same stranger the documents are written for: they have not read the commit, they
   do not know what was there before, and they are looking something up rather than

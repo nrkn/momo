@@ -3158,24 +3158,36 @@ u8 i
 for ( i = 0; i < n; i++ ) { ... }
 ```
 
-which is what **131 of the 170** `for` statements under `projects/` and `shared/`
-already say by hand. That count is the whole case for it: nothing here is
-expressive, and the feature is that a convention every C-family language shares
-stops being spelled in two lines.
+which is how **131 of the 170** `for` statements under `projects/` and `shared/`
+were spelled when this was designed. That count is the whole case for it: nothing
+here is expressive, and the feature is that a convention every C-family language
+shares stops being spelled in two lines. The figure is fixed at the date rather
+than maintained, because adoption moves it - `shared/lib/momolo/` took 21 of them
+in the first sweep.
 
 ### It is sugar, and that is assertable rather than arguable
 
-No storage moves and no instruction changes. The lifted declaration takes the same
-static slot the hand-written one takes, and the init clause emits the same
-assignment it emits today. §39's method applies unchanged: a pair of files
-identical but for the spelling, required to emit the same instructions. The golden
-tier cannot make that check on its own - it compares committed output against
-itself and would agree with a leak.
+No instruction changes. The lifted declaration takes the same static slot the
+hand-written one takes, and the init clause emits the same assignment it emits
+today. §39's method applies unchanged: a pair of files identical but for the
+spelling, required to emit the same instructions. The golden tier cannot make that
+check on its own - it compares committed output against itself and would agree with
+a leak.
 
-**Measured**: 120 instructions, identical. The only difference anywhere in the two
-emitted files is the emitter's source-quote comment, which quotes the line that was
-written and so differs on purpose - which is why the check compares code only, and
-is the same reason §39's pair does.
+**Measured**: 120 instructions, identical.
+
+**Storage does move, though, and only the corpus showed it.** Lifting to the top of
+the body puts a counter *before* the declarations it was written after, so the data
+section comes out in a different order - 14 labels repositioned when `momolo`
+adopted this, against not one changed instruction. Same labels, same widths, same
+footprint; §12's analysis is untouched, because reordering identical storage cannot
+change what it adds up to.
+
+The pair could not have caught that, and it is worth knowing why: its twin is
+written in the *lifted* order on purpose, so the two agree about the data section
+by construction. That makes it a clean test of the instruction claim and no test at
+all of the ordering one. The golden tier is what covers the second, and it did so
+the first time real code adopted the sugar.
 
 ### Two loops, one name, which is the common case rather than the corner
 

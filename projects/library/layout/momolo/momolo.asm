@@ -639,7 +639,7 @@ closeBox:
         mov     bx, [closeBox__n]
         sub     ax, bx
         mov     [closeBox__base], ax
-; ---- for ( k = 0; k < n; k++ ) {
+; ---- for ( u16 k = 0; k < n; k++ ) {
         mov     word [closeBox__k], 0
 .L28:
         mov     ax, [closeBox__k]
@@ -1676,7 +1676,7 @@ fitSize:
         jnz     .L125
         jmp     .L123
 .L125:
-; ---- for ( k = 0; k < n; k++ ) {
+; ---- for ( u16 k = 0; k < n; k++ ) {
         mov     word [fitSize__k], 0
 .L126:
         mov     ax, [fitSize__k]
@@ -1774,7 +1774,7 @@ fitSize:
         mov     [fitSize__minContentH], ax
         jmp     .L124
 .L123:
-; ---- for ( k = 0; k < n; k++ ) {
+; ---- for ( u16 k = 0; k < n; k++ ) {
         mov     word [fitSize__k], 0
 .L136:
         mov     ax, [fitSize__k]
@@ -2068,7 +2068,7 @@ fitSize:
 ; ============================================== sub size__candRemove ====
 
 size__candRemove:
-; ---- for ( j = at; j + 1 < candLen; j++ ) {
+; ---- for ( u16 j = at; j + 1 < candLen; j++ ) {
         mov     ax, [size__candRemove__at]
         mov     [size__candRemove__j], ax
 .L170:
@@ -2121,7 +2121,7 @@ size__growInto:
         mov     word [size__growInto__second], 65535
 ; ---- countAtSmallest = 0
         mov     word [size__growInto__countAtSmallest], 0
-; ---- for ( j = 0; j < candLen; j++ ) {
+; ---- for ( u16 j = 0; j < candLen; j++ ) {
         mov     word [size__growInto__j], 0
 .L179:
         mov     ax, [size__growInto__j]
@@ -2216,7 +2216,7 @@ size__growInto:
         je      .L200                       ; unsigned ==
         jmp     .L198
 .L200:
-; ---- for ( j = 0; j < candLen; j++ ) {
+; ---- for ( u16 j = 0; j < candLen; j++ ) {
         mov     word [size__growInto__j], 0
 .L201:
         mov     ax, [size__growInto__j]
@@ -2299,7 +2299,7 @@ size__growInto:
 ; ---- return
         ret
 .L198:
-; ---- for ( j = candLen; j > 0; j-- ) {
+; ---- for ( u16 j = candLen; j > 0; j-- ) {
         mov     ax, [size__candLen]
         mov     [size__growInto__j], ax
 .L220:
@@ -2429,7 +2429,7 @@ size__shrinkFrom:
         mov     word [size__shrinkFrom__second], 0
 ; ---- countAtLargest = 0
         mov     word [size__shrinkFrom__countAtLargest], 0
-; ---- for ( j = 0; j < candLen; j++ ) {
+; ---- for ( u16 j = 0; j < candLen; j++ ) {
         mov     word [size__shrinkFrom__j], 0
 .L244:
         mov     ax, [size__shrinkFrom__j]
@@ -2528,7 +2528,7 @@ size__shrinkFrom:
         je      .L268                       ; unsigned ==
         jmp     .L266
 .L268:
-; ---- for ( j = 0; j < candLen; j++ ) {
+; ---- for ( u16 j = 0; j < candLen; j++ ) {
         mov     word [size__shrinkFrom__j], 0
 .L269:
         mov     ax, [size__shrinkFrom__j]
@@ -2612,7 +2612,7 @@ size__shrinkFrom:
         mov     [size__shrinkFrom__ret], ax
         ret
 .L266:
-; ---- for ( j = candLen; j > 0; j-- ) {
+; ---- for ( u16 j = candLen; j > 0; j-- ) {
         mov     ax, [size__candLen]
         mov     [size__shrinkFrom__j], ax
 .L288:
@@ -2728,7 +2728,7 @@ sizeAxis:
         mov     word [size__bfs], 0
 ; ---- bfsLen = 1
         mov     word [size__bfsLen], 1
-; ---- for ( qi = 0; qi < bfsLen; qi++ ) {
+; ---- for ( u16 qi = 0; qi < bfsLen; qi++ ) {
         mov     word [sizeAxis__qi], 0
 .L307:
         mov     ax, [sizeAxis__qi]
@@ -2753,7 +2753,7 @@ sizeAxis:
         jne     .L311                       ; unsigned ==
         jmp     .L308
 .L311:
-; ---- for ( k = 0; k < n; k++ ) {
+; ---- for ( u16 k = 0; k < n; k++ ) {
         mov     word [sizeAxis__k], 0
 .L314:
         mov     ax, [sizeAxis__k]
@@ -2882,7 +2882,7 @@ sizeAxis:
         jz      .L338
         jmp     .L336
 .L338:
-; ---- for ( k = 0; k < n; k++ ) {
+; ---- for ( u16 k = 0; k < n; k++ ) {
         mov     word [sizeAxis__k], 0
 .L339:
         mov     ax, [sizeAxis__k]
@@ -3092,7 +3092,7 @@ sizeAxis:
         pop     ax
         mul     bx                          ; low 16 bits are sign-agnostic
         mov     [sizeAxis__inner], ax
-; ---- for ( k = 0; k < n; k++ ) {
+; ---- for ( u16 k = 0; k < n; k++ ) {
         mov     word [sizeAxis__k], 0
 .L382:
         mov     ax, [sizeAxis__k]
@@ -3153,7 +3153,7 @@ sizeAxis:
 .L394:
 ; ---- candLen = 0
         mov     word [size__candLen], 0
-; ---- for ( k = 0; k < n; k++ ) {
+; ---- for ( u16 k = 0; k < n; k++ ) {
         mov     word [sizeAxis__k], 0
 .L395:
         mov     ax, [sizeAxis__k]
@@ -3259,7 +3259,7 @@ sizeAxis:
 .L392:
 ; ---- candLen = 0
         mov     word [size__candLen], 0
-; ---- for ( k = 0; k < n; k++ ) {
+; ---- for ( u16 k = 0; k < n; k++ ) {
         mov     word [sizeAxis__k], 0
 .L414:
         mov     ax, [sizeAxis__k]
@@ -3382,7 +3382,7 @@ refitY:
         mov     bx, ax
         mov     ax, [refit__rfI + bx]
         mov     [refitY__i], ax
-; ---- for ( k = 0; k < el[i].childCount; k++ ) {
+; ---- for ( u16 k = 0; k < el[i].childCount; k++ ) {
         mov     word [refitY__k], 0
 .L434:
         mov     ax, [refitY__k]
@@ -3468,7 +3468,7 @@ refitY:
         jnz     .L443
         jmp     .L441
 .L443:
-; ---- for ( k = 0; k < n; k++ ) {
+; ---- for ( u16 k = 0; k < n; k++ ) {
         mov     word [refitY__k], 0
 .L444:
         mov     ax, [refitY__k]
@@ -3526,7 +3526,7 @@ refitY:
         mov     [refitY__minContentH], ax
         jmp     .L442
 .L441:
-; ---- for ( k = 0; k < n; k++ ) {
+; ---- for ( u16 k = 0; k < n; k++ ) {
         mov     word [refitY__k], 0
 .L448:
         mov     ax, [refitY__k]
@@ -3902,7 +3902,7 @@ place:
         pop     ax
         mul     bx                          ; low 16 bits are sign-agnostic
         mov     [place__content], ax
-; ---- for ( k = 0; k < n; k++ ) {
+; ---- for ( u16 k = 0; k < n; k++ ) {
         mov     word [place__k], 0
 .L489:
         mov     ax, [place__k]
@@ -4008,7 +4008,7 @@ place:
         mov     bx, [place__n]
         add     ax, bx
         mov     [place__stkTop], ax
-; ---- for ( k = 0; k < n; k++ ) {
+; ---- for ( u16 k = 0; k < n; k++ ) {
         mov     word [place__k], 0
 .L508:
         mov     ax, [place__k]
@@ -5139,10 +5139,10 @@ strLen__n:      dw      0        ; u16
 build__pushElement__i: dw      0        ; u16
 build__attachToParent__p: dw      0        ; u16
 openBox__i:     dw      0        ; u16
+closeBox__k:    dw      0        ; u16
 closeBox__i:    dw      0        ; u16
 closeBox__n:    dw      0        ; u16
 closeBox__base: dw      0        ; u16
-closeBox__k:    dw      0        ; u16
 leaf__i:        dw      0        ; u16
 leaf__insetX:   dw      0        ; u16
 leaf__insetY:   dw      0        ; u16
@@ -5169,6 +5169,7 @@ reflowAll__p:   dw      0        ; u16
 reflowAll__i:   dw      0        ; u16
 reflowAll__first: dw      0        ; u16
 reflowAll__n:   dw      0        ; u16
+fitSize__k:     dw      0        ; u16
 fitSize__n:     dw      0        ; u16
 fitSize__insetX: dw      0        ; u16
 fitSize__insetY: dw      0        ; u16
@@ -5177,25 +5178,24 @@ fitSize__contentW: dw      0        ; u16
 fitSize__contentH: dw      0        ; u16
 fitSize__minContentW: dw      0        ; u16
 fitSize__minContentH: dw      0        ; u16
-fitSize__k:     dw      0        ; u16
 fitSize__ci:    dw      0        ; u16
 size__candRemove__j: dw      0        ; u16
+size__growInto__j: dw      0        ; u16
 size__growInto__remaining: dw      0        ; u16
 size__growInto__smallest: dw      0        ; u16
 size__growInto__second: dw      0        ; u16
 size__growInto__countAtSmallest: dw      0        ; u16
-size__growInto__j: dw      0        ; u16
 size__growInto__ci: dw      0        ; u16
 size__growInto__s: dw      0        ; u16
 size__growInto__even: dw      0        ; u16
 size__growInto__add: dw      0        ; u16
 size__growInto__cap: dw      0        ; u16
 size__growInto__take: dw      0        ; u16
+size__shrinkFrom__j: dw      0        ; u16
 size__shrinkFrom__excess: dw      0        ; u16
 size__shrinkFrom__largest: dw      0        ; u16
 size__shrinkFrom__second: dw      0        ; u16
 size__shrinkFrom__countAtLargest: dw      0        ; u16
-size__shrinkFrom__j: dw      0        ; u16
 size__shrinkFrom__ci: dw      0        ; u16
 size__shrinkFrom__s: dw      0        ; u16
 size__shrinkFrom__even: dw      0        ; u16
@@ -5203,9 +5203,9 @@ size__shrinkFrom__step: dw      0        ; u16
 size__shrinkFrom__floorAt: dw      0        ; u16
 size__shrinkFrom__give: dw      0        ; u16
 sizeAxis__qi:   dw      0        ; u16
+sizeAxis__k:    dw      0        ; u16
 sizeAxis__i:    dw      0        ; u16
 sizeAxis__n:    dw      0        ; u16
-sizeAxis__k:    dw      0        ; u16
 sizeAxis__ci:   dw      0        ; u16
 sizeAxis__along: db      0        ; bool
 sizeAxis__insetAxis: dw      0        ; u16
@@ -5213,18 +5213,18 @@ sizeAxis__avail: dw      0        ; u16
 sizeAxis__inner: dw      0        ; u16
 sizeAxis__fitted: dw      0        ; u16
 sizeAxis__spilled: dw      0        ; u16
+refitY__k:      dw      0        ; u16
 refitY__top:    dw      0        ; u16
 refitY__i:      dw      0        ; u16
 refitY__n:      dw      0        ; u16
-refitY__k:      dw      0        ; u16
 refitY__ci:     dw      0        ; u16
 refitY__gaps:   dw      0        ; u16
 refitY__contentH: dw      0        ; u16
 refitY__minContentH: dw      0        ; u16
 refitY__insetY: dw      0        ; u16
+place__k:       dw      0        ; u16
 place__i:       dw      0        ; u16
 place__n:       dw      0        ; u16
-place__k:       dw      0        ; u16
 place__ci:      dw      0        ; u16
 place__row:     db      0        ; bool
 place__insetMain: dw      0        ; u16

@@ -183,7 +183,6 @@ sub closeBox {
   u16 i
   u16 n
   u16 base
-  u16 k
 
   // An unbalanced close is a caller bug and nothing here can diagnose it.
   // Guarded anyway, because `openDepth--` at zero wraps to 65535 and the reads
@@ -199,7 +198,7 @@ sub closeBox {
   // run. They are the top n entries, still in order.
   el[i].childStart = childListLen
   base = childBufLen - n
-  for ( k = 0; k < n; k++ ) {
+  for ( u16 k = 0; k < n; k++ ) {
     childList[ childListLen ] = childBuf[ base + k ]
     childListLen++
   }

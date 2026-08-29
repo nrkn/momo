@@ -36,7 +36,6 @@ local const u16 leadFor( u8 align, u16 slack ) =
 sub place {
   u16  i
   u16  n
-  u16  k
   u16  ci
   bool row
   u16  insetMain
@@ -91,7 +90,7 @@ sub place {
     // n is at least 1 here, so `n - 1` needs no guard - unlike the same
     // expression in fit.momo, which is reached with no children.
     content = el[i].gap * ( n - 1 )
-    for ( k = 0; k < n; k++ ) {
+    for ( u16 k = 0; k < n; k++ ) {
       ci = childAt( i, k )
       content += row ? el[ci].w : el[ci].h
     }
@@ -111,7 +110,7 @@ sub place {
     base = stkTop
     stkTop += n
 
-    for ( k = 0; k < n; k++ ) {
+    for ( u16 k = 0; k < n; k++ ) {
       ci = childAt( i, k )
 
       // Alignment across the layout axis is per child, since each may differ.

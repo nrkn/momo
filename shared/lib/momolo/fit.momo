@@ -25,7 +25,6 @@ sub fitSize( u16 i ) {
   u16 contentH
   u16 minContentW
   u16 minContentH
-  u16 k
   u16 ci
 
   n = el[i].childCount
@@ -43,7 +42,7 @@ sub fitSize( u16 i ) {
   minContentH = 0
 
   if ( el[i].isCol ) {
-    for ( k = 0; k < n; k++ ) {
+    for ( u16 k = 0; k < n; k++ ) {
       ci = childAt( i, k )
       contentH += el[ci].h
       minContentH += el[ci].minH
@@ -53,7 +52,7 @@ sub fitSize( u16 i ) {
     contentH += gaps
     minContentH += gaps
   } else {
-    for ( k = 0; k < n; k++ ) {
+    for ( u16 k = 0; k < n; k++ ) {
       ci = childAt( i, k )
       contentW += el[ci].w
       minContentW += el[ci].minW
