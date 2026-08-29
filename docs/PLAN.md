@@ -145,6 +145,28 @@ nothing has yet wanted it.
   cost: the printer would need resolved input to tell a private from a global it
   shadows, where today it never looks at a label.
 
+  **Both questions were investigated on 2026-08-29, and one dissolved.** Resolved
+  input costs nothing: `desugar.ts` already calls `resolve` before printing,
+  because §25's fixed-point lowering needs types, and the round trip does the
+  same. The dependency has been there all along.
+
+  **Prototyped, and it works.** Wiring eight declaration sites and six reference
+  sites - identifiers, callees, index expressions, `addr`, `len` and a view's
+  parent - and removing the skip took the round trip from 62 asserted to **71**,
+  with `tennis`, `momolo` and `simplerl` among those coming back.
+
+  Seven cases still failed, in two classes with one cause: **`labelFor` mangles
+  what reaches the data section, and `local` also applies to what does not.** A
+  `local const` has no label at all - 22 of them, the commonest shape here by a
+  distance - and a `local view` takes `safeLabel` rather than `labelFor`, so its
+  label is not mangled either. In both the printer cannot print the label because
+  there is not one.
+
+  That turns what is left into a decision rather than a search: synthesise the
+  name from the file with the same rule, either by giving the printer `fileTag`
+  or by having the resolver set a mangled `label` on consts and views that
+  nothing emits.
+
   **`npm run desugar` showing mangled names is a gain rather than a price.** That
   tool exists to show what a program actually is once its sugar is lowered, and
   §11 implements `local` as precisely this rename - so the one mechanism the
