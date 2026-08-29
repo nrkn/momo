@@ -2132,6 +2132,28 @@ That matters more than it sounds. §18 says the design pushes toward passing
 *indices* rather than entity references, and nothing here pushes back: an index is
 still what crosses a routine boundary, because a binding cannot.
 
+### `of` covers a `far` region, and the reload it seems to hide is already priced
+
+This reads like the one case to carve out, and it is not. `rndpix` already walks a
+far region end to end - `for( i = 0; i < len( pixels ); i++ )` over mode 13h - so
+the use case exists and is the obvious one.
+
+The objection is that `p` does not announce a far access the way `pixels[i]` does,
+so the ES reload per access goes unmarked. But **the lowering is the longhand**:
+`for ( p of pixels )` produces exactly the statement that file already contains, so
+nothing is hidden that `pixels[i]` does not hide and no cycle is paid that was not
+being paid. §34 has already priced that reload - break-even for hoisting it is
+three accesses, a routine doing one far write is a net loss, and the whole effect
+measured 1-4% and was called never the biggest thing left. §16's premise is that
+`far` makes hardware memory *ordinary memory*, so `p` reading like a name is that
+design continuing rather than leaking through.
+
+What settles it is the shape of the rule. Every exclusion in §44 is derived from
+something the reader already knows; excluding `far` here could only be remembered,
+because nothing generates it. Contrast the exclusion this language did make - `len`
+on a single-instance group errors, because answering 1 would compile a loop that
+reads as iteration and is not. That one is semantic. This one would not be.
+
 ### It can be scoped properly, which §44 cannot
 
 The resolver declines block scope because a block-scoped variable would be another
