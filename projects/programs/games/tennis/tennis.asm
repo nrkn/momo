@@ -182,7 +182,7 @@ randomBelow:
 
 ticks:
 ; ---- u16 ticks() => tickLow[0]
-        mov     dx, 0x40                    ; segment of tickLow
+        mov     dx, 0x40                    ; segment of time__tickLow
         mov     es, dx
         mov     ax, [es:108]
         mov     [ticks__ret], ax
@@ -215,7 +215,7 @@ keyboardBegin:
 .L10:
         ret
 
-; ============================================== bool anyKeyDown ====
+; ============================================== bool t_kbd__anyKeyDown ====
 
 t_kbd__anyKeyDown:
 ; ---- local bool anyKeyDown() => (
@@ -328,7 +328,7 @@ keyboardEnd:
         out     dx, al
         ret
 
-; ============================================== sub applyKey ====
+; ============================================== sub t_kbd__applyKey ====
 
 t_kbd__applyKey:
 ; ---- if ( key == scW ) held[ leftPlayer ].up = pressed
@@ -419,7 +419,7 @@ t_kbd__applyKey:
 .L40:
         ret
 
-; ============================================== sub ioDelay ====
+; ============================================== sub t_kbd__ioDelay ====
 
 t_kbd__ioDelay:
 ; ---- local sub ioDelay => out8( 0x80, 0 )
@@ -476,7 +476,7 @@ pollKeyboard:
 .L71:
         ret
 
-; ============================================== sub setPaletteColor ====
+; ============================================== sub t_pal__setPaletteColor ====
 
 t_pal__setPaletteColor:
 ; ---- _ax = 0x1010

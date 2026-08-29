@@ -134,49 +134,6 @@ nothing has yet wanted it.
   storage type and this is that tag generalised, so the mechanism is shipped. What
   wanted it is `tennis`, which encodes its two coordinate spaces in identifiers -
   `subPxY`, `subgridToPx`, `// subgrid units` - because nothing else can.
-- **Teach the printer to lower `local`.** The desugar round trip is the only test
-  the parser has, and it skips every program that *loads* a private - about a
-  fifth of the corpus, including `tennis`, `momolo`, `simplerl` and the file that
-  exists to test `local`. DESIGN §14 has the mechanism and the prices paid so far.
-
-  The fix is for the printer to emit a private under the mangled name the resolver
-  gives it anyway - `rand__randomSeed` - rather than preserving the `local`
-  modifier, which is what it already does for every other piece of sugar. One
-  cost: the printer would need resolved input to tell a private from a global it
-  shadows, where today it never looks at a label.
-
-  **Both questions were investigated on 2026-08-29, and one dissolved.** Resolved
-  input costs nothing: `desugar.ts` already calls `resolve` before printing,
-  because §25's fixed-point lowering needs types, and the round trip does the
-  same. The dependency has been there all along.
-
-  **Prototyped, and it works.** Wiring eight declaration sites and six reference
-  sites - identifiers, callees, index expressions, `addr`, `len` and a view's
-  parent - and removing the skip took the round trip from 62 asserted to **71**,
-  with `tennis`, `momolo` and `simplerl` among those coming back.
-
-  Seven cases still failed, in two classes with one cause: **`labelFor` mangles
-  what reaches the data section, and `local` also applies to what does not.** A
-  `local const` has no label at all - 22 of them, the commonest shape here by a
-  distance - and a `local view` takes `safeLabel` rather than `labelFor`, so its
-  label is not mangled either. In both the printer cannot print the label because
-  there is not one.
-
-  That turns what is left into a decision rather than a search: synthesise the
-  name from the file with the same rule, either by giving the printer `fileTag`
-  or by having the resolver set a mangled `label` on consts and views that
-  nothing emits.
-
-  **`npm run desugar` showing mangled names is a gain rather than a price.** That
-  tool exists to show what a program actually is once its sugar is lowered, and
-  §11 implements `local` as precisely this rename - so the one mechanism the
-  desugar output currently hides is the one a reader most needs to see.
-
-  What it buys is the parser's only test covering the programs most likely to
-  break it, and libraries getting `local` back without a coverage bill. Right now
-  a tool limitation is deciding whether a library may use a language feature,
-  which is the wrong way round - `std/file.momo` had a private taken out for it
-  this week.
 - **The screen library.** §43 - a table of modes with the shape of a pixel in it,
   a yes/no/maybe query that resolves by setting a mode and reading it back, and the
   current-screen descriptor `momode` would set to put a program in a window. Mode
@@ -351,6 +308,12 @@ All are set out in DESIGN §20 unless noted.
 section that was itself a plan - see the note at the top for why, and where to
 look for the rest.
 
+- **Teach the printer to lower `local`.** 2026-08-29. DESIGN §14, and the record
+  is DECISIONS §14. The round trip went from 62 assertions to 77 - nothing is
+  skipped now - and closing the gap turned up a bug that had been hiding behind
+  it: the emitter keyed a routine's temporaries by name where the call graph
+  keys by label, so §12's worst-case stack was under-stated for every program
+  with a private sub.
 - **File I/O.** 2026-08-29. §38, now in `DESIGN.md`. `shared/lib/std/file.momo`
   and `filetest`, with no compiler change of any kind - the design's central claim
   held. It takes the deepest blocker off the applications tier.

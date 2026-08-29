@@ -45,6 +45,54 @@ cannot happen is the same aspect in two places.
 
 ---
 
+## 14. Testing
+
+### Lowering `local` in the printer found an under-stated stack
+
+The round trip skipped every program that loaded a private, because a printed
+program is one file and `local` names a file as its owner. That was a fifth of the
+corpus and it included `tennis`, `momolo`, `simplerl` and the file that exists to
+test `local` - the parser's only test was skipping the programs most likely to
+break it.
+
+Closing it took the round trip from 62 assertions to 77, and turned up a bug that
+had been sitting behind the skip. **The emitter recorded each routine's expression
+temporaries under its name while the call graph is keyed on its label**, so for a
+`local` routine the lookup asked for `build__pushElement`, found `pushElement`,
+and counted zero. §12's worst-case stack was under-stated for any program with a
+private sub that uses a temporary, and since `_hstack` is what the heap starts
+below, the heap was over-stated by the same two bytes. `momolo` and `mlodemo` were
+both wrong.
+
+**Nothing had ever failed**, and nothing could have. The golden tier compares
+committed output against itself, so it agreed with the wrong number; tier 2 runs
+programs that never came close to exhausting the stack; and the one tier that
+compiles a program twice and compares was skipping exactly the programs that had
+private subs. A gap in coverage and a bug in the thing it did not cover is not a
+coincidence - it is the same fact twice.
+
+### What the change cost
+
+Nine sites in the printer and five in the resolver, plus two AST fields that
+exist for printing rather than for emitting. The awkward half was that `labelFor`
+mangles what reaches the data section and `local` also applies to what does not:
+a `local const` had no label at all - 22 of them, the commonest shape - and a
+`local view` took `safeLabel` rather than `labelFor`, so its label was never
+mangled and two files declaring `local view x` would have collided rather than
+been two views. That last one was a latent bug of its own, and it emitted nothing
+today only because the one `local view` in the repo is a view of a `far` region.
+
+`len()` needed a field of its own. Its target deliberately carries no `label`,
+because pruning collects that key by name and asking a length must not be what
+keeps an array alive - so the printer gets `targetLabel`, which pruning cannot
+see.
+
+Two emitted comments changed to name things by label rather than by source name:
+a routine's banner, and `; segment of`. Both sit directly above or beside the
+label they describe and now agree with it. 51 lines across 8 files, and no
+instruction moved.
+
+---
 ## 15. Acceptance test
 
 An early answer to "is this subset useful enough yet", from when that was still

@@ -295,7 +295,7 @@ cfgInsetX:
         mov     [cfg__insetR], al           ; u8 -> u8, no widening
         ret
 
-; ============================================== u16 pushElement ====
+; ============================================== u16 build__pushElement ====
 
 build__pushElement:
 ; ---- i = elCount
@@ -460,7 +460,7 @@ build__pushElement:
         mov     [build__pushElement__ret], ax
         ret
 
-; ============================================== sub attachToParent ====
+; ============================================== sub build__attachToParent ====
 
 build__attachToParent:
 ; ---- if ( openDepth == 0 ) return          // the root has no parent
@@ -985,7 +985,7 @@ setLeafHeight:
         mov     [el__minH + bx], ax
         ret
 
-; ============================================== sub stClear ====
+; ============================================== sub mopaint__stClear ====
 
 mopaint__stClear:
 ; ---- st[i].bg = transparent
@@ -1230,7 +1230,7 @@ paraPaint:
         inc     word [mopaint__paraCount]
         ret
 
-; ============================================== u16 wrapInto ====
+; ============================================== u16 mopaint__wrapInto ====
 
 mopaint__wrapInto:
 ; ---- lim = limit < 1 ? 1 : limit
@@ -1524,7 +1524,7 @@ useBrightBackgrounds:
         call    int10
         ret
 
-; ============================================== sub fillRect ====
+; ============================================== sub mopaint__fillRect ====
 
 mopaint__fillRect:
 ; ---- cell = ch | ( attr << 8 )
@@ -1602,7 +1602,7 @@ mopaint__fillRect:
 .L111:
         ret
 
-; ============================================== sub drawFrame ====
+; ============================================== sub mopaint__drawFrame ====
 
 mopaint__drawFrame:
 ; ---- fillRect( x, y, w, b, ' ', attr )
@@ -1703,7 +1703,7 @@ mopaint__drawFrame:
 .L123:
         ret
 
-; ============================================== sub drawRun ====
+; ============================================== sub mopaint__drawRun ====
 
 mopaint__drawRun:
 ; ---- if ( y >= screenRows ) return
@@ -1764,7 +1764,7 @@ mopaint__drawRun:
 .L131:
         ret
 
-; ============================================== sub drawText ====
+; ============================================== sub mopaint__drawText ====
 
 mopaint__drawText:
 ; ---- i = 0
@@ -2579,7 +2579,7 @@ fitSize:
         mov     [el__minH + bx], ax
         ret
 
-; ============================================== sub candRemove ====
+; ============================================== sub size__candRemove ====
 
 size__candRemove:
 ; ---- for ( j = at; j + 1 < candLen; j++ ) {
@@ -2611,7 +2611,7 @@ size__candRemove:
         dec     word [size__candLen]
         ret
 
-; ============================================== sub growInto ====
+; ============================================== sub size__growInto ====
 
 size__growInto:
 ; ---- remaining = surplus
@@ -2919,7 +2919,7 @@ size__growInto:
 .L227:
         ret
 
-; ============================================== u16 shrinkFrom ====
+; ============================================== u16 size__shrinkFrom ====
 
 size__shrinkFrom:
 ; ---- excess = deficit
@@ -4730,7 +4730,7 @@ runPasses:
         call    place
         ret
 
-; ============================================== sub swatchBody ====
+; ============================================== sub shell__swatchBody ====
 
 shell__swatchBody:
 ; ---- cfgInsetX( u )
@@ -5332,7 +5332,7 @@ sReady:         db      'ready$'        ; u8[6] const
 ; No storage is emitted - a .COM owns everything past its image, so
 ; these are addresses and NASM does the arithmetic.
 
-_hstack:        equ     274        ; 18 worst-case + 256 interrupt reserve
+_hstack:        equ     276        ; 20 worst-case + 256 interrupt reserve
 _htop:          equ     0FFFEh - _hstack
 
 _hsize:         dw      _htop - _heap        ; NASM computes this

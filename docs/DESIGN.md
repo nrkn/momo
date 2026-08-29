@@ -1429,50 +1429,50 @@ by construction: no comments, different wrapping, sugar lowered. So the `; ---- 
 lines come out and everything else has to match - every instruction, every label,
 every inline comment about a widening or a jump choice.
 
-**`local` is the one thing it cannot round-trip**, and the test skips those cases
-rather than weakening what it asserts for the rest - about a fifth of the corpus,
-with the count `npm test` prints being what is actually asserted. The skipped set
-includes `tennis`, `momolo`, `simplerl` and `ok-local.momo`: the largest program,
-the layout engine, the game, and the file that exists to test `local`. Printing splices
-every include into one file, and `local` names a file as its owner - so the
-boundary that gives a private its identity is exactly what printing destroys. A
-private from `rand.momo` comes back owned by the printed file, and two files that
-each declare `local u16 hidden` collide outright. Not a printer bug: the AST is
-faithful, and one file has no way to say which of several files a name belonged
-to.
+**`local` used to be the one thing it could not round-trip**, and the test skipped
+every program that loaded a private - about a fifth of the corpus, including
+`tennis`, `momolo`, `simplerl` and the file that exists to test `local`. Printing
+splices every include into one file and `local` names a file as its owner, so the
+boundary that gives a private its identity was exactly what printing destroyed.
 
-**The skip is transitive, which makes `local` in a library expensive.** A program
-is skipped if any statement it *loads* is private, so one `local` in a widely
-included file removes every consumer from the only test the parser has. That is
-why so many cases are skipped where eight files use the keyword, and it is worth
-pricing before adding a private to `shared/lib/`:
+**The printer lowers it instead**, and nothing is skipped now. A private prints
+under the mangled name the resolver already gives it - `rand__randomSeed` - and
+the modifier goes, which is what the printer already does to `=>` and to `*` on
+two fixed values. Two files that each declare `local u16 hidden` come out as two
+distinct names rather than colliding. `npm run desugar` shows those names, which
+is the tool doing its job: §11 implements `local` as precisely this rename, and it
+was the one mechanism the output hid.
 
-- `local u16 randomSeed` in `std/rand.momo` costs the six programs that include
-  it, and pays for itself - it closes a hole where a program could write past the
-  guard that keeps the generator alive.
+**What the skip cost while it lasted** is worth keeping, because it shaped code.
+A program was skipped if any statement it *loaded* was private, so one `local` in
+a widely included file removed every consumer from the only test the parser has -
+which made a private in a library something to price rather than to reach for:
+
 - Marking `putNumber`'s three consts private in `std/io.momo` was tried and
   reverted. 22 programs included that file at the time, so it cost 19 of the 48
   assertions then standing - most of the tier - to enforce something the `io`
-  prefix already achieves for three values nothing can write. More programs
-  include it now, so the bill would be larger.
+  prefix already achieves for three values nothing can write.
 - `std/file.momo` was written with a private status pair and had it taken back
   out for the same reason, before anything but its own test could feel it.
 
-The rule that falls out: a private in a library wants a correctness reason, not a
-tidiness one. `local` on a program's own file is free, because nothing includes it.
+Both of those were the right call against the tool as it stood, and neither would
+be made now. The rule they produced - a private in a library wants a correctness
+reason rather than a tidiness one - survives on its own merits, and no longer has
+a coverage bill behind it.
 
-**This could be closed, and is not.** The printer *preserves* `local` as a
-modifier where it could **lower** it, the way it already lowers `=>` - emitting a
-private under `rand__randomSeed`, which is exactly the label the resolver gives it
-anyway. Every AST node already carries the file it was written in, so nothing is
-missing. What it would cost is that the printer needs resolved input to tell a
-private from a global it shadows, where today it goes AST in, source out and never
-looks at a label. The mangled names would then appear in `npm run desugar`, which
-is the tool doing its job rather than a price: §11 implements `local` as exactly
-this rename, so it is currently the one mechanism that output hides.
+**Closing it found a bug that had been hiding behind the skip**, which is the
+argument for not leaving a fifth of a corpus untested. The emitter recorded each
+routine's expression temporaries under its *name* while the call graph is keyed on
+its *label*, so for every `local` routine the lookup missed and the temporaries
+counted as zero. §12's worst-case stack was under-stated for any program with a
+private sub that uses one, and `_hstack` reserves the stack the heap then starts
+below - so the heap was over-stated by the same amount. `momolo` and `mlodemo` were
+both out by two bytes.
 
-`PLAN.md` carries it as work, because a tool limitation deciding whether a library
-may use a language feature is the wrong way round.
+Nothing had ever failed. The skip meant the only test that compares one program
+against a second compilation of itself never ran on the programs that could show
+it, and the golden tier compares committed output against itself, so it agreed
+with the wrong number.
 
 `tests/compile/ok-precedence.momo` exists for it. Bracketing is where a printer
 goes wrong, and a program only catches that if it contains an expression whose

@@ -906,6 +906,10 @@ export const resolve = (program: Program): ResolveResult => {
       const symbol = lookup(node.target.name)
       if (!symbol) raise(node, `"${node.target.name}" is not declared`)
 
+      // For printing only - see the note on the node. Not `label`, which is what
+      // pruning reads and what this expression deliberately does not set.
+      node.targetLabel = symbol.label
+
       // On a group it is the instance count (§19). The single-instance form has
       // none: asking for its length mistakes which form you are holding, and
       // answering 1 would compile a loop that reads as iteration and is not.
@@ -1442,6 +1446,10 @@ export const resolve = (program: Program): ResolveResult => {
     const parent = lookup(node.parent.name)
     if (!parent) raise(node.parent, `"${node.parent.name}" is not declared`)
 
+    // The parent is a reference like any other, and carries which symbol it
+    // reached - without it the printer cannot lower a view onto a private (§14).
+    node.parent.label = parent.label
+
     if (parent.kind !== 'array' && parent.kind !== 'far') {
       raise(
         node.parent,
@@ -1514,7 +1522,10 @@ export const resolve = (program: Program): ResolveResult => {
     // A view of a const array is read-only, or the const guarantee is a lie.
     const readonly = node.readonly || parent.readonly
 
-    node.label = safeLabel(node.name)
+    // `labelFor`, not `safeLabel`. A private view used to keep an unmangled
+    // label, so `local` gave it private lookup and a public label - two files
+    // with `local view x` collided at the label rather than being two views.
+    node.label = labelFor(node.name, node.local)
 
     // Views of far regions inherit the segment, so §16 composes with this. The
     // far path has no scalar form - `far u16 port` is an error for the same
@@ -1595,6 +1606,8 @@ export const resolve = (program: Program): ResolveResult => {
   // multiply: the field offset is folded into the label and the index is used
   // as-is.
   const resolveGroupDeclaration = (node: GroupDeclaration) => {
+    node.label = labelFor(node.name, node.local)
+
     let count: number | null = null
     if (node.count) {
       count = foldConstant(node.count, 'group count')
@@ -1674,6 +1687,8 @@ export const resolve = (program: Program): ResolveResult => {
   }
 
   const resolveConstFunctionDeclaration = (node: ConstFunctionDeclaration) => {
+    node.label = labelFor(node.name, node.local)
+
     const seen = new Set<string>()
     for (const parameter of node.params) {
       if (seen.has(parameter.name)) {
@@ -1703,6 +1718,11 @@ export const resolve = (program: Program): ResolveResult => {
 
   const resolveConstDeclaration = (node: Statement) => {
     if (node.type !== 'ConstDeclaration') return
+
+    // Nothing is emitted under this name, so it is not an assembly label - the
+    // printer needs it to lower `local` (§14), and taking it from the same rule
+    // is what keeps the two spellings from drifting apart.
+    node.label = labelFor(node.name, node.local)
 
     const isArrayInit = node.init.type === 'ArrayLiteral' || node.init.type === 'StringLiteral'
 

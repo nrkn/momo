@@ -173,6 +173,11 @@ export type AddrExpression = Located & {
 export type LenExpression = Located & {
   type: 'LenExpression'
   target: Identifier
+  // What the target prints as, which is not the same question. The printer needs
+  // a private's mangled name to lower `local` (§14), and pruning collects the
+  // `label` key by name - so this is deliberately called something else, and
+  // asking a length still does not keep an array alive.
+  targetLabel?: string
 }
 
 // `peek8(at)` and `peek16(at)` - a read from a RUNTIME address in our segment.
@@ -290,6 +295,10 @@ export type GroupDeclaration = Spanned & {
   count: Expression | null
   fields: GroupField[]
   local?: boolean
+  // Set by the resolver. A group emits nothing under this name - its fields are
+  // the arrays - so it is the mangled name a private carries, which the printer
+  // needs to lower `local` (§14).
+  label?: string
 }
 
 export type Expression =
@@ -338,6 +347,10 @@ export type ConstFunctionDeclaration = Spanned & {
   returnFrac: number // fraction bits of the declared return type, else 0
   body: Expression
   local?: boolean
+  // Set by the resolver, and not an assembly label - a parameterised const is
+  // substituted inline and emits nothing under its own name. It is the mangled
+  // name a private carries, which the printer needs to lower `local` (§14).
+  label?: string
 }
 
 export type ConstDeclaration = Spanned & {
@@ -346,6 +359,10 @@ export type ConstDeclaration = Spanned & {
   typeNode: TypeNode | null // `const u8[] banner` has one, `const limit = 20` does not
   init: Expression
   local?: boolean
+  // Set by the resolver. A const emits nothing, so this is not an assembly
+  // label - it is the mangled name a private carries, which the printer needs
+  // in order to lower `local` (§14).
+  label?: string
 }
 
 export type VariableDeclaration = Spanned & {

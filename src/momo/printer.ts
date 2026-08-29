@@ -88,10 +88,44 @@ const printChild = (child: Expression, parent: number, side: 'left' | 'right'): 
   return needed ? `(${text})` : text
 }
 
+// `local` is lowered here rather than preserved (§14). A private's identity is
+// the file it was written in, and one printed file cannot express that - so a
+// private prints under the mangled name the resolver already gave it and the
+// modifier goes. Two files that each declare `local u16 hidden` come out as
+// `a__hidden` and `b__hidden` rather than colliding.
+//
+// Collected per program rather than decided per node, because a sub-local's
+// label is mangled too - `putNumber__digits` - and printing that would nest on
+// the next parse. Only top-level privates lower, which is all of them: `local`
+// inside a sub is an error (§11).
+//
+// `printProgram` owns it. Nothing outside this module calls the two functions
+// below directly, and if anything ever does it gets the unlowered names, which
+// is what a printer with no program in hand can honestly say.
+const privateLabels = new Set<string>()
+
+const lowered = (name: string, label?: string): string =>
+  label !== undefined && privateLabels.has(label) ? label : name
+
+// Declarations all carry the same two fields, so they share one accessor.
+const declared = (node: { name: string; label?: string }): string =>
+  lowered(node.name, node.label)
+
+// A group field access carries the FIELD's label - `pool__x` - because that is
+// what the emitter needs, but what prints is the group. Strip the field back off
+// to get the group's own label, which is what the set holds. The `group__field`
+// spelling is §18's and the resolver builds it the same way.
+const ownerLabel = (node: { field?: string; label?: string }): string | undefined =>
+  node.field !== undefined && node.label !== undefined
+    ? node.label.slice(0, -(node.field.length + 2))
+    : node.label
+
 export const printExpression = (node: Expression): string => {
   switch (node.type) {
     case 'Identifier':
-      return node.field === undefined ? node.name : `${node.name}.${node.field}`
+      return node.field === undefined
+        ? lowered(node.name, node.label)
+        : `${lowered(node.name, ownerLabel(node))}.${node.field}`
 
     // The original lexeme, so a hex or character literal stays what it was.
     // The original lexeme, so `1.5` goes back out as `1.5` rather than as the
@@ -156,13 +190,13 @@ export const printExpression = (node: Expression): string => {
     }
 
     case 'CallExpression':
-      return `${node.callee.name}( ${node.args.map(printExpression).join(', ')} )`
+      return `${lowered(node.callee.name, node.callee.label)}( ${node.args.map(printExpression).join(', ')} )`
 
     // `mob[i].x` puts the field after the index, so the Identifier's own field
     // cannot simply be printed with it.
     case 'IndexExpression': {
       const field = node.array.field === undefined ? '' : `.${node.array.field}`
-      return `${node.array.name}[ ${printExpression(node.index)} ]${field}`
+      return `${lowered(node.array.name, ownerLabel(node.array))}[ ${printExpression(node.index)} ]${field}`
     }
 
     case 'CastExpression':
@@ -178,10 +212,10 @@ export const printExpression = (node: Expression): string => {
       return `mulshr8( ${printExpression(node.left)}, ${printExpression(node.right)} )`
 
     case 'AddrExpression':
-      return `addr( ${node.target.name} )`
+      return `addr( ${lowered(node.target.name, node.target.label)} )`
 
     case 'LenExpression':
-      return `len( ${node.target.name} )`
+      return `len( ${lowered(node.target.name, node.targetLabel)} )`
 
     case 'PeekExpression':
       return `peek${node.width === 1 ? '8' : '16'}( ${printExpression(node.address)} )`
@@ -206,27 +240,27 @@ const printClause = (statement: Statement | null): string =>
   statement === null ? '' : printStatement(statement, 0).trim()
 
 export const printStatement = (node: Statement, depth = 0): string => {
-  // `local` is a modifier the parser folds onto the declaration, so it prints
-  // from the flag rather than from a node of its own.
-  const pad = indent(depth) + ('local' in node && node.local ? 'local ' : '')
+  // No `local` modifier: it is lowered into the name instead - see the note
+  // above `privateLabels`.
+  const pad = indent(depth)
 
   switch (node.type) {
     case 'ConstDeclaration': {
       const type = node.typeNode ? `${printType(node.typeNode)} ` : ''
-      return `${pad}const ${type}${node.name} = ${printExpression(node.init)}`
+      return `${pad}const ${type}${declared(node)} = ${printExpression(node.init)}`
     }
 
     case 'ConstFunctionDeclaration': {
       const type = node.returnType ? `${spell(node.returnType, node.returnFrac)} ` : ''
       return (
-        `${pad}const ${type}${node.name}${printParams(node.params)}` +
+        `${pad}const ${type}${declared(node)}${printParams(node.params)}` +
         ` = ${printExpression(node.body)}`
       )
     }
 
     case 'VariableDeclaration': {
       const init = node.init ? ` = ${printExpression(node.init)}` : ''
-      return `${pad}${printType(node.typeNode)} ${node.name}${init}`
+      return `${pad}${printType(node.typeNode)} ${declared(node)}${init}`
     }
 
     // The closing brace takes plain indentation, not `pad` - `pad` carries the
@@ -236,14 +270,14 @@ export const printStatement = (node: Statement, depth = 0): string => {
       const fields = node.fields
         .map((field) => `${indent(depth + 1)}${printType(field.typeNode)} ${field.name}`)
         .join('\n')
-      return `${pad}group ${node.name}${count} {\n${fields}\n${indent(depth)}}`
+      return `${pad}group ${declared(node)}${count} {\n${fields}\n${indent(depth)}}`
     }
 
     case 'FarDeclaration': {
       const readonly = node.readonly ? 'const ' : ''
       const offset = node.offset ? `:${printExpression(node.offset)}` : ''
       return (
-        `${pad}${readonly}far ${printType(node.typeNode)} ${node.name}` +
+        `${pad}${readonly}far ${printType(node.typeNode)} ${declared(node)}` +
         ` = ${printExpression(node.segment)}${offset}`
       )
     }
@@ -251,8 +285,8 @@ export const printStatement = (node: Statement, depth = 0): string => {
     case 'ViewDeclaration': {
       const readonly = node.readonly ? 'const ' : ''
       return (
-        `${pad}${readonly}view ${printType(node.typeNode)} ${node.name}` +
-        ` = ${node.parent.name}[ ${printExpression(node.offset)} ]`
+        `${pad}${readonly}view ${printType(node.typeNode)} ${declared(node)}` +
+        ` = ${lowered(node.parent.name, node.parent.label)}[ ${printExpression(node.offset)} ]`
       )
     }
 
@@ -262,8 +296,8 @@ export const printStatement = (node: Statement, depth = 0): string => {
     // written bare.
     case 'RoutineDeclaration': {
       const head = node.returnType
-        ? `${spell(node.returnType, node.returnFrac)} ${node.name}`
-        : `sub ${node.name}`
+        ? `${spell(node.returnType, node.returnFrac)} ${declared(node)}`
+        : `sub ${declared(node)}`
       const params =
         node.returnType || node.params.length ? printParams(node.params) : ''
       return `${pad}${head}${params} ${printBlock(node.body.body, depth)}`
@@ -345,7 +379,10 @@ export const printStatement = (node: Statement, depth = 0): string => {
       return `${pad}${printExpression(node.target)}${node.operator}`
 
     case 'CallStatement':
-      return `${pad}${node.callee.name}( ${node.args.map(printExpression).join(', ')} )`
+      return (
+        `${pad}${lowered(node.callee.name, node.callee.label)}` +
+        `( ${node.args.map(printExpression).join(', ')} )`
+      )
   }
 }
 
@@ -356,5 +393,13 @@ const printBranch = (node: Statement, depth: number): string =>
     ? printBlock(node.body, depth)
     : printBlock([node], depth)
 
-export const printProgram = (program: Program): string =>
-  program.body.map((statement) => printStatement(statement, 0)).join('\n') + '\n'
+export const printProgram = (program: Program): string => {
+  privateLabels.clear()
+  for (const statement of program.body) {
+    if ('local' in statement && statement.local && 'label' in statement && statement.label) {
+      privateLabels.add(statement.label)
+    }
+  }
+
+  return program.body.map((statement) => printStatement(statement, 0)).join('\n') + '\n'
+}

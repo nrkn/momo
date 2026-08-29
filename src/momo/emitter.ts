@@ -229,9 +229,9 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
 
     if (symbol.segment.from === 'const') {
       const hex = symbol.segment.value.toString(16).toUpperCase()
-      ins('mov', `dx, 0x${hex}`, `segment of ${symbol.name}`)
+      ins('mov', `dx, 0x${hex}`, `segment of ${symbol.label}`)
     } else {
-      ins('mov', `dx, [${symbol.segment.label}]`, `segment of ${symbol.name}`)
+      ins('mov', `dx, [${symbol.segment.label}]`, `segment of ${symbol.label}`)
     }
     ins('mov', 'es, dx')
   }
@@ -1711,7 +1711,9 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
 
     const kind = statement.returnType ? statement.returnType : 'sub'
     blank()
-    note(`============================================== ${kind} ${statement.name} ====`)
+    // By label, like the label itself below: a private is `build__bump` in the
+    // output, and a banner naming it `bump` would disagree with the line under it.
+    note(`============================================== ${kind} ${statement.label ?? statement.name} ====`)
     blank()
     // By label, not by name: `local` lets two files each declare `sub helper`,
     // and a name lookup would emit one of them twice under the other's label.
@@ -1726,7 +1728,12 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     maxPushDepth = 0
     lastQuoted = null
     emitStatement(statement.body)
-    temporaries.set(statement.name, maxPushDepth)
+    // By label, because that is what the call graph is keyed on. Under the name,
+    // every `local` routine's temporaries were looked up as `pushElement` while
+    // the graph asked for `build__pushElement`, found nothing, and counted zero -
+    // so §12's stack figure was under-stated for any program with a private sub
+    // that uses any.
+    temporaries.set(statement.label ?? statement.name, maxPushDepth)
 
     currentRet = null
     // A body ending in `return` has already emitted one.

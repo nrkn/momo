@@ -234,7 +234,7 @@ putNumber:
 
 ticks:
 ; ---- u16 ticks() => tickLow[0]
-        mov     dx, 0x40                    ; segment of tickLow
+        mov     dx, 0x40                    ; segment of time__tickLow
         mov     es, dx
         mov     ax, [es:108]
         mov     [ticks__ret], ax
