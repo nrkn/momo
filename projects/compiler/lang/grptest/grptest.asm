@@ -17,7 +17,7 @@ __entry:
         mov     byte [player__y], 20
 ; ---- player.hp = 100
         mov     word [player__hp], 100
-; ---- for( u8 i = 0; i < len( mob ); i++ ){
+; ---- for( u8 i in mob ){
         mov     byte [i], 0
 .L1:
         mov     al, [i]
@@ -60,24 +60,22 @@ __entry:
         mov     byte [mob__alive + 2], 0
 ; ---- total = 0
         mov     word [total], 0
-; ---- for( u8 i = 0; i < len( mob ); i++ ){
-        mov     byte [i], 0
+; ---- for( m of mob ){
+        mov     word [of__grptest__0], 0
 .L5:
-        mov     al, [i]
-        cmp     al, 4                       ; byte operands, no widening
+        mov     ax, [of__grptest__0]
+        cmp     ax, 4
         jae     .L7                         ; unsigned <
-; ---- if( mob[i].alive ){
-        mov     al, [i]
-        xor     ah, ah                      ; u8 -> u16
+; ---- if( m.alive ){
+        mov     ax, [of__grptest__0]
         mov     bx, ax
         mov     al, [mob__alive + bx]
         test    al, al
         jz      .L9
-; ---- total += mob[i].hp
+; ---- total += m.hp
         mov     ax, [total]
         push    ax                          ; save lhs: rhs is not a leaf
-        mov     al, [i]
-        xor     ah, ah                      ; u8 -> u16
+        mov     ax, [of__grptest__0]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [mob__hp + bx]
@@ -87,7 +85,7 @@ __entry:
         mov     [total], ax
 .L9:
 .L6:
-        inc     byte [i]
+        inc     word [of__grptest__0]
         jmp     .L5
 .L7:
 ; ---- putNumber( total )
@@ -107,15 +105,14 @@ __entry:
         call    putNumber
 ; ---- newline()
         call    newline
-; ---- for( u8 i = 0; i < len( mob ); i++ ){
-        mov     byte [i], 0
+; ---- for( m of mob ){
+        mov     word [of__grptest__0], 0
 .L12:
-        mov     al, [i]
-        cmp     al, 4                       ; byte operands, no widening
+        mov     ax, [of__grptest__0]
+        cmp     ax, 4
         jae     .L14                        ; unsigned <
-; ---- putNumber( mob[i].x )
-        mov     al, [i]
-        xor     ah, ah                      ; u8 -> u16
+; ---- putNumber( m.x )
+        mov     ax, [of__grptest__0]
         mov     bx, ax
         mov     al, [mob__x + bx]
         xor     ah, ah                      ; u8 -> u16
@@ -125,7 +122,7 @@ __entry:
         mov     byte [putChar__c], 32
         call    putChar
 .L13:
-        inc     byte [i]
+        inc     word [of__grptest__0]
         jmp     .L12
 .L14:
 ; ---- newline()
@@ -260,6 +257,7 @@ _di:            dw      0
 
 ; ---- variables ----
 i:              db      0        ; u8
+of__grptest__0: dw      0        ; u16
 putChar__c:     db      0        ; u8
 putNumber__n:   dw      0        ; u16
 player__x:      db      0        ; u8

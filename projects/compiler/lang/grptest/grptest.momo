@@ -31,7 +31,7 @@ player.y = 20
 player.hp = 100
 
 // len() on a group is its instance count, so the count lives in one place.
-for( u8 i = 0; i < len( mob ); i++ ){
+for( u8 i in mob ){
   mob[i].x = i * 2
   mob[i].hp = 50 + i
   mob[i].alive = true
@@ -40,9 +40,9 @@ for( u8 i = 0; i < len( mob ); i++ ){
 mob[2].alive = false
 
 total = 0
-for( u8 i = 0; i < len( mob ); i++ ){
-  if( mob[i].alive ){
-    total += mob[i].hp
+for( m of mob ){
+  if( m.alive ){
+    total += m.hp
   }
 }
 
@@ -56,8 +56,8 @@ newline()
 putNumber( len( mob ) )
 newline()
 
-for( u8 i = 0; i < len( mob ); i++ ){
-  putNumber( mob[i].x )
+for( m of mob ){
+  putNumber( m.x )
   putChar( ' ' )
 }
 newline()

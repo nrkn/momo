@@ -3554,10 +3554,25 @@ which is ordinary Momo that reparses to the same program.
 
 **The `of` counter is always `u16`.** Its bound is `len( a )`, a constant the
 parser cannot see, and a counter narrow enough for one array would be wrong for
-the next. So for an array shorter than 256 elements a hand-written `u8` loop is
-narrower than what `of` emits, and `in` is where a program that cares chooses the
-width. That is the one place `of` is not free, and it is worth knowing before
-reaching for it in a hot loop.
+the next - so `in` is where a program that cares chooses the width.
+
+That was written expecting it to cost something, and the measurement went the
+other way. `grptest` took `in` once and `of` twice, and came out **three
+instructions shorter at exactly the same 492 bytes**. A word counter costs a byte
+on each `cmp` and each initialising `mov`, and saves the `xor ah, ah` that
+widening a `u8` index into BX needs - one instruction per indexed access, and a
+body indexes more often than its header compares.
+
+**Sequential `of` loops share a counter**, the way two §44 declarations of one
+name do. A counter already lifted into this body is handed out again unless it
+appears inside the loop being built - bodies are parsed before their headers are
+constructed, so a counter turning up in there belongs to something nested and is
+still live.
+
+That is measured rather than assumed too, and it is why the rule exists: without
+it `grptest` was two bytes *larger*, paying for two dedicated slots where the
+hand-written form had reused one `i` across three loops. Nested loops keep
+distinct counters, which the identity pair holds by carrying a nested case.
 
 **The counter's name carries the file it came from** - `of__tiger__0` and so on.
 The loader splices every file's top level into one program, so two files each

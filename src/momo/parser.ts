@@ -1335,10 +1335,28 @@ export const parse = (tokens: Token[]): Program => {
     return { typeNode, name, word, target }
   }
 
+  // Every name mentioned anywhere in a statement, used to decide which counters
+  // are still live where a loop is being built.
+  const namesIn = (root: Statement): Set<string> => {
+    const names = new Set<string>()
+
+    const visit = (node: AstLike) => {
+      if (node.type === 'Identifier' && typeof node.name === 'string') names.add(node.name)
+      for (const value of Object.values(node)) {
+        if (Array.isArray(value)) {
+          for (const v of value) if (isAst(v)) visit(v)
+        } else if (isAst(value)) visit(value)
+      }
+    }
+
+    visit(root as unknown as AstLike)
+    return names
+  }
+
   const buildIteration = (start: Token, header: IterationHeader, body: Statement): ForStatement => {
     const { typeNode, name, word, target } = header
     const spot = { file: name.file, line: name.line, col: name.col }
-    const counter = word === 'in' ? name.text : nextOfCounter(name.file)
+    let counter = name.text
 
     if (word === 'of') {
       if (typeNode) {
@@ -1349,17 +1367,33 @@ export const parse = (tokens: Token[]): Program => {
         )
       }
 
+      // Sequential `of` loops in one body share a counter, exactly as two §44
+      // declarations of one name do - and without this each would pay for a slot
+      // the hand-written form does not, which is what `grptest` measured.
+      //
+      // A counter already in this frame is safe to reuse unless it appears inside
+      // this loop's body: bodies are parsed before their headers are built, so a
+      // counter that turns up in there belongs to a loop nested in this one and
+      // is still live.
+      const live = namesIn(body)
+      const frame = hoistFrames[hoistFrames.length - 1] ?? []
+      const spare = frame.find((d) => d.name.startsWith('of__') && !live.has(d.name))
+
+      counter = spare ? spare.name : nextOfCounter(name.file)
+
       // Always u16. The length is a constant this stage cannot see, and a counter
       // narrow enough for one array would be wrong for the next - `in` is where a
       // program chooses the width.
-      hoist({
-        type: 'VariableDeclaration',
-        name: counter,
-        typeNode: { type: 'TypeNode', name: 'u16', frac: 0, array: false, size: null, ...spot },
-        init: null,
-        ...spot,
-        endLine: name.line,
-      })
+      if (!spare) {
+        hoist({
+          type: 'VariableDeclaration',
+          name: counter,
+          typeNode: { type: 'TypeNode', name: 'u16', frac: 0, array: false, size: null, ...spot },
+          init: null,
+          ...spot,
+          endLine: name.line,
+        })
+      }
 
       substituteBinding(body, name.text, target, counter)
     } else if (typeNode) {

@@ -44,3 +44,11 @@ for ( u16 f in cells ) {
 for ( c of cells ) {
   c = 4
 }
+
+// Nested, so the two cannot share: the inner counter is live inside the outer
+// loop's body when the outer one is being built.
+for ( p of buf ) {
+  for ( q of buf ) {
+    total = total + p + q
+  }
+}

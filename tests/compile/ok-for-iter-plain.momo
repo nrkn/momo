@@ -1,21 +1,23 @@
 // The twin of ok-for-iter-sugar.momo, written the way it has to be written
 // without DESIGN §45.
 //
-// The two counters with the long names are not a joke. `of` generates a counter
-// the program cannot name, and the name it generates carries the file it came
-// from - so the only twin that can emit identical instructions is one that
-// declares those exact labels. **Renaming ok-for-iter-sugar.momo means changing
-// them here**, and the identity assertion is what will say so.
+// The counter with the long name is not a joke. `of` generates a counter the
+// program cannot name, and the name it generates carries the file it came from -
+// so the only twin that can emit identical instructions is one that declares that
+// exact label. **Renaming ok-for-iter-sugar.momo means changing it here**, and the
+// identity assertion is what will say so.
 //
-// Declaration order matches the order the lifting produces, so the data section
-// matches too - one per loop, in the order the loops appear.
+// There is one of it rather than three because sequential `of` loops share a
+// counter, the way two §44 declarations of one name do. Nested ones do not: a
+// counter still live inside the body being built is never handed out again.
+//
+// Declaration order matches the order the lifting produces.
 
 u16 i
 u16 of__ok_for_iter_sugar__0
 u16 g
-u16 of__ok_for_iter_sugar__1
 u16 f
-u16 of__ok_for_iter_sugar__2
+u16 of__ok_for_iter_sugar__1
 
 const mobCount = 3
 
@@ -40,9 +42,9 @@ for ( g = 0; g < len( mob ); g++ ) {
   mob[ g ].hp = 100
 }
 
-for ( of__ok_for_iter_sugar__1 = 0; of__ok_for_iter_sugar__1 < len( mob ); of__ok_for_iter_sugar__1++ ) {
-  mob[ of__ok_for_iter_sugar__1 ].hp = mob[ of__ok_for_iter_sugar__1 ].hp + 1
-  mob[ of__ok_for_iter_sugar__1 ].x = 2
+for ( of__ok_for_iter_sugar__0 = 0; of__ok_for_iter_sugar__0 < len( mob ); of__ok_for_iter_sugar__0++ ) {
+  mob[ of__ok_for_iter_sugar__0 ].hp = mob[ of__ok_for_iter_sugar__0 ].hp + 1
+  mob[ of__ok_for_iter_sugar__0 ].x = 2
 }
 
 far u8[8] cells = 0xB800
@@ -51,6 +53,13 @@ for ( f = 0; f < len( cells ); f++ ) {
   cells[ f ] = 3
 }
 
-for ( of__ok_for_iter_sugar__2 = 0; of__ok_for_iter_sugar__2 < len( cells ); of__ok_for_iter_sugar__2++ ) {
-  cells[ of__ok_for_iter_sugar__2 ] = 4
+for ( of__ok_for_iter_sugar__0 = 0; of__ok_for_iter_sugar__0 < len( cells ); of__ok_for_iter_sugar__0++ ) {
+  cells[ of__ok_for_iter_sugar__0 ] = 4
+}
+
+// Nested, so the two cannot share.
+for ( of__ok_for_iter_sugar__1 = 0; of__ok_for_iter_sugar__1 < len( buf ); of__ok_for_iter_sugar__1++ ) {
+  for ( of__ok_for_iter_sugar__0 = 0; of__ok_for_iter_sugar__0 < len( buf ); of__ok_for_iter_sugar__0++ ) {
+    total = total + buf[ of__ok_for_iter_sugar__1 ] + buf[ of__ok_for_iter_sugar__0 ]
+  }
 }

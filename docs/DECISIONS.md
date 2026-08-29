@@ -556,11 +556,17 @@ stage that turns an AST back into source is where you find out.
 ### Three things the design did not settle, all of them costs
 
 **The `of` counter has to be `u16`.** Its bound is `len( a )`, and `len` folds in
-the resolver - the parser has no idea whether the array has four elements or four
-thousand. A counter sized for one would be wrong for the next, so it is always a
-word, and for an array shorter than 256 elements a hand-written `u8` loop is
-narrower than what `of` emits. That is the only place `of` is not free, and it is
-the reason to keep `in`: it is where a program chooses the width.
+the resolver - the parser has no idea whether the array holds four elements or
+four thousand. A counter sized for one would be wrong for the next, so it is
+always a word, and `in` is where a program that cares chooses.
+
+The section said that made `of` "not free" for a short array. Adopting it in
+`grptest` said otherwise: **three instructions fewer at the same 492 bytes.** The
+word counter costs a byte on each `cmp` and each initialising `mov` and saves the
+`xor ah, ah` that widening a `u8` index needs, which is one per indexed access
+against one per header. The prediction before measuring was "roughly a wash,
+possibly a small win"; the instruction count was the win and the byte count was
+the wash, which is closer than the section's own claim was.
 
 **The counter's name has to carry its file.** `of__tiger__0`, not `of__0`. The
 loader splices every file's top level into one program, so two files each holding
@@ -571,6 +577,28 @@ that is the collision `local` exists to prevent.
 against `mob`, because by the time anything can complain the binding is gone. The
 design had claimed it "says what to write instead"; it does now, but it says `mob`
 where the reader wrote `m`. Worth the trade, and worth writing down as a trade.
+
+### The cost the design missed entirely, and adoption found in three loops
+
+Not the width - the **sharing**. §44 lets two declarations of one name in a body
+share a slot, and `of` generates a distinct name per loop, so it gave that up
+without anyone noticing it was giving anything up.
+
+`grptest` is what noticed. Its three loops had shared one `u8 i`; adopting `of`
+in two of them allocated two dedicated words, and the program came out two bytes
+larger despite emitting three instructions fewer. Small, and entirely a ratio
+problem: a file with six `of` loops would pay for six counters it cannot share.
+
+So sequential `of` loops now share, on the rule that a counter already lifted into
+this body is free unless it appears inside the loop being built - which, because
+bodies are parsed before their headers are constructed, means it belongs to
+something nested and is still live. `grptest` went to **492 bytes against 492**,
+and the identity pair carries a nested case so that a counter handed out twice
+where it should not be shows up as a difference rather than as wrong output.
+
+This is the second time in two features that adopting into real code found what
+the pair could not. §44's was data ordering; this one is a slot the design never
+thought to count.
 
 ### The improvement that came out of the worst message
 
