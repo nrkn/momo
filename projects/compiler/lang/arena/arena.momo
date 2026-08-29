@@ -1,0 +1,51 @@
+// arena.momo - memory past the program's own segment, with no compiler change
+// and no DOS call (PLAN §40, DESIGN §13, §16, §35).
+//
+// §40 said the back buffer, the far arena and the backing stores "need §35, which
+// is two bytes - the single cheapest unblocking available". §35 landed the day
+// after that was written, and this is the claim being collected: everything below
+// is ordinary Momo against a compiler that already existed.
+//
+// Two halves. `PSP:0x0002` holds the segment one past the end of the block DOS
+// gave us, which is what makes `_hsize` conservative - §13 assumes the full 64K
+// and says the robust version reads this word instead. And a `far` region at a
+// runtime segment (§16) reaches whatever that word turns out to allow.
+//
+// A `.COM` is given the largest available block, which on a real machine and
+// under DOSBox is most of conventional memory rather than one segment - so the
+// region written here is genuinely past our own 64K. The test does not assert
+// that, because how much DOS hands out is a property of the machine: it asserts
+// only that the block has a top and that the top is ours.
+
+include "lib/std/io.momo"
+
+u16 ourSeg
+u16 endSeg
+u16 topSeg
+
+// The PSP as words, so offset 2 is index 1. Declared before `ourSeg` is set,
+// which §16 allows because the segment is re-read per access.
+far u16[2] pspw = ourSeg
+
+// 256 bytes at the very top of what DOS gave us - past our own segment whenever
+// the block is larger than one, which is the ordinary case.
+far u8[256] top = topSeg
+
+// ---- entry ----
+
+ourSeg = _ds
+endSeg = pspw[1]
+
+// 1 on any machine: DOS cannot end our block below where it started it.
+putNumber( u16( endSeg > ourSeg ) )
+newline()
+
+topSeg = endSeg - 16
+
+top[0] = 42
+top[255] = 7
+
+putNumber( top[0] )
+putChar( ' ' )
+putNumber( top[255] )
+newline()

@@ -1305,6 +1305,12 @@ reads the end-of-allocation segment from `PSP:0x0002` at startup - which for a
 and code starts at `0x100`. That would make `_hsize` a runtime computation rather
 than an assembly-time one.
 
+Nothing stands in the way of reading it. `arena` does exactly that - a `far u16`
+region based on `_ds` (§35), index 1 - and reports the block DOS actually gave it,
+which under DOSBox is 40,557 paragraphs where this `equ` assumes 4,096. So the
+value here is the conservative floor rather than the answer, and what is unbuilt is
+the decision to compute it at startup, not the means.
+
 The error usually runs the other way, and it matters to §16. That largest
 available block is typically **not** one segment but most of conventional memory -
 several hundred KB on a real machine. `_hsize` stops at `0FFFEh` because that is

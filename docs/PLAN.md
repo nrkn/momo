@@ -142,11 +142,14 @@ at all, which makes one a floor rather than a measurement.
   parameter. Here rather than Definitely because §45 pointed at the same 281 sites
   and delivered eight loops - the rule needs deciding and the reading claim needs
   measuring, in that order.
-- **Memory past the segment.** §40 - the allocators are libraries and need no
-  compiler change, the robust `_hsize` is specified in §13 and unbuilt, and the
-  half that is genuinely blocked is shrinking the program's own block, which needs
-  a way to set ES that does not exist. Same shape as §38's DS problem, one
-  register along.
+- **Memory past the segment.** §40 - and **most of it turned out not to be
+  blocked**. `arena` reaches 634 KB past its own segment in tier 2 with no compiler
+  change, because §35 landed the day after §40 said it was the one thing wanted;
+  the allocators were always libraries; the robust `_hsize` reads the same
+  `PSP:0x0002` word `arena` already reads; and the swap file wanted §38, which is
+  built. What remains is a far arena library over that word, and the one genuinely
+  blocked half - shrinking the program's own block, which needs a way to set ES
+  that does not exist. Same shape as §38's DS problem, one register along.
 - **The screen library.** §43 - a table of modes with the shape of a pixel in it,
   a yes/no/maybe query that resolves by setting a mode and reading it back, and the
   current-screen descriptor `momode` would set to put a program in a window. Mode
@@ -1435,8 +1438,18 @@ the allocators over the result.
 > call is involved."*
 
 So the mode 13h back buffer, a far arena for assets, and `momode`'s baked backing
-stores need **no DOS call at all**. They need §35, which is two bytes. That is the
-single cheapest unblocking available and it is why §35 has moved out of Maybe.
+stores need **no DOS call at all**. They needed §35, which is two bytes, and this
+section called that the single cheapest unblocking available.
+
+**§35 landed the day after that was written, and this section did not notice.**
+The claim has been collected since: `arena` reads `PSP:0x0002` through a far region
+based on `_ds`, learns where the block DOS gave it ends, and writes and reads a
+region at the top of it - **40,557 paragraphs, 634 KB, two thirds of a megabyte
+past our own segment**, in tier 2, on the target. Every line of it is ordinary Momo
+against a compiler that already existed.
+
+What is left for those three is a **library**, not a language change: a far arena
+over that word, which is what makes a back buffer and an allocator ordinary code.
 
 ### Where asking DOS does become unavoidable
 
@@ -1513,13 +1526,18 @@ handle a document larger than the memory it has.
 
 ### What is blocked on what
 
-| | |
-|---|---|
-| back buffer, far arena, backing stores | §35 only - no DOS call |
-| runtime `_hsize` | nothing; specified in §13, unbuilt |
-| arena and zone allocators | nothing - libraries, no compiler change |
-| shrinking, and `AH=4Bh` | a way to set ES, which does not exist |
-| swap file | §38 |
+Four of these five were written as pending and are not. Both things they waited on
+were built the following day, and the table sat unread until somebody went looking
+for something cheap to unblock - which is the argument for the periodic sweep, and
+a reminder that stale plans hide opportunities as well as being untidy.
+
+| | | |
+|---|---|---|
+| back buffer, far arena, backing stores | §35 only - no DOS call | **open**, and `arena` proves it |
+| runtime `_hsize` | nothing; specified in §13 | **open** - the same `PSP:0x0002` word |
+| arena and zone allocators | nothing - libraries, no compiler change | **open** |
+| shrinking, and `AH=4Bh` | a way to set ES, which does not exist | still blocked |
+| swap file | §38 | **open** - §38 is built |
 
 ---
 
