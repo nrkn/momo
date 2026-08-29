@@ -134,6 +134,14 @@ at all, which makes one a floor rather than a measurement.
 
 ### Probably
 
+- **`alias`.** §46 - a compile-time name for one element or one group instance, at
+  an index the program chooses. §45's `of` is this with the index owned by the
+  compiler, so the substitution is already built and what is new is a capture rule;
+  §46 takes the one the call graph can check. It reaches what `of` could not:
+  `fit.momo` reads `el[ i ]` twelve times in four statements, indexed by a routine
+  parameter. Here rather than Definitely because §45 pointed at the same 281 sites
+  and delivered eight loops - the rule needs deciding and the reading claim needs
+  measuring, in that order.
 - **Memory past the segment.** §40 - the allocators are libraries and need no
   compiler change, the robust `_hsize` is specified in §13 and unbuilt, and the
   half that is genuinely blocked is shrinking the program's own block, which needs
@@ -1904,3 +1912,145 @@ Nothing, for the table, the query and the descriptor - they are `int 10h`, `far`
 the storage question if the table becomes a lump (§38, §41), and the backing stores
 (§35).
 
+
+---
+
+## 46. `alias` - a name for an indexed access
+
+**Designed, not built.** A compile-time name for one element or one group
+instance, at an index the program chooses:
+
+```momo
+alias c = el[ ci ]
+
+contentH    += c.h
+minContentH += c.minH
+contentW     = max( contentW, c.w )
+```
+
+No storage and no instructions. Every `c` is substituted with `el[ ci ]` in the
+parser, and a write through it - `c.h = 5` - is an ordinary store, because there is
+nothing to write back through.
+
+### The mechanism is §45's, already built
+
+`of` is this with the index supplied by a compiler-owned counter instead of by the
+program. The parser's `substituteBinding` does the whole job today: it walks an
+already-parsed body and rewrites every use of a binding into an indexed access,
+carrying a group's field marker across untouched.
+
+So what §46 adds is a declaration form, a scope, and the rule below. It is not a
+new mechanism, which is most of the argument for it being small - and all of the
+argument for being careful, because the part that is new is the part that can be
+got quietly wrong.
+
+### Where it sits against `view`, which refused exactly this
+
+§17 excluded runtime offsets: a runtime view "is a **fat pointer** - base plus
+length - and Momo has no pointers by design", and it would become the de facto way
+to pass arrays to routines.
+
+`alias` escapes both objections the way `of` did. **Nothing is stored**: the index
+expression is substituted at compile time, so there is no base in memory to be half
+of a pointer, and a binding cannot be passed anywhere because it does not survive
+the parser. So this does not reopen §17's decision - it occupies the other half of
+it:
+
+> **`view` fixes the offset and names storage. `alias` fixes nothing and names an
+> access.**
+
+### The hazard, stated exactly
+
+`alias c = el[ ci ]` means `c` re-reads `ci` at every use. Three cases, one
+mechanism:
+
+| | |
+|---|---|
+| `ci` assigned later in the block | `c` silently re-points - the hazard |
+| `ci` is an enclosing loop's counter | `c` re-points per iteration - usually wanted |
+| a routine called in between writes `ci` | re-points invisibly - the worst one |
+
+This is §6's compound-assignment rule one level up. That rule refuses `x[ f() ] +=
+e` because the index would be evaluated twice inside **one statement**; an alias
+widens that window from a statement to a block, and the third case takes it out of
+the reader's sight entirely.
+
+### Four ways to close it, and the one to take
+
+1. **Freeze the index into a hidden slot.** `c__at = ci` once, and `c` becomes
+   `el[ c__at ]`. The hazard is gone and the semantics are the obvious ones -
+   evaluate the index *here* - but it costs a word and a store, so the feature
+   stops being free. Inside a loop it needs re-freezing per iteration, which is
+   `of` again.
+2. **Capture only what nothing can write** - constants and compiler-owned counters.
+   That is `of` with a longer spelling.
+3. **Refuse to capture a variable written inside the alias's scope**, directly or
+   by anything called from it. Costs nothing at runtime and is mechanically
+   checkable: `buildCallGraph` in `analysis.ts` already exists, which is what makes
+   the third case tractable rather than a hope.
+4. **Document it and move on.** Against the grain of a language that made
+   `a < b < c` an error and refuses a `bool` holding 2.
+
+**Take 3**, with 1 as the fallback if it proves too strict in practice. It refuses
+rather than surprises, it is checkable with machinery that is already here, and it
+keeps the property that makes the feature worth having.
+
+### The capture rule
+
+> An `alias` may not capture a name that is assigned anywhere in the alias's scope,
+> nor by any routine reachable from a call inside it.
+
+It rejects programs that would have been fine - a write to `ci` after the last use
+of `c` is harmless, and this refuses it - which is the right direction to err for a
+rule whose failure mode is silent. The error should name the write, not the alias:
+the alias is where the reader looks, and the assignment is what has to move.
+
+### What it reaches, which is what `of` could not
+
+`momolo/fit.momo` ends a routine with twelve `el[ i ]` in four statements:
+
+```momo
+el[i].w    = clamp( insetX + contentW,    el[i].wMin, el[i].wMax )
+el[i].h    = clamp( insetY + contentH,    el[i].hMin, el[i].hMax )
+el[i].minW = clamp( insetX + minContentW, el[i].wMin, el[i].wMax )
+el[i].minH = clamp( insetY + minContentH, el[i].hMin, el[i].hMax )
+```
+
+`i` is a **routine parameter**, which `of` cannot bind to at all, and `fitSize`
+never assigns it - so the rule above admits `alias e = el[ i ]` and those four
+lines become four lines. That is the shape of the 281 indexed field accesses in the
+corpus: `el` 177, `player` 33, `st` 30, `held` 24.
+
+### What §45's sweep says about that number
+
+**Hold it to a measurement rather than a count.** §45 pointed at the same 281 and
+delivered eight loops, because the sites it could reach turned out to be
+single-access fills where a binding costs a reader more than `X[ i ]` did.
+
+The same question applies here and has not been answered: `el[i].w` twelve times is
+repetitive, and it is also completely explicit. Whether `e.w` reads better is a
+claim about reading, and the honest way to settle it is to adopt it in one routine
+and look - which is what the narrow-then-broad order is for, and what §45 was built
+in time to teach.
+
+### Rules
+
+- **A binding, not a declaration.** No type, for §45's reason: there is nothing for
+  a type to describe.
+- **Scoped to the end of its enclosing block.** A binding has no storage, so unlike
+  §44's counter it can be block-scoped for nothing - which §45 already established.
+- **`alias m = mob[ i ]` leaves `m` bare an error**, as `of` does and as §18 words
+  it: no record exists for one instance to denote.
+- **The target is a name and the index is an expression**, mirroring `of`. An alias
+  of an alias is refused rather than resolved - it would work by substitution and
+  it names nothing a reader cannot already write.
+- **Writes go through.** `c.h = 5` is `el[ ci ].h = 5`.
+
+### Scope of a first build
+
+In: the declaration form, block scope, the capture rule with the call graph behind
+it, and `of`'s substitution reused unchanged.
+
+Out: aliasing an expression rather than an indexed name, aliasing whole rows or
+sub-arrays - that is a runtime `view` and §17 refused it for reasons that still
+hold - and any spelling that lets a binding cross a routine boundary.
