@@ -121,6 +121,20 @@ nothing has yet wanted it.
   since a README that shows off wants something to show.
 - **Fixed-point division.** DESIGN §25 is half built and says which half: `*` on
   8.8 lands, division does not, and §25 sets out why it is the awkward one.
+- **Declaring the loop counter in a `for`.** §44 - `for ( u8 i = 0; ... )` rather
+  than a declaration on the line above, which is what 131 of the 170 `for`
+  statements here already say by hand. Costs nothing and says so the way §39 did,
+  by a matched pair that has to emit the same instructions. One thing wants
+  settling before a line is written: §5 rejected emitting an initialiser as code
+  where it stands, and this is that, in one position.
+- **`for ( x in a )` and `for ( x of a )`.** §45 - a counter bound to a thing
+  rather than to a number, and a name bound to the indexed access rather than to a
+  copy of it. `in` is `len`, which already spans arrays, sized `far` regions and
+  indexed groups; `of` is where a `group` body stops repeating `mob[ i ].`, and it
+  needs no record type to do it. `in` wants §44 first, since that is what declares
+  its counter. 34 of the 170 loops here walk a full extent, which is four times
+  fewer than count something else - §45 has the split, and the prediction it
+  corrected.
 
 ### Probably
 
@@ -215,6 +229,11 @@ nothing has yet wanted it.
   three extensions - since two groups declared from one shape match by
   construction with no structural comparison anywhere. `momopnt`, one toolkit
   under three editors, is where the want would arrive.
+- **`in` over a count.** §45 - `for ( u8 i in maxPaths )` for `0 .. maxPaths - 1`,
+  which would cover §44's 131 loops and §45's thirty-four in one form. Out of §45's
+  first build because it makes `in` mean two things, an extent in one operand and
+  a value in the other, for a gain §44 has already mostly taken. Here rather than
+  rejected because nothing has wanted it, which is what this tier is for.
 - **`--cpu` target levels.** §28. 186 is modest, 286 is a rounding error, 386 is
   transformative - and 386 would change §4's type rules, so it is not only a
   backend switch.
@@ -1873,3 +1892,315 @@ Nothing, for the table, the query and the descriptor - they are `int 10h`, `far`
 `view` and data, and the window handshake needs nothing either. What is blocked is
 the storage question if the table becomes a lump (§38, §41), and the backing stores
 (§35).
+
+---
+
+## 44. Declaring the counter in a `for`
+
+**Designed, not built.** The counter of a three-clause `for` is declared in its
+init clause rather than on the line above:
+
+```momo
+for ( u8 i = 0; i < n; i++ ) { ... }
+```
+
+It lowers by lifting the declaration to the enclosing declaration space and
+leaving the assignment where it was written:
+
+```momo
+u8 i
+for ( i = 0; i < n; i++ ) { ... }
+```
+
+which is what **131 of the 170** `for` statements under `projects/` and `shared/`
+already say by hand. That count is the whole case for it: nothing here is
+expressive, and the feature is that a convention every C-family language shares
+stops being spelled in two lines.
+
+### It is sugar, and that is assertable rather than arguable
+
+No storage moves and no instruction changes. The lifted declaration takes the same
+static slot the hand-written one takes, and the init clause emits the same
+assignment it emits today. §39's method applies unchanged: a pair of files
+identical but for the spelling, required to emit the same instructions. The golden
+tier cannot make that check on its own - it compares committed output against
+itself and would agree with a leak.
+
+### Two loops, one name, which is the common case rather than the corner
+
+Scoping is flat, global and per-sub, with no block scope, and `locals` is one map
+per routine. So a second `for ( u8 i = 0; ... )` in the same routine collides with
+`"i" is already declared in this scope` - and two counting loops in a row is
+ordinary code, not an edge.
+
+**A for-init declaration whose name and type match one already in the same space
+reuses it.** A mismatch - `u8 i` above and `u16 i` below - is an error rather than
+a silent second variable. That is one rule and no new concept, and it is *smaller*
+than C's semantics rather than equal to them: C gives each loop its own variable,
+this gives them one slot, and for a counter that is initialised on entry there is
+no observable difference.
+
+Real block scope is the alternative and the resolver already declines it, at the
+top of `resolver.ts`: locals are statically allocated, so a block-scoped variable
+would be another static slot under a different name, all cost and no benefit. That
+reasoning is unchanged here.
+
+### The scope is flatter than the spelling suggests, and that is not new
+
+`i` outlives the loop and holds its terminal value. Every other C-family language
+scopes it to the braces, so the spelling imports an expectation the language does
+not honour.
+
+It is not a new exception, though. §5 already requires the reader to know that a
+declaration inside a routine is static: its `putBar` example exists to say that a
+*second call* finds `n` still at 3. This extends a rule that is already load-bearing
+to one more position rather than adding a second rule beside it. It still wants a
+sentence in §5, because the reader arriving from C will not have that rule in hand.
+
+### `=` would read two ways one line apart, and §5 rejected that once
+
+This is the part to settle before anything is written. §5 says an initialiser is a
+**load-time value and is only allowed at the top level**, and records that the
+alternative - emitting the initialiser as code where it is written - was rejected
+for its asymmetry. `for ( u8 i = 0; ... )` is that alternative, in one position.
+
+The defence is that the first clause of a `for` is already a statement position.
+`for ( i = 0; ... )` is an assignment today, executed every time control reaches
+the loop, so the `=` inside the parentheses is the statement `=` and not the
+initialiser `=`. Nothing about when it runs is ambiguous, which is the property §5
+was protecting.
+
+That is defensible and it is still a second reading of the same characters. §5 has
+to own it in a sentence rather than leave a reader to notice that `u8 i = 0` means
+load-time one line up and per-entry here.
+
+There is a way to avoid it entirely: allow the declaration only in §45's `in` and
+`of` forms, where no `=` appears at all. It buys one paragraph and costs the 131
+loops, which is the wrong trade.
+
+### Rules
+
+- **Three-clause `for` only.** A declaration in the init clause, never in the test
+  or update.
+- **One declaration**, not a list. `for ( u8 i = 0, j = 0; ... )` is an error;
+  there is no comma declarator anywhere else in the language and this is not the
+  place to introduce one.
+- **The initialiser is required.** `for ( u8 i; ...; ... )` declares without
+  assigning, which is the load-time reading this section spent a heading avoiding.
+- **Same name and type reuses the slot; a mismatch is an error.**
+- **A sub-local still shadows a global**, exactly as a hand-written declaration in
+  a routine does. No new rule.
+
+### Scope of the first build
+
+In: the declaration, the reuse rule, the printer lowering it back to two lines so
+the round trip sees what the parser built, and the matched pair asserting no
+instruction moved.
+
+Out: block scope, comma declarators, and any inference of the type. Momo is
+type-first everywhere and a counter's type is observable in §4's mixing - `u8 i`
+against `u16 i` is a different program - so it is written rather than derived.
+
+---
+
+## 45. `for ( x in a )` and `for ( x of a )`
+
+**Designed, not built.** Two sugars over the three-clause `for`, for the case
+where the bound is a thing rather than a number:
+
+```momo
+for ( u8 i in mob ) { mob[ i ].hp = 100 }     // i counts
+for ( m of mob )    { m.hp = 100 }            // m names
+```
+
+`in` binds a **counter**; `of` binds a **name for the indexed access**. They are
+different enough to be worth both, and the difference is visible in the spelling:
+`in` takes a type because it declares storage, `of` takes none because it declares
+nothing. `for ( u8 m of mob )` is an error.
+
+### `in` is `len`, and `len` already answers every shape
+
+```momo
+for ( u8 i in buf ) { ... }
+->
+u8 i
+for ( i = 0; i < len( buf ); i++ ) { ... }
+```
+
+`len` folds to an untyped constant, so the bound is a NASM `equ` and the emitted
+code is what the hand-written loop emits. It needs no resolver work at all: `len`
+already spans arrays, sized `far` regions and indexed groups - returning the
+instance count for the last of those - and already refuses the heap and the
+single-instance group form with messages written for exactly this question. `in`
+inherits the coverage and the diagnostics.
+
+The declaration is §44's. `for ( i in buf )` with `i` already declared is the
+other half, and the same rule decides which one is happening.
+
+### `of` binds a name to an access, not a value, and that is the whole design
+
+The obvious reading - `of` binds a copy of the element - is the wrong one here,
+and it is worth saying why, because it is the reading every other language
+supplies.
+
+A copy needs storage, costs a load and a store per iteration, is worse than
+indexing when the body reads the element once, and silently discards writes:
+`for ( v of buf ) { v = 0 }` would not clear the array. It also cannot reach a
+`group` at all, because §18 has no record for `mob[i]` to denote.
+
+Binding the **name** instead has none of those properties:
+
+```momo
+for ( m of mob ) { m.hp = 100 }
+->
+u8 __i
+for ( __i = 0; __i < len( mob ); __i++ ) { mob[ __i ].hp = 100 }
+```
+
+`m.hp` resolves to `mob__hp[__i]`, which is what §18 already does with `.` - the
+parser hangs a field marker on the identifier and the resolver does the lookup. `m`
+is a symbol carrying a target and an index expression, and nothing about it reaches
+the emitter. No copy, no storage, no record, no change to `ValueType`.
+
+Writes work, because there is nothing to write back through: `m.hp = 100` is an
+ordinary array store. The same holds for an array, where `v` is `buf[__i]` and
+`v = 0` clears the element.
+
+### §17 does not object, and both halves of its objection are answered
+
+§17 excludes runtime view offsets deliberately, on two grounds. A runtime view is
+a **fat pointer**, base plus length, and Momo has no pointers - but this binding
+stores nothing at runtime; the index expression is substituted at resolve time and
+the only storage is the counter. And it would become **the de facto way to pass
+arrays to routines** - but a binding cannot be passed anywhere, since routines take
+scalars and the name is confined to the loop body.
+
+Static views stay sugar, which §17 says is their whole appeal. This is the same
+claim one step along.
+
+### `group` is the best case, and §18's rule survives unchanged
+
+`mob[i]` alone is not an expression, because no record exists for it to denote.
+**`m` alone is not one either** - only `m.field` is, and the error says so. So this
+does not widen §18's rule; it reuses it under a shorter name.
+
+That matters more than it sounds. §18 says the design pushes toward passing
+*indices* rather than entity references, and nothing here pushes back: an index is
+still what crosses a routine boundary, because a binding cannot.
+
+### It can be scoped properly, which §44 cannot
+
+The resolver declines block scope because a block-scoped variable would be another
+static slot under a different name. **This binding has no slot**, so the reasoning
+does not reach it: push the name on entry to the body, pop it on the way out, and
+it genuinely dies at the closing brace.
+
+So the two forms answer the scoping question differently, and for a reason rather
+than by inconsistency. §44's counter has storage and stays flat; `of`'s name has
+none and does not.
+
+### What it costs
+
+One static slot per `of` loop, for a counter the program never named and cannot
+name. §12's footprint stays exact and stops being fully attributable - `npm run
+memory` reports a byte or a word that appears in no source line. Naming it after
+the loop target makes it legible in the report without making it reachable.
+
+That is the whole cost. If the body needs the index, that is what `in` is for,
+which makes the two complementary rather than competing.
+
+### What wanted it, and the prediction that was wrong
+
+**34 of the 170 `for` statements walk a container's full extent**, which is what
+these two forms serve - a fifth of the loops here, rather than the handful a
+fixed-capacity memory model suggests.
+
+That figure is a correction, and the way it was found is the argument for taking
+the measurement twice. Reading the histogram of test clauses, the prediction was
+that almost every loop walks the **used prefix** of a buffer rather than the
+buffer: `count`, `crossingCount`, `candLen`, `scenePathCount[ s ]` and `n` all say
+exactly that, and they are thirty-odd loops between them. But `< maxPaths` appears
+20 times and is not one of them. `u16[maxPaths] pathPixels` sitting beside
+`for ( p = 0; p < maxPaths; p++ )` is a whole-array walk that spells its bound with
+the capacity constant instead of with `len`. Opening one of them is what found it.
+
+So the split is roughly 34 whole-extent walks and thirty-odd used-prefix ones, with
+the rest counting something that is not a container at all - a screen dimension 19
+times, and small literal bounds below that.
+
+**Only 12 of the 34 say `len`.** The other 22 name a constant that the array's own
+declaration also names, which is a coupling rather than a bug: the two cannot
+disagree while they share the constant, though in `mvdemo` they sit in different
+files and the constant is generated. `for ( p in pathPixels )` removes the coupling
+rather than maintaining it. That is a smaller correctness argument than "a bug
+waiting to happen", and it is the honest size of one.
+
+Where `of` earns its place is density rather than count. There are 281 indexed
+field accesses - `el` 177, `player` 33, `st` 30, `held` 24, `mob` 8 - and they
+cluster: a five-line body in `momolo/fit.momo` reads `el[ci]` four times, and the
+four statements below it read `el[i]` twelve times. That is what `of` is for.
+
+### The general form this is a special case of, and why it is not here
+
+Most of those 281 are **not reachable by `of`**, and that is the finding rather
+than a caveat. In the `fit.momo` loop the index is `ci = childAt( i, k )`, computed
+rather than counted; the block below it indexes by `i`, a routine *parameter*. The
+index histogram is `i` 195, `pi` 23, `ci` 19, `rightPlayer` 16, `leftPlayer` 16,
+and several of those are plainly not counters.
+
+What the corpus is asking for is **naming an instance at an arbitrary index**, of
+which "the current iteration" is one case:
+
+```momo
+alias c = el[ ci ]
+contentH    += c.h
+minContentH += c.minH
+```
+
+Same mechanism, same absence of storage, and it reaches all 281 sites rather than
+thirty. It is not here for one reason: **the binding would capture a variable it
+does not own.** `alias c = el[ ci ]` followed by an assignment to `ci` silently
+re-points `c`, which is §6's compound-assignment hazard one level up - that rule
+already refuses an index that could be evaluated twice and mean two things. The
+`for` forms are immune by construction, because the compiler owns the counter and
+no statement in the body can write it.
+
+So the loop forms are buildable now and the general one needs a rule about what a
+binding may capture. If that rule gets written it takes its own number, the way §16
+spun out §34 and §35.
+
+### The count form, which is deliberately out
+
+`for ( u8 i in maxPaths )`, meaning `0 .. maxPaths - 1`, would cover the 131 loops
+§44 covers and the 12 that `in` covers with one form. It is out of the first build
+because it makes `in` mean two things - an extent in one operand and a value in the
+other - for a gain that §44 has already mostly taken. It is in Maybe rather than
+rejected: nothing has wanted it, which is exactly what that tier is for.
+
+### Rules
+
+- **`in` declares a counter** and follows §44 for whether the type is written.
+  `for ( i in a )` uses an existing `i`.
+- **`of` declares nothing** and takes no type. Its name is scoped to the loop body.
+- **Neither is a keyword.** After the name in a `for` header, one token of
+  lookahead accepts a contextual `in` or `of`, so both stay available to programs -
+  and there are no collisions in the corpus today to grandfather. §39 had to pay a
+  name for `unit`; this does not have to pay two.
+- **`of` names an element or an instance, never the whole.** `m` alone is an error
+  and says what to write instead, as §18's group rule already does.
+- **The operand is a name**, not an expression - an array, a sized `far` region, or
+  an indexed group. The heap and the single-instance group form are errors, and
+  `len` already writes both messages.
+- **Nothing may assign to the counter inside the body.** It is the compiler's, and
+  the `of` form's immunity to the capture hazard above depends on it.
+
+### Scope of the first build
+
+In: both forms over arrays, sized `far` regions and indexed groups; the printer
+lowering both back to three-clause loops, since that is what the round trip has to
+compile.
+
+Out: the count form, the general `alias` binding, iteration over anything the
+resolver cannot fold a bound for, and any spelling that hands `of` its index -
+`for ( m, i of mob )` is the shape that will be asked for, and `in` already
+answers it.
