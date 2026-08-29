@@ -1969,26 +1969,50 @@ declaration inside a routine is static: its `putBar` example exists to say that 
 to one more position rather than adding a second rule beside it. It still wants a
 sentence in §5, because the reader arriving from C will not have that rule in hand.
 
-### `=` would read two ways one line apart, and §5 rejected that once
+### No initialiser reaches a for-init, which is what §5's rule turns on
 
-This is the part to settle before anything is written. §5 says an initialiser is a
-**load-time value and is only allowed at the top level**, and records that the
-alternative - emitting the initialiser as code where it is written - was rejected
-for its asymmetry. `for ( u8 i = 0; ... )` is that alternative, in one position.
+§5 says an initialiser is a **load-time value and is only allowed at the top
+level**, and records that emitting one as code where it is written was rejected for
+its asymmetry. `for ( u8 i = 0; ... )` looks like exactly that alternative, and
+whether it is was the last thing this section had open.
 
-The defence is that the first clause of a `for` is already a statement position.
-`for ( i = 0; ... )` is an assignment today, executed every time control reaches
-the loop, so the `=` inside the parentheses is the statement `=` and not the
-initialiser `=`. Nothing about when it runs is ambiguous, which is the property §5
-was protecting.
+It is not, because the parser lowers it. What reaches the resolver is a declaration
+carrying no initialiser and an ordinary assignment statement in the init clause, so
+**no initialiser exists in a for-init position at any point anything downstream can
+see.** `resolveVariableDeclaration` refuses one with a single guard - `!atTopLevel
+&& node.init` - and a lowered declaration has no `init` for that guard to find. The
+resolver never learns this happened.
 
-That is defensible and it is still a second reading of the same characters. §5 has
-to own it in a sentence rather than leave a reader to notice that `u8 i = 0` means
-load-time one line up and per-entry here.
+That is the mechanism the language already runs on rather than a special case built
+for it. `=>`, `else if`, compound assignment, prefix and postfix `++`, adjacent
+string literals and `group`'s `.` are all surface forms the parser turns into
+something else, and §7 says of `=>` that the resolver and emitter never see it.
 
-There is a way to avoid it entirely: allow the declaration only in §45's `in` and
-`of` forms, where no `=` appears at all. It buys one paragraph and costs the 131
-loops, which is the wrong trade.
+**§5's reasoning points the same way**, read closely. An initialiser is honest only
+where "before the program runs" and "when control reaches this line" are the same
+moment - and inside a for-init clause they are emphatically not, which is precisely
+why the form has to lower to an assignment. The rule decides which of two readings
+applies; it does not forbid the characters. What §5 rejected was a declaration in a
+body silently *staying* an initialiser and running once. This one runs every time,
+visibly, because everything in that clause does.
+
+So what is left is a reading cost rather than an exception to own: `u8 i = 0`
+inside the parentheses is two statements, and a reader has to know it. That is one
+sentence in §5, and `npm run desugar` shows it, which is what that tool is for.
+
+### Where the printer puts the hoisted declaration
+
+**At the top of the routine body**, or of the statement sequence for a loop at file
+level. This wants deciding rather than discovering, because both candidates are
+valid Momo, both reparse to the same AST and both emit the same instructions - so
+the **round trip cannot catch an inconsistent choice**, which is unusual here and
+is the reason to write it down. The printer has produced two bugs in a week.
+
+The other candidate is immediately before the loop that declared it, which is more
+faithful to what was written. It loses to the reuse rule below: one slot can serve
+two loops in different blocks, scoping is flat, and printing the declaration inside
+whichever block came first would put it inside an `if` while serving a loop outside
+it. Valid, and misleading. The top of the body cannot read wrong.
 
 ### Rules
 
@@ -1997,6 +2021,14 @@ loops, which is the wrong trade.
 - **One declaration**, not a list. `for ( u8 i = 0, j = 0; ... )` is an error;
   there is no comma declarator anywhere else in the language and this is not the
   place to introduce one.
+- **An ordinary scalar variable, and nothing else** - which follows from §5 rather
+  than being stipulated here. `for ( u8[4] buf = [ 1, 2, 3, 4 ]; ... )` cannot
+  lower at all: Momo has no array assignment, so there is nothing to lower the
+  initialiser *to*, and load-time is the only thing an array initialiser could ever
+  be. That is §5's own argument, unchanged. The same test disposes of the rest -
+  `const` has no storage to assign, a `view` is a compile-time alias with nothing
+  to assign, a `far` region is top-level-only because a hardware address is not
+  scoped, and `local` inside a routine is already refused with its own message.
 - **The initialiser is required.** `for ( u8 i; ...; ... )` declares without
   assigning, which is the load-time reading this section spent a heading avoiding.
 - **Same name and type reuses the slot; a mismatch is an error.**
