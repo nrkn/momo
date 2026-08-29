@@ -194,6 +194,14 @@ selection in an editor watches the extra hundred lines go; an edit expressed as 
 pattern over text nobody re-reads does not get that. Same family as the
 `String.replace` entry above, and the same answer.
 
+**It is also the second instance rather than the first.** `CONTRIBUTING.md`'s rule
+about editing DESIGN §1 records the same failure twice over - a slice that
+swallowed the prose around the mnemonic table and read `cmptest` as a mnemonic -
+and that is what its *"being careful is not a method"* is about. That one closed
+with a test, because a mnemonic table is machine-checkable and three tier 1
+assertions now read it. `PLAN.md` is not checkable that way and nothing reads it
+at all, so here the answer has to be the check below.
+
 **Diff the structure, not the content.** `grep -nE '^#{1,3} '` over the file before
 and after, and check that only the intended heading is gone. Worth doing for any
 edit that removes more than it adds.
