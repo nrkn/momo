@@ -251,6 +251,12 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
       ins('mov', `ax, ${symbol.value}`)
       return
     }
+    // A segment register is read straight into AX - there is no label to load
+    // from, because there is no storage (§35).
+    if (symbol.segment) {
+      ins('mov', `ax, ${symbol.segment}`)
+      return
+    }
     if (widthOf(symbol.type) === 2) {
       ins('mov', `ax, [${symbol.label}]`)
       return
@@ -1541,6 +1547,7 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     for (const symbol of result.symbols) {
       if (symbol.kind !== 'var' || !symbol.builtin) continue
       if (symbol.label === '_hsize') continue // emitted with the heap block
+      if (symbol.segment) continue // a segment register: read, never stored
       // A byte half is an alias into the word storage, and carries that as data -
       // so this asks the symbol rather than inferring it from the spelling of the
       // label. `_cf` is the reserved global that is NOT an alias: it is real

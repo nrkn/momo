@@ -491,6 +491,44 @@ stand regardless.
 
 ---
 
+## 35. `_ds`
+
+### Three places had to agree that it has no storage
+
+The design said "no storage" and that is one claim with three implementations
+under it. The resolver had to describe a scalar that is neither real storage nor
+an alias of a parent, which nothing here was: every other zero-storage builtin is
+a byte half of a register. The emitter had to skip it when writing the reserved
+globals. And `npm run memory` had to skip it too.
+
+**The third is the one that could have shipped wrong.** It adds a builtin's width
+to the reserved figure by default, so `_ds` would have contributed two bytes that
+do not exist - and nothing would have failed. The assembly would have been
+correct, the suite would have passed, and the only symptom would have been a
+number two too high in the one tool whose entire purpose is an exact footprint.
+It was found by reading the tool rather than by anything catching it.
+
+### The error message stopped being `_cf`'s
+
+`_cf` was the only read-only builtin, so the diagnostic for assigning to one
+named carry directly and explained that no call reads carry on the way in. A
+second read-only builtin made that wrong rather than merely narrow, so the reason
+moved onto the symbol. They are read-only for unrelated reasons - carry is a
+report, DS is where DOS put us - and a reader who assigns to one should be told
+which they hit.
+
+### What the test could not do
+
+There is no value to assert. DOS loads a `.COM` wherever there is room, so the
+segment differs by machine, by DOS version and by what is resident, and a
+`.expected` cannot name it.
+
+`dstest` asserts on the PSP instead - `CD 20` at offset 0 of our own segment, put
+there so a program can exit by jumping to offset 0. Predicted before running:
+`205 32`, then `1`. Both matched first time, which is the evidence that `_ds`
+returns our segment rather than merely returning something.
+
+---
 ## 26. Strength reduction
 
 ### What it measured, against what it predicted

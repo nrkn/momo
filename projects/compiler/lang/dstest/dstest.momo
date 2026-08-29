@@ -1,0 +1,33 @@
+// dstest.momo - `_ds`, the segment the program is loaded in (DESIGN §35).
+//
+// The value itself cannot be compared against anything: DOS loads a `.COM`
+// wherever there is room, so the segment differs between machines, DOS versions
+// and how much is resident. What can be checked is something derived from it
+// that does not vary.
+//
+// A `.COM`'s PSP sits at offset 0 of its own segment, and its first two bytes
+// are always CD 20 - an `int 20h` put there so a program can exit by jumping to
+// offset 0. So a far region based on `_ds` should find those two bytes, and
+// finding them means `_ds` really is our segment rather than any other number.
+
+include "lib/std/io.momo"
+
+u16 ourSeg
+
+// The segment is re-read per access rather than snapshotted (DESIGN §16), which
+// is what lets this be declared before `ourSeg` has been given a value.
+far u8[2] psp = ourSeg
+
+// ---- entry ----
+
+ourSeg = _ds
+
+// 205 32 - the int 20h at the head of every PSP.
+putNumber( psp[0] )
+putChar( ' ' )
+putNumber( psp[1] )
+newline()
+
+// DOS never loads a .COM at segment 0, so this is 1 on any machine.
+putNumber( u16( ourSeg > 0 ) )
+newline()

@@ -93,6 +93,13 @@ export type MomoSymbol =
       onlyIfUsed?: boolean
       // A scalar view, or a register byte alias: no storage of its own.
       alias?: Alias
+      // A segment register read as a value. No storage either, and not an alias
+      // of anything: the read emits `mov ax, <segment>` instead of loading a
+      // label, so nothing is reserved for it in the data section.
+      segment?: string
+      // Why a read-only builtin cannot be assigned. Per symbol, because the
+      // advice differs - carry is a report, a segment register is the machine's.
+      readonlyWhy?: string
     }
   | {
       kind: 'routine'
@@ -159,6 +166,8 @@ const reservedGlobals: {
   readonly?: boolean
   onlyIfUsed?: boolean
   alias?: Alias
+  segment?: string
+  readonlyWhy?: string
 }[] = [
   { name: '_ax', type: 'u16' },
   { name: '_al', type: 'u8', alias: low('_ax') }, { name: '_ah', type: 'u8', alias: high('_ax') },
@@ -175,7 +184,21 @@ const reservedGlobals: {
   // failure. `bool` rather than u8 both because that is what it is and because
   // it is what tells the emitter this one is real storage rather than a byte
   // view of a register (every u8 reserved global is an alias by construction).
-  { name: '_cf', type: 'bool', readonly: true, onlyIfUsed: true },
+  {
+    name: '_cf', type: 'bool', readonly: true, onlyIfUsed: true,
+    readonlyWhy:
+      'reports the carry flag after "int" - it cannot be assigned;' +
+      ' no DOS or BIOS call reads carry on the way in',
+  },
+  // The program's own segment (DESIGN §35). A `.COM` cannot learn where it is
+  // any other way: DOS does not report it, and the PSP holds the parent's
+  // segment rather than ours. No storage - the read is `mov ax, ds`.
+  {
+    name: '_ds', type: 'u16', readonly: true, segment: 'ds',
+    readonlyWhy:
+      'is the segment the program is loaded in - it cannot be assigned;' +
+      ' the tiny model requires DS to stay where DOS put it',
+  },
 ]
 
 // The heap is everything past the program image. No storage is emitted - these
@@ -318,6 +341,8 @@ export const resolve = (program: Program): ResolveResult => {
       readonly: reserved.readonly,
       onlyIfUsed: reserved.onlyIfUsed,
       alias: reserved.alias,
+      segment: reserved.segment,
+      readonlyWhy: reserved.readonlyWhy,
     }
     globals.set(reserved.name, symbol)
     takenLabels.add(symbol.label)
@@ -1887,13 +1912,11 @@ export const resolve = (program: Program): ResolveResult => {
         raise(target, `"${target.name}" is a far region - assign to an element`)
       }
       if (symbol.kind === 'var' && symbol.readonly) {
-        // Two ways to be a read-only scalar, and they want different advice.
-        if (symbol.builtin) {
-          raise(
-            target,
-            `"${target.name}" reports the carry flag after "int" - it cannot be assigned;` +
-              ' no DOS or BIOS call reads carry on the way in',
-          )
+        // Two ways to be a read-only scalar, and they want different advice - a
+        // builtin carries its own, because carry and a segment register are
+        // read-only for unrelated reasons.
+        if (symbol.readonlyWhy) {
+          raise(target, `"${target.name}" ${symbol.readonlyWhy}`)
         }
         raise(target, `"${target.name}" is a const view and cannot be assigned`)
       }

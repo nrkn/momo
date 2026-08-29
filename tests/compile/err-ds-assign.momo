@@ -1,0 +1,4 @@
+// EXPECT-ERROR: it cannot be assigned
+// _ds is where DOS put us. The tiny model rests on DS staying there, so there
+// is nothing sensible a program could mean by writing to it.
+_ds = 0x1234

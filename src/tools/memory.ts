@@ -55,6 +55,10 @@ const main = async () => {
         if (!builtin) viewCount += 1
         continue
       }
+      // A segment register has no bytes either, for the same reason an alias
+      // does not: the read is an instruction rather than a load (§35), and
+      // nothing is reserved for it in the data section.
+      if (symbol.kind === 'var' && symbol.segment) continue
       if (symbol.kind === 'var') {
         if (symbol.builtin) reserved += widthOf(symbol.type)
         else scalars += widthOf(symbol.type)

@@ -165,7 +165,7 @@
     },
     "builtins": {
       "name": "variable.language.momo",
-      "match": "\\b(_ax|_al|_ah|_bx|_bl|_bh|_cx|_cl|_ch|_dx|_dl|_dh|_si|_di|_hsize|_cf|_heap|_heapw)\\b"
+      "match": "\\b(_ax|_al|_ah|_bx|_bl|_bh|_cx|_cl|_ch|_dx|_dl|_dh|_si|_di|_hsize|_cf|_ds|_heap|_heapw)\\b"
     },
     "numbers": {
       "patterns": [

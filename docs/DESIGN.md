@@ -2755,6 +2755,50 @@ which is a record rather than a rule.
 
 ---
 
+## 35. `_ds`, the program's own segment
+
+**Built.** A read-only reserved global whose read emits `mov ax, ds`. Two bytes,
+no storage, no startup code, and no new mnemonic - `mov` already gained a
+segment-register operand class with §16.
+
+```momo
+u16 ourSeg
+far u16[1] memTop = ourSeg:2        // PSP:0002 - the end of what DOS granted
+far u8[64000] backBuffer = bufSeg
+
+ourSeg = _ds
+```
+
+**What it unblocks is a second segment.** A `.COM` cannot learn where it is any
+other way: DOS does not report it, the program knows it only because CS=DS=ES=SS
+at entry, and the PSP holds the *parent's* PSP and the environment segment rather
+than ours. So both routes to memory past our own were blocked by the same missing
+number, and `far` with a runtime segment (§16) is the other half of each.
+
+**It is read-only, and the reason is not the same as `_cf`'s.** Carry is a report
+with nothing to say back to it; DS is where DOS put us, and the tiny model rests
+on it staying there. Both refuse assignment and each says why.
+
+**No storage is emitted**, which is a claim three places have to agree on: the
+symbol is neither real storage nor an alias of a parent, the data section skips
+it, and `npm run memory` skips it when counting. A builtin's width goes into the
+reserved figure by default, so this one would otherwise report two bytes that do
+not exist.
+
+### Testing it needs something other than its value
+
+`dstest` is the worked example (§14). DOS loads a `.COM` wherever there is room,
+so the segment differs between machines, DOS versions and whatever is resident -
+there is no number to put in a `.expected`.
+
+What does not vary is the PSP. Its first two bytes are always `CD 20`, an
+`int 20h` left there so a program can exit by jumping to offset 0. So `dstest`
+declares `far u8[2] psp = ourSeg` and prints them, and finding 205 and 32 is what
+proves `_ds` is *our* segment rather than some other plausible number. It rests on
+§16's runtime segment, which is the half this was built to be useful with.
+
+---
+
 ## 36. `momolo` - layout
 
 **Built.** An immediate-mode layout engine in `shared/lib/momolo/`, ported from a
@@ -2870,10 +2914,11 @@ headers, which are the right weight for something still finding its shape.
 
 ---
 
-## Sections 28-35: designed, not built
+## Sections designed, but not built
 
-Eight more sections carry numbers but no text here, because what they describe
-does not exist yet. All are in `PLAN.md`:
+Thirteen sections carry numbers but no text here, because what they describe does
+not exist yet. All are in `PLAN.md`. The heading names no range deliberately - the
+set stopped being contiguous the moment one of them was built.
 
 | | |
 |---|---|
@@ -2884,7 +2929,12 @@ does not exist yet. All are in `PLAN.md`:
 | §32 | Self-hosting |
 | §33 | Other CPUs - `momo/z80`, `momo/6502` |
 | §34 | Hoisting the ES load, which §16 leaves reloading per access |
-| §35 | `_ds`, so a program can learn its own segment |
+| §38 | File I/O |
+| §39 | `unit` - a numeric type that will not mix with another without a cast |
+| §40 | Memory past the segment |
+| §41 | `momowad` - asset storage |
+| §42 | A test tier below DOSBox |
+| §43 | The screen library |
 
 ---
 

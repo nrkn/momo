@@ -124,12 +124,6 @@ nothing has yet wanted it.
 
 ### Probably
 
-- **`_ds`, so a program can learn its own segment.** §35 - two bytes, no storage,
-  no new mnemonic, and the cheapest unblocking on this list by a distance. §40 is
-  why it moved out of Maybe: everything that wants memory past the segment - a
-  mode 13h back buffer, a far arena for assets, `momode`'s baked backing stores -
-  needs this and no DOS call at all, because the memory is already the program's.
-  §35 still says to do it once something can put pixels in a buffer.
 - **Memory past the segment.** §40 - the allocators are libraries and need no
   compiler change, the robust `_hsize` is specified in §13 and unbuilt, and the
   half that is genuinely blocked is shrinking the program's own block, which needs
@@ -319,6 +313,11 @@ All are set out in DESIGN §20 unless noted.
 section that was itself a plan - see the note at the top for why, and where to
 look for the rest.
 
+- **`_ds`, so a program can learn its own segment.** 2026-08-29. §35, now in
+  `DESIGN.md`. Two bytes per read, no storage, no new mnemonic, and `dstest`
+  proves it is really our segment by finding the `int 20h` at the head of the PSP
+  through a far region based on it. What it unblocks is everything in §40 that
+  wants memory past the segment.
 - **Record where each peephole lives.** 2026-08-29. All fifteen are built, which
   was the thing worth finding out - 4 and 5 were fiction here once. `PEEPHOLES.md`
   carries a table of function names rather than line numbers, and each entry was
@@ -1373,34 +1372,6 @@ longer means, without ES itself being touched. Doing it properly needs "is this
 variable assigned anywhere in the reachable call subtree", which the call graph
 can answer - so it is possible rather than hard, and waits for a program that
 cares.
-
----
-
-## 35. `_ds`, so a program can learn its own segment
-
-A read-only reserved global whose read emits `mov ax, ds`. Two bytes, no storage,
-no startup code, and no new mnemonic - `mov` already gained a segment-register
-operand class with §16.
-
-**What it unblocks is a second segment.** A `.COM` cannot learn where it is: DOS
-does not report it, the program knows it only because CS=DS=ES=SS at entry, and
-the PSP holds the *parent's* PSP and the environment segment rather than ours. So
-both routes to memory past our own are blocked by the same missing number.
-
-Everything else already exists:
-
-```momo
-u16 ourSeg
-far u16[1] memTop = ourSeg:2        // PSP:0002 - the end of what DOS granted
-far u8[64000] backBuffer = bufSeg
-
-ourSeg = _ds
-```
-
-**Sequencing.** Worth doing after something can put pixels in a buffer - a back
-buffer with no blitter is memory with nothing to write into it. Mode 13h is the
-case that wants it: the frame is 64000 bytes against a 65536-byte segment, so
-double buffering needs a second one. Text mode at 4000 bytes does not.
 
 ---
 

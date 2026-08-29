@@ -76,8 +76,9 @@ toolchain/          hand-written .asm, checked before the compiler is involved
 
 That axis was chosen over grouping by subject or by purpose because it is the one
 a red suite can act on: it says which half of the repo to open. Grouping by
-subject leaves `games` with nowhere to sit, and grouping by purpose puts 36 of the
-46 in one directory, which is the flat list again one level down.
+subject leaves `games` with nowhere to sit, and grouping by purpose puts roughly
+three quarters of them in one directory, which is the flat list again one level
+down.
 
 **A project is still addressed by its bare name** - `npm start tennis` - because
 where it sits is not part of its identity. Two projects sharing a name is an error
@@ -434,8 +435,8 @@ The cost of waiting is that the first thing a visitor reads is the weakest
 document in the repo. That trade is made deliberately, and preferred to shipping a
 second draft in the same voice as the first.
 
-344 tier-1 assertions (173 compile tests, 44 golden `.asm`, 53 type, 11 lex, 60
-round trip, 3 subset), 35 e2e programs, all green.
+347 tier-1 assertions (174 compile tests, 45 golden `.asm`, 53 type, 11 lex, 61
+round trip, 3 subset), 36 e2e programs, all green.
 
 Both figures have drifted before, and neither is enforced by anything - unlike
 §1's mnemonic count, which a test checks. The e2e one drifted furthest: it said
