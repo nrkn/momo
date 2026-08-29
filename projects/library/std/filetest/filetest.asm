@@ -253,12 +253,12 @@ putNumber:
 .L21:
         ret
 
-; ============================================== sub fileCapture ====
+; ============================================== sub file__fileCapture ====
 
-fileCapture:
+file__fileCapture:
 ; ---- fileBad = _cf
         mov     al, [_cf]
-        mov     [fileBad], al               ; bool -> bool, no widening
+        mov     [file__fileBad], al         ; bool -> bool, no widening
 ; ---- fileErr = fileBad ? _ax : 0
         test    al, al
         jz      .L23
@@ -267,14 +267,14 @@ fileCapture:
 .L23:
         xor     ax, ax                      ; 0
 .L24:
-        mov     [fileErr], ax
+        mov     [file__fileErr], ax
         ret
 
 ; ============================================== bool fileFailed ====
 
 fileFailed:
 ; ---- bool fileFailed() => fileBad
-        mov     al, [fileBad]
+        mov     al, [file__fileBad]
         mov     [fileFailed__ret], al       ; bool -> bool, no widening
         ret
 
@@ -282,7 +282,7 @@ fileFailed:
 
 fileError:
 ; ---- u16 fileError() => fileErr
-        mov     ax, [fileErr]
+        mov     ax, [file__fileErr]
         mov     [fileError__ret], ax
         ret
 
@@ -300,9 +300,9 @@ fileOpen:
 ; ---- int 0x21
         call    int21
 ; ---- fileCapture()
-        call    fileCapture
+        call    file__fileCapture
 ; ---- return fileBad ? 0 : _ax
-        mov     al, [fileBad]
+        mov     al, [file__fileBad]
         test    al, al
         jz      .L26
         xor     ax, ax                      ; 0
@@ -326,9 +326,9 @@ fileCreate:
 ; ---- int 0x21
         call    int21
 ; ---- fileCapture()
-        call    fileCapture
+        call    file__fileCapture
 ; ---- return fileBad ? 0 : _ax
-        mov     al, [fileBad]
+        mov     al, [file__fileBad]
         test    al, al
         jz      .L29
         xor     ax, ax                      ; 0
@@ -350,7 +350,7 @@ fileClose:
 ; ---- int 0x21
         call    int21
 ; ---- fileCapture()
-        call    fileCapture
+        call    file__fileCapture
         ret
 
 ; ============================================== u16 fileRead ====
@@ -370,9 +370,9 @@ fileRead:
 ; ---- int 0x21
         call    int21
 ; ---- fileCapture()
-        call    fileCapture
+        call    file__fileCapture
 ; ---- return fileBad ? 0 : _ax
-        mov     al, [fileBad]
+        mov     al, [file__fileBad]
         test    al, al
         jz      .L32
         xor     ax, ax                      ; 0
@@ -400,9 +400,9 @@ fileWrite:
 ; ---- int 0x21
         call    int21
 ; ---- fileCapture()
-        call    fileCapture
+        call    file__fileCapture
 ; ---- return fileBad ? 0 : _ax
-        mov     al, [fileBad]
+        mov     al, [file__fileBad]
         test    al, al
         jz      .L35
         xor     ax, ax                      ; 0
@@ -433,9 +433,9 @@ fileSeek:
 ; ---- int 0x21
         call    int21
 ; ---- fileCapture()
-        call    fileCapture
+        call    file__fileCapture
 ; ---- return fileBad ? 0 : _ax
-        mov     al, [fileBad]
+        mov     al, [file__fileBad]
         test    al, al
         jz      .L38
         xor     ax, ax                      ; 0
@@ -516,8 +516,8 @@ _cf:            db      0
 ; ---- variables ----
 putChar__c:     db      0        ; u8
 putNumber__n:   dw      0        ; u16
-fileBad:        db      0        ; bool
-fileErr:        dw      0        ; u16
+file__fileBad:  db      0        ; bool
+file__fileErr:  dw      0        ; u16
 fileFailed__ret: db      0        ; bool
 fileError__ret: dw      0        ; u16
 fileOpen__at:   dw      0        ; u16

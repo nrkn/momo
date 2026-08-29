@@ -1455,10 +1455,23 @@ which made a private in a library something to price rather than to reach for:
 - `std/file.momo` was written with a private status pair and had it taken back
   out for the same reason, before anything but its own test could feel it.
 
-Both of those were the right call against the tool as it stood, and neither would
-be made now. The rule they produced - a private in a library wants a correctness
-reason rather than a tidiness one - survives on its own merits, and no longer has
-a coverage bill behind it.
+Both were the right call against the tool as it stood. `file.momo` has its private
+status pair back; `io.momo`'s three consts were tried private once the bill went,
+and are public for a different reason set out below.
+
+**The rule that replaces it: `local` is free in testing and not in output.** A
+private's mangled name is what the assembly says, so `local` on a const in a
+widely included file puts `io__ioBase` where `ioBase` was in every program that
+includes it - 35 of them - and the assembly is the product rather than an
+intermediate (§1).
+
+So the question is no longer what privacy costs the suite, but whether there is
+something to protect. `randomSeed` is `local` because a program could otherwise
+write past the guard that keeps the generator alive. `fileBad` is, because a
+program could otherwise hand itself a result no call produced. `ioBase` is not:
+nothing can assign a const, the `io` prefix already separates it, and a program
+that declares its own is told so by name at compile time. A loud collision is not
+a hole.
 
 **Closing it found a bug that had been hiding behind the skip**, which is the
 argument for not leaving a fifth of a corpus untested. The emitter recorded each

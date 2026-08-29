@@ -20,24 +20,20 @@ const fileFromStart   = 0
 const fileFromCurrent = 1
 const fileFromEnd     = 2
 
-// NOT `local`, deliberately, and for the reason std/io.momo gives: the printer
-// splices every include into one file, so a private loses the owner its label is
-// named after, and `npm test` skips any program containing one. This file is
-// meant to be included widely, so marking these private would cost the round-trip
-// tier for every program that ever reads a file - and the round trip is the only
-// test the parser has.
+// `local`: the status of the last call belongs to this file, and a program that
+// wrote either of these would be handing itself an answer no call produced.
 //
-// The `file` prefix is the pre-`local` answer and it still works. The test
-// io.momo sets is whether a writable copy is a correctness hole, as `randomSeed`
-// is: writing these only makes a program lie to itself about its own last call,
-// which is not the same thing.
-bool fileBad = false
-u16  fileErr = 0
+// These were public for one commit, because a private used to remove every
+// program that included the file from the round-trip tier. The printer lowers a
+// private to its mangled name now (§14), so that cost is gone and this is what
+// they should have been.
+local bool fileBad = false
+local u16  fileErr = 0
 
 // Run immediately after the int, before anything else has a chance to issue one.
 // A call cannot disturb either value - only another int can - so all six routines
 // share this instead of repeating it.
-sub fileCapture {
+local sub fileCapture {
   fileBad = _cf
   fileErr = fileBad ? _ax : 0
 }

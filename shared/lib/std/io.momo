@@ -2,17 +2,21 @@
 //
 // Keyboard input lives in std/key.momo.
 
-// putNumber's own workings. These are NOT `local`, deliberately, and the reason
-// is the round trip rather than the language: the printer splices every include
-// into one file, so a private loses the owner its label is named after, and
-// `npm test` skips any program containing one. Most programs include this file,
-// so marking these three private would cost most of the round-trip tier - which is
-// the only test the parser has.
+// putNumber's own workings. Not `local`, and the reason has changed since it was
+// last written down here.
 //
-// The `io` prefix is the pre-`local` answer to collisions and it still works.
-// Contrast `randomSeed` in std/rand.momo, which is `local` because a program
-// could otherwise write past the guard that keeps the generator alive: that is a
-// correctness hole worth a skip, and three unwritable consts are not.
+// It used to be the round trip: a private took every program that included this
+// file out of the only test the parser has, and most programs include this file.
+// That cost is gone - the printer lowers a private now (§14), and `local` here
+// was tried once the cost went.
+//
+// What stopped it is the output. A const emits an `equ`, so `local` would put
+// `io__ioBase` in place of `ioBase` in every program that includes this - 35 of
+// them - and the assembly is the product rather than an intermediate (§1). The
+// `io` prefix already separates these from anything a program is likely to write,
+// and nothing here can be assigned, so there is no hole of the kind `randomSeed`
+// had. A program that does declare its own `ioBase` is told so, by name, at
+// compile time.
 const ioBase      = 10
 const ioZeroChar  = '0'
 const ioMaxDigits = 5
