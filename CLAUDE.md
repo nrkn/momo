@@ -173,6 +173,13 @@ and a harness that only greps for `FAIL` lines reports that as "nothing failed",
 which is the exact opposite of the truth. Use a condition tsc cannot fold, such
 as `node.line < 0`, and make the harness read the tally rather than the failures.
 
+**And neuter it by line, not by pattern.** `if (typeNode.array) {` occurs twice in
+`parser.ts`, so a `String.replace` neutered a `group` guard rather than the one
+under test - and the suite duly failed `err-group-array-field.momo`, a test with
+nothing to do with the change. The count moved either way, so a tally alone would
+have read as a successful teeth check. Reading *which* test failed is what caught
+it, which is the other half of the sentence above.
+
 **A stub measures a floor the real design cannot reach.** Twice this project predicted
 the cost of a change by stubbing it out, and twice the real version came in higher - by
 77 bytes once, because a stub removes a call site that the real design still has to

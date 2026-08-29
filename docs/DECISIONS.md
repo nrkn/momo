@@ -573,14 +573,22 @@ wrong rather than as a definition.
 
 ### The error messages were most of the work, and nobody predicted that
 
-Nine ways to write it wrong were probed. Five already said something useful. The
-other four - a comma list, and `const`, `view` or `local` in the clause - came out
-as `expected ";" but found ","` or `expected ident but found "const"`, naming what
-the parser wanted rather than what the writer should do.
+Nine ways to write it wrong were probed, after four guards had already been
+written. Four of the remaining five came out as `expected ";" but found ","` or
+`expected ident but found "const"` - a comma list, and `const`, `view` or `local`
+in the clause - naming what the parser wanted rather than what the writer should
+do. Those got messages of their own. The fifth, a collision against a declaration
+written out in full, reuses the resolver's existing one.
 
-Each of those four excludes something for a reason §5 supplies, and an error
-naming none of it leaves that reason unreachable. Writing them was more of the
-change than the lifting was.
+**None of the nine was uncaught**, which is the part worth knowing: every one of
+them already failed somewhere, so a guard here buys the message rather than the
+rejection. The teeth check made that concrete - neutering the array guard leaves
+`for ( u8[4] buf = ...; ... )` failing as `"buf" is an array - assign to an
+element`, from the resolver meeting the lowered assignment. True, and it names
+neither the loop nor the reason, which is exactly what `STYLE.md` means by saying
+what to do.
+
+Writing them was more of the change than the lifting was.
 
 ### What it cost
 
