@@ -129,6 +129,201 @@ nothing has yet wanted it.
   half that is genuinely blocked is shrinking the program's own block, which needs
   a way to set ES that does not exist. Same shape as §38's DS problem, one
   register along.
+- **The screen library.** §43 - a table of modes with the shape of a pixel in it,
+  a yes/no/maybe query that resolves by setting a mode and reading it back, and the
+  current-screen descriptor `momode` would set to put a program in a window. Mode
+  13h is set by hand in five places today and `screenCols` is a constant. One thing
+  wants settling before any of it is written: a runtime screen width costs nothing
+  now and about 7x once §29 lands, because §26's odd-residue tier was designed for
+  exactly these strides.
+- **A test tier below DOSBox.** §42 - an executor that decodes the assembled
+  `.COM`. The headless half is done and cost two flags rather than a project, so
+  what is left is counting cycles exactly: the timing tables in §16, §26 and
+  DECISIONS §27 are assembled by hand from static readings of the assembly, and an
+  executor would count what actually ran.
+- **A palette and colour study.** Scope undecided, and that is the first job -
+  most of the model is host-side work, so the interesting Momo library is small.
+  `STUDIES.md` has the register entry. Two consumers already exist and disagree:
+  `tennis` reduces 8 bits to 6 on the target, `tigerpic` has it done by the
+  generator, and neither lives in a library. Nothing in the repo touches the DAC
+  ports, though §22 made them reachable.
+- **A schema study.** A description of a data shape, rich enough that more than
+  validation comes out of it. Validation is the obvious use and the least
+  interesting: the same description should generate a **binary layout** - a reader
+  and a writer - a **property inspector** for an editor, and the **grammar of the
+  text format** that produces the data in the first place. That is the declarative
+  pipeline the scene work already has one instance of, generalised from geometry to
+  anything.
+
+  Two things would use it immediately. §41 leaves the lump-type question open -
+  Doom's WAD has no type field, so ours has to choose between markers, a name
+  prefix and a per-lump header - and a schema is what makes that choice once
+  instead of per asset kind. And `momopnt`'s three editors want property
+  inspectors over three different shapes, which is exactly where generating the
+  interface from the description pays for itself rather than being clever.
+
+  Scope undecided, as with the palette study, and that is the first job. Most of it
+  is host-side generation; what runs on the target is a reader, and a validator
+  only where data can arrive from a file rather than from the compiler.
+  There is prior work to model it on, across the author's own projects and
+  elsewhere, and auditing what exists is part of the first job rather than
+  something to finish before starting. `STUDIES.md` has the register entry.
+- **Compile-time array parameters.** §19 - designed in full, and the case that
+  most wanted it (`drawString` over many messages) was met by `peek`/`poke`
+  instead.
+- **`scope`.** §23 - designed in full; no program has wanted it yet.
+- **Interrupt handlers.** §24 - designed in full. A raw scancode reader and
+  held-key input are what would ask for it.
+- **Optimise `tennis`.** It runs well on a 486 and flickers on a 286 - vsync fixed
+  the flicker on fast hardware, and that is as far as it got. The intended work was
+  always known and is recorded in the source rather than in any document:
+
+  - **Word blitting.** `t_scr.momo` declares `view u16[32000] pxwords` "for later
+    optimisation of `setPixel`", and `drawBackground` uses it as a demo of "the
+    word blitting we will use extensively later". Nothing else does yet.
+  - **Skip `pset`.** `drawLineHorizontal` and `drawLineVertical` go through it
+    because that was easier; the note beside them says writing them by hand is
+    much more efficient.
+  - **Unroll the sprites.** `draw`/`clearPaddles` and `draw`/`clearBall` need not
+    call `drawLineVertical` at all - nine direct `pixels[n]` writes each - with
+    pixel doubling as the complication: one axis can be done with a word, the rows
+    still have to be doubled.
+  - **Dirty tracking, only if the above is not enough.** A 27-element buffer for
+    the 9x2 paddle pixels and 9 ball pixels plus a count, or just each object's
+    movement offset so the redraw knows exactly how many pixels changed. The
+    source is explicit that this waits: *"wait and see how it plays out before
+    prematurely adding this"*.
+
+  The word blitting is §27's finding arriving in a real program - that section
+  concluded word views are worth doing today with no compiler change, and this is
+  the program that cares.
+
+  **Its comments come after the code.** `STYLE.md`'s comment rule exempts `tennis`
+  until this lands, because the notes above *are* the plan and tidying them first
+  would delete it.
+- **Rewrite `README.md`.** `CONTRIBUTING.md` records that it is provisional, in a
+  register the other documents do not use, and that rewriting it waits on programs
+  worth showing and on a draft written rather than generated.
+
+### Maybe
+
+- **A `type` keyword.** Declare a `group`'s shape once and instantiate it in
+  several places. Nothing has wanted it: no two groups in the repo share a shape,
+  and `player` and `ball` in `tennis` come closest while still differing. What
+  makes it worth keeping is that it is the *nominal* version of §19's group
+  parameters - which that section calls structural typing and the deepest of its
+  three extensions - since two groups declared from one shape match by
+  construction with no structural comparison anywhere. `momopnt`, one toolkit
+  under three editors, is where the want would arrive.
+- **`--cpu` target levels.** §28. 186 is modest, 286 is a rounding error, 386 is
+  transformative - and 386 would change §4's type rules, so it is not only a
+  backend switch.
+- **`-o`.** §29 - one level, comments kept, explaining the optimisation.
+- **Hosted targets: JS, WASM, native.** §30 - the most designed of these; the
+  abstract machine does not change, only the emitter and a shim.
+- **Dropping the assembler.** §31 - emit `.COM` bytes directly. Would take DOSBox
+  out of the build and 1.6MB of binaries out of the repository.
+- **Self-hosting.** §32 - and §32's own hazard applies: it manufactures needs, so
+  the tell for any feature is whether it still looks right with self-hosting
+  struck out.
+- **Other CPUs, `momo/z80` and `momo/6502`.** §33 - these do change the abstract
+  machine, unlike the hosted targets.
+- **Hoist the ES load.** §34 - designed, not built. Measured at 4% of a mode 13h
+  fill loop, 2.1% of a `tilefill` screen and 1% of `rndpix`, so it is behind loop
+  machinery, index recomputation and the push/pop pair on every measurement taken.
+  Not wrong, just never the biggest thing left.
+- **Align the data section.** DECISIONS §27 measured this at **-13% on a true
+  8086 and nothing at all on an 8088**, whose 8-bit bus pays two cycles for a word
+  access however it is aligned. Most of these machines were 8088s, so it waits for
+  a reason to prefer one over the other - and Momo has nowhere to say which it is
+  tuning for, since §28's CPU levels are about the instruction set and bus width
+  is a second axis.
+
+  If that reason arrives it is `align 2` at the data base **plus** a width sort,
+  not the sort alone: sorting only makes every word share the parity of the block
+  start, and that parity comes from the code size, which the compiler never learns
+  because it emits NASM source rather than bytes. The cost to weigh is not the one
+  padding byte but that sorting by width scatters each routine's locals across two
+  groups, where the data section currently shows a whole frame in one place.
+
+## Questions
+
+Not work at low confidence - decisions that are unsettled, and that gate work.
+All are set out in DESIGN §20 unless noted.
+
+- **Real functions.** Genuine stack frames would bring back BP, `lea` and
+  recursion, and would destroy the exact static memory analysis. That trade is
+  what keeps them out.
+- **A graphics library.** No longer blocked - `far` (§16) makes the buffers
+  ordinary memory - so what is open is mode setting, sprites and clipping rather
+  than any access to the hardware.
+- **A direct-write path for `screen.momo`.** Every routine in it goes through
+  `int 10h`, one interrupt per cell.
+- **A raw scancode reader in `std`.** `key.momo` is `int 16h`, which blocks and
+  cannot see a held key.
+- **`asm { }` passthrough** for hand-written NASM. Probably not needed for a long
+  time.
+- **What precision does constant folding happen at?** The folder runs on the
+  host's numbers, so it folds at a precision the language cannot express. The
+  analysis is in §32; three ways out, none chosen.
+
+- **How should a nested structure be built?** Set out here rather than in §20.
+  momolo (§36) represents nesting by convention: `boxOpen` and `closeBox` must
+  pair, the caller indents to show it, and nothing checks. Worse, a wrapper may
+  open more than one box - `stripOpen` opens two and `stripClose` closes two - so
+  pairs are not one-to-one with call sites and a balanced-looking source can still
+  be wrong. The config carrier is the same discomfort one step along: `cfg` is a
+  mutable global consumed by the next builder call.
+
+  Clay solved this with macros and hyperscript-style libraries solve it with
+  functions returning values, neither of which Momo has. Three candidates, none
+  chosen. **§19's routine parameters** would make closing structural, but the body
+  would be a named sub written elsewhere - forty nodes becomes forty subs, which is
+  worse than indentation, and writing the body *in place* is the whole ergonomic
+  win. **Parser sugar** lowering `box( ... ) { ... }` to open/body/close costs
+  nothing at runtime, the way `=>` already lowers, but a general form for it is a
+  macro system and a specific one puts a library's name in the compiler.
+  **Expressing the tree as data** and walking it removes the problem rather than
+  solving it, and is where a scene format points - at the cost that a static tree
+  cannot loop or take parameters, which the existing scenes do.
+
+- **Does Momo want a third namespacing mechanism?** Arbitrary const trees for
+  organisation, whose leaves are ordinary consts - name mangling and nothing more
+  by the time it reaches the emitter. The question is not whether it works. It is
+  that `group` already gives dotted access and is used deliberately that way -
+  `ball` in `tennis` carries a comment saying it is namespacing rather than
+  structure-of-arrays - and §23's `scope` gives named blocks of declarations. A
+  third would have to earn its place against both, and answer §23 directly:
+  *owners are flat, which is the decision that keeps this small*. Arbitrary trees
+  are exactly what that declined.
+
+## Done
+
+**Not a history.** Only what passed through the list above, or was lifted from a
+section that was itself a plan - see the note at the top for why, and where to
+look for the rest.
+
+- **`unit`.** 2026-08-29. §39, now in `DESIGN.md`, and the record is DECISIONS
+  §39. A named numeric type whose values will not mix with another unit's without
+  a cast, and the first feature here to subtract a permission rather than add
+  one. That it costs nothing at runtime is asserted rather than argued: two
+  programs identical but for their units have to emit the same instructions,
+  which the golden tier could not have checked. The design's one hole was where
+  the knowledge that `px` is a type lives, and the lexer is where it went.
+- **Teach the printer to lower `local`.** 2026-08-29. DESIGN §14, and the record
+  is DECISIONS §14. The round trip went from 62 assertions to 77 - nothing is
+  skipped now - and closing the gap turned up a bug that had been hiding behind
+  it: the emitter keyed a routine's temporaries by name where the call graph
+  keys by label, so §12's worst-case stack was under-stated for every program
+  with a private sub.
+- **File I/O.** 2026-08-29. §38, now in `DESIGN.md`. `shared/lib/std/file.momo`
+  and `filetest`, with no compiler change of any kind - the design's central claim
+  held. It takes the deepest blocker off the applications tier.
+- **`_ds`, so a program can learn its own segment.** 2026-08-29. §35, now in
+  `DESIGN.md`. Two bytes per read, no storage, no new mnemonic, and `dstest`
+  proves it is really our segment by finding the `int 20h` at the head of the PSP
+  through a far region based on it. What it unblocks is everything in §40 that
+  wants memory past the segment.
 - **Record where each peephole lives.** 2026-08-29. All fifteen are built, which
   was the thing worth finding out - 4 and 5 were fiction here once. `PEEPHOLES.md`
   carries a table of function names rather than line numbers, and each entry was
