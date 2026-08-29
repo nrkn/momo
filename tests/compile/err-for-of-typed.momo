@@ -1,0 +1,7 @@
+// EXPECT-ERROR: of names an element rather than declaring one
+// §45: of binds a name to an access. There is nothing for a type to describe.
+u8[4] buf
+
+for ( u8 v of buf ) {
+  v = 1
+}

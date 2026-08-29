@@ -508,6 +508,7 @@ const identityPairs: [string, string, string][] = [
     'ok-for-decl-sugar.momo',
     'ok-for-decl-plain.momo',
   ],
+  ['in and of leave no trace (§45)', 'ok-for-iter-sugar.momo', 'ok-for-iter-plain.momo'],
 ]
 
 const identityTests = (): number => {

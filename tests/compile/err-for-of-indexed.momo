@@ -1,0 +1,7 @@
+// EXPECT-ERROR: so it cannot be indexed
+// The binding is already one element.
+u8[4] buf
+
+for ( v of buf ) {
+  v[0] = 1
+}

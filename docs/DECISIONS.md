@@ -539,6 +539,69 @@ stand regardless.
 
 ---
 
+## 45. `for ( x in a )` and `for ( x of a )`
+
+### The design put `of` in the resolver, and it went in the parser
+
+§45 said `m` is "a symbol carrying a target and an index expression", which reads
+like a resolver symbol and a new kind beside `array` and `group`. It is not one.
+The body is already parsed by the time the loop header is finished, so `of` walks
+it and rewrites every use of its binding into an indexed access - `m.hp` becomes
+`mob[ c ].hp`, which §18 already understands, and `v` becomes `buf[ c ]`.
+
+That is the third build running where **the printer needed no change at all**, and
+by now it is less a surprise than a signal: when a feature is genuinely sugar, the
+stage that turns an AST back into source is where you find out.
+
+### Three things the design did not settle, all of them costs
+
+**The `of` counter has to be `u16`.** Its bound is `len( a )`, and `len` folds in
+the resolver - the parser has no idea whether the array has four elements or four
+thousand. A counter sized for one would be wrong for the next, so it is always a
+word, and for an array shorter than 256 elements a hand-written `u8` loop is
+narrower than what `of` emits. That is the only place `of` is not free, and it is
+the reason to keep `in`: it is where a program chooses the width.
+
+**The counter's name has to carry its file.** `of__tiger__0`, not `of__0`. The
+loader splices every file's top level into one program, so two files each holding
+a top-level `of` would declare the same name twice - which §11 already knew, since
+that is the collision `local` exists to prevent.
+
+**And nothing survives for a diagnostic to point at.** `m` written bare reports
+against `mob`, because by the time anything can complain the binding is gone. The
+design had claimed it "says what to write instead"; it does now, but it says `mob`
+where the reader wrote `m`. Worth the trade, and worth writing down as a trade.
+
+### The improvement that came out of the worst message
+
+`m` bare lowers to `mob[ c ]` with no field, and §18 answered that with `"mob" is
+not an array` - true, useless, and pointing at a word the reader did not write.
+It now names a field to write instead, which helps the ordinary `mob[ i ]` case
+exactly as much. The best thing §45 did to the diagnostics was to arrive at a bad
+one from a new direction.
+
+### The twin had to name a generated label
+
+`ok-for-iter-plain.momo` declares `u16 of__ok_for_iter_sugar__0`, which is not a
+joke and not avoidable: instructions carry their operands' labels, so the only
+twin that can emit identical instructions is one declaring the same names. **It
+couples the twin to the other file's name** - renaming the sugar file breaks the
+pair - and the file says so where someone renaming it would look.
+
+That is §44's lesson one turn further on. There, the twin was *chosen* to agree
+about the data section and quietly tested less than it looked. Here it has to be
+chosen to agree about the labels, and the price is a coupling instead. A pair test
+is never free of the pair.
+
+### What it cost
+
+237 lines net in `parser.ts` and 22 in `resolver.ts`, the latter being the group
+message above and nothing else. Tier 1 went from 390 to 404: eleven compile tests,
+two more round trips, and a third identity pair which covers an array, an indexed
+group and a `far` region in one program.
+
+---
+
 ## 44. Declaring the counter in a `for`
 
 ### The design put one decision on the wrong stage

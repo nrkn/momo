@@ -927,6 +927,18 @@ export const resolve = (program: Program): ResolveResult => {
         return annotate(node, { type: symbol.elementType, value: null, frac: symbol.frac ?? 0, unit: symbol.unit ?? null })
       }
 
+      // §18: one instance of a group is not an expression, because no record
+      // exists for it to denote. Saying only "not an array" leaves a reader of
+      // `mob[i]` with nothing to do about it, and §45's `of` reaches here too -
+      // `m` alone lowers to exactly this shape.
+      if (symbol.kind === 'group' && symbol.count !== null) {
+        raise(
+          node,
+          `an instance of group "${node.array.name}" is not a value - name a field,` +
+            ` as in "${node.array.name}[ ... ].${symbol.fields[0]?.name ?? 'field'}"`,
+        )
+      }
+
       if (symbol.kind !== 'array') {
         raise(node, `"${node.array.name}" is not an array`)
       }
@@ -2099,6 +2111,16 @@ export const resolve = (program: Program): ResolveResult => {
       target.array.label = symbol.label
       checkIndex(symbol, target.index)
       return annotate(target, { type: symbol.elementType, value: null, frac: symbol.frac ?? 0, unit: symbol.unit ?? null })
+    }
+
+    // The assignment side of the rule above, reached by `mob[i] = 1` and by an
+    // `of` binding written bare on the left of one.
+    if (symbol.kind === 'group' && symbol.count !== null) {
+      raise(
+        target,
+        `an instance of group "${target.array.name}" is not a value - name a field,` +
+          ` as in "${target.array.name}[ ... ].${symbol.fields[0]?.name ?? 'field'} = ..."`,
+      )
     }
 
     if (symbol.kind !== 'array') raise(target, `"${target.array.name}" is not an array`)

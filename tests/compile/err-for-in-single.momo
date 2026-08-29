@@ -1,0 +1,8 @@
+// EXPECT-ERROR: has a single instance
+// Answering 1 would compile a loop that reads as iteration and is not.
+group one { u8 x }
+u16 n = 0
+
+for ( u16 i in one ) {
+  n = n + i
+}

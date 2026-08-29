@@ -1,0 +1,8 @@
+// EXPECT-ERROR: expected "=", "in" or "of"
+// Almost always a mistyped in, and the load-time message would misdirect.
+u8[4] buf
+u16 n = 0
+
+for ( u16 i on buf ) {
+  n = n + i
+}

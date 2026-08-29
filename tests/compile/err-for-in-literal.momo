@@ -1,0 +1,7 @@
+// EXPECT-ERROR: needs the name of an array
+// A count would be §45's Maybe entry, and is not built.
+u16 n = 0
+
+for ( u16 i in 5 ) {
+  n = n + i
+}

@@ -27,6 +27,8 @@ import type {
   GroupField,
   Identifier,
   IfStatement,
+  IndexExpression,
+  Located,
   LValue,
   Program,
   Statement,
@@ -1197,6 +1199,220 @@ export const parse = (tokens: Token[]): Program => {
     }
   }
 
+  // ---- §45: `for ( x in a )` and `for ( x of a )` -----------------------------
+  //
+  // Both lower to the three-clause form right here, so nothing downstream learns
+  // they exist. `in` counts against `len( a )`, which already answers arrays,
+  // sized `far` regions and indexed groups and already writes the errors for the
+  // heap and the single-instance group. `of` is the same counter with every use
+  // of its name rewritten to an indexed access, so it binds a name rather than a
+  // value - no copy, no storage, and a write through it is an ordinary store.
+  //
+  // Neither word is a keyword. They are matched by lookahead in this one
+  // position, so `in` and `of` stay available to programs - §39 had to spend a
+  // name on `unit` and this does not have to spend two.
+
+  const fileTag = (file: string): string =>
+    (file.split(/[\\/]/).pop() ?? '').replace(/\.momo$/, '').replace(/[^A-Za-z0-9_]/g, '_')
+
+  // The counter an `of` loop needs and the program never names. Tagged with the
+  // file because the loader splices every top level into one, so two files each
+  // holding a top-level `of` would otherwise declare the same name twice.
+  let ofCounters = 0
+  const nextOfCounter = (file: string): string => `of__${fileTag(file)}__${ofCounters++}`
+
+  type AstLike = { type: string; [key: string]: unknown }
+
+  const isAst = (value: unknown): value is AstLike =>
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as { type?: unknown }).type === 'string'
+
+  // Rewrite every use of an `of` binding into an indexed access on the target. A
+  // group field rides on the identifier (§18), so `m.hp` and `v` differ only in
+  // whether that marker is set - and `mob[ i ]` with no field is already an error
+  // the resolver words, which is exactly what `m` alone should be.
+  const substituteBinding = (
+    root: Statement,
+    binding: string,
+    target: Token,
+    counter: string,
+  ) => {
+    const access = (identifier: AstLike): IndexExpression => ({
+      type: 'IndexExpression',
+      array: {
+        type: 'Identifier',
+        name: target.text,
+        field: identifier.field as string | undefined,
+        file: identifier.file as string,
+        line: identifier.line as number,
+        col: identifier.col as number,
+      },
+      index: {
+        type: 'Identifier',
+        name: counter,
+        file: identifier.file as string,
+        line: identifier.line as number,
+        col: identifier.col as number,
+      },
+      file: identifier.file as string,
+      line: identifier.line as number,
+      col: identifier.col as number,
+    })
+
+    const isBinding = (value: unknown): value is AstLike =>
+      isAst(value) && value.type === 'Identifier' && value.name === binding
+
+    const visit = (node: AstLike) => {
+      for (const [key, value] of Object.entries(node)) {
+        if (Array.isArray(value)) {
+          for (let i = 0; i < value.length; i++) {
+            if (isBinding(value[i])) value[i] = access(value[i] as AstLike)
+            else if (isAst(value[i])) visit(value[i] as AstLike)
+          }
+          continue
+        }
+
+        if (!isAst(value)) continue
+
+        if (isBinding(value)) {
+          const where = value as unknown as Located
+          if (node.type === 'IndexExpression' && key === 'array') {
+            raise(where, `"${binding}" is one element of "${target.text}", so it cannot be indexed`)
+          }
+          if (node.type === 'CallStatement' && key === 'callee') {
+            raise(where, `"${binding}" is one element of "${target.text}", not a routine`)
+          }
+          node[key] = access(value)
+          continue
+        }
+
+        visit(value)
+      }
+    }
+
+    visit(root as unknown as AstLike)
+  }
+
+  type IterationHeader = {
+    typeNode: TypeNode | null
+    name: Token
+    word: string
+    target: Token
+  }
+
+  // Returns null and rewinds when this is not an iteration header, so the
+  // three-clause form and §44's declaration are reached untouched.
+  const tryIterationHeader = (): IterationHeader | null => {
+    const saved = pos
+
+    const typeNode = at('type') ? parseTypeNode() : null
+
+    if (!at('ident')) {
+      pos = saved
+      return null
+    }
+    const name = advance()
+
+    if (!at('ident') || (peek().text !== 'in' && peek().text !== 'of')) {
+      pos = saved
+      return null
+    }
+    const word = advance().text
+
+    if (!at('ident')) {
+      raise(peek(), `${word} needs the name of an array, a group or a far region`)
+    }
+    const target = advance()
+
+    if (!at('op', ')')) {
+      raise(
+        peek(),
+        `${word} takes a name and nothing else - "for ( ${name.text} ${word} ${target.text} )"`,
+      )
+    }
+
+    return { typeNode, name, word, target }
+  }
+
+  const buildIteration = (start: Token, header: IterationHeader, body: Statement): ForStatement => {
+    const { typeNode, name, word, target } = header
+    const spot = { file: name.file, line: name.line, col: name.col }
+    const counter = word === 'in' ? name.text : nextOfCounter(name.file)
+
+    if (word === 'of') {
+      if (typeNode) {
+        raise(
+          typeNode,
+          `of names an element rather than declaring one, so it takes no type -` +
+            ` write "for ( ${name.text} of ${target.text} )"`,
+        )
+      }
+
+      // Always u16. The length is a constant this stage cannot see, and a counter
+      // narrow enough for one array would be wrong for the next - `in` is where a
+      // program chooses the width.
+      hoist({
+        type: 'VariableDeclaration',
+        name: counter,
+        typeNode: { type: 'TypeNode', name: 'u16', frac: 0, array: false, size: null, ...spot },
+        init: null,
+        ...spot,
+        endLine: name.line,
+      })
+
+      substituteBinding(body, name.text, target, counter)
+    } else if (typeNode) {
+      hoist({
+        type: 'VariableDeclaration',
+        name: counter,
+        typeNode,
+        init: null,
+        ...spot,
+        endLine: name.line,
+      })
+    }
+
+    const at0 = (): Identifier => ({ type: 'Identifier', name: counter, ...spot })
+
+    return {
+      type: 'ForStatement',
+      init: {
+        type: 'AssignmentStatement',
+        operator: '=',
+        target: at0(),
+        value: { type: 'NumberLiteral', value: 0, text: '0', ...spot },
+        ...spot,
+        endLine: name.line,
+      },
+      test: {
+        type: 'BinaryExpression',
+        operator: '<',
+        left: at0(),
+        right: {
+          type: 'LenExpression',
+          target: {
+            type: 'Identifier',
+            name: target.text,
+            file: target.file,
+            line: target.line,
+            col: target.col,
+          },
+          file: target.file,
+          line: target.line,
+          col: target.col,
+        },
+        ...spot,
+      },
+      update: { type: 'UpdateStatement', operator: '++', target: at0(), ...spot, endLine: name.line },
+      body,
+      file: start.file,
+      line: start.line,
+      col: start.col,
+      endLine: body.endLine,
+    }
+  }
+
   // A declaration in a `for`'s init clause (§44). What comes back is the
   // assignment alone - the declaration goes to `hoist`, so no caller sees one and
   // the resolver never learns a declaration was written in this position.
@@ -1217,6 +1433,15 @@ export const parse = (tokens: Token[]): Program => {
     }
 
     if (!at('op', '=')) {
+      // A word here is almost always a mistyped `in` or `of` (§45), and the
+      // load-time message below would send the reader somewhere else entirely.
+      if (at('ident')) {
+        raise(
+          peek(),
+          `expected "=", "in" or "of" after "${name.text}", but found "${peek().text}"`,
+        )
+      }
+
       raise(
         peek(),
         `"${name.text}" needs a value here - write "for ( ` +
@@ -1273,13 +1498,13 @@ export const parse = (tokens: Token[]): Program => {
     const start = expect('keyword', 'for')
     expect('op', '(')
 
-    let init: Statement | null = null
+    // A counter is an ordinary scalar and nothing else (§44). Each of these has
+    // its own reason to be excluded - a `const` has no storage to assign, a
+    // `view` is a compile-time alias with nothing to assign, a `far` region is
+    // top-level only, and `local` names a file as the owner - but without this
+    // they all fail as `expected ident`, which names none of them. Checked ahead
+    // of either form, since `for ( const c ...` is wrong whichever was meant.
     if (!at('op', ';')) {
-      // A counter is an ordinary scalar and nothing else (§44). Each of these
-      // has its own reason to be excluded - a `const` has no storage to assign,
-      // a `view` is a compile-time alias with nothing to assign, a `far` region
-      // is top-level only, and `local` names a file as the owner - but without
-      // this they all fail as `expected ident`, which names none of them.
       for (const word of ['const', 'view', 'far', 'local']) {
         if (at('keyword', word)) {
           raise(
@@ -1289,7 +1514,19 @@ export const parse = (tokens: Token[]): Program => {
           )
         }
       }
+    }
 
+    // §45 first: it is the form with no semicolons in it, and rewinds if this is
+    // not one.
+    const iteration = tryIterationHeader()
+    if (iteration) {
+      expect('op', ')')
+      skipNewlines()
+      return buildIteration(start, iteration, parseStatement())
+    }
+
+    let init: Statement | null = null
+    if (!at('op', ';')) {
       init = at('type') ? parseForDeclaration() : parseSimpleStatement()
     }
 

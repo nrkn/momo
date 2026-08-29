@@ -1,0 +1,46 @@
+// DESIGN §45: `for ( x in a )` and `for ( x of a )`.
+//
+// The twin of ok-for-iter-plain.momo, and the pair has to emit the same
+// instructions - see the identity tier in test.ts. Both forms are here over both
+// shapes they cover in this file: an array and an indexed group. A `far` region
+// is the third, and fartest carries it.
+
+const mobCount = 3
+
+group mob[mobCount] {
+  u8  x
+  u16 hp
+}
+
+u8[4] buf
+u16   total = 0
+
+for ( u16 i in buf ) {
+  buf[ i ] = u8( i )
+}
+
+// `of` binds the access, so this writes through to the array rather than to a
+// copy - the whole reason it is not a value.
+for ( v of buf ) {
+  v = v + 1
+  total = total + v
+}
+
+for ( u16 g in mob ) {
+  mob[ g ].hp = 100
+}
+
+for ( m of mob ) {
+  m.hp = m.hp + 1
+  m.x = 2
+}
+
+far u8[8] cells = 0xB800
+
+for ( u16 f in cells ) {
+  cells[ f ] = 3
+}
+
+for ( c of cells ) {
+  c = 4
+}

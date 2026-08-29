@@ -1,0 +1,7 @@
+// EXPECT-ERROR: takes a name and nothing else
+u8[4] buf
+u16 n = 0
+
+for ( u16 i in buf[0] ) {
+  n = n + i
+}

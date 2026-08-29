@@ -1,0 +1,7 @@
+// EXPECT-ERROR: the heap has no compile-time length
+// §45 inherits len's coverage, and its refusals with it.
+u16 n = 0
+
+for ( u16 i in _heap ) {
+  n = n + i
+}

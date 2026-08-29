@@ -1,0 +1,8 @@
+// EXPECT-ERROR: an instance of group "many" is not a value
+// §18: no record exists for one instance to denote, so a field has to be named.
+group many[3] { u8 x }
+u16 n = 0
+
+for ( m of many ) {
+  n = n + m
+}

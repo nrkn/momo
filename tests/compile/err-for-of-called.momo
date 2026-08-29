@@ -1,0 +1,6 @@
+// EXPECT-ERROR: not a routine
+u8[4] buf
+
+for ( v of buf ) {
+  v()
+}
