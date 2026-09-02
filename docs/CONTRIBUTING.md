@@ -96,6 +96,19 @@ source -> lexer -> parser -> resolver -> emitter -> NASM -> DOSBox
 Four pure stages, each a single file. `src/momo/compile.ts` runs the whole chain
 and every tool goes through it - add a stage there, not in the tools.
 
+Two files sit beside the stages rather than in them: `analysis.ts` (the call graph
+and tree-shaking) and `brackets.ts` (§48's lowering, run at the head of the
+resolver). Both are passes over a whole program rather than translations between
+representations, which is what keeps them out of the diagram.
+
+**A file is parsed completely before the includes inside it are visited.** So the
+parser cannot know anything a *later* file declares, and a design that says "lower
+it in the parser" has to check that first. This has cost real time twice: §39
+answered it with a first walk over the token stream in the loader, and §48 by
+lowering after the merge instead. Program-wide-and-order-free is the better
+property in both cases, so this is less a limitation than a fork in the road that
+is easy not to notice you are at.
+
 ## Getting set up
 
 Node 22+, and DOSBox for anything that assembles or runs. Copy
@@ -270,6 +283,16 @@ a *different* number, and small operands collide easily.
 peepholes as built that were never written, and carried a worst-case-stack
 formula that contradicted another section. Treat a claim about generated output
 as a hypothesis until the compiler agrees with it.
+
+**A count in a document is that kind of claim too, including in a section whose
+argument is that it measured something.** §48's wrapper-limit table said "25
+bracketable, 5 not" and then "25 of 30", and the file has 27 opens; the 25 was
+right and had arrived beside a total nobody had derived from it. It survived being
+written, reviewed and committed, and did not survive being read once. The premise
+in `momolo/build.momo` that a fourteen-parameter sub "would be unreadable at every
+call site" lasted much longer and was never anything but plausible - the corpus's
+largest routine takes six. **Recount before building on a number, especially your
+own**: both of those were one command away for as long as they stood.
 
 **Two sweeps, every few sessions.** Neither is prompted by a change. Both are
 periodic, and the cadence has been something like every four or five sessions

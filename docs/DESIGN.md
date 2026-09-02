@@ -3815,15 +3815,20 @@ That is unchanged semantically - the carrier was out of band before too - but th
 block boundary now looks like a scope, and those two lines configure the box whose
 brace follows rather than the one they sit inside. §20 already calls the carrier
 "the same discomfort one step along"; this sharpens it, and is the strongest
-argument for eventually giving the openers real parameters. That waits on a
-language feature nobody has designed: `cfg` has fourteen fields with defaults, and
-Momo has no object literals, no named arguments and no `??`.
+argument for eventually giving the openers real parameters.
+
+**§49 is what that needs**, and it was written because of this. `cfgReset` turns
+out to be default arguments hand-rolled - the callee restoring its own defaults so
+a caller sets only what differs - which is a mechanism Momo's static parameter
+slots allow and a stack language cannot. Measured on the way there: the corpus's
+maximum arity is 6 rather than the fourteen the carrier's own comment argues
+against, and a box carries 2.2 settings.
 
 ---
 
 ## Sections designed, but not built
 
-Thirteen sections carry numbers but no text here, because what they describe does
+Fourteen sections carry numbers but no text here, because what they describe does
 not exist yet. All are in `PLAN.md`. The heading names no range deliberately - the
 set stopped being contiguous the moment one of them was built.
 
@@ -3842,6 +3847,7 @@ set stopped being contiguous the moment one of them was built.
 | §43 | The screen library |
 | §46 | `alias` - a name for an indexed access, which §45's `of` is one case of |
 | §47 | `block` - the memory past the segment as a library, spun out of §40 |
+| §49 | Named and default arguments, which is what §48's `cfg` carrier needs |
 
 ---
 

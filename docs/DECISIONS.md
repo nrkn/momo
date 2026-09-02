@@ -332,9 +332,15 @@ been open since §36 landed, and what closed it was not new information. Everyth
 
 **The half it does not answer is the config carrier**, which the question named in
 the same breath - `cfg` is a mutable global consumed by the next builder call, and
-§48 sharpens the misreading rather than fixing it. That stays open, and it is not
-a language question: it needs the openers to take parameters, which needs a
-spelling for fourteen optional arguments with defaults that Momo has not got.
+§48 sharpens the misreading rather than fixing it.
+
+That half turned out to *be* a language question after all, which is why §49 now
+exists. It looked like a library problem for as long as the premise in
+`build.momo` went unexamined: fourteen optional fields, and no spelling for them.
+Measuring found a corpus whose largest routine takes six arguments and whose boxes
+carry 2.2 settings, and found that `cfgReset` is default arguments implemented by
+hand against Momo's static parameter slots. Neither fact was new. Both were one
+count away the whole time.
 
 ### Graphics - no longer blocked (§16)
 

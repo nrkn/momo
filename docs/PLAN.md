@@ -140,6 +140,14 @@ at all, which makes one a floor rather than a measurement.
 
 ### Probably
 
+- **Named and default arguments.** §49 - `fillPath( p )` where `tidy` defaults to
+  true, and `walkPath( pathIndex, wantPixels: true, ... )` where the corpus has
+  three bare booleans in a row today. The named half needs no codegen change at
+  all; the default half is what §48's `cfg` misreading actually needs, and it
+  rests on a mechanism Momo has and stack languages do not - the callee restores
+  its own defaults, which is what `cfgReset` already does by hand. Measured: max
+  arity in the whole corpus is 6, a box carries 2.2 settings on average, and the
+  frequent ones are not a prefix - so it is both halves or neither.
 - **`alias`.** §46 - a compile-time name for one element or one group instance, at
   an index the program chooses. §45's `of` is this with the index owned by the
   compiler, so the substitution is already built and what is new is a capture rule;
@@ -2201,3 +2209,126 @@ smallest value where the naive expression is wrong.
 A double-buffered mode 13h back buffer, which is what DESIGN §20's open graphics
 question keeps circling; the far arena for assets that §41 wants; and §43's
 backing stores. All three are §40 rows that have been open since §35 landed.
+
+---
+
+## 49. Named and default arguments
+
+**Designed, not built.** Two halves of one feature, which can land separately and
+have different customers:
+
+```momo
+sub walkPath( u16 pathIndex, bool wantPixels, bool wantEdges, bool closeSubpaths )
+
+walkPath( pathIndex, wantPixels: true, wantEdges: false, closeSubpaths: false )
+
+sub fillPath( u16 pathIndex, bool tidy = true )
+
+fillPath( p )
+```
+
+Named arguments say which parameter a value is for. Default arguments let one be
+left out. Neither is new as a language idea; what is worth writing down is that
+Momo's memory model gives the second an implementation no stack-based language
+can use, and that the corpus has already written both out by hand.
+
+### The measurements, because the premise this inherited is wrong
+
+`momolo/build.momo` explains the `cfg` carrier by saying a fourteen-parameter sub
+"would be unreadable at every call site". That is a claim about a shape nothing
+here has. Across **277 routines in 92 files, the maximum arity is 6**:
+
+```
+0: 129   1: 51   2: 49   3: 32   4: 10   5: 2   6: 4
+```
+
+And a box does not carry fourteen settings. Over the 32 bracket opens (§48):
+
+```
+settings before an open   0: 11   1: 1   2: 7   3: 4   4: 5   5: 3   7: 1
+                          69 settings, mean 2.2, max 7
+```
+
+Ten of the fourteen fields are ever set, and five setters carry 50 of the 69 -
+`cfgGrowW` 13, `cfg.gap` 12, `cfgGrowH` 9, `cfgCol` 8, `cfgInset` 8.
+
+**They are not a prefix**, which is the finding that shapes the design: setting
+`alignMain` means passing six things nobody cares about. Trailing defaults alone
+do not reach this. It is both halves or neither.
+
+### `cfgReset` is default arguments, hand-rolled
+
+Parameters are mangled globals and a call is stores-then-`call` (§5), so a
+parameter slot persists between calls. That allows an implementation a language
+with stack frames cannot have: **the callee restores its own defaults on exit**,
+and a caller stores only what it changes.
+
+`pushElement` copies `cfg` onto the element and then calls `cfgReset`, so every
+box starts from the defaults and a call site sets only what differs. That is the
+mechanism above, written by hand, in a `group` rather than in parameter slots only
+because parameter slots are not nameable from outside the routine.
+
+So this is less "give the openers fourteen parameters" than "delete a library's
+copy of a missing language feature". `cfgReset`'s fifteen instructions become
+compiler-generated and momolo loses a global.
+
+### Two customers, and they are unequal
+
+**momovec wants names.** `walkPath` takes three booleans after its index and is
+called three times, once as `walkPath( pathIndex, true, false, false )` - the shape
+the argument for named arguments is usually made about. `fillPath` takes one, and
+of its twelve call sites **eleven pass `true` and one passes `false`**, so it wants
+a default as well.
+
+Those two are quoted rather than a total, because "how many call sites pass a bare
+boolean" is a number whose value depends on how the question is filtered - three
+attempts at it here gave 16, 17 and 19. A figure like that drifts the moment
+anybody recounts it differently, so the section names routines instead.
+
+**momolo wants both**, and is the reason the section exists - §48 sharpened a
+misreading it deliberately did not fix, and this is what fixing it needs.
+
+The corpus has also paid for the absence in duplicated wrappers: `swatchGrow`,
+`swatchFixed` and `swatchCapped` differ only in how they set `cfg` before calling
+`swatchBody`, and `pathEdges`/`pathEdgesSorted` are the same shape one library
+along.
+
+### The halves cost very differently
+
+**Named arguments are nearly free.** Reordering into declaration order happens in
+the parser, so the emitter sees exactly what it sees today - no codegen change at
+all, and the identity tier can assert it. One real decision: `f( b: g(), a: h() )`
+must choose between written order and declared order, which matters because §5
+evaluates left to right and spills to the stack when any argument contains a call.
+Written order is the honest answer and costs nothing; it just has to be decided
+rather than fallen into.
+
+**Defaults are the expensive half.** Callee-restore means every defaulted routine
+pays a reset on every call, whether or not a default was used - `cfgReset`'s cost,
+generalised to anything that opts in. Defaults must be foldable constants, which
+the resolver already supports and which is a clean line rather than a compromise.
+The conceptual cost is the one to weigh: parameter slots become observably live
+state between calls. That is true today and currently invisible, and a default
+makes it something a reader has to know.
+
+The alternative implementation, **caller-fills**, is the obvious one and the wrong
+one here: fourteen stores at each of 32 call sites instead of fourteen in one
+routine.
+
+### What is not known, and how to find out
+
+Whether the swap is smaller or larger is **not** settled by argument. `call cfgCol`
+is three bytes against roughly six for the inline store it replaces, but it deletes
+ten routine bodies and `cfgReset`. The measurement is one scene written both ways,
+compared with `npm run memory` - and per the stub trap in `CLAUDE.md` it has to be
+the real thing, since a sketch measures a floor the real design cannot reach.
+
+### Probably, not Definitely
+
+Named arguments have a customer today and cost almost nothing, and would go in
+Definitely on their own. Defaults have one real customer, and building them to fix
+a misreading in one library is the floor-not-a-measurement problem the note under
+Todo describes - the same one §48 was careful about and this would be careless
+about. The two are here together because the measurement above says momolo needs
+both or neither, and splitting them is a decision to make on the way in rather
+than a conclusion already reached.

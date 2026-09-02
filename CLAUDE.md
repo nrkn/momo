@@ -201,6 +201,16 @@ selection in an editor watches the extra hundred lines go; an edit expressed as 
 pattern over text nobody re-reads does not get that. Same family as the
 `String.replace` entry above, and the same answer.
 
+**Where an edit assumes a structure, make the script check the structure rather
+than match it.** Rewriting `shell.momo`'s 25 open/close pairs into blocks could
+have been a regex over `closeBox()`; it was a stack instead, which popped an open
+per close and asserted that the two sat at the same indent. That turns "the file
+was indented honestly" from something the edit silently relied on into something
+it proved - and the pair count came out at exactly the number the design predicted,
+which a regex could not have told you either way. **The check is usually three
+lines and it is the difference between an edit that worked and an edit that looks
+like it worked.** Predicting the count first is the other half; see below.
+
 **It is also the second instance rather than the first.** `CONTRIBUTING.md`'s rule
 about editing DESIGN §1 records the same failure twice over - a slice that
 swallowed the prose around the mnemonic table and read `cmptest` as a mnemonic -
