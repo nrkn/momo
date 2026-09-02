@@ -14,6 +14,9 @@ import { fixedSplitError, fixedStorage } from './types.js'
 import type {
   ArrayLiteral,
   BlockStatement,
+  BracketDeclaration,
+  BracketStatement,
+  CallStatement,
   ConstDeclaration,
   ConstFunctionDeclaration,
   Parameter,
@@ -844,6 +847,136 @@ export const parse = (tokens: Token[]): Program => {
     }
   }
 
+  // `bracket box = boxOpen / closeBox` (§48). Two names either side of a slash,
+  // and deliberately nothing else: not expressions, not routines named by a
+  // parameter - the same "arguments must be names" §19 asks for. The parser has
+  // no symbol table, so whether either name is a routine at all is the
+  // resolver's answer, arrived at through the calls this lowers to.
+  const parseBracketDeclaration = (): BracketDeclaration => {
+    const start = expect('keyword', 'bracket')
+
+    const shape = 'a bracket names two routines - write "bracket box = boxOpen / closeBox"'
+
+    if (!at('ident')) raise(peek(), shape)
+    const name = advance()
+
+    expect('op', '=')
+
+    if (!at('ident')) raise(peek(), shape)
+    const open = advance()
+
+    // The slash is the pair separator and never a division here: both sides are
+    // names rather than expressions, so there is nothing for it to divide.
+    if (!at('op', '/')) raise(peek(), shape)
+    advance()
+
+    if (!at('ident')) raise(peek(), shape)
+    const close = advance()
+
+    if (open.text === close.text) {
+      raise(start, `a bracket's open and close must differ - both are "${open.text}"`)
+    }
+
+    const endLine = previous().line
+    expectTerminator()
+
+    return {
+      type: 'BracketDeclaration',
+      name: name.text,
+      open: { type: 'Identifier', name: open.text, file: open.file, line: open.line, col: open.col },
+      close: {
+        type: 'Identifier',
+        name: close.text,
+        file: close.file,
+        line: close.line,
+        col: close.col,
+      },
+      file: start.file,
+      line: start.line,
+      col: start.col,
+      endLine,
+    }
+  }
+
+  // `box( args ) { ... }`, entered once a complete call has been read and a brace
+  // follows it on the same line. The call is discarded and its parts kept: the
+  // callee names the bracket, and the arguments belong to the open.
+  const parseBracketBody = (call: CallStatement): BracketStatement => {
+    const body = parseBlock()
+    refuseEscapes(body)
+
+    return {
+      type: 'BracketStatement',
+      name: call.callee,
+      args: call.args,
+      body,
+      file: call.file,
+      line: call.line,
+      col: call.col,
+      endLine: body.endLine,
+    }
+  }
+
+  // Nothing may jump out of a bracket body, because the close is emitted at the
+  // end of it and a jump past that is exactly the failure §48 exists to remove -
+  // a box left open, with no diagnostic.
+  //
+  // `break` and `continue` are refused only where they would escape, which is why
+  // this counts loops rather than refusing the keywords outright: a loop written
+  // INSIDE the body owns its own breaks and never reaches the close. A loop
+  // outside it does, so the count starts at zero here rather than continuing the
+  // parser's own depth.
+  const refuseEscapes = (body: BlockStatement) => {
+    const visit = (node: Statement, loops: number) => {
+      switch (node.type) {
+        case 'ReturnStatement':
+          raise(
+            node,
+            'return inside a bracket body would skip the close - lift the block out, or' +
+              ' write the pair by hand where an early exit is wanted',
+          )
+          return
+
+        case 'BreakStatement':
+        case 'ContinueStatement':
+          if (loops === 0) {
+            const word = node.type === 'BreakStatement' ? 'break' : 'continue'
+            raise(
+              node,
+              `${word} inside a bracket body would skip the close - it belongs to a loop` +
+                ' outside the block',
+            )
+          }
+          return
+
+        case 'BlockStatement':
+          for (const inner of node.body) visit(inner, loops)
+          return
+
+        case 'IfStatement':
+          visit(node.consequent, loops)
+          if (node.alternate) visit(node.alternate, loops)
+          return
+
+        case 'ForStatement':
+        case 'WhileStatement':
+        case 'DoWhileStatement':
+          visit(node.body, loops + 1)
+          return
+
+        // A nested bracket has already refused its own escapes, and its body
+        // cannot reach this close without passing through that one.
+        case 'BracketStatement':
+          return
+
+        default:
+          return
+      }
+    }
+
+    for (const statement of body.body) visit(statement, 0)
+  }
+
   const parseViewDeclaration = (readonly: boolean, start: Token): ViewDeclaration => {
     expect('keyword', 'view')
     const typeNode = parseTypeNode()
@@ -1102,6 +1235,31 @@ export const parse = (tokens: Token[]): Program => {
   const parseSimpleStatement = (): Statement => {
     const start = peek()
     const target = parseLValue()
+
+    // `box { ... }` - a bracket (§48) whose open takes no arguments. The empty
+    // parens are allowed and `box( ) { }` means the same thing, but most opens
+    // take nothing and `box {` is the spelling that reads. Producing the call
+    // here rather than a form of its own keeps the brace check in one place: the
+    // caller turns any call followed by a brace into a bracket.
+    //
+    // Reachable only from a statement position - a `for` clause is closed by `;`
+    // or `)` before a brace can arrive - and `box {` is a parse error today, so
+    // no existing program changes meaning.
+    if (at('op', '{')) {
+      if (target.type !== 'Identifier') {
+        raise(start, 'a block can follow a call, but not an array element')
+      }
+
+      return {
+        type: 'CallStatement',
+        callee: target,
+        args: [],
+        file: start.file,
+        line: start.line,
+        col: start.col,
+        endLine: previous().line,
+      }
+    }
 
     if (at('op', '(')) {
       if (target.type !== 'Identifier') {
@@ -1645,6 +1803,16 @@ export const parse = (tokens: Token[]): Program => {
     if (token.kind === 'op' && token.text === '{') return parseBlock()
     if (token.kind === 'ident') {
       const statement = parseSimpleStatement()
+
+      // §48's whole disambiguator: a brace where a statement terminator was due.
+      // `f() { }` is a parse error today, so nothing existing changes meaning -
+      // and the brace has to be on the same line as the `)`, because a newline
+      // after one already terminates the statement (`canEndStatement`) and
+      // `f()` followed by a bare block on the next line keeps meaning that.
+      if (statement.type === 'CallStatement' && at('op', '{')) {
+        return parseBracketBody(statement)
+      }
+
       expectTerminator()
       return statement
     }
@@ -1693,6 +1861,7 @@ export const parse = (tokens: Token[]): Program => {
       if (token.text === 'far') return parseFarDeclaration(false, token)
       if (token.text === 'view') return parseViewDeclaration(false, token)
       if (token.text === 'unit') return parseUnitDeclaration()
+      if (token.text === 'bracket') return parseBracketDeclaration()
       if (token.text === 'sub') return parseSubDeclaration()
       if (token.text === 'fn') {
         // Migration aid - delete once the old spelling is out of muscle memory.

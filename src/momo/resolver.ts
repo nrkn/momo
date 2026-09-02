@@ -28,6 +28,7 @@ import type {
 import { basename } from 'node:path'
 
 import { alwaysReturns, buildCallGraph, fallsThrough, type CallGraph } from './analysis.js'
+import { lowerBrackets } from './brackets.js'
 import { raise, type Location } from './diagnostics.js'
 import {
   combineRanges,
@@ -306,6 +307,13 @@ const isExpression = (value: unknown): value is Expression =>
   typeof (value as { type?: unknown }).type === 'string'
 
 export const resolve = (program: Program): ResolveResult => {
+  // §48, and the first thing that happens: brackets lower into ordinary calls
+  // over the merged program, so nothing below this line has heard of them. It is
+  // here rather than in the parser because a bracket may be declared in an
+  // included file, and a file is parsed before its includes are - see the note
+  // at the top of brackets.ts.
+  lowerBrackets(program)
+
   const symbols: MomoSymbol[] = []
   const globals = new Map<string, MomoSymbol>()
 

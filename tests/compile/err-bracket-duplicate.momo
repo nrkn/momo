@@ -1,0 +1,9 @@
+// EXPECT-ERROR: "node" is already a bracket
+// Declarations are program-wide and order-free, so two of one name is an error
+// rather than a shadowing rule.
+sub push { }
+sub pop { }
+sub other { }
+
+bracket node = push / pop
+bracket node = other / pop

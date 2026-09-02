@@ -1,0 +1,6 @@
+// EXPECT-ERROR: a block can follow a call, but not an array element
+// The bare form is a name and a brace. An index is not a name.
+u16[4] arr
+
+arr[ 0 ] {
+}

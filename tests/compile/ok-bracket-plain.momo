@@ -1,0 +1,49 @@
+// The longhand twin of ok-bracket-sugar.momo: the open, the body and the close
+// written out, which is what every one of these call sites looks like today.
+//
+// The identity tier compiles both and requires the instructions to match. That
+// is the whole of §48's zero-cost claim, asserted rather than argued - a bracket
+// is a spelling for two calls and must leave nothing else behind.
+
+u16 depth = 0
+u16 total = 0
+
+sub push {
+  depth++
+}
+
+sub pop {
+  depth--
+}
+
+sub tally( u16 n ) {
+  total = total + n
+  depth++
+}
+
+sub build {
+  push()
+  total = total + 1
+
+  tally( 7 )
+  total = total + 2
+  pop()
+
+  pop()
+
+  push()
+  pop()
+
+  push()
+  total = total + 3
+  pop()
+
+  push()
+  for ( u16 i = 0; i < 4; i++ ) {
+    if ( i == 2 ) break
+    total = total + i
+  }
+  pop()
+}
+
+build()

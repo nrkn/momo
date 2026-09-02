@@ -1,0 +1,18 @@
+// EXPECT-ERROR: continue inside a bracket body would skip the close
+// The other half of err-bracket-break.momo, and the same jump.
+u16 n = 0
+
+sub push { n++ }
+sub pop { n-- }
+
+bracket node = push / pop
+
+sub build {
+  while ( n < 4 ) {
+    node {
+      continue
+    }
+  }
+}
+
+build()

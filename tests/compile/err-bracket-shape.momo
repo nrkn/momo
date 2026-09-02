@@ -1,0 +1,6 @@
+// EXPECT-ERROR: a bracket names two routines
+// §48: two names either side of a slash, and nothing else - no expressions and
+// no routine named by a parameter.
+sub push { }
+
+bracket node = push

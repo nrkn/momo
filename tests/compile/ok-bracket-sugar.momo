@@ -1,0 +1,59 @@
+// DESIGN §48: `bracket` - an open/close pair the compiler closes.
+//
+// The twin of ok-bracket-plain.momo, and the pair has to emit the same
+// instructions - see the identity tier in test.ts. Every shape the first build
+// carries is here: an open with no arguments and one with arguments, both
+// spellings of the argument-free form, an empty body, nesting, and a loop
+// written inside a body so that its own `break` is not an escape.
+
+u16 depth = 0
+u16 total = 0
+
+sub push {
+  depth++
+}
+
+sub pop {
+  depth--
+}
+
+sub tally( u16 n ) {
+  total = total + n
+  depth++
+}
+
+bracket node    = push  / pop
+bracket counted = tally / pop
+
+sub build {
+  // `node {` rather than `node() {`, which is the spelling the scenes will use:
+  // most opens take nothing.
+  node {
+    total = total + 1
+
+    counted( 7 ) {
+      total = total + 2
+    }
+  }
+
+  // Legal, and means an empty box. Two lines that today need a comment saying
+  // the pair is deliberate.
+  node {
+  }
+
+  // The parens are allowed and mean the same thing.
+  node( ) {
+    total = total + 3
+  }
+
+  // A loop written inside the body owns its own `break` - it never reaches the
+  // close, so it is not an escape and is not refused.
+  node {
+    for ( u16 i = 0; i < 4; i++ ) {
+      if ( i == 2 ) break
+      total = total + i
+    }
+  }
+}
+
+build()

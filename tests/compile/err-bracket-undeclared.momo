@@ -1,0 +1,8 @@
+// EXPECT-ERROR: "box" is not a bracket
+// §48: a brace after a call is the whole disambiguator, so the parser builds the
+// node without knowing the name. The pairing is what fails, and it fails here.
+sub boxOpen { }
+
+box {
+  boxOpen()
+}

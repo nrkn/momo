@@ -1,0 +1,6 @@
+// EXPECT-ERROR: a bracket's open and close must differ
+// A pair that opens and closes with the same routine is a miswriting rather
+// than a shape anything wants: it would emit the call twice around the body.
+sub push { }
+
+bracket node = push / push

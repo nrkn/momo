@@ -1,0 +1,9 @@
+// EXPECT-ERROR: "node" is already declared
+// §48: a bracket is not a routine, so it cannot be called, passed or aliased -
+// and sharing a name with one would make node() and node { } different things
+// with nothing saying so.
+sub push { }
+sub pop { }
+sub node { }
+
+bracket node = push / pop

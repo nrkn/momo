@@ -392,6 +392,18 @@ export const printStatement = (node: Statement, depth = 0): string => {
         `${pad}${lowered(node.callee.name, node.callee.label)}` +
         `( ${node.args.map(printExpression).join(', ')} )`
       )
+
+    // Both bracket forms (§48) are gone by the time anything prints a resolved
+    // program, so these two are what `npm run parse` and an unresolved print
+    // show - which is the pair `npm run desugar` is the other half of.
+    case 'BracketDeclaration':
+      return `${pad}bracket ${node.name} = ${node.open.name} / ${node.close.name}`
+
+    case 'BracketStatement':
+      return (
+        `${pad}${node.name.name}( ${node.args.map(printExpression).join(', ')} ) ` +
+        printBlock(node.body.body, depth)
+      )
   }
 }
 
