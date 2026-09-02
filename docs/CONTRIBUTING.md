@@ -96,6 +96,19 @@ source -> lexer -> parser -> resolver -> emitter -> NASM -> DOSBox
 Four pure stages, each a single file. `src/momo/compile.ts` runs the whole chain
 and every tool goes through it - add a stage there, not in the tools.
 
+Two files sit beside the stages rather than in them: `analysis.ts` (the call graph
+and tree-shaking) and `brackets.ts` (§48's lowering, run at the head of the
+resolver). Both are passes over a whole program rather than translations between
+representations, which is what keeps them out of the diagram.
+
+**A file is parsed completely before the includes inside it are visited.** So the
+parser cannot know anything a *later* file declares, and a design that says "lower
+it in the parser" has to check that first. This has cost real time twice: §39
+answered it with a first walk over the token stream in the loader, and §48 by
+lowering after the merge instead. Program-wide-and-order-free is the better
+property in both cases, so this is less a limitation than a fork in the road that
+is easy not to notice you are at.
+
 ## Getting set up
 
 Node 22+, and DOSBox for anything that assembles or runs. Copy
@@ -238,17 +251,28 @@ Two things are worth branching for, and one of them has happened:
   because one crossing does not locate it, but it is no longer hypothetical. The
   test for anything smaller is unchanged: whether you would mind leaving `main`
   in the state your change reaches by the end of a session.
-- **Work that may not survive.** Subsetting the language down to something
-  smaller to find out what can still usefully be built in it, say. An experiment
-  whose answer might be "no" wants to be able to end without leaving anything
-  behind, which is a different reason from size. **This one still has not come
-  up** - and this section used to call it the more likely of the two to be needed
-  first, which was wrong.
+- **Work that may not survive.** An experiment whose answer might be "no" wants to
+  be able to end without leaving anything behind, which is a different reason from
+  size. **§48 is the instance**, and it is a smaller one than the subset-the-
+  language example this used to give: the section's load-bearing claim was that it
+  was materially smaller than §39, `loader.ts` said otherwise before any code was
+  written, and the honest possibility was that the answer became "this costs what
+  §39 cost". It did not - the seam moved and the feature landed - but the branch
+  was opened for that and not for size, which is the distinction worth keeping.
 
-This paragraph said for a while that neither case had come up, having been
-written before momolo and not read again afterwards. The claim about which would
-arrive first was the tell: a prediction is the part of a document most worth
-re-reading once the thing it predicted has happened.
+This paragraph said for a while that neither case had come up, having been written
+before momolo and not read again afterwards. Then it said the second still had not,
+which lasted until §48. Both claims were predictions, and both were wrong in the
+same direction: **a prediction is the part of a document most worth re-reading once
+the thing it predicted has happened**, and this section has now demonstrated that
+about itself twice.
+
+What the two crossings say together, since two points do locate a line better than
+one: **neither was about size.** momolo was a port across more than one session
+where a half-finished `main` would have cost more than the merge did, and §48 was
+one session's work whose premise might not have survived contact. The test for
+anything else is still whether you would mind leaving `main` in the state your
+change reaches by the end of a session.
 
 ## Working practices
 
@@ -270,6 +294,16 @@ a *different* number, and small operands collide easily.
 peepholes as built that were never written, and carried a worst-case-stack
 formula that contradicted another section. Treat a claim about generated output
 as a hypothesis until the compiler agrees with it.
+
+**A count in a document is that kind of claim too, including in a section whose
+argument is that it measured something.** §48's wrapper-limit table said "25
+bracketable, 5 not" and then "25 of 30", and the file has 27 opens; the 25 was
+right and had arrived beside a total nobody had derived from it. It survived being
+written, reviewed and committed, and did not survive being read once. The premise
+in `momolo/build.momo` that a fourteen-parameter sub "would be unreadable at every
+call site" lasted much longer and was never anything but plausible - the corpus's
+largest routine takes six. **Recount before building on a number, especially your
+own**: both of those were one command away for as long as they stood.
 
 **Two sweeps, every few sessions.** Neither is prompted by a change. Both are
 periodic, and the cadence has been something like every four or five sessions
@@ -435,8 +469,8 @@ The cost of waiting is that the first thing a visitor reads is the weakest
 document in the repo. That trade is made deliberately, and preferred to shipping a
 second draft in the same voice as the first.
 
-406 tier-1 assertions (203 compile tests, 48 golden `.asm`, 53 type, 11 lex, 85
-round trip, 3 identity, 3 subset), 39 e2e programs, all green.
+421 tier-1 assertions (215 compile tests, 48 golden `.asm`, 53 type, 11 lex, 87
+round trip, 4 identity, 3 subset), 39 e2e programs, all green.
 
 Both figures have drifted before, and neither is enforced by anything - unlike
 §1's mnemonic count, which a test checks. The e2e one drifted furthest: it said

@@ -52,6 +52,11 @@ export const keywords = [
   'far',
   'view',
   'unit',
+  // `bracket box = boxOpen / closeBox` (§48). A declaration and nothing else:
+  // the compiler learns that two names pair, never what they do. Unlike `unit`
+  // it needs no lexer involvement, because a bracket name stays an identifier -
+  // the disambiguator is the brace after a complete call.
+  'bracket',
   'local',
   'sub',
   'fn',

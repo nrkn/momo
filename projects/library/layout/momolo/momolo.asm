@@ -36,73 +36,73 @@ trackMinW:      equ     5
 ; =========================================================== entry ====
 
 __entry:
-; ---- paintBegin( 80 * u, 25 * lineHeight )
+; ---- paint( 80 * u, 25 * lineHeight ) {
         mov     word [paintBegin__w], 80
         mov     word [paintBegin__h], 25
         call    paintBegin
 ; ---- buildShell()
         call    buildShell
-; ---- closeBox()
+; ---- }
         call    closeBox
 ; ---- runPasses()
         call    runPasses
 ; ---- dumpBoxes()
         call    dumpBoxes
-; ---- paintBegin( 40 * u, 10 * lineHeight )
+; ---- paint( 40 * u, 10 * lineHeight ) {
         mov     word [paintBegin__w], 40
         mov     word [paintBegin__h], 10
         call    paintBegin
 ; ---- buildSizing()
         call    buildSizing
-; ---- closeBox()
+; ---- }
         call    closeBox
 ; ---- runPasses()
         call    runPasses
 ; ---- dumpBoxes()
         call    dumpBoxes
-; ---- paintBegin( 30 * u, 3 * lineHeight )
+; ---- paint( 30 * u, 3 * lineHeight ) {
         mov     word [paintBegin__w], 30
         mov     word [paintBegin__h], 3
         call    paintBegin
 ; ---- buildCapped()
         call    buildCapped
-; ---- closeBox()
+; ---- }
         call    closeBox
 ; ---- runPasses()
         call    runPasses
 ; ---- dumpBoxes()
         call    dumpBoxes
-; ---- paintBegin( 40 * u, 15 * lineHeight )
+; ---- paint( 40 * u, 15 * lineHeight ) {
         mov     word [paintBegin__w], 40
         mov     word [paintBegin__h], 15
         call    paintBegin
 ; ---- buildSqueeze()
         call    buildSqueeze
-; ---- closeBox()
+; ---- }
         call    closeBox
 ; ---- runPasses()
         call    runPasses
 ; ---- dumpBoxes()
         call    dumpBoxes
-; ---- paintBegin( 20 * u, 3 * lineHeight )
+; ---- paint( 20 * u, 3 * lineHeight ) {
         mov     word [paintBegin__w], 20
         mov     word [paintBegin__h], 3
         call    paintBegin
 ; ---- buildOverflow()
         call    buildOverflow
-; ---- closeBox()
+; ---- }
         call    closeBox
 ; ---- runPasses()
         call    runPasses
 ; ---- dumpBoxes()
         call    dumpBoxes
-; ---- paintBegin( 40 * u, 13 * lineHeight )
+; ---- paint( 40 * u, 13 * lineHeight ) {
         mov     word [paintBegin__w], 40
         mov     word [paintBegin__h], 13
         call    paintBegin
 ; ---- buildAlignment()
         call    buildAlignment
-; ---- closeBox()
+; ---- }
         call    closeBox
 ; ---- runPasses()
         call    runPasses
@@ -4256,7 +4256,7 @@ shell__swatchBody:
         call    cfgInsetX
 ; ---- cfg.alignMain = alignCenter
         mov     byte [cfg__alignMain], 1
-; ---- panelOpen( bg )
+; ---- panel( bg ) {
         mov     al, [shell__swatchBody__bg]
         mov     [panelOpen__bg], al         ; u8 -> u8, no widening
         call    panelOpen
@@ -4267,7 +4267,7 @@ shell__swatchBody:
         mov     al, [shell__swatchBody__bg]
         mov     [labelPaint__bg], al        ; u8 -> u8, no widening
         call    labelPaint
-; ---- closeBox()
+; ---- }
         call    closeBox
         ret
 
@@ -4335,7 +4335,7 @@ buildShell:
         call    cfgGrowW
 ; ---- cfgGrowH()
         call    cfgGrowH
-; ---- panelOpen( blue )
+; ---- panel( blue ) {
         mov     byte [panelOpen__bg], 1
         call    panelOpen
 ; ---- cfgGrowW()
@@ -4346,7 +4346,7 @@ buildShell:
 ; ---- cfgInsetX( u )
         mov     byte [cfgInsetX__n], 1
         call    cfgInsetX
-; ---- panelOpen( cyan )
+; ---- panel( cyan ) {
         mov     byte [panelOpen__bg], 3
         call    panelOpen
 ; ---- labelPaint( addr( sMomolo ), black, cyan )
@@ -4359,9 +4359,9 @@ buildShell:
         call    cfgGrowW
 ; ---- cfg.gap = u
         mov     byte [cfg__gap], 1
-; ---- boxOpen()
+; ---- box {
         call    boxOpen
-; ---- closeBox()
+; ---- }
         call    closeBox
 ; ---- labelPaint( addr( sGeometry ), black, cyan )
         mov     ax, sGeometry               ; link-time constant
@@ -4369,7 +4369,7 @@ buildShell:
         mov     byte [labelPaint__fg], 0
         mov     byte [labelPaint__bg], 3
         call    labelPaint
-; ---- closeBox()
+; ---- }
         call    closeBox
 ; ---- cfgGrowW()
         call    cfgGrowW
@@ -4380,7 +4380,7 @@ buildShell:
         call    cfgInset
 ; ---- cfg.gap = u
         mov     byte [cfg__gap], 1
-; ---- boxOpen()
+; ---- box {
         call    boxOpen
 ; ---- cfgCol()
         call    cfgCol
@@ -4392,7 +4392,7 @@ buildShell:
 ; ---- cfgInset( u )
         mov     byte [cfgInset__n], 1
         call    cfgInset
-; ---- panelFramed( darkGray, border, white )
+; ---- framed( darkGray, border, white ) {
         mov     byte [panelFramed__bg], 8
         mov     byte [panelFramed__borderW], 1
         mov     byte [panelFramed__frameColor], 15
@@ -4424,9 +4424,9 @@ buildShell:
 ; ---- cfgFixedH( lineHeight )
         mov     word [cfgFixedH__n], 1
         call    cfgFixedH
-; ---- boxOpen()
+; ---- box {
         call    boxOpen
-; ---- closeBox()
+; ---- }
         call    closeBox
 ; ---- paraPaint( addr( sBody ), bodyMinW, yellow, darkGray )
         mov     ax, sBody                   ; link-time constant
@@ -4435,7 +4435,7 @@ buildShell:
         mov     byte [paraPaint__fg], 14
         mov     byte [paraPaint__bg], 8
         call    paraPaint
-; ---- closeBox()
+; ---- }
         call    closeBox
 ; ---- cfgCol()
         call    cfgCol
@@ -4452,7 +4452,7 @@ buildShell:
         mov     byte [cfg__alignMain], 1
 ; ---- cfg.alignCross = alignCenter
         mov     byte [cfg__alignCross], 1
-; ---- panelFramed( black, border, lightGray )
+; ---- framed( black, border, lightGray ) {
         mov     byte [panelFramed__bg], 0
         mov     byte [panelFramed__borderW], 1
         mov     byte [panelFramed__frameColor], 7
@@ -4467,7 +4467,7 @@ buildShell:
         call    cfgGrowW
 ; ---- cfg.gap = u
         mov     byte [cfg__gap], 1
-; ---- boxOpen()
+; ---- box {
         call    boxOpen
 ; ---- swatchGrow( addr( sA ), darkGray )
         mov     ax, sA                      ; link-time constant
@@ -4484,14 +4484,14 @@ buildShell:
         mov     [swatchGrow__at], ax
         mov     byte [swatchGrow__bg], 8
         call    swatchGrow
-; ---- closeBox()
+; ---- }
         call    closeBox
 ; ---- cfgFixedW( 24 * u )
         mov     word [cfgFixedW__n], 24
         call    cfgFixedW
 ; ---- cfg.gap = u
         mov     byte [cfg__gap], 1
-; ---- boxOpen()
+; ---- box {
         call    boxOpen
 ; ---- paraPaint( addr( sLeft ), squeezedMinW, white, darkGray )
         mov     ax, sLeft                   ; link-time constant
@@ -4507,11 +4507,11 @@ buildShell:
         mov     byte [paraPaint__fg], 15
         mov     byte [paraPaint__bg], 8
         call    paraPaint
-; ---- closeBox()
+; ---- }
         call    closeBox
-; ---- closeBox()
+; ---- }
         call    closeBox
-; ---- closeBox()
+; ---- }
         call    closeBox
 ; ---- cfgGrowW()
         call    cfgGrowW
@@ -4521,7 +4521,7 @@ buildShell:
 ; ---- cfgInsetX( u )
         mov     byte [cfgInsetX__n], 1
         call    cfgInsetX
-; ---- panelOpen( lightGray )
+; ---- panel( lightGray ) {
         mov     byte [panelOpen__bg], 7
         call    panelOpen
 ; ---- labelPaint( addr( sReady ), black, lightGray )
@@ -4530,9 +4530,9 @@ buildShell:
         mov     byte [labelPaint__fg], 0
         mov     byte [labelPaint__bg], 7
         call    labelPaint
-; ---- closeBox()
+; ---- }
         call    closeBox
-; ---- closeBox()
+; ---- }
         call    closeBox
         ret
 
@@ -4550,10 +4550,10 @@ buildSizing:
         call    cfgInset
 ; ---- cfg.gap = u
         mov     byte [cfg__gap], 1
-; ---- panelOpen( black )
+; ---- panel( black ) {
         mov     byte [panelOpen__bg], 0
         call    panelOpen
-; ---- stripOpen( addr( sCapFit ) )
+; ---- strip( addr( sCapFit ) ) {
         mov     ax, sCapFit                 ; link-time constant
         mov     [stripOpen__caption], ax
         call    stripOpen
@@ -4572,9 +4572,9 @@ buildSizing:
         mov     [swatchFit__at], ax
         mov     byte [swatchFit__bg], 14
         call    swatchFit
-; ---- stripClose()
+; ---- }
         call    stripClose
-; ---- stripOpen( addr( sCapGrow ) )
+; ---- strip( addr( sCapGrow ) ) {
         mov     ax, sCapGrow                ; link-time constant
         mov     [stripOpen__caption], ax
         call    stripOpen
@@ -4593,9 +4593,9 @@ buildSizing:
         mov     [swatchGrow__at], ax
         mov     byte [swatchGrow__bg], 14
         call    swatchGrow
-; ---- stripClose()
+; ---- }
         call    stripClose
-; ---- stripOpen( addr( sCapMixed ) )
+; ---- strip( addr( sCapMixed ) ) {
         mov     ax, sCapMixed               ; link-time constant
         mov     [stripOpen__caption], ax
         call    stripOpen
@@ -4616,9 +4616,9 @@ buildSizing:
         mov     [swatchGrow__at], ax
         mov     byte [swatchGrow__bg], 14
         call    swatchGrow
-; ---- stripClose()
+; ---- }
         call    stripClose
-; ---- closeBox()
+; ---- }
         call    closeBox
         ret
 
@@ -4634,7 +4634,7 @@ buildCapped:
 ; ---- cfgInset( u )
         mov     byte [cfgInset__n], 1
         call    cfgInset
-; ---- panelOpen( black )
+; ---- panel( black ) {
         mov     byte [panelOpen__bg], 0
         call    panelOpen
 ; ---- cfgFixedW( 28 * u )
@@ -4642,7 +4642,7 @@ buildCapped:
         call    cfgFixedW
 ; ---- cfg.gap = u
         mov     byte [cfg__gap], 1
-; ---- boxOpen()
+; ---- box {
         call    boxOpen
 ; ---- swatchGrow( addr( sAa ), cyan )
         mov     ax, sAa                     ; link-time constant
@@ -4665,16 +4665,16 @@ buildCapped:
         mov     [swatchGrow__at], ax
         mov     byte [swatchGrow__bg], 5
         call    swatchGrow
-; ---- closeBox()
+; ---- }
         call    closeBox
-; ---- closeBox()
+; ---- }
         call    closeBox
         ret
 
 ; ============================================== sub squeezeTrack ====
 
 squeezeTrack:
-; ---- stripOpen( caption )
+; ---- strip( caption ) {
         mov     ax, [squeezeTrack__caption]
         mov     [stripOpen__caption], ax
         call    stripOpen
@@ -4684,7 +4684,7 @@ squeezeTrack:
         call    cfgFixedW
 ; ---- cfg.gap = u
         mov     byte [cfg__gap], 1
-; ---- panelOpen( darkGray )
+; ---- panel( darkGray ) {
         mov     byte [panelOpen__bg], 8
         call    panelOpen
 ; ---- paraPaint( addr( sAlpha ), trackMinW, black, magenta )
@@ -4701,9 +4701,9 @@ squeezeTrack:
         mov     byte [paraPaint__fg], 0
         mov     byte [paraPaint__bg], 4
         call    paraPaint
-; ---- closeBox()
+; ---- }
         call    closeBox
-; ---- stripClose()
+; ---- }
         call    stripClose
         ret
 
@@ -4721,7 +4721,7 @@ buildSqueeze:
         call    cfgInset
 ; ---- cfg.gap = u
         mov     byte [cfg__gap], 1
-; ---- panelOpen( black )
+; ---- panel( black ) {
         mov     byte [panelOpen__bg], 0
         call    panelOpen
 ; ---- squeezeTrack( addr( sTrack26 ), 26 * u )
@@ -4744,7 +4744,7 @@ buildSqueeze:
         mov     [squeezeTrack__caption], ax
         mov     word [squeezeTrack__width], 8
         call    squeezeTrack
-; ---- closeBox()
+; ---- }
         call    closeBox
         ret
 
@@ -4760,7 +4760,7 @@ buildOverflow:
 ; ---- cfgInset( u )
         mov     byte [cfgInset__n], 1
         call    cfgInset
-; ---- panelOpen( black )
+; ---- panel( black ) {
         mov     byte [panelOpen__bg], 0
         call    panelOpen
 ; ---- cfgFixedW( 10 * u )
@@ -4770,7 +4770,7 @@ buildOverflow:
         mov     byte [cfg__gap], 1
 ; ---- cfg.alignMain = alignCenter
         mov     byte [cfg__alignMain], 1
-; ---- panelOpen( darkGray )
+; ---- panel( darkGray ) {
         mov     byte [panelOpen__bg], 8
         call    panelOpen
 ; ---- labelPaint( addr( sWider ), black, darkGray )
@@ -4791,9 +4791,9 @@ buildOverflow:
         mov     byte [labelPaint__fg], 0
         mov     byte [labelPaint__bg], 8
         call    labelPaint
-; ---- closeBox()
+; ---- }
         call    closeBox
-; ---- closeBox()
+; ---- }
         call    closeBox
         ret
 
@@ -4812,7 +4812,7 @@ alignCell:
 ; ---- cfg.alignCross = cross
         mov     al, [alignCell__cross]
         mov     [cfg__alignCross], al       ; u8 -> u8, no widening
-; ---- panelOpen( darkGray )
+; ---- panel( darkGray ) {
         mov     byte [panelOpen__bg], 8
         call    panelOpen
 ; ---- labelPaint( at, yellow, darkGray )
@@ -4821,7 +4821,7 @@ alignCell:
         mov     byte [labelPaint__fg], 14
         mov     byte [labelPaint__bg], 8
         call    labelPaint
-; ---- closeBox()
+; ---- }
         call    closeBox
         ret
 
@@ -4832,7 +4832,7 @@ alignRow:
         call    cfgGrowW
 ; ---- cfg.gap = u
         mov     byte [cfg__gap], 1
-; ---- boxOpen()
+; ---- box {
         call    boxOpen
 ; ---- alignCell( a, alignStart, cross )
         mov     ax, [alignRow__a]
@@ -4855,7 +4855,7 @@ alignRow:
         mov     al, [alignRow__cross]
         mov     [alignCell__cross], al      ; u8 -> u8, no widening
         call    alignCell
-; ---- closeBox()
+; ---- }
         call    closeBox
         ret
 
@@ -4873,7 +4873,7 @@ buildAlignment:
         call    cfgInset
 ; ---- cfg.gap = u
         mov     byte [cfg__gap], 1
-; ---- panelOpen( black )
+; ---- panel( black ) {
         mov     byte [panelOpen__bg], 0
         call    panelOpen
 ; ---- alignRow( addr( sAlSs ), addr( sAlCs ), addr( sAlEs ), alignStart )
@@ -4903,7 +4903,7 @@ buildAlignment:
         mov     [alignRow__c], ax
         mov     byte [alignRow__cross], 2
         call    alignRow
-; ---- closeBox()
+; ---- }
         call    closeBox
         ret
 

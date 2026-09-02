@@ -1,0 +1,18 @@
+// EXPECT-ERROR: return inside a bracket body would skip the close
+// §48: the close is emitted at the end of the body, so an early exit past it is
+// exactly the failure the feature exists to remove.
+u16 n = 0
+
+sub push { n++ }
+sub pop { n-- }
+
+bracket node = push / pop
+
+sub build {
+  node {
+    if ( n > 3 ) return
+    n = n + 1
+  }
+}
+
+build()

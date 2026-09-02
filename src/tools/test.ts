@@ -509,6 +509,7 @@ const identityPairs: [string, string, string][] = [
     'ok-for-decl-plain.momo',
   ],
   ['in and of leave no trace (§45)', 'ok-for-iter-sugar.momo', 'ok-for-iter-plain.momo'],
+  ['a bracket is two calls and nothing else (§48)', 'ok-bracket-sugar.momo', 'ok-bracket-plain.momo'],
 ]
 
 const identityTests = (): number => {

@@ -1,0 +1,11 @@
+// EXPECT-ERROR: a bracket is declared at the top level of a file
+// It names a pair for the whole program, so there is nothing for a routine to
+// scope it to.
+sub push { }
+sub pop { }
+
+sub build {
+  bracket node = push / pop
+}
+
+build()

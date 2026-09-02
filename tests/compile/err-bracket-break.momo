@@ -1,0 +1,19 @@
+// EXPECT-ERROR: break inside a bracket body would skip the close
+// The loop is OUTSIDE the block, so this break jumps past the close. A loop
+// written inside a body owns its own breaks - see ok-bracket-sugar.momo.
+u16 n = 0
+
+sub push { n++ }
+sub pop { n-- }
+
+bracket node = push / pop
+
+sub build {
+  for ( u16 i = 0; i < 4; i++ ) {
+    node {
+      break
+    }
+  }
+}
+
+build()

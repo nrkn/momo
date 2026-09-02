@@ -39,9 +39,9 @@ setTextMode()
 hideCursor()
 useBrightBackgrounds()
 
-paintBegin( 80 * u, 25 * lineHeight )
-buildShell()
-closeBox()
+paint( 80 * u, 25 * lineHeight ) {
+  buildShell()
+}
 runPasses()
 paintAll()
 

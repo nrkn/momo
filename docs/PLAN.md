@@ -131,14 +131,6 @@ at all, which makes one a floor rather than a measurement.
   since a README that shows off wants something to show.
 - **Fixed-point division.** DESIGN §25 is half built and says which half: `*` on
   8.8 lands, division does not, and §25 sets out why it is the awkward one.
-- **`bracket`.** §48 - a declaration naming an open/close pair, and a block form
-  that calls them around a body written in place. momolo builds trees by
-  convention today: nothing catches a box left open, and the result is a wrong
-  tree with no diagnostic - which is the failure shape `closeBox`'s own comment
-  calls the worst available. Parser sugar, zero runtime cost, additive to every
-  existing call site, and smaller than §39 because the disambiguator is a brace
-  after a complete call rather than anything the lexer must know. 25 of the 30
-  opens in `shell.momo` are bracketable, measured.
 - **`block`.** §47 - three routines over the word `arena` already reads, saying
   where the block DOS gave us ends and whether a region fits in it. Twenty lines
   and no compiler change, and it opens the mode 13h back buffer, §41's asset
@@ -148,6 +140,14 @@ at all, which makes one a floor rather than a measurement.
 
 ### Probably
 
+- **Named and default arguments.** §49 - `fillPath( p )` where `tidy` defaults to
+  true, and `walkPath( pathIndex, wantPixels: true, ... )` where the corpus has
+  three bare booleans in a row today. The named half needs no codegen change at
+  all; the default half is what §48's `cfg` misreading actually needs, and it
+  rests on a mechanism Momo has and stack languages do not - the callee restores
+  its own defaults, which is what `cfgReset` already does by hand. Measured: max
+  arity in the whole corpus is 6, a box carries 2.2 settings on average, and the
+  frequent ones are not a prefix - so it is both halves or neither.
 - **`alias`.** §46 - a compile-time name for one element or one group instance, at
   an index the program chooses. §45's `of` is this with the index owned by the
   compiler, so the substitution is already built and what is new is a capture rule;
@@ -250,6 +250,27 @@ at all, which makes one a floor rather than a measurement.
   three extensions - since two groups declared from one shape match by
   construction with no structural comparison anywhere. `momopnt`, one toolkit
   under three editors, is where the want would arrive.
+- **`defer`.** The other half of §48, and deliberately not folded into it. The
+  resource shape is different: `fileOpen` returns a handle and `fileClose` takes it
+  back, so the pair is value-carrying, and what goes wrong is an early `return`
+  leaking one rather than a miscount.
+
+  ```momo
+  h = fileOpen( name, readMode )
+  defer fileClose( h )
+  ```
+
+  That is also a parser rewrite - no unwinding and no exceptions, so it is "emit
+  these calls before every exit from this block, in reverse" - and bare blocks
+  already exist to scope it. But it is **not free**: the call is emitted once per
+  exit path, so a routine with three returns pays three times, and it puts sugar
+  into control flow, which nothing else here does.
+
+  The distinction that keeps them apart is that **`defer` makes a close reliable
+  and a bracket makes it mandatory.** You can forget to write a `defer`. Forgetting
+  was momolo's entire problem, which is why §48 went first; leaking on an early
+  return is `std/file.momo`'s, and nothing has complained about it yet. Here rather
+  than in Probably for that reason, and it takes its own number if it is wanted.
 - **`in` over a count.** §45 - `for ( u8 i in maxPaths )` for `0 .. maxPaths - 1`,
   which would cover §44's 131 loops and §45's thirty-four in one form. Here rather
   than in §45's first build because it makes `in` mean two things - an extent in
@@ -309,31 +330,9 @@ All are set out in DESIGN §20 unless noted.
   host's numbers, so it folds at a precision the language cannot express. The
   analysis is in §32; three ways out, none chosen.
 
-- **How should a nested structure be built?** Set out here rather than in §20.
-  momolo (§36) represents nesting by convention: `boxOpen` and `closeBox` must
-  pair, the caller indents to show it, and nothing checks. Worse, a wrapper may
-  open more than one box - `stripOpen` opens two and `stripClose` closes two - so
-  pairs are not one-to-one with call sites and a balanced-looking source can still
-  be wrong. The config carrier is the same discomfort one step along: `cfg` is a
-  mutable global consumed by the next builder call.
-
-  Clay solved this with macros and hyperscript-style libraries solve it with
-  functions returning values, neither of which Momo has. Three candidates, none
-  chosen. **§19's routine parameters** would make closing structural, but the body
-  would be a named sub written elsewhere - forty nodes becomes forty subs, which is
-  worse than indentation, and writing the body *in place* is the whole ergonomic
-  win. **Parser sugar** lowering `box( ... ) { ... }` to open/body/close costs
-  nothing at runtime, the way `=>` already lowers, but a general form for it is a
-  macro system and a specific one puts a library's name in the compiler.
-  **Expressing the tree as data** and walking it removes the problem rather than
-  solving it, and is where a scene format points - at the cost that a static tree
-  cannot loop or take parameters, which the existing scenes do.
-
-  **§48 is the answer this now has**, and it is a fourth option the paragraph
-  above missed: a *declaration* form naming two routines as a pair. Not a macro
-  system, because there is no substitution and no arbitrary code, and not a
-  library name in the compiler, because the library names its own pairs. The
-  question stays here until it is built, and §48 carries the design.
+- **How a nested structure should be built is answered**, and the answer is §48 -
+  the record is DECISIONS §20. The half it does not touch is the config carrier,
+  which is a library design waiting on a language feature nobody has designed.
 
 - **Does Momo want a third namespacing mechanism?** Arbitrary const trees for
   organisation, whose leaves are ordinary consts - name mangling and nothing more
@@ -351,6 +350,16 @@ All are set out in DESIGN §20 unless noted.
 section that was itself a plan - see the note at the top for why, and where to
 look for the rest.
 
+- **`bracket`.** 2026-09-03. §48, now in `DESIGN.md`, and the record is DECISIONS
+  §48. A declaration naming an open/close pair, and a block form calling them
+  around a body written in place. It does **not** lower in the parser, which the
+  design said it would: a file is parsed before its includes are, so a bracket
+  shipped by a library is not in scope where it is used, and the pairing runs as a
+  pass over the merged program instead. That turned out to be the better seam -
+  declarations are program-wide and order-free, so `mopaint.momo` names its own
+  four pairs. 32 of the 34 opens in the corpus became blocks, the emitted assembly
+  moved only its source quotes, and momolo still agrees with the study on every
+  integer.
 - **`for ( x in a )` and `for ( x of a )`.** 2026-08-29. §45, now in `DESIGN.md`,
   and the record is DECISIONS §45. Both lower in the parser, so the resolver, the
   emitter and the printer are untouched again, and the pair that has to emit the
@@ -2203,166 +2212,123 @@ backing stores. All three are §40 rows that have been open since §35 landed.
 
 ---
 
-## 48. `bracket` - an open/close pair the compiler closes
+## 49. Named and default arguments
 
-**Designed, not built.** A declaration that names two routines as a pair, and a
-block form that calls them around a body written in place:
-
-```momo
-bracket box    = boxOpen     / closeBox
-bracket panel  = panelOpen   / closeBox
-bracket framed = panelFramed / closeBox
-bracket strip  = stripOpen   / stripClose
-
-framed( black, border, lightGray ) {
-  labelPaint( addr( sCentred ), yellow, black )
-
-  cfgGrowW()
-  cfg.gap = u
-  box {
-    swatchGrow( addr( sA ), darkGray )
-    swatchGrow( addr( sB ), darkGray )
-  }
-}
-```
-
-It lowers in the parser, the way `=>` does: the open with its arguments, the body,
-then the close. Zero runtime cost, and the emitted code is what the open/body/close
-sequence emits today - which the identity-pair method §44 and §45 used asserts
-directly rather than claiming.
-
-### The problem is correctness before it is ergonomics
-
-momolo represents nesting by convention. `closeBox` carries no evidence of what it
-closes, so indentation is the only structure and nothing reads it. Four failures,
-and the first is not a style complaint:
-
-| | today | with a bracket |
-|---|---|---|
-| finishing with boxes still open | a wrong tree and **no diagnostic** | impossible |
-| one `closeBox()` too many | swallowed by the `openDepth == 0` guard | impossible |
-| closing at the wrong depth | indentation lies, nothing checks | impossible |
-| a wrapper owning two opens | the caller has to know | the pair owns it |
-
-`closeBox`'s own comment says why the first one matters: *"a wrong answer with no
-diagnostic is the worst shape a bug can take"*. It guards the underflow it can see
-and says plainly that an unbalanced close is a caller bug it cannot diagnose. The
-over-open case has no guard at all, because there is nowhere to put one - nothing
-in the library knows the caller has finished.
-
-### Why this is not the macro system the question rejected
-
-DESIGN §20 asks how a nested structure should be built and rejects parser sugar
-twice over: *"a general form for it is a macro system and a specific one puts a
-library's name in the compiler"*. **A declaration form is the third option.** There
-is no substitution, no hygiene question and no arbitrary code - a bracket names two
-routines that already exist - and the compiler learns only that two names pair,
-never `momolo`.
-
-It is also **additive**. Every routine and every existing call site keeps working;
-a bracket declaration adds a spelling rather than replacing one, so adoption is per
-call site and reversible. After §45's sweep found less than its design promised,
-that matters: this can be tried on one scene and abandoned cheaply.
-
-### It needs no lexer involvement, which §39 did
-
-§39's hard part was where the knowledge that `px` is a type lives, because
-type-or-identifier is a lexer decision. This has no such question. The
-disambiguator is a `{` **after** a complete call, and both shapes are parse errors
-today - `f() { }` gives `expected end of statement but found "{"`, and so does
-`f {`. So the parser reads a call statement and then looks for a brace, with no
-symbol table, no promoted tokens and no first walk in the loader.
-
-That makes it a materially smaller feature than §39, and it is worth saying because
-the surface looks similar from a distance.
-
-### The wrapper limit, measured rather than asserted
-
-A routine whose opens outlive its body can never be a block, so `stripOpen` stays
-written the unbalanced way. The question is how much of the corpus that excludes,
-and the answer is little:
-
-```
-shell.momo     25 opens bracketable    5 not - one wrapper pair
-mopaint.momo    0 opens bracketable    5 not - the openers themselves
-```
-
-**25 of 30 in the scene.** `mopaint`'s five are the definitions of `boxOpen`,
-`panelOpen` and `panelFramed` - routines whose whole job is to leave a box open,
-which is the layer boundary rather than a limit. And the one real wrapper is still
-usable where it is called, because `stripClose` owns both of its closes.
-
-### What it does not fix, and one new way to misread
-
-`cfg` stays outside the block:
+**Designed, not built.** Two halves of one feature, which can land separately and
+have different customers:
 
 ```momo
-cfgGrowW()
-cfg.gap = u
-box { ... }
+sub walkPath( u16 pathIndex, bool wantPixels, bool wantEdges, bool closeSubpaths )
+
+walkPath( pathIndex, wantPixels: true, wantEdges: false, closeSubpaths: false )
+
+sub fillPath( u16 pathIndex, bool tidy = true )
+
+fillPath( p )
 ```
 
-That is unchanged semantically - the carrier is out of band today too - but the
-block boundary now *looks* like a scope, and a reader may reasonably expect `cfg`
-calls inside it to configure it. They would configure the next box instead.
+Named arguments say which parameter a value is for. Default arguments let one be
+left out. Neither is new as a language idea; what is worth writing down is that
+Momo's memory model gives the second an implementation no stack-based language
+can use, and that the corpus has already written both out by hand.
 
-DESIGN §20 already calls the carrier "the same discomfort one step along". This
-does not address it and slightly sharpens it, which is the strongest argument for
-eventually giving the openers real parameters rather than a mutable global.
+### The measurements, because the premise this inherited is wrong
 
-### `defer` is the other half, and is not this
+`momolo/build.momo` explains the `cfg` carrier by saying a fourteen-parameter sub
+"would be unreadable at every call site". That is a claim about a shape nothing
+here has. Across **277 routines in 92 files, the maximum arity is 6**:
 
-The resource shape is different. `fileOpen` returns a handle and `fileClose` takes
-it back, so the pair is value-carrying, and what goes wrong is an early `return`
-leaking one rather than a miscount:
-
-```momo
-h = fileOpen( name, readMode )
-defer fileClose( h )
+```
+0: 129   1: 51   2: 49   3: 32   4: 10   5: 2   6: 4
 ```
 
-That is also a parser rewrite - no unwinding, no exceptions, so it is "emit these
-calls before every exit from this block, in reverse" - and bare blocks already
-exist to scope it. But it is **not free**: the call is emitted once per exit path,
-so a routine with three returns pays three times, and it puts sugar into control
-flow, which nothing else here does.
+And a box does not carry fourteen settings. Over the 32 bracket opens (§48):
 
-The distinction that keeps them apart: **`defer` makes a close reliable, a bracket
-makes it mandatory.** You can forget to write a `defer`. Forgetting is momolo's
-entire problem, and leaking on an early return is `file`'s. If `defer` is wanted it
-takes its own number.
+```
+settings before an open   0: 11   1: 1   2: 7   3: 4   4: 5   5: 3   7: 1
+                          69 settings, mean 2.2, max 7
+```
 
-### Rules
+Ten of the fourteen fields are ever set, and five setters carry 50 of the 69 -
+`cfgGrowW` 13, `cfg.gap` 12, `cfgGrowH` 9, `cfgCol` 8, `cfgInset` 8.
 
-- **The pair is two routine names.** Not expressions, not routines defined later by
-  parameter - the same "arguments must be names" §19 already asks for.
-- **Arguments go to the open.** The close takes none, which is what makes the 1:2
-  wrapper work: whatever `stripClose` owns is its business.
-- **The body is a block**, and `box { }` is legal and means an empty one - which
-  reads better than `boxOpen()` and `closeBox()` on consecutive lines, a shape that
-  currently needs a comment in `shell.momo` to say it is deliberate.
-- **A bracket is not a routine**, so it cannot be called, passed or aliased. It is a
-  spelling for a pair of calls.
-- **Several brackets may share a close.** `box`, `panel` and `framed` all end in
-  `closeBox`, and nothing about that is special.
-- **No early exit out of a bracket body** in the first build - `return` inside one
-  would skip the close, which is exactly the failure the feature exists to remove.
-  Refuse it rather than emit the close on that path, and revisit if it bites.
+**They are not a prefix**, which is the finding that shapes the design: setting
+`alignMain` means passing six things nobody cares about. Trailing defaults alone
+do not reach this. It is both halves or neither.
 
-### Scope of a first build
+### `cfgReset` is default arguments, hand-rolled
 
-In: the declaration, the block form, the parser lowering, the `return` refusal, and
-a matched pair asserting no instruction moved.
+Parameters are mangled globals and a call is stores-then-`call` (§5), so a
+parameter slot persists between calls. That allows an implementation a language
+with stack frames cannot have: **the callee restores its own defaults on exit**,
+and a caller stores only what it changes.
 
-Out: `defer`, value-carrying pairs, brackets over anything but two named routines,
-and any attempt to fix the `cfg` carrier - that is a library design and belongs
-with whoever rewrites the openers to take parameters.
+`pushElement` copies `cfg` onto the element and then calls `cfgReset`, so every
+box starts from the defaults and a call site sets only what differs. That is the
+mechanism above, written by hand, in a `group` rather than in parameter slots only
+because parameter slots are not nameable from outside the routine.
 
-### What wanted it
+So this is less "give the openers fourteen parameters" than "delete a library's
+copy of a missing language feature". `cfgReset`'s fifteen instructions become
+compiler-generated and momolo loses a global.
 
-momolo, which is one library and the wrong thing to count. It sits under `momoed`,
-`momode` and `momopnt`, so its call sites are every screen of every application
-this repository is heading toward - and the corpus holds one scene because building
-one is currently unpleasant, which is the floor-not-a-measurement problem the note
-under Todo describes. Tree building recurs beyond layout as well: a scene format,
-a document outline, nested windows in §43.
+### Two customers, and they are unequal
+
+**momovec wants names.** `walkPath` takes three booleans after its index and is
+called three times, once as `walkPath( pathIndex, true, false, false )` - the shape
+the argument for named arguments is usually made about. `fillPath` takes one, and
+of its twelve call sites **eleven pass `true` and one passes `false`**, so it wants
+a default as well.
+
+Those two are quoted rather than a total, because "how many call sites pass a bare
+boolean" is a number whose value depends on how the question is filtered - three
+attempts at it here gave 16, 17 and 19. A figure like that drifts the moment
+anybody recounts it differently, so the section names routines instead.
+
+**momolo wants both**, and is the reason the section exists - §48 sharpened a
+misreading it deliberately did not fix, and this is what fixing it needs.
+
+The corpus has also paid for the absence in duplicated wrappers: `swatchGrow`,
+`swatchFixed` and `swatchCapped` differ only in how they set `cfg` before calling
+`swatchBody`, and `pathEdges`/`pathEdgesSorted` are the same shape one library
+along.
+
+### The halves cost very differently
+
+**Named arguments are nearly free.** Reordering into declaration order happens in
+the parser, so the emitter sees exactly what it sees today - no codegen change at
+all, and the identity tier can assert it. One real decision: `f( b: g(), a: h() )`
+must choose between written order and declared order, which matters because §5
+evaluates left to right and spills to the stack when any argument contains a call.
+Written order is the honest answer and costs nothing; it just has to be decided
+rather than fallen into.
+
+**Defaults are the expensive half.** Callee-restore means every defaulted routine
+pays a reset on every call, whether or not a default was used - `cfgReset`'s cost,
+generalised to anything that opts in. Defaults must be foldable constants, which
+the resolver already supports and which is a clean line rather than a compromise.
+The conceptual cost is the one to weigh: parameter slots become observably live
+state between calls. That is true today and currently invisible, and a default
+makes it something a reader has to know.
+
+The alternative implementation, **caller-fills**, is the obvious one and the wrong
+one here: fourteen stores at each of 32 call sites instead of fourteen in one
+routine.
+
+### What is not known, and how to find out
+
+Whether the swap is smaller or larger is **not** settled by argument. `call cfgCol`
+is three bytes against roughly six for the inline store it replaces, but it deletes
+ten routine bodies and `cfgReset`. The measurement is one scene written both ways,
+compared with `npm run memory` - and per the stub trap in `CLAUDE.md` it has to be
+the real thing, since a sketch measures a floor the real design cannot reach.
+
+### Probably, not Definitely
+
+Named arguments have a customer today and cost almost nothing, and would go in
+Definitely on their own. Defaults have one real customer, and building them to fix
+a misreading in one library is the floor-not-a-measurement problem the note under
+Todo describes - the same one §48 was careful about and this would be careless
+about. The two are here together because the measurement above says momolo needs
+both or neither, and splitting them is a decision to make on the way in rather
+than a conclusion already reached.

@@ -2902,10 +2902,17 @@ copies it onto the element and resets, so a call site sets only what differs and
 nothing has to remember to reset. The first design asked the caller to reset, and
 the first scene written against it forgot - `build.momo` records what that cost.
 
-**Nesting is a convention, and that is the open part.** `boxOpen` and `closeBox`
-must pair and nothing checks; worse, a wrapper may open more than one box, so
-pairs are not one-to-one with call sites - `stripOpen` opens two and `stripClose`
-closes two. `PLAN.md` carries this as a question.
+**Nesting was a convention, and §48 closed it.** `boxOpen` and `closeBox` had to
+pair with nothing checking, and a wrapper may open more than one box, so pairs are
+not one-to-one with call sites - `stripOpen` opens two and `stripClose` closes
+two. `mopaint.momo` now declares the pairs as brackets and the scenes are written
+as blocks, so the compiler emits every close. The wrapper is unaffected: its own
+two opens still outlive its body, and `strip` is a bracket at all four of its call
+sites because `stripClose` owns both closes.
+
+The carrier is the half that stayed open. `cfg` is still set before the call that
+consumes it, and a block boundary makes that slightly sharper to misread rather
+than better - DECISIONS §20 has where that stands.
 
 **It is resolution-independent.** The caller decides what a unit is: `mopaint`
 makes it a character cell, and the same scenes have been run against a pixel
@@ -3621,6 +3628,204 @@ already answers it.
 
 ---
 
+## 48. `bracket` - an open/close pair the compiler closes
+
+**Built.** A declaration naming two routines as a pair, and a block form that
+calls them around a body written in place:
+
+```momo
+bracket paint  = paintBegin  / closeBox
+bracket box    = boxOpen     / closeBox
+bracket panel  = panelOpen   / closeBox
+bracket framed = panelFramed / closeBox
+
+framed( black, border, lightGray ) {
+  labelPaint( addr( sCentred ), yellow, black )
+
+  cfgGrowW()
+  cfg.gap = u
+  box {
+    swatchGrow( addr( sA ), darkGray )
+    swatchGrow( addr( sB ), darkGray )
+  }
+}
+```
+
+It lowers to the open with its arguments, the body's statements, and the close,
+spliced inline - so the desugared program is exactly the longhand every one of
+these call sites was written as before. `ok-bracket-sugar.momo` and
+`ok-bracket-plain.momo` are that pair written twice, and the identity tier
+requires them to emit the same instructions.
+
+### The problem is correctness before it is ergonomics
+
+momolo represents nesting by convention. `closeBox` carries no evidence of what it
+closes, so indentation is the only structure and nothing reads it. Four failures,
+and the first is not a style complaint:
+
+| | before | with a bracket |
+|---|---|---|
+| finishing with boxes still open | a wrong tree and **no diagnostic** | impossible |
+| one `closeBox()` too many | swallowed by the `openDepth == 0` guard | impossible |
+| closing at the wrong depth | indentation lies, nothing checks | impossible |
+| a wrapper owning two opens | the caller has to know | the pair owns it |
+
+`closeBox`'s own comment says why the first matters: *"a wrong answer with no
+diagnostic is the worst shape a bug can take"*. It guards the underflow it can see
+and says plainly that an unbalanced close is a caller bug it cannot diagnose. The
+over-open case had no guard at all, because there was nowhere to put one - nothing
+in the library knows the caller has finished.
+
+### The open nobody could see
+
+The worst instance was not in a scene. `begin` ends with `openBox()`,
+`paintBegin` calls `begin`, and the *program* closed it:
+
+```momo
+paintBegin( 80 * u, 25 * lineHeight )
+buildShell()
+closeBox()
+```
+
+That open crossed two routine boundaries and a file boundary. The close sat at the
+same indent as its neighbours, and `buildShell` opens and closes its own panel and
+balances, so nothing on the page said what the close belonged to. Every row of the
+table above applied and none of them was visible. It is now:
+
+```momo
+paint( 80 * u, 25 * lineHeight ) {
+  buildShell()
+}
+```
+
+Six of those in `momolo.momo` and one in `mlodemo.momo`.
+
+### It is not the macro system §20 rejected
+
+§20 asks how a nested structure should be built and rejects parser sugar twice
+over: *"a general form for it is a macro system and a specific one puts a
+library's name in the compiler"*. **A declaration form is the option that
+paragraph missed.** There is no substitution, no hygiene question and no arbitrary
+code - a bracket names two routines that already exist - and the compiler learns
+only that two names pair, never `momolo`.
+
+It is also **additive**. Every routine and every existing call site kept working;
+a bracket adds a spelling rather than replacing one, so adoption was per call site
+and reversible.
+
+### The lowering is a pass over the merged program, not the parser
+
+The design said this would lower in the parser, the way `=>` does. It cannot.
+**`loader.ts` parses a file completely before visiting the includes inside it**, so
+`shell.momo` is an AST before `mopaint.momo` has been read - and a bracket declared
+by a library is therefore not in scope when the file using it is parsed.
+
+The parser still does the half it can do with no context, and that half is what
+made this smaller than §39: reading `name( args ) { body }` into a node needs no
+symbol table, no promoted tokens and no first walk in the loader, because the
+disambiguator is a `{` after a complete call and both `f() { }` and `f {` were
+parse errors before. The *pairing* waits for one merged body, and `lowerBrackets`
+in `brackets.ts` is the first thing `resolve` does.
+
+That is a better answer than the parser would have given. Declarations are
+**program-wide and order-free**, like `unit` names, so a library ships its own
+pairs - which is why the four above live in `mopaint.momo` and a scene gets them
+by including it. Lowering in the parser would have meant declaration-before-use in
+one file, and every application under momolo re-declaring the same four lines.
+
+Nothing below `resolve` has heard of a bracket, so the emitter, the analysis and
+the printer's resolved path are untouched.
+
+### `box {` takes no parens
+
+Most opens take nothing, and `box {` is the spelling that reads. `box( ) { }`
+means the same thing. It is one branch in `parseSimpleStatement`, reachable only
+from a statement position - a `for` clause is closed by `;` or `)` before a brace
+can arrive - and `box {` was a parse error before, so no existing program changed
+meaning.
+
+The brace must be on the same line as the name or the `)`. A newline after either
+already terminates the statement, so `f()` followed by a bare block on the next
+line keeps meaning that.
+
+### Nothing may jump out of a body
+
+The close is emitted at the end of the body, so a jump past it is precisely the
+failure the feature exists to remove. `return` is refused anywhere in a body.
+
+**`break` and `continue` are the same hazard**, which the design did not say. They
+are refused only where they would escape, which is why the check counts loops
+rather than refusing the keywords: a loop written *inside* a body owns its own
+breaks and never reaches the close, and the count starts at zero at the block
+rather than continuing the parser's own depth. Nothing in the corpus would have
+caught this - no scene wraps an open in a loop - so the ok pair carries the
+legal case and two error tests carry the illegal one.
+
+### Four more refusals, none of them in the design
+
+Each is a wrong answer with no diagnostic otherwise:
+
+- **A bracket sharing a name with a routine.** `node()` and `node { }` would be
+  different things with nothing saying so.
+- **A duplicate declaration.** Declarations are program-wide, so two of one name
+  is an error rather than a shadowing rule.
+- **A declaration inside a routine.** It names a pair for the whole program, so
+  there is nothing for a routine to scope it to.
+- **An open and close that are the same routine.** It would emit the call twice
+  around the body, which is a miswriting rather than a shape anything wants.
+
+### Rules
+
+- **The pair is two routine names.** Not expressions, not routines named by a
+  parameter - the same "arguments must be names" §19 asks for.
+- **Arguments go to the open.** The close takes none, which is what makes the 1:2
+  wrapper work: whatever `stripClose` owns is its business.
+- **`box { }` is legal** and means an empty box, which is two lines that used to
+  need a comment saying the pair was deliberate.
+- **A bracket is not a routine**, so it cannot be called, passed or aliased.
+- **Several brackets may share a close.** `box`, `panel`, `framed` and `paint` all
+  end in `closeBox`, and nothing about that is special.
+
+### What it cost, and what the sweep confirmed
+
+One new keyword, two AST nodes, a 186-line pass, 169 lines of parser, two printer
+cases and no emitter change at all. Twelve compile tests, two round trips and one
+identity pair, from 406 assertions to 421.
+
+**32 of the 34 opens across the three call-site files became blocks.** The two
+that did not are both inside `stripOpen`, whose whole job is to leave a box open;
+its four call sites are blocks anyway, because `stripClose` owns both of its
+closes. The emitted assembly for `momolo` and `mlodemo` is identical except for
+the emitter's source quotes, which now read `panel( blue ) {` and `}` where they
+read `panelOpen( blue )` and `closeBox()` - the structure is visible in the
+assembly for the first time.
+
+**And the `cfg` misreading the design predicted is real, confirmed by looking.**
+The config carrier is set *above* each open and consumed by it:
+
+```momo
+cfgGrowW()
+cfg.gap = u
+box {
+  ...
+}
+```
+
+That is unchanged semantically - the carrier was out of band before too - but the
+block boundary now looks like a scope, and those two lines configure the box whose
+brace follows rather than the one they sit inside. §20 already calls the carrier
+"the same discomfort one step along"; this sharpens it, and is the strongest
+argument for eventually giving the openers real parameters.
+
+**§49 is what that needs**, and it was written because of this. `cfgReset` turns
+out to be default arguments hand-rolled - the callee restoring its own defaults so
+a caller sets only what differs - which is a mechanism Momo's static parameter
+slots allow and a stack language cannot. Measured on the way there: the corpus's
+maximum arity is 6 rather than the fourteen the carrier's own comment argues
+against, and a box carries 2.2 settings.
+
+---
+
 ## Sections designed, but not built
 
 Fourteen sections carry numbers but no text here, because what they describe does
@@ -3642,7 +3847,7 @@ set stopped being contiguous the moment one of them was built.
 | §43 | The screen library |
 | §46 | `alias` - a name for an indexed access, which §45's `of` is one case of |
 | §47 | `block` - the memory past the segment as a library, spun out of §40 |
-| §48 | `bracket` - an open/close pair the compiler closes, for building trees |
+| §49 | Named and default arguments, which is what §48's `cfg` carrier needs |
 
 ---
 

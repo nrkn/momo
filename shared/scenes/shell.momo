@@ -106,9 +106,12 @@ sub runPasses {
 // ---- shared scene pieces --------------------------------------------------
 //
 // The study writes these as functions taking a closure. Momo has no closures, so
-// a wrapper becomes an open/close pair and the caller writes the body between
-// them: the openBox/closeBox pair is what ports, and the closure was a
-// TypeScript convenience only.
+// a wrapper becomes an open/close pair: the openBox/closeBox pair is what ports,
+// and the closure was a TypeScript convenience only.
+//
+// The caller writes the body inside a bracket block (§48), which is as close to
+// the study's shape as this gets - the body is in place and the close is the
+// compiler's rather than the caller's - and needs no closure to do it.
 
 // A caption above a strip of content.
 sub stripOpen( u16 caption ) {
@@ -128,15 +131,21 @@ sub stripClose {
   closeBox()                    // the captioned column
 }
 
+// The 1:2 wrapper, and the reason a bracket's close takes no arguments: whatever
+// `stripClose` owns is its business. The two routines above are the only opens in
+// this file that cannot themselves be blocks - their whole job is to leave a box
+// open - and that costs nothing at the four places `strip` is used.
+bracket strip = stripOpen / stripClose
+
 // A centred label on a coloured panel. The width is whatever the caller left in
 // cfg, which works because cfg is not spent until the box opens - so the four
 // wrappers below differ only in how they set it.
 local sub swatchBody( u16 at, u8 bg ) {
   cfgInsetX( u )
   cfg.alignMain = alignCenter
-  panelOpen( bg )
+  panel( bg ) {
     labelPaint( at, black, bg )
-  closeBox()
+  }
 }
 
 sub swatchFit( u16 at, u8 bg ) => swatchBody( at, bg )
@@ -168,15 +177,14 @@ sub buildShell {
   cfgCol()
   cfgGrowW()
   cfgGrowH()
-  panelOpen( blue )
-
+  panel( blue ) {
     // ---- title bar. The empty grow box between the two labels is a spacer -
     // it is how you push something to the far end without a dedicated alignment
     // rule for it.
     cfgGrowW()
     cfgFixedH( lineHeight )
     cfgInsetX( u )
-    panelOpen( cyan )
+    panel( cyan ) {
       labelPaint( addr( sMomolo ), black, cyan )
 
       // The gap on a childless box is deliberate and does nothing - there are no
@@ -184,37 +192,36 @@ sub buildShell {
       // guard reads 65535 and says so; see momolo/fit.momo.
       cfgGrowW()
       cfg.gap = u
-      boxOpen()
-      closeBox()
+      box {
+      }
 
       labelPaint( addr( sGeometry ), black, cyan )
-    closeBox()
+    }
 
     // ---- body: a fixed sidebar and a growing pane
     cfgGrowW()
     cfgGrowH()
     cfgInset( u )
     cfg.gap = u
-    boxOpen()
-
+    box {
       // ---- sidebar. The frame's width is added to the inset by panelFramed,
       // so the engine is told a bigger inset and never hears the word border.
       cfgCol()
       cfgFixedW( 16 * u )
       cfgGrowH()
       cfgInset( u )
-      panelFramed( darkGray, border, white )
+      framed( darkGray, border, white ) {
         labelPaint( addr( sNew ), white, darkGray )
         labelPaint( addr( sOpen ), white, darkGray )
         labelPaint( addr( sSave ), white, darkGray )
         labelPaint( addr( sQuit ), white, darkGray )
 
         cfgFixedH( lineHeight )
-        boxOpen()
-        closeBox()
+        box {
+        }
 
         paraPaint( addr( sBody ), bodyMinW, yellow, darkGray )
-      closeBox()
+      }
 
       // ---- main pane
       cfgCol()
@@ -224,36 +231,34 @@ sub buildShell {
       cfg.gap = u
       cfg.alignMain = alignCenter
       cfg.alignCross = alignCenter
-      panelFramed( black, border, lightGray )
+      framed( black, border, lightGray ) {
         labelPaint( addr( sCentred ), yellow, black )
 
         cfgGrowW()
         cfg.gap = u
-        boxOpen()
+        box {
           swatchGrow( addr( sA ), darkGray )
           swatchGrow( addr( sB ), darkGray )
           swatchGrow( addr( sC ), darkGray )
-        closeBox()
+        }
 
         cfgFixedW( 24 * u )
         cfg.gap = u
-        boxOpen()
+        box {
           paraPaint( addr( sLeft ), squeezedMinW, white, darkGray )
           paraPaint( addr( sRight ), squeezedMinW, white, darkGray )
-        closeBox()
-      closeBox()
-
-    closeBox()
+        }
+      }
+    }
 
     // ---- status bar
     cfgGrowW()
     cfgFixedH( lineHeight )
     cfgInsetX( u )
-    panelOpen( lightGray )
+    panel( lightGray ) {
       labelPaint( addr( sReady ), black, lightGray )
-    closeBox()
-
-  closeBox()
+    }
+  }
 }
 
 // ---- scene: sizing --------------------------------------------------------
@@ -269,27 +274,25 @@ sub buildSizing {
   cfgGrowH()
   cfgInset( u )
   cfg.gap = u
-  panelOpen( black )
-
-    stripOpen( addr( sCapFit ) )
+  panel( black ) {
+    strip( addr( sCapFit ) ) {
       swatchFit( addr( sAbc ), cyan )
       swatchFit( addr( sDe ), green )
       swatchFit( addr( sFghi ), yellow )
-    stripClose()
+    }
 
-    stripOpen( addr( sCapGrow ) )
+    strip( addr( sCapGrow ) ) {
       swatchGrow( addr( sAbc ), cyan )
       swatchGrow( addr( sDe ), green )
       swatchGrow( addr( sFghi ), yellow )
-    stripClose()
+    }
 
-    stripOpen( addr( sCapMixed ) )
+    strip( addr( sCapMixed ) ) {
       swatchFixed( addr( sAbc ), cyan, 6 * u )
       swatchCapped( addr( sDe ), green, 8 * u )
       swatchGrow( addr( sFghi ), yellow )
-    stripClose()
-
-  closeBox()
+    }
+  }
 }
 
 // ---- scene: capped --------------------------------------------------------
@@ -310,18 +313,16 @@ sub buildCapped {
   cfgGrowW()
   cfgGrowH()
   cfgInset( u )
-  panelOpen( black )
-
+  panel( black ) {
     cfgFixedW( 28 * u )
     cfg.gap = u
-    boxOpen()
+    box {
       swatchGrow( addr( sAa ), cyan )
       swatchCapped( addr( sBb ), green, 5 * u )
       swatchGrow( addr( sCc ), yellow )
       swatchGrow( addr( sDd ), magenta )
-    closeBox()
-
-  closeBox()
+    }
+  }
 }
 
 // ---- scene: squeeze -------------------------------------------------------
@@ -331,16 +332,14 @@ sub buildCapped {
 // them.
 
 sub squeezeTrack( u16 caption, u16 width ) {
-  stripOpen( caption )
-
+  strip( caption ) {
     cfgFixedW( width )
     cfg.gap = u
-    panelOpen( darkGray )
+    panel( darkGray ) {
       paraPaint( addr( sAlpha ), trackMinW, black, magenta )
       paraPaint( addr( sGamma ), trackMinW, black, red )
-    closeBox()
-
-  stripClose()
+    }
+  }
 }
 
 sub buildSqueeze {
@@ -349,14 +348,12 @@ sub buildSqueeze {
   cfgGrowH()
   cfgInset( u )
   cfg.gap = u
-  panelOpen( black )
-
+  panel( black ) {
     squeezeTrack( addr( sTrack26 ), 26 * u )
     squeezeTrack( addr( sTrack22 ), 22 * u )
     squeezeTrack( addr( sTrack14 ), 14 * u )
     squeezeTrack( addr( sTrack8 ), 8 * u )
-
-  closeBox()
+  }
 }
 
 // ---- scene: overflow ------------------------------------------------------
@@ -373,18 +370,16 @@ sub buildOverflow {
   cfgGrowW()
   cfgGrowH()
   cfgInset( u )
-  panelOpen( black )
-
+  panel( black ) {
     cfgFixedW( 10 * u )
     cfg.gap = u
     cfg.alignMain = alignCenter
-    panelOpen( darkGray )
+    panel( darkGray ) {
       labelPaint( addr( sWider ), black, darkGray )
       labelPaint( addr( sThan ), black, darkGray )
       labelPaint( addr( sThis ), black, darkGray )
-    closeBox()
-
-  closeBox()
+    }
+  }
 }
 
 // ---- scene: alignment -----------------------------------------------------
@@ -402,19 +397,19 @@ sub alignCell( u16 at, u8 main, u8 cross ) {
   cfgFixedH( 3 * lineHeight )
   cfg.alignMain = main
   cfg.alignCross = cross
-  panelOpen( darkGray )
+  panel( darkGray ) {
     labelPaint( at, yellow, darkGray )
-  closeBox()
+  }
 }
 
 sub alignRow( u16 a, u16 b, u16 c, u8 cross ) {
   cfgGrowW()
   cfg.gap = u
-  boxOpen()
+  box {
     alignCell( a, alignStart, cross )
     alignCell( b, alignCenter, cross )
     alignCell( c, alignEnd, cross )
-  closeBox()
+  }
 }
 
 sub buildAlignment {
@@ -423,11 +418,9 @@ sub buildAlignment {
   cfgGrowH()
   cfgInset( u )
   cfg.gap = u
-  panelOpen( black )
-
+  panel( black ) {
     alignRow( addr( sAlSs ), addr( sAlCs ), addr( sAlEs ), alignStart )
     alignRow( addr( sAlSc ), addr( sAlCc ), addr( sAlEc ), alignCenter )
     alignRow( addr( sAlSe ), addr( sAlCe ), addr( sAlEe ), alignEnd )
-
-  closeBox()
+  }
 }

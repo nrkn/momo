@@ -54,38 +54,38 @@ sub dumpBoxes {
 
 // ---- entry ----------------------------------------------------------------
 
-paintBegin( 80 * u, 25 * lineHeight )
-buildShell()
-closeBox()
+paint( 80 * u, 25 * lineHeight ) {
+  buildShell()
+}
 runPasses()
 dumpBoxes()
 
-paintBegin( 40 * u, 10 * lineHeight )
-buildSizing()
-closeBox()
+paint( 40 * u, 10 * lineHeight ) {
+  buildSizing()
+}
 runPasses()
 dumpBoxes()
 
-paintBegin( 30 * u, 3 * lineHeight )
-buildCapped()
-closeBox()
+paint( 30 * u, 3 * lineHeight ) {
+  buildCapped()
+}
 runPasses()
 dumpBoxes()
 
-paintBegin( 40 * u, 15 * lineHeight )
-buildSqueeze()
-closeBox()
+paint( 40 * u, 15 * lineHeight ) {
+  buildSqueeze()
+}
 runPasses()
 dumpBoxes()
 
-paintBegin( 20 * u, 3 * lineHeight )
-buildOverflow()
-closeBox()
+paint( 20 * u, 3 * lineHeight ) {
+  buildOverflow()
+}
 runPasses()
 dumpBoxes()
 
-paintBegin( 40 * u, 13 * lineHeight )
-buildAlignment()
-closeBox()
+paint( 40 * u, 13 * lineHeight ) {
+  buildAlignment()
+}
 runPasses()
 dumpBoxes()

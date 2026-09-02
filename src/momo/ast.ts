@@ -485,6 +485,31 @@ export type CallStatement = Spanned & {
   args: Expression[]
 }
 
+// §48. `bracket box = boxOpen / closeBox` - a compile-time name for an open/close
+// pair, and nothing else: two routine names, no expressions, no substitution.
+//
+// Both of these are gone before the resolver runs. `lowerBrackets` deletes the
+// declarations and rewrites each BracketStatement into the open call, the body's
+// statements, and the close call - so no later stage learns the word, and the
+// emitted code is what writing the three out by hand emits.
+export type BracketDeclaration = Spanned & {
+  type: 'BracketDeclaration'
+  name: string
+  open: Identifier
+  close: Identifier
+}
+
+// `box( args ) { body }`. The parser builds one of these without knowing whether
+// `box` names a bracket - a brace after a complete call is the whole
+// disambiguator, and both `f() { }` and `f {` are parse errors otherwise - so an
+// undeclared name is the lowering pass's diagnostic rather than the parser's.
+export type BracketStatement = Spanned & {
+  type: 'BracketStatement'
+  name: Identifier
+  args: Expression[]
+  body: BlockStatement
+}
+
 export type Statement =
   | ConstDeclaration
   | ConstFunctionDeclaration
@@ -493,8 +518,10 @@ export type Statement =
   | FarDeclaration
   | ViewDeclaration
   | UnitDeclaration
+  | BracketDeclaration
   | RoutineDeclaration
   | BlockStatement
+  | BracketStatement
   | IfStatement
   | ForStatement
   | WhileStatement
