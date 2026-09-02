@@ -137,8 +137,10 @@ at all, which makes one a floor rather than a measurement.
   tree with no diagnostic - which is the failure shape `closeBox`'s own comment
   calls the worst available. Parser sugar, zero runtime cost, additive to every
   existing call site, and smaller than §39 because the disambiguator is a brace
-  after a complete call rather than anything the lexer must know. 25 of the 30
-  opens in `shell.momo` are bracketable, measured.
+  after a complete call rather than anything the lexer must know. 32 of the 34
+  opens across the three call-site files are bracketable, measured - and the worst
+  of them is the root box, opened inside `paintBegin` and closed by the program two
+  files away.
 - **`block`.** §47 - three routines over the word `arena` already reads, saying
   where the block DOS gave us ends and whether a region fits in it. Twenty lines
   and no compiler change, and it opens the mode 13h back buffer, §41's asset
@@ -2250,6 +2252,27 @@ and says plainly that an unbalanced close is a caller bug it cannot diagnose. Th
 over-open case has no guard at all, because there is nowhere to put one - nothing
 in the library knows the caller has finished.
 
+### The open nobody can see, which is the strongest case here
+
+The worst instance is not in a scene at all, and this section missed it on the
+first pass. `begin` ends with `openBox()`, `paintBegin` calls `begin`, and the
+*program* closes it:
+
+```momo
+paintBegin( 80 * u, 25 * lineHeight )
+buildShell()
+closeBox()
+```
+
+That open crosses two routine boundaries and a file boundary. A reader of
+`momolo.momo` has nothing to go on: the `closeBox()` is at the same indent as its
+neighbours, `buildShell` opens and closes its own panel and balances, and what the
+close actually pairs with is an `openBox()` on the last line of a routine two files
+away. Every row of the table above applies to it and none of them is visible.
+
+It becomes `paint( 80 * u, 25 * lineHeight ) { buildShell() }`, and there are seven
+of them - six in `momolo.momo`, one in `mlodemo.momo`.
+
 ### Why this is not the macro system the question rejected
 
 DESIGN §20 asks how a nested structure should be built and rejects parser sugar
@@ -2283,14 +2306,30 @@ written the unbalanced way. The question is how much of the corpus that excludes
 and the answer is little:
 
 ```
-shell.momo     25 opens bracketable    5 not - one wrapper pair
-mopaint.momo    0 opens bracketable    5 not - the openers themselves
+shell.momo     27 opens    25 bracketable    2 not - one wrapper
+momolo.momo     6 opens     6 bracketable    0 not
+mlodemo.momo    1 open      1 bracketable    0 not
+mopaint.momo    4 opens     0 bracketable    4 not - the openers themselves
 ```
 
-**25 of 30 in the scene.** `mopaint`'s five are the definitions of `boxOpen`,
-`panelOpen` and `panelFramed` - routines whose whole job is to leave a box open,
-which is the layer boundary rather than a limit. And the one real wrapper is still
-usable where it is called, because `stripClose` owns both of its closes.
+`shell.momo`'s 27 are 9 `boxOpen`, 12 `panelOpen`, 2 `panelFramed` and 4
+`stripOpen` call sites, against 23 `closeBox` and 4 `stripClose`. **The 2 that are
+not are both inside `sub stripOpen`**, which is the one real wrapper - and it is
+still usable where it is called, because `stripClose` owns both of its closes.
+
+`mopaint`'s four are `boxOpen`, `panelOpen`, `panelFramed` and `paintBegin`,
+routines whose whole job is to leave a box open. That is the layer boundary rather
+than a limit.
+
+**32 of 34 across the three call-site files**, and the two exceptions are one
+wrapper.
+
+This table replaces one that did not add up. It read *"shell.momo 25 opens
+bracketable, 5 not"* and *"25 of 30 in the scene"*, and there is no 30 in the file:
+the 25 was right and arrived beside a total that was not derived from it. The
+`mopaint` row said five and the file has four. Both were written in a section whose
+argument is *measured rather than asserted*, which is the worst place in the
+document for arithmetic nobody re-derived - and neither survived one reading.
 
 ### What it does not fix, and one new way to misread
 
@@ -2366,3 +2405,9 @@ this repository is heading toward - and the corpus holds one scene because build
 one is currently unpleasant, which is the floor-not-a-measurement problem the note
 under Todo describes. Tree building recurs beyond layout as well: a scene format,
 a document outline, nested windows in §43.
+
+It is three files rather than one, which is the other thing the first pass got
+wrong. `shared/scenes/shell.momo` is where the count is, but the root box is opened
+and closed in `projects/library/layout/momolo/momolo.momo` and
+`projects/programs/demos/mlodemo/mlodemo.momo` - so the sweep touches a library
+scene, a tier 2 cross-check and a demo, and the golden tier moves for all three.
