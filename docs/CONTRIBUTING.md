@@ -251,17 +251,28 @@ Two things are worth branching for, and one of them has happened:
   because one crossing does not locate it, but it is no longer hypothetical. The
   test for anything smaller is unchanged: whether you would mind leaving `main`
   in the state your change reaches by the end of a session.
-- **Work that may not survive.** Subsetting the language down to something
-  smaller to find out what can still usefully be built in it, say. An experiment
-  whose answer might be "no" wants to be able to end without leaving anything
-  behind, which is a different reason from size. **This one still has not come
-  up** - and this section used to call it the more likely of the two to be needed
-  first, which was wrong.
+- **Work that may not survive.** An experiment whose answer might be "no" wants to
+  be able to end without leaving anything behind, which is a different reason from
+  size. **§48 is the instance**, and it is a smaller one than the subset-the-
+  language example this used to give: the section's load-bearing claim was that it
+  was materially smaller than §39, `loader.ts` said otherwise before any code was
+  written, and the honest possibility was that the answer became "this costs what
+  §39 cost". It did not - the seam moved and the feature landed - but the branch
+  was opened for that and not for size, which is the distinction worth keeping.
 
-This paragraph said for a while that neither case had come up, having been
-written before momolo and not read again afterwards. The claim about which would
-arrive first was the tell: a prediction is the part of a document most worth
-re-reading once the thing it predicted has happened.
+This paragraph said for a while that neither case had come up, having been written
+before momolo and not read again afterwards. Then it said the second still had not,
+which lasted until §48. Both claims were predictions, and both were wrong in the
+same direction: **a prediction is the part of a document most worth re-reading once
+the thing it predicted has happened**, and this section has now demonstrated that
+about itself twice.
+
+What the two crossings say together, since two points do locate a line better than
+one: **neither was about size.** momolo was a port across more than one session
+where a half-finished `main` would have cost more than the merge did, and §48 was
+one session's work whose premise might not have survived contact. The test for
+anything else is still whether you would mind leaving `main` in the state your
+change reaches by the end of a session.
 
 ## Working practices
 
