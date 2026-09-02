@@ -309,6 +309,33 @@ that stopped being open, kept because how a question got settled is worth more
 than the fact that it did - and because for a while this was the closest thing the
 project had to a record of what had been built.
 
+### How a nested structure should be built - answered by §48
+
+The question named three candidates and rejected all three: **§19's routine
+parameters**, which make closing structural but put the body in a named sub written
+elsewhere - forty nodes becomes forty subs, and writing the body *in place* is the
+whole ergonomic win; **parser sugar**, where a general form is a macro system and a
+specific one puts a library's name in the compiler; and **expressing the tree as
+data**, which removes the problem rather than solving it and cannot loop or take
+parameters, which the existing scenes do.
+
+**The answer was a fourth option none of those three is.** A *declaration* form
+naming two routines as a pair is not a macro system - there is no substitution, no
+hygiene question and no arbitrary code - and it does not put a library's name in
+the compiler, because the library names its own pairs. The rejection of parser
+sugar was right about both shapes it considered and the paragraph simply did not
+reach a third.
+
+Worth keeping for the shape of the mistake rather than the answer: the question had
+been open since §36 landed, and what closed it was not new information. Everything
+§48 rests on was true when the question was written down.
+
+**The half it does not answer is the config carrier**, which the question named in
+the same breath - `cfg` is a mutable global consumed by the next builder call, and
+§48 sharpens the misreading rather than fixing it. That stays open, and it is not
+a language question: it needs the openers to take parameters, which needs a
+spelling for fourteen optional arguments with defaults that Momo has not got.
+
 ### Graphics - no longer blocked (§16)
 
 `int 10h` needs no extra instructions but costs an interrupt per cell. Direct
@@ -536,6 +563,112 @@ quotation against the code it came from.**
 arguments was 32-bit intermediates; the other three - nothing in the data produces an
 arc, an ellipse is not a segment, four winding directions against one `forceDir` -
 stand regardless.
+
+---
+
+## 48. `bracket`
+
+### The design put the lowering in the parser, and the parser cannot do it
+
+§48 said it would lower "in the parser, the way `=>` does", and listed among its
+advantages that it needed "no symbol table, no promoted tokens and no first walk in
+the loader". Two of those three are about *disambiguation* and are true: a `{`
+after a complete call decides the shape with no context at all.
+
+The third is about *lowering*, and lowering needs to know which two routines the
+name stands for. `loader.ts` parses a file completely and only then visits the
+includes inside it, so `shell.momo` is an AST before `mopaint.momo` has been read.
+A bracket shipped by a library is not in scope where it is used. **This is the same
+problem §39 had, arriving one stage later** - and the section had said it did not
+have it.
+
+The fix is a pass over the merged program, run as the first thing `resolve` does.
+It is a better answer than the parser would have given, which is the part worth
+recording: declarations come out **program-wide and order-free**, like `unit`
+names, so `mopaint.momo` declares its own four pairs and a scene gets them by
+including it. Lowering in the parser would have forced declaration-before-use in
+one file, and every application under momolo re-declaring the same four lines.
+
+**The cost of finding this after the design rather than during it was nothing**,
+because it was found by reading `loader.ts` before writing any code. The section
+was three days old and its claim had never been checked against the file it was a
+claim about.
+
+### The `return` rule was two thirds of a rule
+
+§48 refused `return` inside a body and said nothing about `break` or `continue`,
+which jump past the close exactly as `return` does whenever the loop they belong to
+is outside the block. Refusing them needs a loop count taken *within* the body -
+zero at the block rather than continuing the parser's own depth - so that a loop
+written inside a body still owns its own breaks.
+
+**Nothing in the corpus would have caught it.** No scene wraps an open in a loop,
+so the sweep would have been clean and the hole would have waited for the first
+program that did. That is an argument for reading a rule for what it does not say,
+rather than for more tests: the tests came after the reading.
+
+### Four refusals the design did not list
+
+A bracket sharing a name with a routine, a duplicate declaration, a declaration
+inside a routine, and an open and close that are the same routine. None was in
+"Scope of a first build", and each is a wrong answer with no diagnostic - the same
+shape the feature exists to remove, which is what argued for spending the twenty
+lines rather than deferring them.
+
+The name collision is the one that matters. `node()` and `node { }` would be
+different things with nothing saying so, and the resolver cannot catch it because
+brackets are gone before it runs.
+
+### What the identity tier caught that nothing else would
+
+Dropping the close call from the lowering fails the identity pair and **nothing
+else in the suite**: not the golden tier, which compares committed output against
+itself; not the compile tests, since the program still compiles; not the round
+trip, since both sides lower the same way. Checked by neutering it rather than
+assumed - and the same check on the escape guard failed exactly
+`err-bracket-break` and `err-bracket-continue`, and on the collision guard exactly
+`err-bracket-collides`.
+
+### The sweep moved no instruction, and the source quotes prove more than that
+
+`momolo` and `mlodemo` emit code identical to what they emitted before, and the
+count of source-quote comments is unchanged too - 674 and 588 - because each open
+and each close is still exactly one statement. What changed is what those quotes
+say: `panel( blue ) {` and `}` where they read `panelOpen( blue )` and
+`closeBox()`. **The tree structure is now visible in the emitted assembly**, which
+was not a design goal and is the nicest thing about the diff.
+
+e2e stayed 39/39 with the swept scene, which is the check that matters: `momolo`
+dumps every resolved box as numbers and holds them against the study's own.
+
+### The `cfg` misreading is real, and looking is what settled it
+
+§48 predicted that a block boundary would look like a scope and that a reader might
+expect `cfg` calls inside it to configure that box. Reading the swept file
+confirms it, and worse than predicted: the carrier is set *above* each open, so the
+lines that configure a box now sit outside the braces of the box they configure and
+inside the braces of its parent.
+
+```momo
+cfgGrowW()
+cfg.gap = u
+box {
+  ...
+}
+```
+
+Unchanged semantically. Sharper to misread, and the strongest argument for giving
+the openers real parameters - which waits on a spelling for fourteen optional
+arguments with defaults, and there is no plan item for one.
+
+### What it did not cost
+
+No emitter change, no new mnemonic, no lexer change, and no change to the resolver
+beyond one call. The printer needed two cases, which is the first time a feature
+here has needed any - §44, §45 and §39 all left it untouched - and only because the
+nodes exist in the `Statement` union long enough for `strict` to demand them. They
+are what an unresolved print shows, which is how the lowering was read by eye
+before it was asserted.
 
 ---
 

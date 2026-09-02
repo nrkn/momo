@@ -119,6 +119,19 @@ sub panelFramed( u8 bg, u8 borderW, u8 frameColor ) {
   st[i].borderColor = frameColor
 }
 
+// The pairs (§48), which is where the nesting stops being a convention. Every
+// one of these leaves a box open and `closeBox` is the only thing that closes
+// one, so this is the file that can say so: the four openers are its own and
+// `closeBox` is momolo's, which nothing below this layer knows to put together.
+//
+// A bracket declaration is program-wide, so including this file is how a scene
+// gets them - and every existing call site still compiles, because a bracket
+// adds a spelling rather than replacing one.
+bracket paint  = paintBegin  / closeBox
+bracket box    = boxOpen     / closeBox
+bracket panel  = panelOpen   / closeBox
+bracket framed = panelFramed / closeBox
+
 // Both kinds of text run. The only thing that differs is what the leaf declares
 // as its minimum width, and that is the whole of the distinction:
 //
