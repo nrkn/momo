@@ -286,8 +286,9 @@ const safeLabel = (name: string): string =>
 const isSub = (symbol: MomoSymbol): boolean =>
   symbol.kind === 'routine' && symbol.returnType === null
 
-// `frac` is required rather than optional: 32 sites construct a Resolved, and a
-// forgotten scale would be silent at every one of them. Optional would have saved
+// `frac` is required rather than optional: this file constructs a Resolved in
+// dozens of places, and a forgotten scale would be silent at every one of
+// them. Optional would have saved
 // the `frac: 0` on the two thirds that are plain and caught nothing. See
 // DESIGN.md §25.
 // `unit` rides beside `type` and `frac` for the same reason `frac` does, and is

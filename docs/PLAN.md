@@ -2236,13 +2236,33 @@ can use, and that the corpus has already written both out by hand.
 
 `momolo/build.momo` explains the `cfg` carrier by saying a fourteen-parameter sub
 "would be unreadable at every call site". That is a claim about a shape nothing
-here has. Across **277 routines in 92 files, the maximum arity is 6**:
+here has. Across the roughly 260 routines in the 92 `.momo` files under
+`projects/` and `shared/`, **the maximum arity is 6, and exactly two routines
+reach it** - `quadSpan` and `quadLimited` in `momovec/subdiv.momo`, which are the
+same shape: the six coordinates of a quadratic. One routine takes five,
+`std/screen.momo`'s `fillRow`. Nothing else takes more than four.
 
 ```
-0: 129   1: 51   2: 49   3: 32   4: 10   5: 2   6: 4
+0: 123   1: 49   2: 44   3: 32   4: 8   5: 1   6: 2
 ```
 
-And a box does not carry fourteen settings. Over the 32 bracket opens (§48):
+**The histogram is fixed at the date and the tail is the only part worth
+trusting.** The two ends are load-bearing in opposite directions - a
+fourteen-parameter sub does not exist here, and the widest thing that does is a
+quadratic's coordinates - and both were checked by enumerating the headers rather
+than by totalling anything. The buckets in between are a snapshot; do not recount
+them, and do not build on the total.
+
+That distinction is here because the first version of this table did not survive
+being recounted. It read `277 routines ... 5: 2   6: 4`, double the true tail, and
+the total could not be reproduced by any counting rule that also gives the tail.
+The load-bearing claim was right and had arrived beside a tally nobody had
+derived from it - which is exactly what §48's wrapper table did, and
+`CONTRIBUTING.md` already records that one.
+
+And a box does not carry fourteen settings. Over the 32 bracket opens (§48),
+measured at the same date and fixed there like the above - it is internally
+consistent, which is as much as a snapshot can be:
 
 ```
 settings before an open   0: 11   1: 1   2: 7   3: 4   4: 5   5: 3   7: 1

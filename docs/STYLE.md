@@ -101,6 +101,31 @@ so it doubles as a check on the codegen design:
   `u16 k` and five bare headers. It still reads better, because what remains above
   is then only what outlives a loop - but it is close.
 
+- **A pair that must close is a `bracket`, and a block at every call site.** §48
+  makes the compiler emit the close, so the choice is not between two spellings
+  that both work - one of them can be got wrong and the other cannot:
+
+  ```momo
+  panel( blue ) {
+    ...
+  }
+  ```
+
+  **Declare the pair in the file that owns the routines**, not in the file that
+  uses them. A declaration is program-wide and order-free, so `mopaint.momo`
+  names its own four and every scene gets them by including it. A scene declaring
+  its own would be naming somebody else's pair.
+
+  **A bare open stays bare where it is deliberate.** `stripOpen` leaves a box open
+  for `stripClose` to take back, which is its whole job - the pair is a bracket at
+  the four *call sites*, and the two opens inside the wrapper are not a gap. The
+  test is whether the open and close sit in the same body, not whether the words
+  appear.
+
+  **Nothing may `return`, `break` or `continue` out of a bracket body**, because
+  the close would be skipped; the compiler refuses it by name. If a body wants an
+  early exit, it wants a routine rather than a block.
+
 - **Comments say what a reader needs, not how the code got here.** The test is the
   same stranger the documents are written for: they have not read the commit, they
   do not know what was there before, and they are looking something up rather than
@@ -127,6 +152,37 @@ so it doubles as a check on the codegen design:
   included it when the answer was 36, and 19 of 48 round-trip assertions when the
   suite had 60. Keep a number where it is load-bearing and stable; otherwise give
   the shape of it and let the tools hold the arithmetic.
+
+  That rule was written here and then not applied, so the same sentence in
+  `io.momo` drifted a second time - 35 against an answer of 39 - and was cut
+  rather than corrected. It is short a test for deciding *which* numbers are
+  worth keeping, and a sweep of every figure in the repository produced one.
+  **Four kinds, and only the last one costs anything:**
+
+  | | | |
+  |---|---|---|
+  | **checked by a test** | §1's mnemonic count, and nothing else | free |
+  | **not about this repo** | 8086 cycle counts, 64KB, 8.3, 54.9ms a tick | free |
+  | **frozen at a date, and visibly saying so** | all of `DECISIONS.md`, §44's corpus figures, §48's "32 of the 34 opens *became* blocks" | free |
+  | **present tense about the repo as it stands** | everything that has ever drifted here | all of it |
+
+  **The tell is tense, and it is reliable.** DESIGN §14 carried the same figure
+  twice in one paragraph: *"22 programs included that file **at the time**"* is
+  still there and still true, and *"in every program that includes it - 35 of
+  them"* had rotted and has been cut. Same file, same paragraph, same number -
+  the guard is the only difference between them. §44
+  says its counts are *"fixed at the date rather than maintained"* and has cost
+  nothing since; §45 reused §44's denominator three hundred lines later without
+  that sentence, and it went stale.
+
+  So: **a count belongs in `DECISIONS.md`, where it is dated by construction.** A
+  present-tense count anywhere else is a bug unless a test reads it - and the fix
+  is one of three moves, in this order. Hand it to a tool. Or add §44's sentence,
+  if the figure *is* the evidence for a design. Or cut it and give the shape,
+  which is nearly always right when the number is incidental to the point being
+  made. Note that `DECISIONS.md` carries several hundred numerals and has never
+  needed a sweep, which is the argument for the split rather than for counting
+  less.
 
 ## Prose
 
@@ -176,8 +232,9 @@ it is typed only when citing a section rather than in every third sentence. High
 value, low frequency - which is exactly what an em dash is not.
 
 This makes the documents consistent with the code rather than introducing a new
-rule: the source comments have used ` - ` from the beginning, 265 asides against
-a single em dash, and nobody has ever minded.
+rule: the source comments have used ` - ` from the beginning, in hundreds of
+asides, and nobody has ever minded. There is now no em dash anywhere in `src/` -
+the one this used to count against has since gone.
 
 There is a small loss, and it is worth naming. In prose full of `-o` and
 `u8 -> u16`, a hyphen aside is a shade more ambiguous than an em dash would be.

@@ -71,9 +71,11 @@ second person - *"point the toolchain at **your** DOSBox first"* - because they
 are addressing somebody setting the project up. **That is a setup instruction,
 not a statement about this machine**, and it reads as the latter. `toolchain.json`
 being gitignored makes it worse: "not in the repo" slides quietly into "not
-present". `CONTRIBUTING.md` saying *"35 e2e programs, all green"* contradicts the
-conclusion outright - that figure cannot exist unless somebody runs them - and
-got read straight past both times.
+present". `CONTRIBUTING.md`'s closing *"N e2e programs, all green"* contradicts
+the conclusion outright - that figure cannot exist unless somebody runs them - and
+got read straight past both times. It is quoted here without its number
+deliberately: the number has moved three times, and an agent who notices the
+quote is stale has been handed a reason to dismiss the sentence carrying it.
 
 The check is `toolchain.json` in the repo root, or `MOMO_DOSBOX` in the
 environment, or just running the suite and reading the error if there is one.

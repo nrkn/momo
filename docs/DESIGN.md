@@ -1408,9 +1408,11 @@ text cells; `tilefill` was checked the same way, five pixels covering both tiles
 two rows and a tile at a non-zero position to catch stride arithmetic.
 
 What it cannot cover is anything that waits for a key - tier 2 has no way to
-press one - so everything interactive is golden-tier only. That is six projects
-now: the three demos (`rndtext`, `rndpix`, `tilefill`), the two games (`simplerl`
-and `tennis`), and `mlodemo`, which draws a layout and waits. `mlodemo` is the
+press one - so everything interactive is golden-tier only. That is the whole of
+`programs/demos` and both games: the demos all draw, wait and put the display
+back, and `simplerl` and `tennis` block on input. Naming the directory rather
+than counting it is deliberate - the count was six until the vector port added
+two, and said six for a while afterwards. `mlodemo` is the
 case worth noting, because it is the only one whose *numbers* are covered
 elsewhere: `momolo` runs the same scenes through the same engine and
 prints every resolved box, so only the drawing is untested rather than the whole
@@ -1487,8 +1489,8 @@ and are public for a different reason set out below.
 **The rule that replaces it: `local` is free in testing and not in output.** A
 private's mangled name is what the assembly says, so `local` on a const in a
 widely included file puts `io__ioBase` where `ioBase` was in every program that
-includes it - 35 of them - and the assembly is the product rather than an
-intermediate (§1).
+includes it - which for `io.momo` is most of the corpus - and the assembly is the
+product rather than an intermediate (§1).
 
 So the question is no longer what privacy costs the suite, but whether there is
 something to protect. `randomSeed` is `local` because a program could otherwise
@@ -3474,8 +3476,14 @@ which makes the two complementary rather than competing.
 
 ### What wanted it, and the prediction that was wrong
 
-**34 of the 170 `for` statements walk a container's full extent**, which is what
-these two forms serve - a fifth of the loops here, rather than the handful a
+**Every corpus figure in the rest of this section is fixed at the date, as §44's
+are and for the same reason**: they classify the corpus as it stood when this was
+designed, and adoption moved it the same week. They are the evidence for the
+design, not a live count of anything - do not recount them, and do not read them
+as current.
+
+**34 of the 170 `for` statements walked a container's full extent**, which is what
+these two forms serve - a fifth of the loops, rather than the handful a
 fixed-capacity memory model suggests.
 
 That figure is a correction, and the way it was found is the argument for taking
@@ -3498,7 +3506,7 @@ files and the constant is generated. `for ( p in pathPixels )` removes the coupl
 rather than maintaining it. That is a smaller correctness argument than "a bug
 waiting to happen", and it is the honest size of one.
 
-Where `of` earns its place is density rather than count. There are 281 indexed
+Where `of` earns its place is density rather than count. There were 281 indexed
 field accesses - `el` 177, `player` 33, `st` 30, `held` 24, `mob` 8 - and they
 cluster: a five-line body in `momolo/fit.momo` reads `el[ci]` four times, and the
 four statements below it read `el[i]` twelve times. That is what `of` is for.

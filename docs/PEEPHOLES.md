@@ -40,9 +40,16 @@ obvious from any single one of them:
 
 ## Where each one lives
 
-Audited 2026-08-29 against `emitter.ts` and the 46 committed `.asm` files. **All
+Audited 2026-08-29 against `emitter.ts` and the committed `.asm` at that date. **All
 fifteen are built**, which was not a foregone conclusion: 4 and 5 stood here as
 fiction for a long time and nothing in the document could have contradicted them.
+
+**The counts in the right-hand column are fixed at the audit and are not
+maintained.** What each one is evidence for is that the rewrite *fires in
+committed output* - and that claim does not move when a project is added, while
+the figure does. A recount is how you would repeat the audit, not how you would
+check this table; if you do repeat it, the thing to look for is a count that has
+gone to zero, not one that has gone up.
 
 **Function names rather than line numbers, deliberately.** A line number is stale
 the next time anything is inserted above it, and this table exists to stop the
@@ -89,10 +96,12 @@ conditional jumps are tightened now, against 542 of 636 then. The entry keeps it
 original numbers because they are what the change measured; this is what the same
 count says today.
 
-One thing worth knowing rather than fixing: **12's only committed exerciser is
-`fartest`**. It was found from a probe of a VRAM-to-VRAM copy, and no committed
-program has that shape - so the entry rests on two `mov al, [es:...]` in a
-language test rather than on the blitter it was written for.
+One thing worth knowing rather than fixing: **12 is exercised only by language
+tests.** It was found from a probe of a VRAM-to-VRAM copy, and no committed
+program has that shape - so the entry rests on `mov al, [es:...]` in `fartest`,
+`arena` and `dstest` rather than on the blitter it was written for. The audit
+found only `fartest`; `arena` and `dstest` arrived with §35 and `_ds` afterwards,
+which is a wider base for the same claim rather than a different one.
 
 ## The catalogue
 

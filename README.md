@@ -137,6 +137,7 @@ errors in the Problems panel.
 | **`docs/PEEPHOLES.md`** | The local rewrites the emitter applies, and how one gets added |
 | **`docs/STYLE.md`** | Code conventions |
 | **`docs/PITFALLS.md`** | What bites when writing Momo programs - symptom first, since that is what you will have |
+| **`docs/STUDIES.md`** | The parts of `shared/lib/` that were ported rather than designed here, and what each was distilled from |
 | **`docs/CONTRIBUTING.md`** | Orientation: layout, scripts, the tooling traps, and the practices that keep this honest |
 | **`CLAUDE.md`** | The handful of things that differ when the contributor is an agent |
 

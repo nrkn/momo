@@ -43,6 +43,7 @@ shared/              the include root: what more than one project reads
 shared/lib/std/      standard library, written in Momo
 shared/lib/momolo/   a layout engine, written in Momo
 shared/lib/momovec/  a vector rasteriser, written in Momo
+shared/lib/mopaint.momo  colour, borders and wrapping over momolo (§36)
 shared/scenes/       data read by more than one project
 projects/            programs, as <category>/<name>/<name>.momo
 tests/compile/       tier 1 tests
@@ -316,6 +317,22 @@ rather than anything fixed.
   branching written before the one branch happened. **Not one of those was noticed
   by whoever caused it**, which is the argument for a sweep rather than for being
   more careful.
+
+  **Most of what a sweep finds is a stale number, and `STYLE.md` now has the
+  rule for deciding which numbers are worth keeping at all** - four kinds, of
+  which only present-tense counts about the repo cost anything. Reach for it
+  before recounting: a figure that is dated, or that a test reads, or that is
+  about the 8086 rather than about us, does not need checking and never has.
+  `DECISIONS.md` carries several hundred numerals and has never needed a sweep.
+
+  The sweep that produced that rule found the rule's own first draft sitting in
+  `STYLE.md` unapplied, and the sentence it was written about drifted a second
+  time underneath it. It also found a tally in a design that had not been built
+  yet - §49's routine arities - where the load-bearing claim was right and the
+  totals beside it could not be reproduced by any counting rule that also gave
+  the right answer. That is twice now, after §48's wrapper table. **A number
+  arriving beside a claim is not evidence for the claim**, and it is the
+  commonest way a wrong figure gets written down here.
 - **Sweep the emitted assembly for peephole opportunities.** `PEEPHOLES.md` has
   the method under "How one gets added", and its first step - read emitted
   assembly for a shape that repeats - *is* this sweep. Entries 12 and 13 were both
@@ -407,8 +424,8 @@ a key and put the display back, so none can have a `.expected` - tier 2 cannot r
 something that blocks. The golden tier still covers them, which is the regression
 coverage that matters for a compiler.
 
-`tennis` is the other game and the largest program here - 828 lines over
-six files, mode 13h, sprites, a palette, and a keyboard reader that masks IRQ1 and
+`tennis` is the other game and the largest program here - six files,
+mode 13h, sprites, a palette, and a keyboard reader that masks IRQ1 and
 talks to the 8042 directly. Most of `PITFALLS.md` was found in it, and found on
 86Box rather than under DOSBox. It blocks on input, so it is golden-tier only too.
 

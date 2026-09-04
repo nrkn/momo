@@ -11,8 +11,9 @@
 // was tried once the cost went.
 //
 // What stopped it is the output. A const emits an `equ`, so `local` would put
-// `io__ioBase` in place of `ioBase` in every program that includes this - 35 of
-// them - and the assembly is the product rather than an intermediate (§1). The
+// `io__ioBase` in place of `ioBase` in every program that includes this - which,
+// per above, is most of them - and the assembly is the product rather than an
+// intermediate (§1). The
 // `io` prefix already separates these from anything a program is likely to write,
 // and nothing here can be assigned, so there is no hole of the kind `randomSeed`
 // had. A program that does declare its own `ioBase` is told so, by name, at

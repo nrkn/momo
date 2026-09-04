@@ -156,7 +156,7 @@ const pitHz = 1193182
 
 The rule is about *literals*, not intermediates - a folded expression may exceed
 16 bits as long as every literal in it fits and the result fits where it lands
-(DESIGN §32 records why, and what it means for self-hosting). But it does mean
+(PLAN §32 records why, and what it means for self-hosting). But it does mean
 the PIT's input frequency cannot appear in source, so `1193182 / hz` is not
 expressible even as a constant.
 
@@ -236,6 +236,74 @@ one step closer to zero than the exact product.
 place, do the multiply on magnitudes yourself and apply the sign where you want it.
 And note the other end of the same routine: **-32768 has no magnitude in an `i16`**,
 so the most negative 8.8 value multiplies as though it were positive.
+
+---
+
+## Config set above a bracket block belongs to the block, not to the body it sits in
+
+**Symptom.** A box comes out with settings you thought you gave to its parent, or
+without settings you thought you gave it - and the source reads as though it
+should be the other way round.
+
+```momo
+panel( cyan ) {
+  labelPaint( addr( sMomolo ), black, cyan )
+
+  cfgGrowW()
+  cfg.gap = u
+  box {
+  }
+}
+```
+
+Those two `cfg` lines are inside `panel`'s body and they configure the `box`
+whose brace follows. That is the momolo config carrier (DESIGN §36): a `group`
+written before a call and consumed by it, reset on use. It was out of band before
+§48 too, and nothing about the meaning changed when blocks arrived - **what
+changed is that the body now looks like a scope**, so lines sitting in one read
+as belonging to it.
+
+`bracket` closed the half of this that was a correctness problem - a missing
+close - and deliberately did not touch the carrier, which is a library design
+waiting on a language feature. DESIGN §48 records the misreading as real and
+confirmed by looking rather than predicted; PLAN §49's named and default
+arguments are what would retire it.
+
+**What to do.** Read the brace, not the indentation: `cfg` calls belong to the
+next opening, always. Keep them immediately above it with no blank line between,
+which is what the scenes do, and put a blank line *above* the group instead - so
+the gap separates it from the body it is not part of.
+
+---
+
+## A jump *out of* a bracket body is refused
+
+**Symptom.** A compile error naming the statement:
+
+```
+error: return inside a bracket body would skip the close - lift the block out,
+or write the pair by hand where an early exit is wanted
+```
+
+```
+error: break inside a bracket body would skip the close - it belongs to a loop
+outside the block
+```
+
+The compiler emits the close at the end of the body, so a jump past it would
+leave the pair unclosed - the exact failure §48 exists to prevent. It refuses
+rather than emitting the close on every exit path; that is `defer`, a different
+feature, in PLAN's Maybe tier with the reasons it stayed separate.
+
+**Only jumps that leave the body are refused.** A loop written *inside* the block
+is ordinary code and its own `break` and `continue` are fine - the parser tracks
+the loop depth and only objects at zero. So this is a rule about the block
+boundary, not about the keywords.
+
+**What to do.** What the message says: lift the block out, or write the open and
+close by hand at the one site that wants an early exit. Both keep the pairing
+visible, which is the point - and a bracket declared for the other call sites
+goes on serving them.
 
 ---
 
