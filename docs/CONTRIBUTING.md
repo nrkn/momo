@@ -407,7 +407,7 @@ fixed-point shape that compiles, held by the golden tier because the claim being
 there is about emitted code.
 
 `shared/lib/momolo/` (§36) is a layout engine ported from a study, and it arrived
-with two projects rather than one. `momolo` runs six scenes through it
+with two projects rather than one. `momolo` runs seven scenes through it
 and prints every resolved box as bare numbers, compared against the numbers the
 original engine produces - two implementations agreeing on every integer, which
 is what makes it a tier 2 test rather than a demo. `mlodemo` draws the

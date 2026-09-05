@@ -1,6 +1,6 @@
 // shell.momo - the scenes, and the pass sequence a caller drives.
 //
-// Six scenes, every one the same tree as a demo in the clay study's gallery, so
+// Seven scenes, every one the same tree as a demo in the clay study's gallery, so
 // the numbers they produce can be held against the study's own.
 //
 // This is not the engine. It sits above the line, as its counterpart did in the

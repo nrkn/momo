@@ -397,6 +397,49 @@ const checkCounts = () => {
 const expectedCount = (): number =>
   walk(join(root, 'projects'), (f) => f.endsWith('.expected'), []).length
 
+// How many scenes the layout gallery defines. Three documents said "six" and
+// stayed saying it while a seventh was added, which is the failure the rule
+// about present-tense counts exists to stop - so it is read here rather than
+// remembered. The builders are the count because a scene is exactly a `build`
+// sub that the harness runs.
+const scenePath = join(root, 'shared', 'scenes', 'shell.momo')
+
+const sceneCount = (): number => {
+  const found = readText(scenePath).match(/^sub build[A-Z]/gm) ?? []
+  // The structure this assumes is worth checking rather than matching: a zero
+  // here means the naming convention moved, and silently agreeing with whatever
+  // the prose says is the one outcome that helps nobody.
+  if (found.length === 0) return fail(`no scene builders in ${show(scenePath)} - has the naming changed?`)
+  return found.length
+}
+
+const checkScenes = () => {
+  const actual = sceneCount()
+
+  // Two shapes: the documents say "runs six scenes", the scene file's own header
+  // opens with the count as a sentence.
+  const claims: [string, RegExp][] = [
+    [contributingPath, /runs (\w+) scenes/],
+    [designPath, /runs (\w+) scenes/],
+    [scenePath, /^\/\/ (\w+) scenes,/m],
+  ]
+
+  for (const [file, pattern] of claims) {
+    const text = readText(file)
+    const said = text.match(pattern)
+    if (!said) continue
+
+    const n = words[said[1].toLowerCase()] ?? Number(said[1])
+    if (n !== actual) {
+      report(
+        file,
+        lineOf(lineStartsOf(text), said.index ?? 0),
+        `layout scenes: prose says ${said[1]}, shell.momo defines ${actual}`,
+      )
+    }
+  }
+}
+
 // ---- (e) headings removed in the working tree --------------------------------
 //
 // A section move is a large deletion, and an anchor that ends too late looks
@@ -572,6 +615,7 @@ if (args[0] === '--since') {
   checkQuotedPaths()
   checkGrammar()
   checkCounts()
+  checkScenes()
   checkHeadings()
 
   findings.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line)

@@ -2862,7 +2862,7 @@ proves `_ds` is *our* segment rather than some other plausible number. It rests 
 
 **Built.** An immediate-mode layout engine in `shared/lib/momolo/`, ported from a
 study of [Clay](https://github.com/nicbarker/clay) - `STUDIES.md` has the
-provenance and the method. `momolo` runs six scenes and prints every resolved box
+provenance and the method. `momolo` runs seven scenes and prints every resolved box
 as bare numbers; `mlodemo` draws one of them at 80x25.
 
 **It is pure geometry.** No text, colour, borders or drawing, which is the largest
