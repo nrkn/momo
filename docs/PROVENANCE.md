@@ -720,10 +720,10 @@ attempted before, which is often the most useful thing to know about it.
 | A schema study | JSON Schema tooling, 2015-2025, about thirty projects |
 | The editors - `momoed`, `momode`, `momove`, `momopnt` | Desktop environments 2005-2026, and a twenty-year gap between tooling built for clients and tooling built for himself |
 | The layout DSL (§50) | Layout-versus-paint as convention since 2005, and as a format twice - 2004 and 2026 |
-| A text adventure | Gamebook and text-server engines, 2014-2026 |
+| A text adventure | About a dozen authoring engines, 2014-2023, all converging on the same complaint |
 | Hosted targets (§30) | WebAssembly spikes, 2018-2026 |
 | Other CPUs (§33), an executor (§42) | The 2024 emulator run |
-| Sound | One 2024 stub, and nothing else |
+| Sound | Three projects in twenty-three years, and one empty directory |
 | A mouse | Nothing |
 
 ## `momowad` (§41)
@@ -1010,27 +1010,100 @@ undesigned in 2026, and precisely the half `PLAN.md` says is unsettled.
 
 ## A text adventure
 
+*Traced, and it is the most-attempted unbuilt thing in the archive.*
+
 The last item on the acceptance bar (`DECISIONS.md` §15) has more prior art behind
-it than anything else on that list.
+it than anything else on that list, and the prior art has a finding in it that
+bears directly on how it should be done here.
 
-Gamebook engines in 2014, 2015 and 2020, one of which ends in a completed
-OCR-and-verify pipeline over scanned Fighting Fantasy books. A fictional dial-up
-BBS in 2015 whose whole point is the transmission - the server hands back at most
-one character per request, rate-limited and randomly dropped, so text crawls onto
-the screen like a bad connection - with control flow riding the same channel as an
-escape prefix. A Legend-of-the-Red-Dragon-style door game in 2025 rendered as
-pre-HTML-2.0 pages.
+### The authoring language, attempted about a dozen times
 
-And in 2026, a text application server built over a month with no runtime
-dependencies, whose design floor is stated as *A-Z, 0-9 and space, 40 columns,
-line-based input, no colour, no cursor movement*, on the reasoning that it should
-run on genuinely old hardware with a network adapter bolted on. Screens in it are a
-typed part model - paragraph, headings, menu, table - flattened only at render
-time, with exactly one response type per screen.
+Gamebook engines in 2014, 2015 and 2020 - the last of them making each numbered
+paragraph a Markdown file and each choice an ordinary Markdown link. A Twine story
+in 2020, restarted in TypeScript in the same folder. A text adventure in February
+2021 with no state object at all, only an append-only log of `set` tuples answered
+by reading backwards - event sourcing - restarted four days later on a hash router
+with a save-game store. A dialogue engine in March 2023 with a real condition
+language: a tokeniser and recursive parser for `!`, `&`, `|` and parenthesised
+grouping over a set of state keys.
 
-That last shape is the one worth stealing. A text adventure on this machine has the
-same problem the server solved: the screen is a structure that gets flattened, and
-the input is a menu or a line, and nothing else.
+Then three engines in nine days in April 2023, which is the run worth reading in
+order.
+
+- **The first** writes content as TypeScript data, with a tagged-object
+  requirement algebra - `kallof`, `kanyof`, `koneof`, `knot`, `kand`, `kor`,
+  nestable arbitrarily - and it has tests. Its readme is already dissatisfied with
+  it.
+- **The second** makes the game HTML with extra tags and the engine a tree
+  rewriter: `<k>` query leaves, `<all>`/`<any>`/`<none>`/`<one>`, `<if>`, `<match>`
+  with `<case>` and `<default>`, and `<give>`/`<take>` that execute where they are
+  reached so nesting one inside a failing branch is how you make it conditional. A
+  full specification. The same folder holds a counter-proposal to itself titled
+  *"what if it's just fuckin function yo"*.
+- **The third** implements the cut-down version, and it works - sections in a
+  `<template>`, links carrying `give`/`take`/`set`, a small arithmetic evaluator
+  for numeric variables.
+
+### The finding, which is a sentence in the third one's readme
+
+> *"This is not going well with adding new features... But then it's a dumb
+> programming language! I don't want to do that. What's the middle ground?"*
+
+That is what the whole thread discovered, twelve times. **An authoring format for
+a text adventure grows conditionals, then state, then variables, then arithmetic,
+then scoping and includes - and at that point it is a programming language, badly.**
+The section it was written under goes on to sketch named reusable test blocks,
+includes, and scoped keys addressed by path. That version was not built, and on
+this record it would not have been.
+
+**Momo is the first context in which the question does not arise.** The
+programming language is already here, it is not the deliverable, and it has
+conditionals, state, arithmetic and includes that somebody already had to design.
+A text adventure in Momo is a program. `DECISIONS.md` §15's last item has been
+blocked twelve times by a problem this repository does not have - which is worth
+knowing, because it means the difficulty is content rather than machinery, and
+those want different amounts of time.
+
+### The content half is further along than the machinery
+
+The recurring test corpus is not invented. Fighting Fantasy gamebooks were
+transcribed by hand and then, in 2023, through a completed OCR-and-verify
+pipeline; *Scorpion Swamp* was transcribed whole - rules, character sheet
+instructions and all - specifically as a stress test for one of the engines above.
+
+And several projects use *Vampire: The Masquerade - Bloodlines* as their content,
+repeatedly enough to be a habit rather than a coincidence: a character creator in
+2021, a fifth-edition data model in 2022, a terminal prose engine the same year
+whose mechanic is that choices *rewrite the sentence you are already in* rather
+than branching, a dialogue engine in 2023 using the game's opening as test
+content, and two of the April 2023 engines running its warehouse tutorial. There
+is also an Illustrator file mapping the whole Santa Monica hub as a connected
+graph of screens, with one room built against it - existing material reorganised
+into the shape a text adventure needs, which is the part of the job that is not
+programming.
+
+### One shape worth stealing
+
+The 2026 text application server - built over a month with no runtime
+dependencies, its design floor stated as *A-Z, 0-9 and space, 40 columns,
+line-based input, no colour, no cursor movement*, so it can face genuinely old
+hardware - models a screen as a typed part list (paragraph, headings, menu, table)
+flattened only at render time, with exactly one response type per screen.
+
+A text adventure on this machine has that same problem: the screen is a structure
+that gets flattened, and the input is a menu or a line, and nothing else. That is
+a data shape rather than a language, which is precisely why it is the half worth
+carrying across.
+
+Two older projects are about delivery rather than structure and are worth keeping
+in view for the same reason. A Legend-of-the-Red-Dragon-style door game in 2025,
+rendered as pre-HTML-2.0 pages. And a fictional dial-up BBS in 2015 whose entire
+point is the transmission: the server returns at most one character per request,
+rate-limited to about 37 characters a second and dropped one time in five, so text
+crawls onto the screen like a bad connection, with control flow riding the same
+channel behind an escape prefix. On a machine that genuinely is slow, that stops
+being an effect and becomes the default - which is the sort of trade
+`DESIGN.md`'s "slow is acceptable where the work still gets done" already licenses.
 
 ## The rest
 
@@ -1054,11 +1127,8 @@ list whose remaining items are *"call stack should be in memory, not separate"* 
 *"code (as machine code) and data should be in memory together"* - the two problems
 §32 has to solve, noticed and not solved.
 
-**Sound.** One 2024 stub, which is 350 lines of quoted hardware reference and a
-register file that makes no sound. The 2019 fantasy console budgeted four channels
-to the bit and synthesised pulse waves in the browser. Neither is a model for a PC
-speaker. `PLAN.md`'s "sound, which nothing here has touched" is true of the archive
-as well as of this repository.
+**Sound** has its own section below, because it is the one item here where the
+archive says something stronger than "no precedent".
 
 **A mouse.** Plenty of pointer *handling* and no pointer *driver*. The archive has
 click-to-direction conversion worked out several times over for the 1 kB
@@ -1071,6 +1141,79 @@ tracked it. Nothing anywhere talks to a mouse: no DOS driver interface, no
 interrupt, no packet decoding. So the hard half of §24's mouse callback has no
 ancestor here even though everything downstream of it does, which is worth knowing
 before estimating it.
+
+## Sound, which is the deepest blind spot here
+
+*Stated by the author, and the archive agrees emphatically.*
+
+The account is that the skill was acquired and then never connected to anything.
+In an era before the archive begins - pre-2003, with no surviving backups - a
+considerable amount of time went into learning to author music in FruityLoops and
+to edit and author audio in one of Sony's tools. The thread was then simply never
+picked back up. Almost every project since has ignored sound on the understanding
+that it would be got to later, and then the project was abandoned or the work went
+somewhere else.
+
+**The archive is unusually decisive about this.** Of the projects catalogued from
+2003 onward, three touch audio at all:
+
+- **2019** - the fantasy console, and the only one where sound actually plays.
+  Four channels budgeted to the bit: 12-bit frequency, 6-bit duration, 4-bit
+  volume and 4 bits of pulse width, 96 bits in total. Pulse waves synthesised by
+  computing 8192 harmonic terms, noise as a one-second random buffer through a
+  narrow bandpass. **The melody data and the oscillator structure are both
+  third-party.**
+- **2020** - a three-layer audio bed for a tavern scene: looping music, looping
+  ambience and a one-shot spoken line at deliberately lopsided volumes, answering
+  the single question of what mix reads as "a tavern" without drowning the speech.
+  **The ambience is somebody else's field recording**, and is almost the entire
+  size of the folder.
+- **2024** - the sound counterpart to the Atari TIA model. About 350 of its 450
+  lines are a verbatim 1997 hardware reference pasted into a comment. The code
+  beneath is the register file and a `start()` that creates an audio context and
+  two oscillators and then stops at the comment `// set inital waveforms`.
+  **Nothing makes a sound.**
+
+So in twenty-three years: one playing implementation whose music is somebody
+else's, one mixing test using somebody else's recording, and one stub.
+
+### The empty folder
+
+In March 2014 the author worked through Nathan Whitehead's PL101, the
+write-your-own-programming-language course. Homework 1 survives complete and
+working - Scheem, a Scheme subset, with a PEG grammar, an environment-chain
+evaluator and a Mocha suite.
+
+Beside it is a directory named `Tortoise`, which is the course's second project.
+It was created on 4 March 2014 and it contains nothing. It has contained nothing
+for twelve years.
+
+That is the most exact artefact of this blind spot in the whole archive, and it is
+better evidence than the three projects above, because those at least record an
+attempt. This one records the intention and no attempt: a language project, by
+somebody who has designed a dozen languages, abandoned at the point where the
+subject became sound.
+
+### What that means for `PLAN.md`
+
+`PLAN.md` names sound as one of two capabilities missing under the entire
+destination tier, and notes that §22's port I/O was justified partly by the PIT
+and the speaker - so the mechanism is reachable and the hard part is not access.
+
+**Sound is therefore the item on that list most likely to be underestimated, and
+for a non-technical reason.** Everything else there has at least a failed attempt
+behind it, and a failed attempt tells you where the difficulty is. Sound has one
+empty directory and two borrowed assets. Nothing in twenty-three years establishes
+how long it takes this author to go from silence to a tune he wrote, because it
+has not once been done.
+
+**It is the same shape as the tooling blind spot, one step further out.** There,
+the skill existed and lived in commercial work; here, the skill existed and lived
+before the archive started. In both cases the capability is real and has never
+been wired to his own projects - which is an argument for treating sound the way
+`momoed` and `momopnt` are being treated, as a thing to attack deliberately rather
+than a thing to get to later. Getting to it later is precisely the documented
+failure mode.
 
 # What has no ancestor here
 
