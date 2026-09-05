@@ -1,0 +1,39 @@
+// passes.momo - what every scene file here needs before it can build anything.
+//
+// The engine, the layer above it, what a unit is, and the pass order a caller
+// drives. It is its own file because there is more than one scene file now, and
+// three of them defining `u` and `runPasses` would be three definitions of one
+// thing rather than one shared.
+//
+// This is not the engine either. It sits above the line with mopaint.
+
+include "lib/mopaint.momo"
+include "lib/momolo/fit.momo"
+include "lib/momolo/size.momo"
+include "lib/momolo/refit.momo"
+include "lib/momolo/place.momo"
+
+// One unit is one character cell, which mopaint decides rather than the scene.
+const u = cellW
+
+// The study derives this as max(1, u >> 3), so it is one cell here and two
+// pixels there.
+const border = 1
+
+// ---- the pass sequence ----------------------------------------------------
+//
+// Written out rather than hidden, because the reflow in the middle is the whole
+// point: widths are final after sizeX, paint breaks its paragraphs into lines and
+// says how tall they came out, and refitY carries that up the tree before heights
+// are settled.
+//
+// That is Clay's pass order with its measure callback turned inside out - the
+// engine offers a sequence point and never calls out.
+
+sub runPasses {
+  sizeX()
+  reflowAll()
+  refitY()
+  sizeY()
+  place()
+}

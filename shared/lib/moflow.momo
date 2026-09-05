@@ -1,0 +1,113 @@
+// moflow.momo - items packed into as many rows as they need.
+//
+// This sits above momolo, beside mopaint, and the reason is worth stating
+// exactly.
+//
+// Wrapping is a resize. Flow is a restructure.
+//
+// Text wrapping can use the engine's reflow seam because it changes a leaf's
+// HEIGHT and nothing else - same elements, same parents, same order. Flow
+// changes the tree: six icons in one row become two rows of three, which is
+// different elements with different parents. The seam cannot express that and
+// should not try, because restructuring after sizeX would hand sizeY a tree the
+// width pass never saw.
+//
+// So flow happens at build time, which is before widths are resolved, and that
+// leaves two cases. Where the container's width is known up front, packing is
+// arithmetic - which is every case here, because a scene tells a window how wide
+// it is. Where the width is a grow(), a caller lays out once to learn it and
+// again with the packing baked in; that converges in exactly two passes rather
+// than usually, because adding rows changes only heights and nothing here makes
+// a width depend on a height.
+//
+// The packing is wrapInto from mopaint over a different unit - boxes instead of
+// words, gaps instead of spaces - down to the rule for an item too wide for its
+// row, which gets one of its own and overflows because there is nothing better
+// to do with it. Two features that both look like they want engine support turn
+// out to be the same greedy loop in the layer above.
+//
+// ---- what this does not do, and why it looks different from its model
+//
+// The study this came from packs a list of items, each carrying a width and a
+// closure that builds it, and emits the rows itself. Momo has neither closures
+// nor a way to write down a table of addresses (PITFALLS), so an item cannot be
+// a thing that gets passed around.
+//
+// So the split moves: this answers WHICH items go on WHICH row, and the caller
+// emits them. That is the half a caller cannot work out without doing the
+// packing itself, and the half it can do perfectly well is left with it.
+
+include "lib/momolo/types.momo"
+
+// Fixed here rather than declared per program, as maxElements is: a scene packs
+// a window's worth of icons, and both scenes here pack eight.
+const maxFlowItems = 16
+const maxFlowRows  = 8
+
+// The caller fills the first `count` of these before calling packRows.
+u16[maxFlowItems] flowW
+
+// Filled by packRows: where each row starts in the caller's item order, and how
+// many items it took.
+u16[maxFlowRows] rowFirst
+u16[maxFlowRows] rowCount
+u16              flowRowCount
+
+// Set when there were more items or more rows than can be held. Same treatment
+// as momovec's crossing overflow and for the same reason: a capacity problem
+// must not look like a layout bug, so it is a flag the harness prints and the
+// expectation never has set.
+bool flowOverflowed
+
+sub packRows( u16 count, u16 width, u16 gap ) {
+  u16 n
+  u16 i
+  u16 used
+  u16 extra
+
+  flowRowCount = 0
+
+  n = count
+
+  if ( n > maxFlowItems ) {
+    flowOverflowed = true
+    n = maxFlowItems
+  }
+
+  if ( n == 0 ) return
+
+  // The first row is opened before the loop so that the loop body has only the
+  // two cases it is about - this item fits, or it starts a row - rather than
+  // three.
+  rowFirst[0] = 0
+  rowCount[0] = 0
+  flowRowCount = 1
+  used = 0
+
+  for ( i = 0; i < n; i++ ) {
+    // A gap is between items, so the first item on a row does not pay one.
+    if ( rowCount[ flowRowCount - 1 ] == 0 ) {
+      extra = flowW[i]
+    } else {
+      extra = gap + flowW[i]
+    }
+
+    // An item wider than the whole row still goes on a row of its own and
+    // overflows, which is the answer wrapping gives a word too long for its
+    // line. Testing the row is non-empty first is what stops it looping.
+    if ( rowCount[ flowRowCount - 1 ] > 0 && used + extra > width ) {
+      if ( flowRowCount >= maxFlowRows ) {
+        flowOverflowed = true
+        return
+      }
+
+      rowFirst[ flowRowCount ] = i
+      rowCount[ flowRowCount ] = 1
+      flowRowCount++
+      used = flowW[i]
+    } else {
+      rowCount[ flowRowCount - 1 ]++
+      used += extra
+    }
+  }
+}

@@ -1,0 +1,83 @@
+// pmdemo.momo - Program Manager on a text mode screen.
+//
+// Four overlapping windows at 80x25, drawn with the ported engine.
+//
+//   npm start pmdemo
+//
+// A demo rather than a test: it draws, waits for a key, and puts the display
+// back, so it cannot have a .expected - tier 2 cannot run something that blocks.
+// The geometry is not taken on trust for that reason. `mlolayer` builds these
+// same four layers from this same file and prints every resolved box as numbers,
+// held against the clay study's own engine - all 103 of them, offsets included -
+// so this picture is made of a tree that has been checked element by element,
+// and only the drawing is new here.
+//
+// It is the same scene at the same size, not a version of it: both include
+// scenes/win311.momo and neither owns it.
+//
+// What is on screen that `mlodemo` does not show:
+//
+//   overlapping         four layouts, not one. Z-order is the order they are
+//                       painted, and there is no floating anywhere
+//   an MDI child        the group windows are placed against the client area of
+//                       the window beneath them, read out of the layout after
+//                       its passes ran
+//   packing             the icons are in as many rows as each window allows,
+//                       worked out rather than placed
+
+include "lib/std/key.momo"
+
+include "scenes/win311.momo"
+
+u8 savedMode
+
+// ---- entry ----
+
+// Ask the BIOS what mode we are in so it can be put back on the way out. AH=0Fh
+// reports the mode in AL; bit 7 is set when the last mode change suppressed the
+// screen clear, so it is masked off.
+_ah = 0x0F
+int 0x10
+savedMode = _al & 0x7F
+
+setTextMode()
+hideCursor()
+useBrightBackgrounds()
+
+// Layer by layer, and the order is forced rather than chosen: begin() resets the
+// element array, so each layer has to be built, run, read and painted before the
+// next one starts. Reading is what layer zero is for - everything after it is
+// placed against the client rectangle it reports.
+
+paint( 80 * u, 25 * lineHeight ) {
+  buildW311Shell()
+}
+runPasses()
+w311ReadClient()
+paintLayer( 0, 0 )
+
+paint( w311AccW * u, w311AccH * lineHeight ) {
+  buildW311Accessories()
+}
+runPasses()
+paintLayer( clientX + w311AccX * u, clientY + w311AccY * lineHeight )
+
+paint( w311MainW * u, w311MainH * lineHeight ) {
+  buildW311Main()
+}
+runPasses()
+paintLayer( clientX + w311MainX * u, clientY + w311MainY * lineHeight )
+
+paint( w311DlgW * u, w311DlgH * lineHeight ) {
+  buildW311Dialog()
+}
+runPasses()
+paintLayer( clientX + w311DlgX * u, clientY + w311DlgY * lineHeight )
+
+readKey()
+
+// Put the display back the way it was found.
+_ah = 0x00
+_al = savedMode
+int 0x10
+showCursor()

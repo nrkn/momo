@@ -9,7 +9,10 @@
 // was ported from, running the same subset of passes and stopping at the same
 // one - the vertical sizing pass, after which nothing else moves a box. They are
 // concatenated in the order the entry section below runs the scenes: shell,
-// sizing, capped, squeeze, overflow, alignment.
+// sizing, capped, squeeze, overflow, alignment, wrapping.
+//
+// A scene is appended rather than inserted, so the numbers a scene already had
+// keep the lines they had and a diff shows only what arrived.
 //
 // Two independent implementations of one algorithm agreeing on every integer is
 // the point of the exercise, and this project is the whole of that claim.
@@ -81,6 +84,12 @@ dumpBoxes()
 
 paint( 40 * u, 13 * lineHeight ) {
   buildAlignment()
+}
+runPasses()
+dumpBoxes()
+
+paint( 52 * u, 9 * lineHeight ) {
+  buildWrapping()
 }
 runPasses()
 dumpBoxes()

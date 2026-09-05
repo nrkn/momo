@@ -50,6 +50,12 @@ group st[maxElements] {
   // paragraph until reflowAll has been over it.
   u16 line0
   u8  lineCount
+  // What a filled cell holds. Space for anything solid, and a character for a
+  // texture: the CP437 shade blocks make a stipple and the horizontal bar makes
+  // the stripes a System 6 title bar is ruled with. It is a fill rather than a
+  // second colour because a character cell cannot be half one colour, which is
+  // the same reason a bevel does not come across.
+  u8  fill
 }
 
 // Paragraphs awaiting a reflow, and the lines they came to. A line is a slice of
@@ -74,7 +80,14 @@ local sub stClear( u16 i ) {
   st[i].borderColor = lightGray
   st[i].line0 = 0
   st[i].lineCount = 0
+  st[i].fill = ' '
 }
+
+// CP437 textures. A cell cannot be shaded, so a texture is a character - which
+// is what the original hardware did too.
+const fillSolid   = ' '
+const fillStipple = 0xB0        // the light shade block
+const fillStripes = 0xC4        // the horizontal bar
 
 // begin() plus the root's style, since the root is the one element no caller
 // creates.
@@ -99,6 +112,20 @@ sub panelOpen( u8 bg ) {
   i = openBox()
   stClear( i )
   st[i].bg = bg
+}
+
+// A panel filled with a texture rather than with nothing - a stipple for a
+// desktop, stripes for a title bar. The foreground is the texture's colour, not
+// a text colour: a textured panel with text in it would need two, and no scene
+// here wants one.
+sub panelTextured( u8 bg, u8 fg, u8 fill ) {
+  u16 i
+
+  i = openBox()
+  stClear( i )
+  st[i].bg = bg
+  st[i].fg = fg
+  st[i].fill = fill
 }
 
 // A frame's width is added to the inset before the engine sees it, so content is
@@ -127,10 +154,11 @@ sub panelFramed( u8 bg, u8 borderW, u8 frameColor ) {
 // A bracket declaration is program-wide, so including this file is how a scene
 // gets them - and every existing call site still compiles, because a bracket
 // adds a spelling rather than replacing one.
-bracket paint  = paintBegin  / closeBox
-bracket box    = boxOpen     / closeBox
-bracket panel  = panelOpen   / closeBox
-bracket framed = panelFramed / closeBox
+bracket paint    = paintBegin    / closeBox
+bracket box      = boxOpen       / closeBox
+bracket panel    = panelOpen     / closeBox
+bracket framed   = panelFramed   / closeBox
+bracket textured = panelTextured / closeBox
 
 // Both kinds of text run. The only thing that differs is what the leaf declares
 // as its minimum width, and that is the whole of the distinction:
@@ -172,6 +200,44 @@ sub paraPaint( u16 at, u16 minW, u8 fg, u8 bg ) {
   paraEl[paraCount] = i
   paraCount++
 }
+
+// The longest run of non-space bytes, which is exactly the minimum width a
+// paragraph can be squeezed to: below it a word would have to break, and nothing
+// here breaks words.
+//
+// paraPaint takes that number because for a scene written by hand it is a
+// compile-time constant and writing it down costs nothing. A scene with fourteen
+// captions is the case where writing it down is fourteen chances to be wrong
+// about a string the compiler is holding anyway, so this works it out instead.
+u16 longestWord( u16 at ) {
+  u16 best
+  u16 n
+  u16 i
+  u8  ch
+
+  best = 0
+  n = 0
+  i = 0
+
+  for ( ;; ) {
+    ch = peek8( at + i )
+
+    if ( ch == strEnd || ch == ' ' ) {
+      if ( n > best ) best = n
+      if ( ch == strEnd ) break
+      n = 0
+    } else {
+      n++
+    }
+
+    i++
+  }
+
+  return best
+}
+
+// paraPaint with the minimum measured rather than passed.
+sub paraAuto( u16 at, u8 fg, u8 bg ) => paraPaint( at, longestWord( at ), fg, bg )
 
 // ---- the reflow -----------------------------------------------------------
 
@@ -370,7 +436,27 @@ local sub drawText( u16 at, u16 x, u16 y, u8 attr ) {
   }
 }
 
-sub paintAll {
+// Paint what is currently laid out, offset by where the composer put it.
+//
+// This is the whole of overlapping windows. A window is not part of a bigger
+// layout: it is its own tree, laid out into its own root at its own size, and a
+// screen is a list of them with an offset apiece. Z-order is list order, so
+// there is no floating, no z-index, and no element that has to remember where it
+// was put.
+//
+// The order a caller has to use follows from begin() resetting the element
+// array: a layer is built, its passes run, anything read out of it read, and
+// then it is painted - all before the next layer begins. The study this came
+// from keeps every layer and renders at the end, which it can afford to; here
+// the elements are gone as soon as the next paint( ) opens.
+//
+// That ordering is what makes an MDI child work rather than what makes it hard.
+// A child lives inside its parent's client area, so the composer cannot place it
+// until it knows where that client area landed - and it finds out by reading a
+// resolved rectangle straight out of el[] between the two. momolo is being used
+// as a coordinate system without knowing it is one, and nothing was added to
+// allow it.
+sub paintLayer( u16 dx, u16 dy ) {
   u8  bg
   u8  fg
 
@@ -378,12 +464,18 @@ sub paintAll {
     bg = st[i].bg
 
     if ( bg != transparent ) {
-      fillRect( el[i].x, el[i].y, el[i].w, el[i].h, ' ', color( bg, bg ) )
+      // A textured fill needs a foreground to draw the texture in; a solid one
+      // draws a space, where fg and bg being equal is what makes it solid.
+      if ( st[i].fill == fillSolid ) {
+        fillRect( el[i].x + dx, el[i].y + dy, el[i].w, el[i].h, fillSolid, color( bg, bg ) )
+      } else {
+        fillRect( el[i].x + dx, el[i].y + dy, el[i].w, el[i].h, st[i].fill, color( st[i].fg, bg ) )
+      }
     }
 
     if ( st[i].border > 0 ) {
       fg = st[i].borderColor
-      drawFrame( el[i].x, el[i].y, el[i].w, el[i].h, st[i].border, color( fg, fg ) )
+      drawFrame( el[i].x + dx, el[i].y + dy, el[i].w, el[i].h, st[i].border, color( fg, fg ) )
     }
 
     if ( st[i].text != 0 ) {
@@ -394,8 +486,8 @@ sub paintAll {
       if ( st[i].lineCount == 0 ) {
         drawText(
           st[i].text,
-          el[i].x + el[i].insetL,
-          el[i].y + el[i].insetT,
+          el[i].x + dx + el[i].insetL,
+          el[i].y + dy + el[i].insetT,
           color( st[i].fg, fg )
         )
       } else {
@@ -403,8 +495,8 @@ sub paintAll {
           drawRun(
             lineAt[ st[i].line0 + k ],
             lineLen[ st[i].line0 + k ],
-            el[i].x + el[i].insetL,
-            el[i].y + el[i].insetT + k,
+            el[i].x + dx + el[i].insetL,
+            el[i].y + dy + el[i].insetT + k,
             color( st[i].fg, fg )
           )
         }
@@ -412,3 +504,6 @@ sub paintAll {
     }
   }
 }
+
+// A screen that is one layout is the layer at the origin.
+sub paintAll => paintLayer( 0, 0 )

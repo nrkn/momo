@@ -45,6 +45,40 @@ sub strCopy( u16 to, u16 from ) {
   }
 }
 
+// The ADDRESS of the nth string in a run of them, counting from zero, where the
+// run is one blob and each string ends in '$'.
+//
+//   const u8[] names = "Write$Paintbrush$Terminal$"
+//   putStr( nthStr( addr( names ), 1 ) )        // Paintbrush
+//
+// This exists because a table of addresses cannot be written down: addr() is a
+// link-time constant and an array initialiser is folded before there is anything
+// to point at, so `u16[] at = [ addr( a ), addr( b ) ]` is rejected. PITFALLS
+// has the error and the reasoning.
+//
+// Walking is linear where a table would index, which for the handful of strings
+// a caller indexes this way is nothing - and a blob is the maintainable half of
+// the trade anyway, since an offset table written by hand has to be recomputed
+// whenever a string changes length.
+//
+// Past the end it returns the address of the byte after the last terminator,
+// which is not a string. Nothing here can check n, for the same reason nothing
+// else here bounds-checks.
+u16 nthStr( u16 at, u16 n ) {
+  u16 i
+  u16 seen
+
+  i = 0
+  seen = 0
+
+  while ( seen < n ) {
+    if ( peek8( at + i ) == strEnd ) seen++
+    i++
+  }
+
+  return at + i
+}
+
 // Negative, zero or positive on the first differing byte, like C's strcmp. i16
 // because the difference of two bytes is signed - and because returning it,
 // rather than -1/0/1, lets a caller sort as well as test.

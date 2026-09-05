@@ -2352,3 +2352,77 @@ Todo describes - the same one §48 was careful about and this would be careless
 about. The two are here together because the measurement above says momolo needs
 both or neither, and splitting them is a decision to make on the way in rather
 than a conclusion already reached.
+
+---
+
+## 50. A layout DSL: three documents
+
+**Not built, and the design is worth keeping whether or not it is.** It comes
+from the layout study, which built a working prototype of it and then closed with
+the prototype still in TypeScript. `STUDIES.md`'s rule says anything worth citing
+has to be brought across first, and this is the thing that was worth bringing.
+
+A scene is three text documents rather than one:
+
+| | |
+|---|---|
+| content | named items with a kind - `title text momolo` |
+| layout | structure and geometry, referring to content by name |
+| paint | appearance, keyed by a content kind or a layout role |
+
+### Layout wins, and every crossing is recorded
+
+Some properties belong to either document depending on intent - inset, gap,
+alignment, border width - and a DSL worth using has to let both express them.
+That makes the interesting question not *who owns this* but **who wins**.
+
+Layout wins, because a paint rule is keyed by kind or role and so describes a
+class of thing, while a layout node is an instance - and an instance is more
+specific than a class. There is no cascade, no specificity ladder and no
+`!important`.
+
+What there is instead is **a record**. Every property both documents set on the
+same node is kept as a crossing, with both values, and reported. The question
+stops being a rule to remember and becomes a list to look at. A scene with two
+crossings has its split about right; a scene with forty on `inset` is telling you
+`inset` is in the wrong document. That is the tension made measurable rather than
+argued, and it is the part of this design that would be worth having even if
+everything else about it changed.
+
+### What was settled, and what was not
+
+The study put both of its criteria to the prototype and both held. **Fidelity**:
+the three documents produced the same boxes *and* the same styles as a
+hand-written version of the same card. **Re-skin**: a second paint document
+turned a flat card into a bevelled one with no edit to content or layout.
+
+The **shape** is settled - three documents with those three jobs, content
+referred to by name, paint keyed by kind or role, layout wins and crossings
+recorded. The **spelling** is not. The syntax was picked for ease of parsing
+rather than designed, and reads better than that origin deserves, which is a
+reason to keep using it rather than a reason to keep it. Three things were owed
+before arguing about syntax: documents as files rather than strings, diagnostics
+past `no content named x`, and any validation of one document against another -
+an unreferenced content item and a paint rule matching nothing are both quietly
+fine today, and both are exactly what the crossing report already showed is worth
+counting rather than debating.
+
+### It is a compiler targeting Momo source, not something that runs on an 8086
+
+This is the decision that keeps it small, and the study reached it from the other
+side: its own port plan cut the DSL, on the grounds that its emitter is
+recursive, its parsers are regex-driven, and it builds maps of strings - and that
+the *output* of the tool is a momolo call sequence, which is what a Momo program
+should be handed.
+
+So it is a build-time tool under `src/tools/`, emitting `.momo`, in the shape the
+vector work already uses. That also settles what it costs to be wrong about the
+syntax: a generated file and a regeneration, not a language feature.
+
+### Why it is not being built now
+
+Nothing has wanted it. The scenes here are written by hand and are legible that
+way, and a scene format earns its keep when there are more scenes than a person
+wants to read - which is a threshold this repository has not reached. The reason
+to write the design down anyway is that it was *tested and it held*, and the
+study that tested it is closed: this is the only place the result survives.

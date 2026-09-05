@@ -166,6 +166,51 @@ to 285 at C8.
 
 ---
 
+## A table of string addresses cannot be written down
+
+**Symptom.**
+
+```
+const u16[] names = [ addr( sOne ), addr( sTwo ) ]
+                      ^ error: array element must be a constant
+```
+
+`addr()` is a link-time constant rather than a compile-time one, and an array
+initialiser has to be folded before there are any symbols to point at. So the
+obvious way to index a run of strings - a table of their addresses - is not
+available, and neither is any other array holding an address known only to the
+linker.
+
+**What to do.** Put the strings in one blob and walk it:
+
+```momo
+const u8[] names = "Write$Paintbrush$Terminal$"
+
+// The address of the nth string in a run of $-terminated ones.
+u16 nthStr( u16 at, u16 n ) {
+  u16 i
+  u16 seen
+
+  i = 0
+  seen = 0
+
+  for ( ;; ) {
+    if ( seen == n ) break
+    if ( peek8( at + i ) == strEnd ) seen++
+    i++
+  }
+
+  return at + i
+}
+```
+
+Linear rather than indexed, which for the handful of names a scene holds is
+nothing - and it is the maintainable direction anyway, because an offset table
+written out by hand has to be recomputed every time a string changes length. The
+blob is the only thing that has to stay right.
+
+---
+
 ## A loop counter stepped past its bound never leaves the loop
 
 **Symptom.** The program hangs. Tier 2 reports a timeout and nothing else, because

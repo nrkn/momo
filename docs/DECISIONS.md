@@ -1183,3 +1183,39 @@ compiler change. The alignment work waits for a reason to prefer the 8086 over t
 8088** - and if it ever comes, it arrives as `align 2` plus a width sort, with the
 locals-locality cost paid deliberately. `tilefill` itself stays as it is: it is the
 straightforward version on purpose, and §14 wants it readable more than fast.
+
+---
+
+## 36. `momolo`
+
+### A branch nothing could reach, found by reaching it
+
+The port was verified against the study across six scenes, every element and
+every pass, and that cross-check is the reason to trust it. It still had a bug,
+and the shape of the bug is the useful part.
+
+`sizeAxis` works out how much room a container has inside its insets. The study
+writes it as a subtraction and lets the answer go negative; the port's sizes are
+`u16`, where a negative wraps to 65,535 and reads as *unlimited* room, so the
+port clamped it to zero instead. That clamp is necessary and it is also a
+different answer: a box smaller than its own insets stopped reporting an
+overflow, because after clamping there was nothing left to be over.
+
+**No scene could reach it.** It needs a container whose border and padding
+together exceed its whole size on one axis, which does not happen at a scale
+where a unit is eleven pixels. It happens immediately at a scale where a unit is
+one character cell and a bar is half a line high, floored at one: a one-unit box
+with a one-unit border on each side. Three of them, in the System 6 memory
+gauge.
+
+So the divergence sat in a routine that six scenes, five hundred assertions and
+a byte-identical golden tier all agreed was correct, and it took a seventh kind
+of scene to produce a case where the two implementations could disagree at all.
+**A cross-check is only as wide as the corpus put through it**, which is an
+argument for more scenes rather than for more assertions about the same ones.
+
+The fix carries the shortfall separately - `avail` stays clamped for arithmetic
+and `overshoot` says how much of the box the insets ate - so both the flag and
+the shrink deficit come out as the study's, with no intermediate below zero. The
+seven existing scenes are unchanged by it, which is what says it is a fix and not
+a second opinion.

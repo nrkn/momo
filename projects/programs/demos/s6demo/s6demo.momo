@@ -1,0 +1,73 @@
+// s6demo.momo - a System 6 desktop on a text mode screen.
+//
+// Four overlapping windows at 80x25, drawn with the ported engine.
+//
+//   npm start s6demo
+//
+// A demo rather than a test: it draws, waits for a key, and puts the display
+// back, so it cannot have a .expected - tier 2 cannot run something that blocks.
+// `mlolayer` builds these same four layers from this same file and prints every
+// resolved box as numbers held against the clay study's own engine, so this
+// picture is made of a tree that has been checked element by element.
+//
+// The layers are placed rather than derived, which is the difference between
+// this and `pmdemo`: a desktop window goes where the desktop puts it, and only
+// an MDI child has to ask where its parent's client area ended up.
+//
+// Two things here that no other program draws: a stipple, which is what a
+// texture has to be when a cell cannot be shaded, and the stripes that rule a
+// System 6 title bar.
+
+include "lib/std/key.momo"
+
+include "scenes/system6.momo"
+
+u8 savedMode
+
+// ---- entry ----
+
+// Ask the BIOS what mode we are in so it can be put back on the way out. AH=0Fh
+// reports the mode in AL; bit 7 is set when the last mode change suppressed the
+// screen clear, so it is masked off.
+_ah = 0x0F
+int 0x10
+savedMode = _al & 0x7F
+
+setTextMode()
+hideCursor()
+useBrightBackgrounds()
+
+// Built, run and painted one at a time, because begin() takes the previous
+// layer's elements away. Z-order is this order and nothing else.
+
+paint( 80 * u, 25 * lineHeight ) {
+  buildS6Screen()
+}
+runPasses()
+paintLayer( 0, 0 )
+
+paint( s6FinderW * u, s6FinderH * lineHeight ) {
+  buildS6Finder()
+}
+runPasses()
+paintLayer( s6FinderX * u, s6FinderY * lineHeight )
+
+paint( s6AboutW * u, s6AboutH * lineHeight ) {
+  buildS6About()
+}
+runPasses()
+paintLayer( s6AboutX * u, s6AboutY * lineHeight )
+
+paint( s6DlgW * u, s6DlgH * lineHeight ) {
+  buildS6Dialog()
+}
+runPasses()
+paintLayer( s6DlgX * u, s6DlgY * lineHeight )
+
+readKey()
+
+// Put the display back the way it was found.
+_ah = 0x00
+_al = savedMode
+int 0x10
+showCursor()

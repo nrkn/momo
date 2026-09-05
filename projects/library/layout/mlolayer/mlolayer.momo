@@ -1,0 +1,121 @@
+// mlolayer.momo - the cross-check for the scenes that compose layers.
+//
+// `momolo` is the same claim for the scenes that are one layout. This is the
+// other half: a screen made of several momolo calls, stitched together by a list
+// with an offset apiece.
+//
+// One line per element, ten columns rather than nine:
+//
+//   layer i x y w h minW minH oX oY
+//
+// x and y arrive with the layer's offset already added, which is deliberate.
+// Emitting the offset on a line of its own would check the layout and take the
+// composition on trust - and the composition is the part worth checking here,
+// because an MDI child's offset is not a constant. It is read out of the layer
+// beneath it, so folding it into the coordinate holds that derivation to a
+// number.
+//
+// The last line is the flow overflow flag, which is never set in a committed
+// expectation. It is printed for the reason momovec prints its crossing
+// overflow: a capacity problem must show up as a diff rather than as a layout
+// that is quietly wrong.
+//
+// mlolayer.expected holds the same numbers produced by the TypeScript engine
+// this was ported from, at the same size, running the same passes. Two
+// independent implementations of one algorithm agreeing on every integer is the
+// point of the exercise.
+//
+// Nothing here draws. `pmdemo` puts the same scene on the screen and shares this
+// file's scene rather than spelling it a second time.
+
+include "lib/std/io.momo"
+include "scenes/win311.momo"
+include "scenes/system6.momo"
+
+sub putField( u16 n ) {
+  putNumber( n )
+  space()
+}
+
+// The offset is added here rather than by the caller because the caller would
+// then have to remember it twice - once to place the layer and once to report
+// it, which is one of the two places for them to disagree.
+sub dumpLayer( u16 n, u16 dx, u16 dy ) {
+  for ( u16 i = 0; i < elCount; i++ ) {
+    putField( n )
+    putField( i )
+    putField( el[i].x + dx )
+    putField( el[i].y + dy )
+    putField( el[i].w )
+    putField( el[i].h )
+    putField( el[i].minW )
+    putField( el[i].minH )
+    putField( el[i].overflowX )
+    putNumber( el[i].overflowY )
+    newline()
+  }
+}
+
+// ---- entry ----------------------------------------------------------------
+//
+// The sequence is forced by begin() resetting the element array: build a layer,
+// run its passes, read anything wanted out of it, report it - then the next one.
+// Layer zero is the only one that has to be read, and every other layer is
+// placed against what it said.
+
+paint( 80 * u, 25 * lineHeight ) {
+  buildW311Shell()
+}
+runPasses()
+w311ReadClient()
+dumpLayer( 0, 0, 0 )
+
+paint( w311AccW * u, w311AccH * lineHeight ) {
+  buildW311Accessories()
+}
+runPasses()
+dumpLayer( 1, clientX + w311AccX * u, clientY + w311AccY * lineHeight )
+
+paint( w311MainW * u, w311MainH * lineHeight ) {
+  buildW311Main()
+}
+runPasses()
+dumpLayer( 2, clientX + w311MainX * u, clientY + w311MainY * lineHeight )
+
+paint( w311DlgW * u, w311DlgH * lineHeight ) {
+  buildW311Dialog()
+}
+runPasses()
+dumpLayer( 3, clientX + w311DlgX * u, clientY + w311DlgY * lineHeight )
+
+// ---- system6, whose layers are placed rather than derived -----------------
+//
+// The layer counter restarts, as the element index does between scenes in
+// `momolo`: these are two scenes concatenated, not eight layers of one.
+
+paint( 80 * u, 25 * lineHeight ) {
+  buildS6Screen()
+}
+runPasses()
+dumpLayer( 0, 0, 0 )
+
+paint( s6FinderW * u, s6FinderH * lineHeight ) {
+  buildS6Finder()
+}
+runPasses()
+dumpLayer( 1, s6FinderX * u, s6FinderY * lineHeight )
+
+paint( s6AboutW * u, s6AboutH * lineHeight ) {
+  buildS6About()
+}
+runPasses()
+dumpLayer( 2, s6AboutX * u, s6AboutY * lineHeight )
+
+paint( s6DlgW * u, s6DlgH * lineHeight ) {
+  buildS6Dialog()
+}
+runPasses()
+dumpLayer( 3, s6DlgX * u, s6DlgY * lineHeight )
+
+putNumber( flowOverflowed )
+newline()

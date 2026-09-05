@@ -1,0 +1,457 @@
+// system6.momo - a System 6 desktop, and the question momolo left open.
+//
+// The same tree as the clay study's Macintosh mockup, so the numbers it produces
+// can be held against the study's own.
+//
+// **How do overlapping windows work with no floating, no z-index and no element
+// that remembers where it was put?** They are not one layout. Each window is its
+// own tree, laid out into its own root at its own size, and the desktop is the
+// list of them with an offset apiece. Z-order is list order. Nothing in momolo
+// changed to allow it and nothing in momolo knows a window exists.
+//
+// Top-level windows on a desktop are the cleanest form of that question - there
+// is no client area to nest inside and no ambiguity about what is a child. The
+// harder half is MDI, and `win311.momo` is where that is answered.
+//
+// **The title bar is why this era was chosen.** One row using every sizing rule
+// there is: a fixed close box, a growing field of stripes, a fitted title, more
+// stripes, a fixed zoom box. The title comes out centred without anything asking
+// for centring, because the two stripe fields are grow siblings that converge on
+// a common width, which puts what is between them in the middle. A rule written
+// for buttons in a toolbar turns out to be how a Macintosh centres a title.
+//
+// **A separator is a sibling box, not a border.** In pixels a rule under the menu
+// bar is `borderB: 1`; in a character cell a menu bar is one unit high, so a
+// border consumes the only row it has - §4's limitation arriving in practice. A
+// rule as a sibling works at both scales, and is arguably the more honest
+// description anyway: a separator between two things is a thing between them,
+// not a property of one of them.
+//
+// **What this scene is honest about.** Eight containers overflow here, where every
+// other scene reports none. The chrome was designed at pixel scale and some of
+// it - the scroll bar buttons, the thumb, the close box - has no room to exist
+// when a unit is one character instead of eleven. Nothing is broken and the
+// picture is legible, but it is a real limit on "the same scene, any target": a
+// scene parameterised by metrics still has a smallest scale at which it means
+// anything, and a 20:1 change in unit size is past it for some chrome. The
+// overflow flags are in the expectation rather than hidden, which is what makes
+// that a measurement rather than an excuse.
+
+include "scenes/passes.momo"
+include "lib/moflow.momo"
+
+// ---- the content ----------------------------------------------------------
+
+const u8[] sS6Menu   = "File$Edit$View$Special$"
+const s6MenuCount    = 4
+const u8[] sS6Finder = "Finder$"
+
+const u8[] sS6Icons  = "Macintosh HD$Documents$Applications$System Folder$Utilities$Games$Scrapbook$Trash$"
+const s6IconCount    = 8
+
+const u8[] sHdTitle  = "Macintosh HD$"
+const u8[] sColName  = "Name$"
+const u8[] sColSize  = "Size$"
+const u8[] sColKind  = "Kind$"
+
+// Three parallel runs rather than one run of triples, because a column is what a
+// caller indexes and a row is not.
+const u8[] sRowNames = "System Folder$Applications$MacPaint$Read Me$Empty Folder$"
+const u8[] sRowSizes = "1,142K$3,806K$284K$4K$--$"
+const u8[] sRowKinds = "folder$folder$application$document$folder$"
+const s6RowCount     = 5
+
+const u8[] sAboutTitle = "About This Macintosh$"
+const u8[] sTotalMem   = "Total Memory:$"
+const u8[] sMemFigure  = "4,096K$"
+const u8[] sBarNames   = "System Software$MacPaint$Finder$"
+const s6BarCount       = 3
+
+// Plain integers, so this one CAN be a table - it is addresses that cannot.
+const u16[] barSize = [ 6, 3, 2 ]
+
+const u8[] sSaveAsk  = "Save changes to the document before closing?$"
+const u8[] sCancel   = "Cancel$"
+const u8[] sDontSave = "Don't Save$"
+const u8[] sSave     = "Save$"
+
+// ---- the layers -----------------------------------------------------------
+//
+// Fixed offsets, unlike win311's: a desktop window is placed on the screen and
+// nothing has to be read back out of anything.
+
+const s6FinderW = 46
+const s6FinderH = 9
+const s6FinderX = 3
+const s6FinderY = 3
+
+const s6AboutW  = 40
+const s6AboutH  = 8
+const s6AboutX  = 30
+const s6AboutY  = 13
+
+const s6DlgW    = 38
+const s6DlgH    = 7
+const s6DlgX    = 14
+const s6DlgY    = 8
+
+// Scroll bar thickness: round( lineHeight * 0.7 ), floored at one. At this scale
+// that is one cell, which is the whole of the overflow story above.
+const s6Thick = 1
+
+// A memory bar is half a line high, floored at one - and the floor is the half
+// that matters here, because half of one cell is none. The bar it contains still
+// wants the whole of it, so each of these overflows by design; the study reports
+// the same three flags.
+const s6BarH = 1
+
+// ---- chrome ---------------------------------------------------------------
+
+sub s6Rule {
+  cfgGrowW()
+  cfgFixedH( 1 )
+  panel( black ) {
+  }
+}
+
+sub s6BoxButton {
+  cfgFixedW( lineHeight )
+  cfgFixedH( lineHeight )
+  framed( white, 1, black ) {
+  }
+}
+
+// One row using every sizing rule there is - see the header.
+sub s6TitleBar( u16 title ) {
+  cfgGrowW()
+  cfgFixedH( lineHeight )
+  cfg.alignCross = alignCenter
+  panel( white ) {
+    s6BoxButton()
+
+    cfgGrowW()
+    cfgGrowH()
+    textured( white, black, fillStripes ) {
+    }
+
+    cfgInsetX( u )
+    panel( white ) {
+      labelPaint( title, black, white )
+    }
+
+    cfgGrowW()
+    cfgGrowH()
+    textured( white, black, fillStripes ) {
+    }
+
+    s6BoxButton()
+  }
+
+  s6Rule()
+}
+
+// A track with a fixed button at each end and a thumb inside. One routine for
+// both axes, as the study has it, because what changes between them is which
+// axis each rule is spelled on rather than what the rules are.
+sub s6ScrollBar( bool vertical, u16 thumbAt ) {
+  if ( vertical ) {
+    cfgCol()
+    cfgFixedW( s6Thick )
+    cfgGrowH()
+  } else {
+    cfgGrowW()
+    cfgFixedH( s6Thick )
+  }
+
+  framed( white, 1, black ) {
+    cfgFixedW( s6Thick )
+    cfgFixedH( s6Thick )
+    framed( white, 1, black ) {
+    }
+
+    cfgGrowW()
+    cfgGrowH()
+    textured( white, black, fillStipple ) {
+      if ( thumbAt > 0 ) {
+        if ( vertical ) {
+          cfgFixedH( thumbAt )
+        } else {
+          cfgFixedW( thumbAt )
+        }
+
+        box {
+        }
+      }
+
+      if ( vertical ) {
+        cfgGrowW()
+        cfgFixedH( s6Thick * 2 )
+      } else {
+        cfgFixedW( s6Thick * 2 )
+        cfgGrowH()
+      }
+
+      framed( white, 1, black ) {
+      }
+    }
+
+    cfgFixedW( s6Thick )
+    cfgFixedH( s6Thick )
+    framed( white, 1, black ) {
+    }
+  }
+}
+
+// A window is its own layout, so this opens one and leaves it open - the caller
+// writes the body inside it and the bracket closes both boxes.
+sub s6WindowOpen( u16 title ) {
+  cfgCol()
+  cfgGrowW()
+  cfgGrowH()
+  panelFramed( white, 1, black )
+
+  s6TitleBar( title )
+
+  cfgCol()
+  cfgGrowW()
+  cfgGrowH()
+  panelOpen( white )
+}
+
+sub s6WindowClose {
+  closeBox()                    // the body
+  closeBox()                    // the window frame
+}
+
+bracket s6Window = s6WindowOpen / s6WindowClose
+
+// ---- the Finder window ----------------------------------------------------
+
+sub finderRow( u16 i ) {
+  cfgGrowW()
+  cfgFixedH( lineHeight )
+  panel( white ) {
+    labelPaint( nthStr( addr( sRowNames ), i ), black, white )
+
+    cfgGrowW()
+    box {
+    }
+
+    labelPaint( nthStr( addr( sRowSizes ), i ), black, white )
+
+    cfgFixedW( 3 * u )
+    box {
+    }
+
+    cfgFixedW( 12 * u )
+    panel( white ) {
+      labelPaint( nthStr( addr( sRowKinds ), i ), black, white )
+    }
+  }
+}
+
+sub buildS6Finder {
+  s6Window( addr( sHdTitle ) ) {
+    cfgGrowW()
+    cfgFixedH( lineHeight )
+    cfgInsetX( u )
+    panel( white ) {
+      labelPaint( addr( sColName ), black, white )
+
+      cfgGrowW()
+      box {
+      }
+
+      labelPaint( addr( sColSize ), black, white )
+
+      cfgFixedW( 10 * u )
+      box {
+      }
+
+      labelPaint( addr( sColKind ), black, white )
+    }
+
+    s6Rule()
+
+    cfgGrowW()
+    cfgGrowH()
+    panel( white ) {
+      cfgCol()
+      cfgGrowW()
+      cfgGrowH()
+      cfgInsetX( u )
+      panel( white ) {
+        for ( u16 i = 0; i < s6RowCount; i++ ) {
+          finderRow( i )
+        }
+      }
+
+      s6ScrollBar( true, 2 * lineHeight )
+    }
+
+    cfgGrowW()
+    panel( white ) {
+      s6ScrollBar( false, 3 * u )
+
+      cfgFixedW( s6Thick )
+      cfgGrowH()
+      framed( white, 1, black ) {
+      }
+    }
+  }
+}
+
+// ---- About This Macintosh -------------------------------------------------
+
+sub memoryBar( u16 i ) {
+  cfgGrowW()
+  cfgFixedH( lineHeight )
+  cfg.gap = u
+  cfg.alignCross = alignCenter
+  panel( white ) {
+    cfgFixedW( 16 * u )
+    panel( white ) {
+      labelPaint( nthStr( addr( sBarNames ), i ), black, white )
+    }
+
+    cfgGrowW()
+    cfgFixedH( s6BarH )
+    framed( white, 1, black ) {
+      cfgFixedW( barSize[i] * 3 * u )
+      cfgGrowH()
+      panel( black ) {
+      }
+    }
+  }
+}
+
+sub buildS6About {
+  s6Window( addr( sAboutTitle ) ) {
+    cfgCol()
+    cfgGrowW()
+    cfgGrowH()
+    cfgInset( u )
+    cfg.gap = lineHeight >> 1
+    panel( white ) {
+      cfgGrowW()
+      panel( white ) {
+        labelPaint( addr( sTotalMem ), black, white )
+
+        cfgGrowW()
+        box {
+        }
+
+        labelPaint( addr( sMemFigure ), black, white )
+      }
+
+      for ( u16 i = 0; i < s6BarCount; i++ ) {
+        memoryBar( i )
+      }
+    }
+  }
+}
+
+// ---- the save dialog ------------------------------------------------------
+
+// A two-unit border is what marks the default button, which is the one piece of
+// Macintosh chrome that survives the drop to a character cell unchanged.
+sub dialogButton( u16 caption, u8 thickness ) {
+  cfgInsetX( 2 * u )
+  cfg.alignMain = alignCenter
+  framed( white, thickness, black ) {
+    labelPaint( caption, black, white )
+  }
+}
+
+sub buildS6Dialog {
+  cfgCol()
+  cfgGrowW()
+  cfgGrowH()
+  cfgInset( u )
+  cfg.gap = lineHeight >> 1
+  framed( white, 2, black ) {
+    paraAuto( addr( sSaveAsk ), black, white )
+
+    cfgGrowH()
+    box {
+    }
+
+    cfgGrowW()
+    cfg.gap = 2 * u
+    cfg.alignMain = alignEnd
+    box {
+      dialogButton( addr( sCancel ), 1 )
+      dialogButton( addr( sDontSave ), 1 )
+      dialogButton( addr( sSave ), 2 )
+    }
+  }
+}
+
+// ---- the desktop ----------------------------------------------------------
+
+// Content-sized items rather than uniform ones: each icon is as wide as its own
+// name, which is measurable here because a unit is a cell and a name is a
+// string. The packing does not need the items to be alike.
+const s6Pad = 1
+
+sub desktopIcon( u16 name ) {
+  cfgInsetX( s6Pad )
+  panel( white ) {
+    labelPaint( name, black, white )
+  }
+}
+
+sub buildS6Screen {
+  u16 r
+  u16 k
+
+  for ( u16 i = 0; i < s6IconCount; i++ ) {
+    flowW[i] = strLen( nthStr( addr( sS6Icons ), i ) ) + 2 * s6Pad
+  }
+
+  packRows( s6IconCount, 80 * u - 2 * u, u )
+
+  cfgCol()
+  cfgGrowW()
+  cfgGrowH()
+  panel( white ) {
+    cfgGrowW()
+    cfgFixedH( lineHeight )
+    cfgInsetX( u )
+    cfg.gap = 2 * u
+    panel( white ) {
+      for ( u16 i = 0; i < s6MenuCount; i++ ) {
+        labelPaint( nthStr( addr( sS6Menu ), i ), black, white )
+      }
+
+      cfgGrowW()
+      box {
+      }
+
+      labelPaint( addr( sS6Finder ), black, white )
+    }
+
+    s6Rule()
+
+    cfgCol()
+    cfgGrowW()
+    cfgGrowH()
+    cfgInset( u )
+    textured( white, black, fillStipple ) {
+      cfgCol()
+      cfgFixedW( 80 * u - 2 * u )
+      cfg.gap = lineHeight >> 1
+      box {
+        for ( r = 0; r < flowRowCount; r++ ) {
+          cfgGrowW()
+          cfg.gap = u
+          box {
+            for ( k = 0; k < rowCount[r]; k++ ) {
+              desktopIcon( nthStr( addr( sS6Icons ), rowFirst[r] + k ) )
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -58,12 +58,12 @@ has this repository open. The reverse is not true and never will be.
 
 ## The register
 
-| | distilled from | became | generates files here |
-|---|---|---|---|
-| clay study | [Clay](https://github.com/nicbarker/clay), `clay.h`, 5,058 lines | `shared/lib/momolo/`, §36 | no |
-| vector study | Alois Zingl, *Bresenham Curve Rasterizing Algorithms* (V20.15, 2020), by way of a TypeScript playground | `shared/lib/momovec/`, §37 | yes |
-| palette study | prior work by the author, 2024 | colour and palettes - scope undecided | planned, not built |
-| schema study | prior work by the author, not yet audited | schemas, and what can be generated from one | planned, not built |
+| | distilled from | became | generates files here | state |
+|---|---|---|---|---|
+| clay study | [Clay](https://github.com/nicbarker/clay), `clay.h`, 5,058 lines | `shared/lib/momolo/`, §36 | no | **retired** |
+| vector study | Alois Zingl, *Bresenham Curve Rasterizing Algorithms* (V20.15, 2020), by way of a TypeScript playground | `shared/lib/momovec/`, §37 | yes | open |
+| palette study | prior work by the author, 2024 | colour and palettes - scope undecided | planned, not built | not started |
+| schema study | prior work by the author, not yet audited | schemas, and what can be generated from one | planned, not built | not started |
 
 **momolo** (§36) is pure geometry - no text, colour, borders or drawing - which
 is the largest single departure from Clay. The name is six characters so it fits a DOS
@@ -121,3 +121,31 @@ true - at which point they should say what they are instead of what they were.
 Nothing else changes, because nothing here depends on a study. That is the
 property this file is written to preserve, and the test for anything added to it:
 **would it still be true and useful after every study was gone?**
+
+### The clay study is the first one retired, and it cost nothing
+
+It generated no files here - the port was written by hand against it - so there
+were no headers to correct and nothing to stop being regenerable. The property
+above held exactly as written.
+
+What it did cost was a decision about **what to bring across first**, because
+after retirement there is no going back for anything. Three things came over on
+the way out:
+
+- **The four scenes that had never been ported.** `wrapping`, and the two window
+  mockups as `pmdemo` and `s6demo` with `mlolayer` holding all 244 of their boxes
+  against the study. Those numbers are now committed, which is what makes them
+  survive the study that produced them.
+- **The three-document DSL, as a design rather than as code** - `PLAN.md` §50.
+  Its shape had been tested and held; its syntax had not been designed. Writing
+  down the half that was settled is the whole of what a retired prototype leaves.
+- **A bug in the engine**, which is the part nobody planned. Porting a scene at a
+  scale the study's own targets never used produced a case where the two
+  implementations disagreed, in a routine six scenes had already agreed on.
+  `DECISIONS.md` §36 has it.
+
+**The last useful change to a study is the one that lets its output be captured
+permanently.** This one gained a per-layer reference emitter and a size override
+in its final hour, because the port needed numbers at 80x25 that the gallery had
+no reason to produce. That is worth expecting rather than resisting: a study is
+most likely to need a small change at exactly the moment it is being closed.
