@@ -73,8 +73,21 @@ under-reports conventions.** An idea gets a folder, a readme and a date. A
 convention gets used on real projects for fifteen years and written down nowhere,
 because nobody documents the thing they always do. §50's separation of layout from
 paint is the clearest known instance and is corrected in its own section below.
-Where else the same correction is owed cannot be told from the files, which is
-the honest position rather than a comfortable one.
+
+**The repositories are under-catalogued too, and that bias has no direction at
+all.** A substantial amount of work lives in git and has not been read yet -
+commercial and otherwise - and where a repository *has* been catalogued it is
+sometimes the fuller copy of something the Dropbox archive holds only a fragment
+of. Two of the sharpest findings in this document arrived that way, after the
+first draft was written and while the author was reading it: `PL101` and `mfml`,
+both of which are now in the catalogue, and both of which reversed a conclusion
+here rather than adding to one.
+
+So the standing correction is not "look harder at commercial work". It is that
+**an absence in this document is weak evidence**, and gets weaker the further a
+subject is from the kind of thing that produces a dated scratch folder. Two
+sections below - Sound, and the text adventure - carry the scars of finding that
+out.
 
 ## The shortest version
 
@@ -111,7 +124,8 @@ became Yuki instead. **Momo is that first choice resurrected eight years later,
 deliberately**, which makes the 2018 work an ancestor by name as well as by
 design.
 
-**This is the one thing in this document that the evidence got wrong.** Nothing in
+**This was the first thing in this document that the evidence got wrong**, and the
+Sound section below is the second. Nothing in
 either repository refers to those 2018 projects, so from the surviving files the
 honest reading was name reuse - the same word twice, no continuation - and that is
 what the archive's own catalogue concluded, saying so explicitly and giving its
@@ -584,18 +598,32 @@ at once. One of them, from 2009, was published as a polyglot exercise and grew t
 about 32 implementations across 27 languages contributed by twelve people,
 recruited through a single newsgroup thread.
 
-The same program keeps being the first thing written on a new machine. Its C
-version - map as one string literal with a stride that accounts for the line
-endings, movement accepted only if the target byte is a space - was typed into
-Turbo C on real DOS in 2018, nine years after the C# original, reaching exactly as
-far as that original did and no further.
+### One map, seventeen years, five languages
 
-**`simplerl` is the next one.** Same name as the published polyglot repository,
-same shape - a map as a run of string literals, an `@`, and a move rejected unless
-the target cell is floor - and its own header says why it stops there: *"the
-smallest thing that is recognisably a roguelike"*, with anything further belonging
-in its own project. The 2018 C port stopped at exactly the same place for exactly
-the same reason.
+The same program keeps being the first thing written on a new machine, and it
+keeps carrying the same ten rows. This one is checked rather than asserted:
+
+| | |
+|---|---|
+| **2009** | C#, in the engine that became the polyglot repository |
+| **2012** | twice in one course - Node over a raw tty, then again in Scheem, the Scheme subset that course builds |
+| **2018** | Turbo C on real DOS, as one string literal with a stride that accounts for the line endings |
+| **2026** | `simplerl` |
+
+The 2012 pair are the ones this document nearly missed, because the archive holds
+only a fragment of that coursework and the repository holds all of it.
+
+**Momo's copy is the 2009 map doubled horizontally.** All ten rows match
+character for character under that doubling - the only change is that interior
+floor is respelled from space to `.`, which distinguishes walkable floor from the
+void outside the map that the earlier versions ran together. Seventeen years, five
+languages, and the one deliberate edit is a correctness distinction rather than a
+cosmetic one.
+
+`simplerl`'s header says why it stops where it does: *"the smallest thing that is
+recognisably a roguelike"*, with anything further belonging in its own project.
+The 2018 C port stopped at exactly the same place for exactly the same reason, and
+so did the two in 2012.
 
 This matters for how `DECISIONS.md` §15 should be read. That bar is a list of
 programs rather than features, which is unusual, and it is unusual because the
@@ -720,10 +748,10 @@ attempted before, which is often the most useful thing to know about it.
 | A schema study | JSON Schema tooling, 2015-2025, about thirty projects |
 | The editors - `momoed`, `momode`, `momove`, `momopnt` | Desktop environments 2005-2026, and a twenty-year gap between tooling built for clients and tooling built for himself |
 | The layout DSL (§50) | Layout-versus-paint as convention since 2005, and as a format twice - 2004 and 2026 |
-| A text adventure | About a dozen authoring engines, 2014-2023, all converging on the same complaint |
+| A text adventure | About a dozen authoring engines, 2014-2023, and one that answered them |
 | Hosted targets (§30) | WebAssembly spikes, 2018-2026 |
 | Other CPUs (§33), an executor (§42) | The 2024 emulator run |
-| Sound | Three projects in twenty-three years, and one empty directory |
+| Sound | Three thin projects, and one real music language in 2012 that targets QBASIC MML |
 | A mouse | Nothing |
 
 ## `momowad` (§41)
@@ -881,6 +909,17 @@ That is `momopnt` - *"the library three image editors share"* - stated as an
 intention five years before it had a name. The 2025 desktop environment carries
 the same intent at a larger scale, with a file explorer, a text editor and a
 visual schema editor on its roadmap.
+
+**And `mfml` in 2023 is the turn happening inside the text-adventure thread**,
+which is where it is least expected. Half its specification is an editor: a game
+list, a section list, and a section editor on Monaco rather than `contenteditable`
+("too complex and tricky"), split with a live preview whose links are navigable
+only when the buffer is saved. The reason given for the sidebar is the telling
+part - it lists every link in the section marked as pointing at an existing or an
+as-yet-uncreated one, and autocompletes `href` against the ids already in the
+game, **so that a typo surfaces as a suggestion rather than as a dead link**. That
+is a tool designed against a specific authoring failure, by someone who had by
+then written a dozen engines and authored almost nothing in any of them.
 
 ### The schema study is where the two halves finally meet
 
@@ -1053,16 +1092,47 @@ That is what the whole thread discovered, twelve times. **An authoring format fo
 a text adventure grows conditionals, then state, then variables, then arithmetic,
 then scoping and includes - and at that point it is a programming language, badly.**
 The section it was written under goes on to sketch named reusable test blocks,
-includes, and scoped keys addressed by path. That version was not built, and on
-this record it would not have been.
+includes, and scoped keys addressed by path, and that version was not built.
 
-**Momo is the first context in which the question does not arise.** The
-programming language is already here, it is not the deliverable, and it has
-conditionals, state, arithmetic and includes that somebody already had to design.
-A text adventure in Momo is a program. `DECISIONS.md` §15's last item has been
-blocked twelve times by a problem this repository does not have - which is worth
-knowing, because it means the difficulty is content rather than machinery, and
-those want different amounts of time.
+The first draft of this section stopped there, and read the question as
+rhetorical - a thread ending on the problem it had found. It is not rhetorical and
+the thread does not end there.
+
+### It was answered three days later, and this document missed it at first
+
+`mfml` - Meta Fiction Markup Language, six days in April 2023 - is the middle
+ground, and the answer is **staging**. Its specification is four numbered stages:
+stage 1 is choose-your-own-adventure with no state at all, stage 2 adds boolean
+keys, stage 3 is "tools to help manage complexity - redirects, includes, partials"
+and stage 4 adds numbers and strings.
+
+The load-bearing part is that **stage 3 is deliberately not designed**:
+
+> *"Have to figure out what the pain points are before we design this"*
+
+That is the same discipline `PLAN.md` runs on - nothing is a Todo item until
+something wants it, and Maybe is where a thing sits when nothing has asked for it
+yet. Arrived at independently, in a text adventure, three years earlier.
+
+Stage 2 is built and works. Two of its forms are what the earlier engines needed
+grouping tags for: `q-first` replaces itself with the first child whose test
+passes, and `q-else` must be *nested inside* the thing it is an alternative to
+rather than being its sibling - a distinction the specification gives its own
+section, with the wrong version written out and annotated as always appearing in
+the output. The interpreter is thirty lines: clone, try each handler until one
+returns a different node, recurse.
+
+**Momo does not need any of it, and that is the point.** The programming language
+is already here, it is not the deliverable, and it has conditionals, state,
+arithmetic and includes that somebody already had to design. A text adventure in
+Momo is a program. `DECISIONS.md` §15's last item has been blocked a dozen times by
+a problem this repository does not have - which is worth knowing, because it means
+the difficulty is content rather than machinery, and those want very different
+amounts of time.
+
+What survives the translation is the staging, not the syntax. Stage 1 with no
+state is a real target on this machine, and it is the one that would tell you
+whether the content is any good before a single key is spent.
 
 ### The content half is further along than the machinery
 
@@ -1142,9 +1212,10 @@ interrupt, no packet decoding. So the hard half of §24's mouse callback has no
 ancestor here even though everything downstream of it does, which is worth knowing
 before estimating it.
 
-## Sound, which is the deepest blind spot here
+## Sound, which is the thinnest thread here
 
-*Stated by the author, and the archive agrees emphatically.*
+*Stated by the author for the diagnosis. The evidence was read wrong once and is
+corrected below, which is why this section is longer than the subject warrants.*
 
 The account is that the skill was acquired and then never connected to anything.
 In an era before the archive begins - pre-2003, with no surviving backups - a
@@ -1154,8 +1225,8 @@ picked back up. Almost every project since has ignored sound on the understandin
 that it would be got to later, and then the project was abandoned or the work went
 somewhere else.
 
-**The archive is unusually decisive about this.** Of the projects catalogued from
-2003 onward, three touch audio at all:
+**The catalogued projects agree, up to a point.** Of everything indexed from 2003
+onward, three touch audio at all:
 
 - **2019** - the fantasy console, and the only one where sound actually plays.
   Four channels budgeted to the bit: 12-bit frequency, 6-bit duration, 4-bit
@@ -1174,46 +1245,71 @@ somewhere else.
   two oscillators and then stops at the comment `// set inital waveforms`.
   **Nothing makes a sound.**
 
-So in twenty-three years: one playing implementation whose music is somebody
-else's, one mixing test using somebody else's recording, and one stub.
+On those three alone: one playing implementation whose music is somebody else's,
+one mixing test built on somebody else's recording, and one stub. That was the
+whole of the evidence when this section was first written, and the conclusion
+drawn from it was wrong.
 
-### The empty folder
+### The exception, which is large and was nearly missed
 
-In March 2014 the author worked through Nathan Whitehead's PL101, the
-write-your-own-programming-language course. Homework 1 survives complete and
-working - Scheem, a Scheme subset, with a PEG grammar, an environment-chain
-evaluator and a Mocha suite.
+There is a fourth, it is much better than the other three, and it is a music
+*language*.
 
-Beside it is a directory named `Tortoise`, which is the course's second project.
-It was created on 4 March 2014 and it contains nothing. It has contained nothing
-for twelve years.
+In 2012 the author worked through Nathan Whitehead's PL101,
+the write-your-own-programming-language course, end to end across a month. Two of
+its homeworks are a music compiler, and the language is **MML - QBASIC's Music
+Macro Language, the notation the `PLAY` statement takes**. The reference kept
+beside the grammar is the QBasic Tune Definition Language documentation, cited to
+the Internet Archive.
 
-That is the most exact artefact of this blind spot in the whole archive, and it is
-better evidence than the three projects above, because those at least record an
-attempt. This one records the intention and no attempt: a language project, by
-somebody who has designed a dozen languages, abandoned at the point where the
-subject became sound.
+It is not a toy. Notes are `a`-`g` with accidentals, or numbered 1 to 84 across
+the piano and converted back to letter and octave by arithmetic. Octave, default
+length, tempo and octave shift are **sticky** - each subsequence inherits whatever
+it does not set from the one before, and the first from a table of defaults. A
+trailing `.` extends a duration by half and several compound as `1.5^n`. The
+articulation modifiers are done by arithmetic rather than by a flag: staccato
+shortens the note to three quarters of its slot and emits a rest for the
+remainder, normal to seven eighths, legato leaves it whole - so articulation costs
+nothing downstream. On top of MML it adds a repeat form and parallel voices, both
+folded into `seq`/`par` trees by the grammar's own actions. The pipeline is four
+stages, each kept as its own file extension, and the test material is Ode to Joy
+and the Star Wars theme, hand-transcribed.
+
+**That changes the shape of this section, and it is worth saying how it was
+found.** The archive holds a 2014 folder for the same course containing Homework 1
+alone, beside an empty directory named for the second project. From the archive,
+the honest reading was that the music work was never attempted - and this section
+said so, at length, and made the empty directory its centrepiece. The repository
+was two years earlier and complete. The empty 2014 directory is not an abandoned
+first attempt; it is a re-attempt at a course already finished.
+
+The corrected reading is narrower and more interesting. Sound is not a subject the
+author has failed at. It is a subject he did one substantial piece of work in,
+fourteen years ago, in a language-design context, and then never returned to.
 
 ### What that means for `PLAN.md`
 
 `PLAN.md` names sound as one of two capabilities missing under the entire
 destination tier, and notes that §22's port I/O was justified partly by the PIT
-and the speaker - so the mechanism is reachable and the hard part is not access.
+and the speaker - so the mechanism is reachable and access is not the hard part.
 
-**Sound is therefore the item on that list most likely to be underestimated, and
-for a non-technical reason.** Everything else there has at least a failed attempt
-behind it, and a failed attempt tells you where the difficulty is. Sound has one
-empty directory and two borrowed assets. Nothing in twenty-three years establishes
-how long it takes this author to go from silence to a tune he wrote, because it
-has not once been done.
+**The MML work is unusually well aimed at that.** It targets the notation of
+QBASIC's `PLAY`, which drove the PC speaker on exactly this class of machine; it
+is a compiler from text to timed note events, which is the shape a Momo sound
+library would want; and the four-stage pipeline means the front end and the
+playback end are already separated. It also connects to the DOS thread rather than
+to the browser one - the QuickBASIC work in the archive is the same machine.
 
-**It is the same shape as the tooling blind spot, one step further out.** There,
-the skill existed and lived in commercial work; here, the skill existed and lived
-before the archive started. In both cases the capability is real and has never
-been wired to his own projects - which is an argument for treating sound the way
-`momoed` and `momopnt` are being treated, as a thing to attack deliberately rather
-than a thing to get to later. Getting to it later is precisely the documented
-failure mode.
+So the estimate should be revised in both directions at once. **The authoring
+notation is a solved problem with a worked implementation behind it.** What has
+never been done is the other end: getting a note out of the speaker, and the
+timing to sequence them. Nothing in twenty-three years establishes how long that
+takes, because the three browser projects above all had an audio engine handed to
+them and the MML work stopped at events rather than sound.
+
+**The blind spot is real but it is not where it looked.** It is not composition,
+and it is not notation. It is the hardware end, and that is the half `PLAN.md`
+already knows how to reach.
 
 # What has no ancestor here
 
