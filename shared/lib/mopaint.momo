@@ -50,6 +50,12 @@ group st[maxElements] {
   // paragraph until reflowAll has been over it.
   u16 line0
   u8  lineCount
+  // What a filled cell holds. Space for anything solid, and a character for a
+  // texture: the CP437 shade blocks make a stipple and the horizontal bar makes
+  // the stripes a System 6 title bar is ruled with. It is a fill rather than a
+  // second colour because a character cell cannot be half one colour, which is
+  // the same reason a bevel does not come across.
+  u8  fill
 }
 
 // Paragraphs awaiting a reflow, and the lines they came to. A line is a slice of
@@ -74,7 +80,14 @@ local sub stClear( u16 i ) {
   st[i].borderColor = lightGray
   st[i].line0 = 0
   st[i].lineCount = 0
+  st[i].fill = ' '
 }
+
+// CP437 textures. A cell cannot be shaded, so a texture is a character - which
+// is what the original hardware did too.
+const fillSolid   = ' '
+const fillStipple = 0xB0        // the light shade block
+const fillStripes = 0xC4        // the horizontal bar
 
 // begin() plus the root's style, since the root is the one element no caller
 // creates.
@@ -99,6 +112,20 @@ sub panelOpen( u8 bg ) {
   i = openBox()
   stClear( i )
   st[i].bg = bg
+}
+
+// A panel filled with a texture rather than with nothing - a stipple for a
+// desktop, stripes for a title bar. The foreground is the texture's colour, not
+// a text colour: a textured panel with text in it would need two, and no scene
+// here wants one.
+sub panelTextured( u8 bg, u8 fg, u8 fill ) {
+  u16 i
+
+  i = openBox()
+  stClear( i )
+  st[i].bg = bg
+  st[i].fg = fg
+  st[i].fill = fill
 }
 
 // A frame's width is added to the inset before the engine sees it, so content is
@@ -127,10 +154,11 @@ sub panelFramed( u8 bg, u8 borderW, u8 frameColor ) {
 // A bracket declaration is program-wide, so including this file is how a scene
 // gets them - and every existing call site still compiles, because a bracket
 // adds a spelling rather than replacing one.
-bracket paint  = paintBegin  / closeBox
-bracket box    = boxOpen     / closeBox
-bracket panel  = panelOpen   / closeBox
-bracket framed = panelFramed / closeBox
+bracket paint    = paintBegin    / closeBox
+bracket box      = boxOpen       / closeBox
+bracket panel    = panelOpen     / closeBox
+bracket framed   = panelFramed   / closeBox
+bracket textured = panelTextured / closeBox
 
 // Both kinds of text run. The only thing that differs is what the leaf declares
 // as its minimum width, and that is the whole of the distinction:
@@ -436,7 +464,13 @@ sub paintLayer( u16 dx, u16 dy ) {
     bg = st[i].bg
 
     if ( bg != transparent ) {
-      fillRect( el[i].x + dx, el[i].y + dy, el[i].w, el[i].h, ' ', color( bg, bg ) )
+      // A textured fill needs a foreground to draw the texture in; a solid one
+      // draws a space, where fg and bg being equal is what makes it solid.
+      if ( st[i].fill == fillSolid ) {
+        fillRect( el[i].x + dx, el[i].y + dy, el[i].w, el[i].h, fillSolid, color( bg, bg ) )
+      } else {
+        fillRect( el[i].x + dx, el[i].y + dy, el[i].w, el[i].h, st[i].fill, color( st[i].fg, bg ) )
+      }
     }
 
     if ( st[i].border > 0 ) {

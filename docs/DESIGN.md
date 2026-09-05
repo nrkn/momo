@@ -2865,6 +2865,16 @@ study of [Clay](https://github.com/nicbarker/clay) - `STUDIES.md` has the
 provenance and the method. `momolo` runs seven scenes and prints every resolved box
 as bare numbers; `mlodemo` draws one of them at 80x25.
 
+**A screen can be several layouts.** `mlolayer` is the second harness, for the
+scenes that compose: a window is its own tree laid out into its own root, and a
+screen is the list of them with an offset apiece. Z-order is list order, so
+overlapping needs no floating, no z-index and no element that remembers where it
+was put - and momolo is unchanged by all of it. The one thing it has to answer is
+where a window landed, which a caller asks by reading a resolved rectangle out of
+`el[]` between two layouts; `pmdemo`'s MDI children are placed that way. The
+ordering is forced rather than chosen, because `begin` resets the element array:
+build, run, read, paint, then the next.
+
 **It is pure geometry.** No text, colour, borders or drawing, which is the largest
 single departure from Clay. `shared/lib/mopaint.momo` is the layer it deliberately
 does not have: a border lives there rather than in the engine because a border is

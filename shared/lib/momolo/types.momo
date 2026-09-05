@@ -18,7 +18,15 @@
 // elements are reused between frames, so a field left unwritten holds the
 // previous frame's value.
 
-const maxElements = 64
+// The largest single layer here is the System 6 desktop at 69 elements, which
+// is what took this past the 64 the port arrived with. It is one number for
+// every program rather than a per-program const declared before the includes,
+// as momovec's maxCrossings is: that pattern exists because a crossing budget
+// varies by two orders of magnitude between datasets, and an element budget
+// does not - the largest scene here is under three times the smallest. When it
+// does start to matter, `npm run memory` is what will say so, and the momovec
+// shape is there to move to.
+const maxElements = 96
 const maxDepth    = 16
 
 // "No upper bound". u16 max, and layout units never come near it, so the

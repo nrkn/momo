@@ -238,6 +238,7 @@ sub sizeAxis( bool xAxis ) {
   bool along
   u16  insetAxis
   u16  avail
+  u16  overshoot
   u16  inner
   u16  fitted
   u16  spilled
@@ -263,7 +264,17 @@ sub sizeAxis( bool xAxis ) {
     along = xAxis ? !el[i].isCol : el[i].isCol
     insetAxis = xAxis ? el[i].insetL + el[i].insetR : el[i].insetT + el[i].insetB
 
+    // A box can be smaller than its own insets - a one-unit row with a border on
+    // each side has nowhere for the border to go, let alone anything inside it.
+    // The study lets `avail` go negative there and every comparison below then
+    // falls out correctly; these are u16, so a negative would wrap to 65535 and
+    // read as unlimited room, which is the opposite answer.
+    //
+    // So the shortfall is carried separately instead. `avail` stays clamped for
+    // the arithmetic and `overshoot` says how much of the box the insets ate,
+    // which is what the comparisons need to be told.
     avail = sizeOf( i, xAxis )
+    overshoot = avail > insetAxis ? 0 : insetAxis - avail
     avail = avail > insetAxis ? avail - insetAxis : 0
 
     if ( !along ) {
@@ -281,8 +292,9 @@ sub sizeAxis( bool xAxis ) {
         fitted = min( sizeOf( ci, xAxis ), avail )
         setSize( ci, xAxis, max( fitted, minOf( ci, xAxis ) ) )
 
-        // Held inside, unless its own minimum would not let it in.
-        if ( sizeOf( ci, xAxis ) > avail ) setOverflow( i, xAxis )
+        // Held inside, unless its own minimum would not let it in - or unless
+        // there was no inside to hold it in, which is what overshoot says.
+        if ( overshoot > 0 || sizeOf( ci, xAxis ) > avail ) setOverflow( i, xAxis )
       }
 
       continue
@@ -296,9 +308,9 @@ sub sizeAxis( bool xAxis ) {
       inner += sizeOf( ci, xAxis )
     }
 
-    if ( avail == inner ) continue
+    if ( overshoot == 0 && avail == inner ) continue
 
-    if ( avail < inner ) {
+    if ( overshoot > 0 || avail < inner ) {
       // Any child with room above its own minimum may give some back, whatever
       // its sizing kind. A fixed child has a minimum equal to its size, so it is
       // excluded by arithmetic rather than by a special case - which is where
@@ -316,10 +328,12 @@ sub sizeAxis( bool xAxis ) {
       // Whatever shrink could not reclaim is what spills, and with nothing
       // compressible the whole shortfall does. Either way the container is
       // marked so a caller can clip, truncate or offer to scroll it.
+      // The deficit is `inner - (avail - overshoot)`, written so no intermediate
+      // goes below zero.
       if ( candLen > 0 ) {
-        spilled = shrinkFrom( xAxis, inner - avail )
+        spilled = shrinkFrom( xAxis, inner + overshoot - avail )
       } else {
-        spilled = inner - avail
+        spilled = inner + overshoot - avail
       }
 
       if ( spilled > 0 ) setOverflow( i, xAxis )

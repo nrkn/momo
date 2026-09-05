@@ -30,6 +30,7 @@
 
 include "lib/std/io.momo"
 include "scenes/win311.momo"
+include "scenes/system6.momo"
 
 sub putField( u16 n ) {
   putNumber( n )
@@ -86,6 +87,35 @@ paint( w311DlgW * u, w311DlgH * lineHeight ) {
 }
 runPasses()
 dumpLayer( 3, clientX + w311DlgX * u, clientY + w311DlgY * lineHeight )
+
+// ---- system6, whose layers are placed rather than derived -----------------
+//
+// The layer counter restarts, as the element index does between scenes in
+// `momolo`: these are two scenes concatenated, not eight layers of one.
+
+paint( 80 * u, 25 * lineHeight ) {
+  buildS6Screen()
+}
+runPasses()
+dumpLayer( 0, 0, 0 )
+
+paint( s6FinderW * u, s6FinderH * lineHeight ) {
+  buildS6Finder()
+}
+runPasses()
+dumpLayer( 1, s6FinderX * u, s6FinderY * lineHeight )
+
+paint( s6AboutW * u, s6AboutH * lineHeight ) {
+  buildS6About()
+}
+runPasses()
+dumpLayer( 2, s6AboutX * u, s6AboutY * lineHeight )
+
+paint( s6DlgW * u, s6DlgH * lineHeight ) {
+  buildS6Dialog()
+}
+runPasses()
+dumpLayer( 3, s6DlgX * u, s6DlgY * lineHeight )
 
 putNumber( flowOverflowed )
 newline()
