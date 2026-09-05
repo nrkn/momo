@@ -1,0 +1,309 @@
+// win311.momo - Program Manager, and the harder half of overlapping windows.
+//
+// The same tree as the clay study's Windows 3.11 mockup, so the numbers it
+// produces can be held against the study's own.
+//
+// Overlapping windows need no floating and no element that remembers where it
+// was put: each window is its own tree, laid out into its own root at its own
+// size, and the screen is the list of them with an offset apiece. Z-order is
+// list order. That much a desktop of top-level windows shows on its own.
+//
+// **MDI asks the half a desktop cannot.** A group window lives INSIDE Program
+// Manager's client area, so the composer cannot place it until it knows where
+// that client area ended up - and it finds out by asking. `w311Client` is the
+// index the client panel got, `w311ReadClient` reads its resolved rectangle
+// straight back out of `el[]`, and every other layer is placed against it.
+// momolo is being used as a coordinate system without knowing it is one, and
+// nothing was added to the engine to allow it.
+//
+// The order that makes that work is forced rather than chosen: begin() resets
+// the element array, so a layer is built, its passes run, its rectangle read,
+// and then it is painted, all before the next layer begins. See mopaint's
+// paintLayer.
+//
+// **80x25 rather than the gallery's 84x30**, because that is a DOS text screen
+// and a picture nobody can display is not worth checking. The study emits its
+// reference at whatever size it is asked for, so both sides agree at this one.
+//
+// What the era is here for, beyond MDI:
+//
+//   the title bar    one row using every sizing rule there is. A fixed close
+//                    box, a growing spacer, a fitted title, another growing
+//                    spacer, two fixed boxes. The title comes out centred
+//                    without anything asking for centring, because the two grow
+//                    siblings converge on a common width and what sits between
+//                    them ends up in the middle.
+//   the captions     a label refuses to be narrowed, so `File Manager` in an
+//                    eleven-unit icon spilled sideways into its neighbour until
+//                    it became a paragraph. Program Manager wrapped its captions
+//                    for exactly this reason.
+//   the packing      nothing is hand-placed. Icons go into as many rows as the
+//                    window's width allows, worked out by moflow at build time.
+//
+// The bevels do not come across: a Windows raised edge is one border ring in two
+// colours and a cell cannot be lit on two sides, so this gets the plain frame the
+// study's own cell target gets. Geometry is unaffected - a border reserves the
+// same space either way, which is the whole argument for it being paint.
+
+include "scenes/passes.momo"
+include "lib/moflow.momo"
+
+// ---- the content ----------------------------------------------------------
+
+const u8[] sProgMan  = "Program Manager$"
+const u8[] sMenu     = "File$Options$Window$Help$"
+const menuCount      = 4
+
+const u8[] sAccTitle = "Accessories$"
+const u8[] sAccNames = "Write$Paintbrush$Terminal$Notepad$Calculator$Clock$Cardfile$Recorder$"
+const accCount       = 8
+
+const u8[] sMainTitle = "Main$"
+const u8[] sMainNames = "File Manager$Control Panel$Print Manager$MS-DOS Prompt$Windows Setup$PIF Editor$"
+const mainCount       = 6
+
+const u8[] sAbout    = "About Program Manager$"
+const u8[] sMsWin    = "Microsoft Windows$"
+const u8[] sVersion  = "Version 3.11$"
+const u8[] sOk       = "OK$"
+
+// ---- the layers -----------------------------------------------------------
+//
+// Sizes and offsets in units. The offsets are from the client rectangle rather
+// than from the screen, which is the point of the whole exercise.
+
+const w311AccW  = 42
+const w311AccH  = 12
+const w311AccX  = 2
+const w311AccY  = 1
+
+const w311MainW = 38
+const w311MainH = 10
+const w311MainX = 20
+const w311MainY = 6
+
+const w311DlgW  = 34
+const w311DlgH  = 9
+const w311DlgX  = 10
+const w311DlgY  = 3
+
+// Where the client panel landed. Read after layer zero has run its passes and
+// before anything else begins, because begin() will take the elements away.
+u16 w311Client
+u16 clientX
+u16 clientY
+
+sub w311ReadClient {
+  clientX = el[ w311Client ].x
+  clientY = el[ w311Client ].y
+}
+
+// ---- chrome ---------------------------------------------------------------
+
+// A corner box: close, minimise, maximise. One unit square, which at this scale
+// is all the room there is - the study's pixel target draws a real glyph in it.
+sub titleBox {
+  cfgFixedW( lineHeight )
+  cfgFixedH( lineHeight )
+  framed( lightGray, 1, darkGray ) {
+  }
+}
+
+// The row that centres its title without asking. The two grow boxes are
+// siblings, so pass 2 converges them on a common width and the fitted title
+// between them lands in the middle.
+sub titleBar( u16 caption, bool active ) {
+  u8 bg
+  u8 fg
+
+  if ( active ) {
+    bg = blue
+    fg = white
+  } else {
+    bg = white
+    fg = black
+  }
+
+  cfgGrowW()
+  cfgFixedH( lineHeight )
+  cfg.alignCross = alignCenter
+  panel( bg ) {
+    titleBox()
+
+    cfgGrowW()
+    box {
+    }
+
+    labelPaint( caption, fg, bg )
+
+    cfgGrowW()
+    box {
+    }
+
+    titleBox()
+    titleBox()
+  }
+}
+
+// The menu bar, and the separator under it as a sibling rather than a border.
+// A border on a one-unit row consumes the only row it has, which is §4's
+// limitation arriving in practice - and a rule between two things is honestly a
+// thing between them rather than a property of one of them.
+sub menuBar {
+  cfgGrowW()
+  cfgFixedH( lineHeight )
+  cfgInsetX( u )
+  cfg.gap = 2 * u
+  panel( lightGray ) {
+    for ( u16 i = 0; i < menuCount; i++ ) {
+      labelPaint( nthStr( addr( sMenu ), i ), black, lightGray )
+    }
+  }
+
+  cfgGrowW()
+  cfgFixedH( 1 )
+  panel( darkGray ) {
+  }
+}
+
+// ---- a group window -------------------------------------------------------
+
+// One icon cell, which is what lets a group be packed at build time rather than
+// discovered: its width is known before it is built.
+const iconW = 11
+
+sub progIcon( u16 name ) {
+  cfgCol()
+  cfgFixedW( iconW * u )
+  cfg.alignCross = alignCenter
+  cfg.gap = 1
+  panel( lightGray ) {
+    cfgFixedW( 2 * u )
+    cfgFixedH( lineHeight )
+    framed( white, 1, darkGray ) {
+    }
+
+    // A paragraph rather than a label, so a caption too wide for the cell wraps
+    // instead of spilling into the icon beside it.
+    paraAuto( name, black, lightGray )
+  }
+}
+
+// A group window packs its icons into as many rows as its width allows.
+//
+// It is told that width rather than discovering it, which is the cheap half of
+// flow: the packing happens while the tree is built because there is nothing
+// left to find out. moflow answers which icons go on which row, and this emits
+// them - the split that exists because Momo has neither closures nor a way to
+// write down a table of addresses.
+sub w311Group( u16 title, u16 names, u16 count, u16 width ) {
+  u16 inner
+  u16 r
+  u16 k
+
+  inner = width - 2 * border - 2 * u
+
+  for ( u16 i = 0; i < count; i++ ) {
+    flowW[i] = iconW * u
+  }
+
+  packRows( count, inner, u )
+
+  cfgCol()
+  cfgGrowW()
+  cfgGrowH()
+  framed( lightGray, border, darkGray ) {
+    titleBar( title, false )
+
+    cfgCol()
+    cfgGrowW()
+    cfgGrowH()
+    cfgInset( u )
+    panel( lightGray ) {
+      cfgCol()
+      cfgFixedW( inner )
+      cfg.gap = lineHeight >> 1
+      box {
+        for ( r = 0; r < flowRowCount; r++ ) {
+          cfgGrowW()
+          cfg.gap = u
+          box {
+            for ( k = 0; k < rowCount[r]; k++ ) {
+              progIcon( nthStr( names, rowFirst[r] + k ) )
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+sub buildW311Accessories => w311Group( addr( sAccTitle ), addr( sAccNames ), accCount, w311AccW * u )
+sub buildW311Main        => w311Group( addr( sMainTitle ), addr( sMainNames ), mainCount, w311MainW * u )
+
+// ---- the dialog -----------------------------------------------------------
+
+sub buildW311Dialog {
+  cfgCol()
+  cfgGrowW()
+  cfgGrowH()
+  framed( lightGray, border, darkGray ) {
+    titleBar( addr( sAbout ), true )
+
+    cfgCol()
+    cfgGrowW()
+    cfgGrowH()
+    cfgInset( u )
+    cfg.gap = lineHeight >> 1
+    panel( lightGray ) {
+      labelPaint( addr( sMsWin ), black, lightGray )
+      labelPaint( addr( sVersion ), black, lightGray )
+
+      // A spacer that takes whatever height is left, which pushes the button to
+      // the bottom without anything having to say so.
+      cfgGrowH()
+      box {
+      }
+
+      cfgGrowW()
+      cfg.alignMain = alignCenter
+      box {
+        cfgInsetX( 3 * u )
+        cfg.alignMain = alignCenter
+        framed( lightGray, 1, darkGray ) {
+          labelPaint( addr( sOk ), black, lightGray )
+        }
+      }
+    }
+  }
+}
+
+// ---- layer zero -----------------------------------------------------------
+
+// The only layer that knows where anything is. It records the index the client
+// panel gets, which is the next element about to be pushed - openBox hands that
+// index back but a bracket's open does not, and elCount is where it comes from
+// either way.
+sub buildW311Shell {
+  cfgCol()
+  cfgGrowW()
+  cfgGrowH()
+  cfgInset( 2 * u )
+  panel( cyan ) {
+    cfgCol()
+    cfgGrowW()
+    cfgGrowH()
+    framed( lightGray, border, darkGray ) {
+      titleBar( addr( sProgMan ), true )
+      menuBar()
+
+      w311Client = elCount
+
+      cfgCol()
+      cfgGrowW()
+      cfgGrowH()
+      framed( darkGray, 1, black ) {
+      }
+    }
+  }
+}

@@ -173,6 +173,44 @@ sub paraPaint( u16 at, u16 minW, u8 fg, u8 bg ) {
   paraCount++
 }
 
+// The longest run of non-space bytes, which is exactly the minimum width a
+// paragraph can be squeezed to: below it a word would have to break, and nothing
+// here breaks words.
+//
+// paraPaint takes that number because for a scene written by hand it is a
+// compile-time constant and writing it down costs nothing. A scene with fourteen
+// captions is the case where writing it down is fourteen chances to be wrong
+// about a string the compiler is holding anyway, so this works it out instead.
+u16 longestWord( u16 at ) {
+  u16 best
+  u16 n
+  u16 i
+  u8  ch
+
+  best = 0
+  n = 0
+  i = 0
+
+  for ( ;; ) {
+    ch = peek8( at + i )
+
+    if ( ch == strEnd || ch == ' ' ) {
+      if ( n > best ) best = n
+      if ( ch == strEnd ) break
+      n = 0
+    } else {
+      n++
+    }
+
+    i++
+  }
+
+  return best
+}
+
+// paraPaint with the minimum measured rather than passed.
+sub paraAuto( u16 at, u8 fg, u8 bg ) => paraPaint( at, longestWord( at ), fg, bg )
+
 // ---- the reflow -----------------------------------------------------------
 
 // Break one run into lines no wider than `limit`, appending them to the line
@@ -370,7 +408,27 @@ local sub drawText( u16 at, u16 x, u16 y, u8 attr ) {
   }
 }
 
-sub paintAll {
+// Paint what is currently laid out, offset by where the composer put it.
+//
+// This is the whole of overlapping windows. A window is not part of a bigger
+// layout: it is its own tree, laid out into its own root at its own size, and a
+// screen is a list of them with an offset apiece. Z-order is list order, so
+// there is no floating, no z-index, and no element that has to remember where it
+// was put.
+//
+// The order a caller has to use follows from begin() resetting the element
+// array: a layer is built, its passes run, anything read out of it read, and
+// then it is painted - all before the next layer begins. The study this came
+// from keeps every layer and renders at the end, which it can afford to; here
+// the elements are gone as soon as the next paint( ) opens.
+//
+// That ordering is what makes an MDI child work rather than what makes it hard.
+// A child lives inside its parent's client area, so the composer cannot place it
+// until it knows where that client area landed - and it finds out by reading a
+// resolved rectangle straight out of el[] between the two. momolo is being used
+// as a coordinate system without knowing it is one, and nothing was added to
+// allow it.
+sub paintLayer( u16 dx, u16 dy ) {
   u8  bg
   u8  fg
 
@@ -378,12 +436,12 @@ sub paintAll {
     bg = st[i].bg
 
     if ( bg != transparent ) {
-      fillRect( el[i].x, el[i].y, el[i].w, el[i].h, ' ', color( bg, bg ) )
+      fillRect( el[i].x + dx, el[i].y + dy, el[i].w, el[i].h, ' ', color( bg, bg ) )
     }
 
     if ( st[i].border > 0 ) {
       fg = st[i].borderColor
-      drawFrame( el[i].x, el[i].y, el[i].w, el[i].h, st[i].border, color( fg, fg ) )
+      drawFrame( el[i].x + dx, el[i].y + dy, el[i].w, el[i].h, st[i].border, color( fg, fg ) )
     }
 
     if ( st[i].text != 0 ) {
@@ -394,8 +452,8 @@ sub paintAll {
       if ( st[i].lineCount == 0 ) {
         drawText(
           st[i].text,
-          el[i].x + el[i].insetL,
-          el[i].y + el[i].insetT,
+          el[i].x + dx + el[i].insetL,
+          el[i].y + dy + el[i].insetT,
           color( st[i].fg, fg )
         )
       } else {
@@ -403,8 +461,8 @@ sub paintAll {
           drawRun(
             lineAt[ st[i].line0 + k ],
             lineLen[ st[i].line0 + k ],
-            el[i].x + el[i].insetL,
-            el[i].y + el[i].insetT + k,
+            el[i].x + dx + el[i].insetL,
+            el[i].y + dy + el[i].insetT + k,
             color( st[i].fg, fg )
           )
         }
@@ -412,3 +470,6 @@ sub paintAll {
     }
   }
 }
+
+// A screen that is one layout is the layer at the origin.
+sub paintAll => paintLayer( 0, 0 )

@@ -366,10 +366,10 @@ What most of the rest are is now said by the tree rather than by this paragraph.
 What the tree cannot say is that **nothing checks `programs/demos`**: `rndtext`
 fills the text buffer with random characters, `rndpix` fills a mode 13h frame with
 random pixels, `tilefill` checkerboards two 8x8 tiles over one, and `tigerpic`,
-`mvpic` and `mlodemo` draw what the harnesses beside them digest. All six wait for
-a key and put the display back, so none can have a `.expected` - tier 2 cannot run
-something that blocks. The golden tier still covers them, which is the regression
-coverage that matters for a compiler.
+`mvpic`, `mlodemo` and `pmdemo` draw what the harnesses beside them digest. Every
+one waits for a key and puts the display back, so none can have a `.expected` -
+tier 2 cannot run something that blocks. The golden tier still covers them, which
+is the regression coverage that matters for a compiler.
 
 `tennis` is the other game and the largest program here - six files,
 mode 13h, sprites, a palette, and a keyboard reader that masks IRQ1 and
@@ -416,6 +416,16 @@ same tree at 80x25 and waits for a key - literally the same, since both include
 colour, borders and wrapping layer that deliberately sits outside the engine, so
 what is untested is the painting rather than the layout.
 
+**`mlolayer` and `pmdemo` are the same pair for a screen made of several layouts.**
+A window is its own tree at its own size and a screen is the list of them with an
+offset apiece, so overlapping needs no floating and no element that remembers
+where it was put. `pmdemo` is Program Manager: four overlapping windows, where
+the group windows are MDI children placed against a client area read back out of
+the layout beneath them. `mlolayer` holds every one of those boxes against the
+study with the offsets folded in, which is what checks the derivation rather than
+just the geometry. The packing that puts the icons in rows is
+`shared/lib/moflow.momo`, above the engine for the reason its header gives.
+
 **`README.md` is provisional**, and knowing that is more useful than the file
 itself. It was written quickly to have something in place, in the register most
 language READMEs are written in - bolded claims, a feature list, a certain amount
@@ -433,7 +443,7 @@ The cost of waiting is that the first thing a visitor reads is the weakest
 document in the repo. That trade is made deliberately, and preferred to shipping a
 second draft in the same voice as the first.
 
-421 tier-1 assertions, 39 e2e programs, all green. `npm test` prints the tier 1
+425 tier-1 assertions, 40 e2e programs, all green. `npm test` prints the tier 1
 breakdown, and `npm run drift` holds both figures against the harness and the
 committed expectations. Both have drifted before, which is why a script reads
 them now.

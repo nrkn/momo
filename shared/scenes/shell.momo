@@ -14,18 +14,10 @@
 // Colours come from std/screen.momo, which names the CGA sixteen exactly as the
 // study does. That was not an accident.
 
-include "lib/mopaint.momo"
-include "lib/momolo/fit.momo"
-include "lib/momolo/size.momo"
-include "lib/momolo/refit.momo"
-include "lib/momolo/place.momo"
-
-// One unit is one character cell, which mopaint decides rather than the scene.
-const u = cellW
-
-// The study derives this as max(1, u >> 3), so it is one cell here and two
-// pixels there.
-const border = 1
+// The engine, the layer above it, what a unit is, and the pass order. Shared
+// with the other scene files rather than spelled here, since there is more than
+// one of them now.
+include "scenes/passes.momo"
 
 // ---- the content ----------------------------------------------------------
 
@@ -90,24 +82,6 @@ const bodyMinW     = 7          // "wrapped"
 const squeezedMinW = 8          // "squeezed"
 const trackMinW    = 5          // "alpha", and "gamma" is the same length
 const foxMinW      = 5          // "quick", "brown" and "jumps" all tie
-
-// ---- the pass sequence ----------------------------------------------------
-//
-// Written out rather than hidden, because the reflow in the middle is the whole
-// point: widths are final after sizeX, paint breaks its paragraphs into lines and
-// says how tall they came out, and refitY carries that up the tree before heights
-// are settled.
-//
-// That is Clay's pass order with its measure callback turned inside out - the
-// engine offers a sequence point and never calls out.
-
-sub runPasses {
-  sizeX()
-  reflowAll()
-  refitY()
-  sizeY()
-  place()
-}
 
 // ---- shared scene pieces --------------------------------------------------
 //
