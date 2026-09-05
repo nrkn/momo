@@ -3587,8 +3587,6 @@ paint( 80 * u, 25 * lineHeight ) {
 }
 ```
 
-Six of those in `momolo.momo` and one in `mlodemo.momo`.
-
 ### It is not the macro system §20 rejected
 
 §20 asks how a nested structure should be built and rejects parser sugar twice

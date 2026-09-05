@@ -97,13 +97,20 @@ npm install
 npm test                        # compile tests, golden .asm, types - about a second
 ```
 
-That much needs no DOSBox. To assemble and run, point the toolchain at your
-DOSBox first - copy `toolchain.example.json` to `toolchain.json` and edit the
-entry for your platform, or set `MOMO_DOSBOX`. `toolchain.json` is gitignored,
-since the path is yours rather than the project's.
+That much needs no DOSBox. Anything that assembles or runs launches DOSBox, and
+the tools locate it from the `MOMO_DOSBOX` environment variable first, then from
+`toolchain.json` in the repo root. `toolchain.example.json` is the template that
+file is copied from, and it carries an entry per platform. `toolchain.json` is
+gitignored, since the path belongs to a machine rather than to the project.
 
 ```bash
 npm start smoke                 # compile, assemble and run in DOSBox
+```
+
+With neither present, a run that needs DOSBox stops with:
+
+```
+error: no toolchain.json - copy toolchain.example.json to toolchain.json and set the path to your DOSBox, or set MOMO_DOSBOX
 ```
 
 Write a program at `projects/<category>/<name>/<name>.momo` - `programs/games`

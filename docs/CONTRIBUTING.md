@@ -115,9 +115,16 @@ is easy not to notice you are at.
 
 ## Getting set up
 
-Node 22+, and DOSBox for anything that assembles or runs. Copy
-`toolchain.example.json` to `toolchain.json` and point it at your DOSBox, or set
-`MOMO_DOSBOX`. `npm test` needs neither.
+Node 22+. Tier 2 and `npm start` run under DOSBox; `npm test` needs neither.
+
+The tools read the `MOMO_DOSBOX` environment variable first, then
+`toolchain.json` in the repo root, which is copied from the tracked
+`toolchain.example.json` and gitignored because the path belongs to a machine.
+With neither present, a run that needs DOSBox stops with:
+
+```
+error: no toolchain.json - copy toolchain.example.json to toolchain.json and set the path to your DOSBox, or set MOMO_DOSBOX
+```
 
 ## Scripts
 

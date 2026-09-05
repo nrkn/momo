@@ -148,59 +148,26 @@ so it doubles as a check on the codegen design:
   `PLAN.md`**. Where neither is worth the drift surface, **the commit that removes
   it is the record**: `git log` does not drift, which `PLAN.md` already says of it.
 
-  **A figure nothing checks is drift surface.** `std/io.momo` said 22 programs
-  included it when the answer was 36, and 19 of 48 round-trip assertions when the
-  suite had 60. Keep a number where it is load-bearing and stable; otherwise give
-  the shape of it and let the tools hold the arithmetic.
+  **Four kinds of number, and only the last one costs anything:**
 
-  That rule was written here and then not applied, so the same sentence in
-  `io.momo` drifted a second time - 35 against an answer of 39 - and was cut
-  rather than corrected. It is short a test for deciding *which* numbers are
-  worth keeping, and a sweep of every figure in the repository produced one.
-  **Four kinds, and only the last one costs anything:**
+  - Checked by a test: §1's mnemonic count, and nothing else.
+  - Not about this repo: 8086 cycle counts, 64KB, 8.3, 54.9ms a tick.
+  - Frozen at a date and visibly saying so: `DECISIONS.md`, §44's corpus figures.
+  - Present tense about the repo as it stands: everything that has drifted here.
 
-  | | | |
-  |---|---|---|
-  | **checked by a test** | §1's mnemonic count, and nothing else | free |
-  | **not about this repo** | 8086 cycle counts, 64KB, 8.3, 54.9ms a tick | free |
-  | **frozen at a date, and visibly saying so** | all of `DECISIONS.md`, §44's corpus figures, §48's "32 of the 34 opens *became* blocks" | free |
-  | **present tense about the repo as it stands** | everything that has ever drifted here | all of it |
-
-  **The tell is tense, and it is reliable.** DESIGN §14 carried the same figure
-  twice in one paragraph: *"22 programs included that file **at the time**"* is
-  still there and still true, and *"in every program that includes it - 35 of
-  them"* had rotted and has been cut. Same file, same paragraph, same number -
-  the guard is the only difference between them. §44
-  says its counts are *"fixed at the date rather than maintained"* and has cost
-  nothing since; §45 reused §44's denominator three hundred lines later without
-  that sentence, and it went stale.
-
-  So: **a count belongs in `DECISIONS.md`, where it is dated by construction.** A
-  present-tense count anywhere else is a bug unless a test reads it - and the fix
-  is one of three moves, in this order. Hand it to a tool. Or add §44's sentence,
-  if the figure *is* the evidence for a design. Or cut it and give the shape,
-  which is nearly always right when the number is incidental to the point being
-  made. Note that `DECISIONS.md` carries several hundred numerals and has never
-  needed a sweep, which is the argument for the split rather than for counting
-  less.
+  **No present-tense count about the repo in prose unless a test or
+  `npm run drift` reads it.**
 
 ## Prose
 
-`DESIGN.md`, `CONTRIBUTING.md` and this file already share a voice, and it is not
-the one most language READMEs use: precise, dry, and willing to say what something
-cost. *"This produced one false all-clear."* *"The reduction delivers about 80% of
-what it could."* *"Not wrong, just never the biggest thing left."* A claim is
-load-bearing or it is cut.
-
-- **Understatement over enthusiasm.** Say what the thing does and let the reader
-  decide whether that is impressive. Bolded superlatives and a bullet list of
-  features are the register of a product page.
-- **Record what a decision cost**, not only what it bought. A good share of the
-  value in these documents is the entries admitting a measurement came in under
-  its estimate, or that a claim had drifted from the code.
-- **Dry wit is welcome; jokes are not.** The test is whether it still reads well
-  on the fourth pass, when the reader is looking something up rather than
-  browsing.
+- Plain prose, short sentences.
+- A heading names a topic rather than making a claim.
+- State a rule before its reason. Give a reason only where it changes how the
+  rule is applied.
+- The incident that produced a rule goes in `LESSONS.md`, not beside the rule.
+- Record what a decision cost, not only what it bought.
+- A commit body is for a measurement, or for a prediction that did not hold.
+  Otherwise the subject line is enough.
 - **Never cite a study** - not from a document, and not from a source comment.
   Some of `shared/lib/` was ported from projects that are not in this repository
   and never will be, so a reference to one names a file the reader does not have

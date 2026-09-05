@@ -641,6 +641,10 @@ assumed - and the same check on the escape guard failed exactly
 did not are both inside `stripOpen`, whose whole job is to leave a box open; its
 four call sites are blocks anyway, because `stripClose` owns both of its closes.
 
+`paint` is the bracket in DESIGN §48's motivating example, the open that crossed
+two routine boundaries and a file boundary. Six of those in `momolo.momo` and one
+in `mlodemo.momo`.
+
 `momolo` and `mlodemo` emit code identical to what they emitted before, and the
 count of source-quote comments is unchanged too - 674 and 588 - because each open
 and each close is still exactly one statement. What changed is what those quotes

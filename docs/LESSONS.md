@@ -192,12 +192,14 @@ Two agents in a row have reported tier 2 as unavailable because DOSBox "would be
 needed", while `toolchain.json` sat in the repo root correctly configured the
 whole time.
 
-What causes it is that `README.md` and `CONTRIBUTING.md` describe DOSBox in the
+What caused it was that `README.md` and `CONTRIBUTING.md` described DOSBox in the
 second person - *"point the toolchain at **your** DOSBox first"* - because they
-are addressing somebody setting the project up. **That is a setup instruction,
-not a statement about this machine**, and it reads as the latter. `toolchain.json`
-being gitignored makes it worse: "not in the repo" slides quietly into "not
-present". `CONTRIBUTING.md`'s closing *"N e2e programs, all green"* contradicts
+were addressing somebody setting the project up. **That was a setup instruction,
+not a statement about this machine**, and it read as the latter. Both passages
+now state the mechanism in the third person and quote the error the tools print
+when no DOSBox is configured. `toolchain.json` being gitignored makes it worse:
+"not in the repo" slides quietly into "not present". `CONTRIBUTING.md`'s closing
+*"N e2e programs, all green"* contradicts
 the conclusion outright - that figure cannot exist unless somebody runs them - and
 got read straight past both times. It is quoted here without its number
 deliberately: the number has moved three times, and an agent who notices the
@@ -236,6 +238,38 @@ not been built yet - §49's routine arities - where the load-bearing claim was
 right and the totals beside it could not be reproduced by any counting rule that
 also gave the right answer. That is twice now, after §48's wrapper table, and it
 is the commonest way a wrong figure gets written down here.
+
+**No present-tense count about the repo in prose unless a test or `npm run drift`
+reads it.**
+
+A figure nothing checks is drift surface. `std/io.momo` said 22 programs
+included it when the answer was 36, and 19 of 48 round-trip assertions when the
+suite had 60. Keep a number where it is load-bearing and stable; otherwise give
+the shape of it and let the tools hold the arithmetic.
+
+That rule was written in `STYLE.md` and then not applied, so the same sentence in
+`io.momo` drifted a second time - 35 against an answer of 39 - and was cut
+rather than corrected. It was short a test for deciding *which* numbers are
+worth keeping, and a sweep of every figure in the repository produced one -
+the four kinds now in `STYLE.md`.
+
+**The tell is tense, and it is reliable.** DESIGN §14 carried the same figure
+twice in one paragraph: *"22 programs included that file **at the time**"* is
+still there and still true, and *"in every program that includes it - 35 of
+them"* had rotted and has been cut. Same file, same paragraph, same number -
+the guard is the only difference between them. §44
+says its counts are *"fixed at the date rather than maintained"* and has cost
+nothing since; §45 reused §44's denominator three hundred lines later without
+that sentence, and it went stale.
+
+So: **a count belongs in `DECISIONS.md`, where it is dated by construction.** A
+present-tense count anywhere else is a bug unless a test reads it - and the fix
+is one of three moves, in this order. Hand it to a tool. Or add §44's sentence,
+if the figure *is* the evidence for a design. Or cut it and give the shape,
+which is nearly always right when the number is incidental to the point being
+made. Note that `DECISIONS.md` carries several hundred numerals and has never
+needed a sweep, which is the argument for the split rather than for counting
+less.
 
 ## Documents
 
