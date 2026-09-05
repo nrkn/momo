@@ -35,6 +35,11 @@ console is kept as `_reference/yuki.txt`.
   designed here, what each was distilled from, and the method those ports
   converged on. It also carries the one rule that follows from studies living
   outside this repository: say what was learned, never where it was learned.
+- **`PROVENANCE.md`** - where the ideas came from, built and unbuilt alike, traced
+  through the author's earlier projects. It follows `STUDIES.md`'s rule for the
+  same reason - name a project and a date, never a path - so it is readable
+  without any of them. It is also the one document where inference is allowed,
+  which `PLAN.md` refuses; every claim in it is labelled with how firm it is.
 
 ## Layout
 
@@ -52,7 +57,7 @@ tests/compile/       tier 1 tests
 editor/vscode/       generated syntax highlighting
 docs/                this file, DESIGN.md, PLAN.md, DECISIONS.md,
                      PEEPHOLES.md, STYLE.md, LESSONS.md, PITFALLS.md,
-                     STUDIES.md
+                     STUDIES.md, PROVENANCE.md
 ```
 
 `README.md` stays in the root because that is where it is read from, and so do
