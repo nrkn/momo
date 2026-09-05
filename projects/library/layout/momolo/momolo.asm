@@ -32,6 +32,7 @@ border:         equ     1
 bodyMinW:       equ     7
 squeezedMinW:   equ     8
 trackMinW:      equ     5
+foxMinW:        equ     5
 
 ; =========================================================== entry ====
 
@@ -102,6 +103,18 @@ __entry:
         call    paintBegin
 ; ---- buildAlignment()
         call    buildAlignment
+; ---- }
+        call    closeBox
+; ---- runPasses()
+        call    runPasses
+; ---- dumpBoxes()
+        call    dumpBoxes
+; ---- paint( 52 * u, 9 * lineHeight ) {
+        mov     word [paintBegin__w], 52
+        mov     word [paintBegin__h], 9
+        call    paintBegin
+; ---- buildWrapping()
+        call    buildWrapping
 ; ---- }
         call    closeBox
 ; ---- runPasses()
@@ -4907,6 +4920,69 @@ buildAlignment:
         call    closeBox
         ret
 
+; ============================================== sub wrapCol ====
+
+wrapCol:
+; ---- cfgCol()
+        call    cfgCol
+; ---- cfgFixedW( width )
+        mov     ax, [wrapCol__width]
+        mov     [cfgFixedW__n], ax
+        call    cfgFixedW
+; ---- panel( darkGray ) {
+        mov     byte [panelOpen__bg], 8
+        call    panelOpen
+; ---- labelPaint( caption, lightGray, darkGray )
+        mov     ax, [wrapCol__caption]
+        mov     [labelPaint__at], ax
+        mov     byte [labelPaint__fg], 7
+        mov     byte [labelPaint__bg], 8
+        call    labelPaint
+; ---- paraPaint( addr( sFox ), foxMinW, yellow, darkGray )
+        mov     ax, sFox                    ; link-time constant
+        mov     [paraPaint__at], ax
+        mov     word [paraPaint__minW], 5
+        mov     byte [paraPaint__fg], 14
+        mov     byte [paraPaint__bg], 8
+        call    paraPaint
+; ---- }
+        call    closeBox
+        ret
+
+; ============================================== sub buildWrapping ====
+
+buildWrapping:
+; ---- cfgGrowW()
+        call    cfgGrowW
+; ---- cfgGrowH()
+        call    cfgGrowH
+; ---- cfgInset( u )
+        mov     byte [cfgInset__n], 1
+        call    cfgInset
+; ---- cfg.gap = u
+        mov     byte [cfg__gap], 1
+; ---- panel( black ) {
+        mov     byte [panelOpen__bg], 0
+        call    panelOpen
+; ---- wrapCol( addr( sW8 ), 8 * u )
+        mov     ax, sW8                     ; link-time constant
+        mov     [wrapCol__caption], ax
+        mov     word [wrapCol__width], 8
+        call    wrapCol
+; ---- wrapCol( addr( sW14 ), 14 * u )
+        mov     ax, sW14                    ; link-time constant
+        mov     [wrapCol__caption], ax
+        mov     word [wrapCol__width], 14
+        call    wrapCol
+; ---- wrapCol( addr( sW26 ), 26 * u )
+        mov     ax, sW26                    ; link-time constant
+        mov     [wrapCol__caption], ax
+        mov     word [wrapCol__width], 26
+        call    wrapCol
+; ---- }
+        call    closeBox
+        ret
+
 ; ============================================== sub putField ====
 
 putField:
@@ -5133,6 +5209,8 @@ alignRow__a:    dw      0        ; u16
 alignRow__b:    dw      0        ; u16
 alignRow__c:    dw      0        ; u16
 alignRow__cross: db      0        ; u8
+wrapCol__caption: dw      0        ; u16
+wrapCol__width: dw      0        ; u16
 putField__n:    dw      0        ; u16
 putNumber__i:   db      0        ; u8
 strLen__n:      dw      0        ; u16
@@ -5327,6 +5405,10 @@ sAlEc:          db      'ec$'        ; u8[3] const
 sAlSe:          db      'se$'        ; u8[3] const
 sAlCe:          db      'ce$'        ; u8[3] const
 sAlEe:          db      'ee$'        ; u8[3] const
+sFox:           db      'the quick brown fox jumps over it$'        ; u8[34] const
+sW8:            db      'w8$'        ; u8[3] const
+sW14:           db      'w14$'        ; u8[4] const
+sW26:           db      'w26$'        ; u8[4] const
 putNumber__digits: times 5 db 0        ; u8[5]
 
 ; ============================================================ heap ====

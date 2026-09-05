@@ -78,12 +78,18 @@ const u8[] sAlSe     = "se$"
 const u8[] sAlCe     = "ce$"
 const u8[] sAlEe     = "ee$"
 
+const u8[] sFox      = "the quick brown fox jumps over it$"
+const u8[] sW8       = "w8$"
+const u8[] sW14      = "w14$"
+const u8[] sW26      = "w26$"
+
 // A paragraph's minimum width is its longest word, and that one number is the
 // whole of what makes it a paragraph rather than a label. In a Momo program it
 // is a compile-time constant because the string is.
 const bodyMinW     = 7          // "wrapped"
 const squeezedMinW = 8          // "squeezed"
 const trackMinW    = 5          // "alpha", and "gamma" is the same length
+const foxMinW      = 5          // "quick", "brown" and "jumps" all tie
 
 // ---- the pass sequence ----------------------------------------------------
 //
@@ -422,5 +428,40 @@ sub buildAlignment {
     alignRow( addr( sAlSs ), addr( sAlCs ), addr( sAlEs ), alignStart )
     alignRow( addr( sAlSc ), addr( sAlCc ), addr( sAlEc ), alignCenter )
     alignRow( addr( sAlSe ), addr( sAlCe ), addr( sAlEe ), alignEnd )
+  }
+}
+
+// ---- scene: wrapping ------------------------------------------------------
+//
+// One paragraph in three column widths, at 6, 3 and 2 lines. The pair to read
+// beside `squeeze`: this one changes the width and lets height follow, where
+// squeeze changes the space and lets both follow.
+//
+// The paragraph declares its longest word as its minimum and nothing else, so
+// momolo never learns it is text - the same string three times, and every
+// difference on screen comes from the column it was put in.
+
+sub wrapCol( u16 caption, u16 width ) {
+  cfgCol()
+  cfgFixedW( width )
+  panel( darkGray ) {
+    labelPaint( caption, lightGray, darkGray )
+    paraPaint( addr( sFox ), foxMinW, yellow, darkGray )
+  }
+}
+
+// A row, which is the default direction - the columns are the children, and
+// each one is a col in its own right. alignCross is left alone for the same
+// reason: start is what a reset gives, and the scene wants the three columns
+// hanging from the top rather than centred against the tallest.
+sub buildWrapping {
+  cfgGrowW()
+  cfgGrowH()
+  cfgInset( u )
+  cfg.gap = u
+  panel( black ) {
+    wrapCol( addr( sW8 ), 8 * u )
+    wrapCol( addr( sW14 ), 14 * u )
+    wrapCol( addr( sW26 ), 26 * u )
   }
 }
