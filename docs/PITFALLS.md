@@ -265,7 +265,7 @@ as belonging to it.
 
 `bracket` closed the half of this that was a correctness problem - a missing
 close - and deliberately did not touch the carrier, which is a library design
-waiting on a language feature. DESIGN §48 records the misreading as real and
+waiting on a language feature. DECISIONS §48 records the misreading as real and
 confirmed by looking rather than predicted; PLAN §49's named and default
 arguments are what would retire it.
 

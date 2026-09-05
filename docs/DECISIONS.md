@@ -637,6 +637,10 @@ assumed - and the same check on the escape guard failed exactly
 
 ### The sweep moved no instruction, and the source quotes prove more than that
 
+**32 of the 34 opens across the three call-site files became blocks.** The two that
+did not are both inside `stripOpen`, whose whole job is to leave a box open; its
+four call sites are blocks anyway, because `stripClose` owns both of its closes.
+
 `momolo` and `mlodemo` emit code identical to what they emitted before, and the
 count of source-quote comments is unchanged too - 674 and 588 - because each open
 and each close is still exactly one statement. What changed is what those quotes
@@ -664,8 +668,19 @@ box {
 ```
 
 Unchanged semantically. Sharper to misread, and the strongest argument for giving
-the openers real parameters - which waits on a spelling for fourteen optional
-arguments with defaults, and there is no plan item for one.
+the openers real parameters.
+
+**§49 is what that needs**, and it was written because of this. `cfgReset` turns
+out to be default arguments hand-rolled - the callee restoring its own defaults so
+a caller sets only what differs - which is a mechanism Momo's static parameter
+slots allow and a stack language cannot. Measured on the way there: the corpus's
+maximum arity is 6 rather than the fourteen the carrier's own comment argues
+against, and a box carries 2.2 settings.
+
+### What it cost
+
+One new keyword, two AST nodes, a 186-line pass and 169 lines of parser. Twelve
+compile tests, two round trips and one identity pair, from 406 assertions to 421.
 
 ### What it did not cost
 
@@ -679,6 +694,46 @@ before it was asserted.
 ---
 
 ## 45. `for ( x in a )` and `for ( x of a )`
+
+### What wanted it, and the prediction that was wrong
+
+**Every corpus figure in this entry is fixed at the date, as §44's are and for the
+same reason**: they classify the corpus as it stood when this was designed, and
+adoption moved it the same week. They are the evidence for the design, not a live
+count of anything - do not recount them, and do not read them as current.
+
+**34 of the 170 `for` statements walked a container's full extent**, which is what
+these two forms serve - a fifth of the loops, rather than the handful a
+fixed-capacity memory model suggests.
+
+That figure is a correction, and the way it was found is the argument for taking
+the measurement twice. Reading the histogram of test clauses, the prediction was
+that almost every loop walks the **used prefix** of a buffer rather than the
+buffer: `count`, `crossingCount`, `candLen`, `scenePathCount[ s ]` and `n` all say
+exactly that, and they are thirty-odd loops between them. But `< maxPaths` appears
+20 times and is not one of them. `u16[maxPaths] pathPixels` sitting beside
+`for ( p = 0; p < maxPaths; p++ )` is a whole-array walk that spells its bound with
+the capacity constant instead of with `len`. Opening one of them is what found it.
+
+So the split is roughly 34 whole-extent walks and thirty-odd used-prefix ones, with
+the rest counting something that is not a container at all - a screen dimension 19
+times, and small literal bounds below that.
+
+**Only 12 of the 34 say `len`.** The other 22 name a constant that the array's own
+declaration also names, which is a coupling rather than a bug: the two cannot
+disagree while they share the constant, though in `mvdemo` they sit in different
+files and the constant is generated. `for ( p in pathPixels )` removes the coupling
+rather than maintaining it. That is a smaller correctness argument than "a bug
+waiting to happen", and it is the honest size of one.
+
+Where `of` earns its place is density rather than count. There were 281 indexed
+field accesses - `el` 177, `player` 33, `st` 30, `held` 24, `mob` 8 - and they
+cluster: a five-line body in `momolo/fit.momo` reads `el[ci]` four times, and the
+four statements below it read `el[i]` twelve times. That is what `of` is for.
+
+The index histogram is why most of those 281 turned out **not reachable by `of`**:
+`i` 195, `pi` 23, `ci` 19, `rightPlayer` 16, `leftPlayer` 16, and several of those
+are plainly not counters.
 
 ### The design put `of` in the resolver, and it went in the parser
 
@@ -793,6 +848,15 @@ group and a `far` region in one program.
 
 ## 44. Declaring the counter in a `for`
 
+### What wanted it, and what adoption took
+
+**131 of the 170** `for` statements under `projects/` and `shared/` were already
+spelled as a declaration on the line above the loop when this was designed. That
+count is the whole case for the feature, and it is fixed at the date rather than
+maintained, because adoption moved it immediately: **129 loops across 37 files**
+took the sugar in the first sweep, leaving seven counters that are read after their
+own loop and keep their declarations.
+
 ### The design put one decision on the wrong stage
 
 §44 gave the printer a heading of its own - where the lifted declaration should
@@ -869,8 +933,9 @@ larger instrument than any two files can be.
 
 ### What it cost
 
-159 lines in `parser.ts`, and nothing in the resolver, the emitter or the printer.
-Tier 1 went from 378 to 390: nine compile tests, two more round trips because that
+159 lines in `parser.ts` - one function, a stack of frames for a body's lifted
+declarations, and the exclusions - and nothing in the resolver, the emitter or the
+printer. Tier 1 went from 378 to 390: nine compile tests, two more round trips because that
 tier already compiles every `ok-` file, and §39's unit-identity assertion
 generalised into an identity tier carrying two pairs.
 

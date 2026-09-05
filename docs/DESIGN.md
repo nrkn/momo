@@ -3173,13 +3173,9 @@ u8 i
 for ( i = 0; i < n; i++ ) { ... }
 ```
 
-which is how **131 of the 170** `for` statements under `projects/` and `shared/`
-were spelled when this was designed. That count is the whole case for it: nothing
-here is expressive, and the feature is that a convention every C-family language
-shares stops being spelled in two lines. The figure is fixed at the date rather
-than maintained, because adoption moved it immediately: **129 loops across 37
-files** took it in the first sweep, leaving seven counters that are read after
-their own loop and keep their declarations.
+Nothing here is expressive: the feature is that a convention every C-family
+language shares stops being spelled in two lines. What the corpus said about that,
+and what adoption then took, is DECISIONS §44.
 
 ### It is sugar, and that is assertable rather than arguable
 
@@ -3190,23 +3186,14 @@ spelling, required to emit the same instructions. The golden tier cannot make th
 check on its own - it compares committed output against itself and would agree with
 a leak.
 
-**Measured**: 120 instructions, identical.
-
-**Storage does move, though, and only the corpus showed it.** Lifting to the top of
-the body puts a counter *before* the declarations it was written after, so the data
-section comes out in a different order - **34 labels repositioned across 23 of the
-47 projects**, against not one changed instruction anywhere. Same labels, same
+**Storage does move, though.** Lifting to the top of the body puts a counter
+*before* the declarations it was written after, so the data section comes out in a
+different order and not one instruction changes. Same labels, same
 widths, same footprint; §12's analysis is untouched, because reordering identical
 storage cannot change what it adds up to. The one thing it could touch is which
 words land on even addresses, and DECISIONS §27 already measured that as -13% on a
 true 8086 and nothing on an 8088 - unmanaged today either way, since the parity
 comes from the code size and the compiler emits text rather than bytes.
-
-The pair could not have caught that, and it is worth knowing why: its twin is
-written in the *lifted* order on purpose, so the two agree about the data section
-by construction. That makes it a clean test of the instruction claim and no test at
-all of the ordering one. The golden tier is what covers the second, and it did so
-the first time real code adopted the sugar.
 
 ### Two loops, one name, which is the common case rather than the corner
 
@@ -3222,10 +3209,10 @@ semantics rather than equal to them: C gives each loop its own variable, this gi
 them one slot, and for a counter initialised on entry there is no observable
 difference.
 
-**The sharing is between two `for` declarations, and the design did not say so.**
-Against a declaration written out in full - `u8 i` at the top of a routine and
-`for ( u8 i = 0; ... )` below it - the answer is the collision it already was,
-because scoping is flat and there is nothing for the second to shadow. That reading
+**The sharing is between two `for` declarations.** Against a declaration written
+out in full - `u8 i` at the top of a routine and `for ( u8 i = 0; ... )` below it -
+the answer is the collision it already was, because scoping is flat and there is
+nothing for the second to shadow. That reading
 is the better one anyway: the two spellings in one body are confusing code, and
 `"i" is already declared in this scope` says what to drop.
 
@@ -3255,8 +3242,7 @@ sentence in §5, because the reader arriving from C will not have that rule in h
 
 §5 says an initialiser is a **load-time value and is only allowed at the top
 level**, and records that emitting one as code where it is written was rejected for
-its asymmetry. `for ( u8 i = 0; ... )` looks like exactly that alternative, and
-whether it is was the last thing this section had open.
+its asymmetry. `for ( u8 i = 0; ... )` looks like exactly that alternative.
 
 It is not, because the parser lowers it. What reaches the resolver is a declaration
 carrying no initialiser and an ordinary assignment statement in the init clause, so
@@ -3296,11 +3282,10 @@ serve two loops in different blocks, scoping is flat, and placing the declaratio
 inside whichever block came first would put it inside an `if` while serving a loop
 outside it. Valid, and misleading. The top of the body cannot read wrong.
 
-The design put this on the printer, and it is the parser's. The parser collects a
-body's lifted declarations and unshifts them when the body closes, so the position
-is in the AST before the printer sees it - and **the printer needed no change at
-all**, which is the strongest thing anyone can say about a claim to be sugar. The
-round trip covers the new syntax because it already compiles every `ok-` file.
+The parser collects a body's lifted declarations and unshifts them when the body
+closes, so the position is in the AST before the printer sees it, and **the printer
+needs no change at all**. The round trip covers the new syntax because it already
+compiles every `ok-` file.
 
 ### Rules
 
@@ -3322,26 +3307,9 @@ round trip covers the new syntax because it already compiles every `ok-` file.
 - **Same name and type reuses the slot; a mismatch is an error.**
 - **A sub-local still shadows a global**, exactly as a hand-written declaration in
   a routine does. No new rule.
-
-### What it cost, and what is still out
-
-**The parser and nothing else.** One function, a stack of frames for a body's
-lifted declarations, and the exclusions. The resolver, the emitter and the printer
-are untouched.
-
-The error messages were most of the work, which is worth recording because it is
-not where the effort was expected. Nine ways to write it wrong were probed. Five
-already said something useful - four purpose-written, and the collision against a
-full declaration reusing the resolver's existing message. The other four failed as
-`expected ";" but found ","` or `expected ident but found "const"`, which say what
-the parser wanted rather than what the writer should do, and got messages of their
-own. That is `STYLE.md`'s bar rather than a nicety: each of those four excludes
-something for a reason §5 supplies, and an error that names none of it leaves the
-reason unreachable.
-
-Out: block scope, comma declarators, and any inference of the type. Momo is
-type-first everywhere and a counter's type is observable in §4's mixing - `u8 i`
-against `u16 i` is a different program - so it is written rather than derived.
+- **Out**: block scope, comma declarators, and any inference of the type. Momo is
+  type-first everywhere and a counter's type is observable in §4's mixing - `u8 i`
+  against `u16 i` is a different program - so it is written rather than derived.
 
 ---
 
@@ -3401,9 +3369,10 @@ for ( __i = 0; __i < len( mob ); __i++ ) { mob[ __i ].hp = 100 }
 ```
 
 `m.hp` resolves to `mob__hp[__i]`, which is what §18 already does with `.` - the
-parser hangs a field marker on the identifier and the resolver does the lookup. `m`
-is a symbol carrying a target and an index expression, and nothing about it reaches
-the emitter. No copy, no storage, no record, no change to `ValueType`.
+parser hangs a field marker on the identifier and the resolver does the lookup. The
+binding itself does not survive the parser: a body is already parsed by the time
+its loop header is finished, so every use of the name is rewritten into an indexed
+access there. No copy, no storage, no record, no change to `ValueType`.
 
 Writes work, because there is nothing to write back through: `m.hp = 100` is an
 ordinary array store. The same holds for an array, where `v` is `buf[__i]` and
@@ -3474,72 +3443,17 @@ the loop target makes it legible in the report without making it reachable.
 That is the whole cost. If the body needs the index, that is what `in` is for,
 which makes the two complementary rather than competing.
 
-### What wanted it, and the prediction that was wrong
-
-**Every corpus figure in the rest of this section is fixed at the date, as §44's
-are and for the same reason**: they classify the corpus as it stood when this was
-designed, and adoption moved it the same week. They are the evidence for the
-design, not a live count of anything - do not recount them, and do not read them
-as current.
-
-**34 of the 170 `for` statements walked a container's full extent**, which is what
-these two forms serve - a fifth of the loops, rather than the handful a
-fixed-capacity memory model suggests.
-
-That figure is a correction, and the way it was found is the argument for taking
-the measurement twice. Reading the histogram of test clauses, the prediction was
-that almost every loop walks the **used prefix** of a buffer rather than the
-buffer: `count`, `crossingCount`, `candLen`, `scenePathCount[ s ]` and `n` all say
-exactly that, and they are thirty-odd loops between them. But `< maxPaths` appears
-20 times and is not one of them. `u16[maxPaths] pathPixels` sitting beside
-`for ( p = 0; p < maxPaths; p++ )` is a whole-array walk that spells its bound with
-the capacity constant instead of with `len`. Opening one of them is what found it.
-
-So the split is roughly 34 whole-extent walks and thirty-odd used-prefix ones, with
-the rest counting something that is not a container at all - a screen dimension 19
-times, and small literal bounds below that.
-
-**Only 12 of the 34 say `len`.** The other 22 name a constant that the array's own
-declaration also names, which is a coupling rather than a bug: the two cannot
-disagree while they share the constant, though in `mvdemo` they sit in different
-files and the constant is generated. `for ( p in pathPixels )` removes the coupling
-rather than maintaining it. That is a smaller correctness argument than "a bug
-waiting to happen", and it is the honest size of one.
-
-Where `of` earns its place is density rather than count. There were 281 indexed
-field accesses - `el` 177, `player` 33, `st` 30, `held` 24, `mob` 8 - and they
-cluster: a five-line body in `momolo/fit.momo` reads `el[ci]` four times, and the
-four statements below it read `el[i]` twelve times. That is what `of` is for.
-
-### What adoption actually found, which is thinner than the above
-
-Classifying all 160 loops put 12 on a `len( X )` bound, 39 on a const that also
-sizes some X, and 109 on neither. **Eight took `in` and one file took `of`**, which
-is the honest yield and is worth writing down beside the paragraph promising more.
-
-The 39 do not adopt in bulk. `screenH` and `maxPaths` are a dimension and a
-capacity that several arrays share, so `for ( y in rowPixels )` would be correct
-and would name one of six co-sized arrays as though the loop were about it. The
-loop is about screen rows, and `screenH` says so.
-
-**And `of` has almost no site here.** Every array loop it can reach turned out to
-be a single-access fill or clear - `pathPixels[p] = 0` six times over, `pixels[i] =
-u8( nextRandom() )` - where naming a binding costs a reader more than `X[ i ]` did.
-`of` pays for itself on a *group*, where the binding names an entity, and on a body
-dense enough to repeat the access; the corpus's dense bodies are momolo's, and
-those are indexed by computed indices that `of` cannot reach at all.
-
-That is the measurement rather than a disappointment: `of` is built, costs nothing,
-and `grptest` uses it. But a reader deciding whether to reach for it should know
-that one program in the repository does.
+The counter's name carries the file it came from - `of__tiger__0` and so on -
+because the loader splices every file's top level into one program, so two files
+each holding a top-level `of` would otherwise declare the same name twice. The
+number runs in construction order rather than source order, so an inner loop gets
+the lower one; that shows up in `npm run desugar` and nowhere else.
 
 ### The general form this is a special case of, and why it is not here
 
-Most of those 281 are **not reachable by `of`**, and that is the finding rather
-than a caveat. In the `fit.momo` loop the index is `ci = childAt( i, k )`, computed
-rather than counted; the block below it indexes by `i`, a routine *parameter*. The
-index histogram is `i` 195, `pi` 23, `ci` 19, `rightPlayer` 16, `leftPlayer` 16,
-and several of those are plainly not counters.
+`of` binds the current iteration, and most indexed access in the corpus is not
+that: the index is computed, or it is a routine parameter. DECISIONS §45 has the
+figures.
 
 What the corpus is asking for is **naming an instance at an arbitrary index**, of
 which "the current iteration" is one case:
@@ -3550,8 +3464,8 @@ contentH    += c.h
 minContentH += c.minH
 ```
 
-Same mechanism, same absence of storage, and it reaches all 281 sites rather than
-thirty. It is not here for one reason: **the binding would capture a variable it
+Same mechanism, same absence of storage, and it reaches every indexed access rather
+than only the ones a loop counts. It is not here for one reason: **the binding would capture a variable it
 does not own.** `alias c = el[ ci ]` followed by an assignment to `ci` silently
 re-points `c`, which is §6's compound-assignment hazard one level up - that rule
 already refuses an index that could be evaluated twice and mean two things. The
@@ -3564,8 +3478,9 @@ spun out §34 and §35.
 
 ### The count form, which is deliberately out
 
-`for ( u8 i in maxPaths )`, meaning `0 .. maxPaths - 1`, would cover the 131 loops
-§44 covers and the 12 that `in` covers with one form. It is out of the first build
+`for ( u8 i in maxPaths )`, meaning `0 .. maxPaths - 1`, would cover the loops §44
+covers and the `len`-bounded ones `in` covers with one form. It is out of the first
+build
 because it makes `in` mean two things - an extent in one operand and a value in the
 other - for a gain that §44 has already mostly taken. It is in Maybe rather than
 rejected: nothing has wanted it, which is exactly what that tier is for.
@@ -3575,64 +3490,30 @@ rejected: nothing has wanted it, which is exactly what that tier is for.
 - **`in` declares a counter** and follows §44 for whether the type is written.
   `for ( i in a )` uses an existing `i`.
 - **`of` declares nothing** and takes no type. Its name is scoped to the loop body.
+- **The `of` counter is always `u16`.** Its bound is `len( a )`, a constant the
+  parser cannot see, and a counter narrow enough for one array would be wrong for
+  the next - so `in` is where a program that cares chooses the width.
+- **Sequential `of` loops share a counter**, the way two §44 declarations of one
+  name do. A counter already lifted into this body is handed out again unless it
+  appears inside the loop being built - bodies are parsed before their headers are
+  constructed, so a counter turning up in there belongs to something nested and is
+  still live. Nested loops keep distinct counters.
 - **Neither is a keyword.** After the name in a `for` header, one token of
   lookahead accepts a contextual `in` or `of`, so both stay available to programs -
   and there are no collisions in the corpus today to grandfather. §39 had to pay a
   name for `unit`; this does not have to pay two.
 - **`of` names an element or an instance, never the whole.** `m` alone is an error
-  and says what to write instead, as §18's group rule already does.
+  and says what to write instead, as §18's group rule already does. The message
+  names the target rather than the binding - nothing survives the lowering for a
+  diagnostic to point at - so `m` written bare reports against `mob`.
 - **The operand is a name**, not an expression - an array, a sized `far` region, or
   an indexed group. The heap and the single-instance group form are errors, and
   `len` already writes both messages.
 - **Nothing may assign to the counter inside the body.** It is the compiler's, and
   the `of` form's immunity to the capture hazard above depends on it.
-
-### What it cost, and the three things the design did not settle
-
-**The parser, again, and nothing else.** `in` builds the three clauses against
-`len`; `of` builds the same clauses and then rewrites every use of its binding in
-the already-parsed body into an indexed access. The resolver and the emitter are
-untouched, and **the printer needed no change** - it prints the lowered loop,
-which is ordinary Momo that reparses to the same program.
-
-**The `of` counter is always `u16`.** Its bound is `len( a )`, a constant the
-parser cannot see, and a counter narrow enough for one array would be wrong for
-the next - so `in` is where a program that cares chooses the width.
-
-That was written expecting it to cost something, and the measurement went the
-other way. `grptest` took `in` once and `of` twice, and came out **three
-instructions shorter at exactly the same 492 bytes**. A word counter costs a byte
-on each `cmp` and each initialising `mov`, and saves the `xor ah, ah` that
-widening a `u8` index into BX needs - one instruction per indexed access, and a
-body indexes more often than its header compares.
-
-**Sequential `of` loops share a counter**, the way two §44 declarations of one
-name do. A counter already lifted into this body is handed out again unless it
-appears inside the loop being built - bodies are parsed before their headers are
-constructed, so a counter turning up in there belongs to something nested and is
-still live.
-
-That is measured rather than assumed too, and it is why the rule exists: without
-it `grptest` was two bytes *larger*, paying for two dedicated slots where the
-hand-written form had reused one `i` across three loops. Nested loops keep
-distinct counters, which the identity pair holds by carrying a nested case.
-
-**The counter's name carries the file it came from** - `of__tiger__0` and so on.
-The loader splices every file's top level into one program, so two files each
-holding a top-level `of` would otherwise declare the same name twice. The number
-runs in construction order rather than source order, so an inner loop gets the
-lower one; that shows up in `npm run desugar` and nowhere else.
-
-**And `of`'s errors name the target rather than the binding**, which the design
-claimed otherwise. Nothing survives the lowering for a diagnostic to point at, so
-`m` written bare reports against `mob`. What it says was worth fixing anyway: §18
-answered `mob[ i ]` with "not an array", which tells a reader nothing, and it now
-names a field to write instead. That helps the ordinary group case as much as this
-one, which is the argument for having gone and changed it.
-
-Out: the count form, the general `alias` binding, and any spelling that hands `of`
-its index - `for ( m, i of mob )` is the shape that will be asked for, and `in`
-already answers it.
+- **Out**: the count form, the general `alias` binding, and any spelling that hands
+  `of` its index - `for ( m, i of mob )` is the shape that will be asked for, and
+  `in` already answers it.
 
 ---
 
@@ -3723,10 +3604,10 @@ and reversible.
 
 ### The lowering is a pass over the merged program, not the parser
 
-The design said this would lower in the parser, the way `=>` does. It cannot.
-**`loader.ts` parses a file completely before visiting the includes inside it**, so
-`shell.momo` is an AST before `mopaint.momo` has been read - and a bracket declared
-by a library is therefore not in scope when the file using it is parsed.
+It cannot lower in the parser, the way `=>` does. **`loader.ts` parses a file
+completely before visiting the includes inside it**, so `shell.momo` is an AST
+before `mopaint.momo` has been read - and a bracket declared by a library is
+therefore not in scope when the file using it is parsed.
 
 The parser still does the half it can do with no context, and that half is what
 made this smaller than §39: reading `name( args ) { body }` into a node needs no
@@ -3735,11 +3616,10 @@ disambiguator is a `{` after a complete call and both `f() { }` and `f {` were
 parse errors before. The *pairing* waits for one merged body, and `lowerBrackets`
 in `brackets.ts` is the first thing `resolve` does.
 
-That is a better answer than the parser would have given. Declarations are
-**program-wide and order-free**, like `unit` names, so a library ships its own
-pairs - which is why the four above live in `mopaint.momo` and a scene gets them
-by including it. Lowering in the parser would have meant declaration-before-use in
-one file, and every application under momolo re-declaring the same four lines.
+Declarations are **program-wide and order-free**, like `unit` names, so a library
+ships its own pairs - which is why the four above live in `mopaint.momo` and a
+scene gets them by including it, rather than by declaration-before-use in one file
+with every application under momolo re-declaring the same four lines.
 
 Nothing below `resolve` has heard of a bracket, so the emitter, the analysis and
 the printer's resolved path are untouched.
@@ -3761,26 +3641,11 @@ line keeps meaning that.
 The close is emitted at the end of the body, so a jump past it is precisely the
 failure the feature exists to remove. `return` is refused anywhere in a body.
 
-**`break` and `continue` are the same hazard**, which the design did not say. They
-are refused only where they would escape, which is why the check counts loops
-rather than refusing the keywords: a loop written *inside* a body owns its own
-breaks and never reaches the close, and the count starts at zero at the block
-rather than continuing the parser's own depth. Nothing in the corpus would have
-caught this - no scene wraps an open in a loop - so the ok pair carries the
-legal case and two error tests carry the illegal one.
-
-### Four more refusals, none of them in the design
-
-Each is a wrong answer with no diagnostic otherwise:
-
-- **A bracket sharing a name with a routine.** `node()` and `node { }` would be
-  different things with nothing saying so.
-- **A duplicate declaration.** Declarations are program-wide, so two of one name
-  is an error rather than a shadowing rule.
-- **A declaration inside a routine.** It names a pair for the whole program, so
-  there is nothing for a routine to scope it to.
-- **An open and close that are the same routine.** It would emit the call twice
-  around the body, which is a miswriting rather than a shape anything wants.
+**`break` and `continue` are the same hazard.** They are refused only where they
+would escape, which is why the check counts loops rather than refusing the
+keywords: a loop written *inside* a body owns its own breaks and never reaches the
+close, and the count starts at zero at the block rather than continuing the
+parser's own depth.
 
 ### Rules
 
@@ -3793,44 +3658,19 @@ Each is a wrong answer with no diagnostic otherwise:
 - **A bracket is not a routine**, so it cannot be called, passed or aliased.
 - **Several brackets may share a close.** `box`, `panel`, `framed` and `paint` all
   end in `closeBox`, and nothing about that is special.
+- **Nothing may jump out of a body.** `return` is refused anywhere in one, and
+  `break` and `continue` where they would escape.
 
-### What it cost, and what the sweep confirmed
+Four more refusals, each of them a wrong answer with no diagnostic otherwise:
 
-One new keyword, two AST nodes, a 186-line pass, 169 lines of parser, two printer
-cases and no emitter change at all. Twelve compile tests, two round trips and one
-identity pair, from 406 assertions to 421.
-
-**32 of the 34 opens across the three call-site files became blocks.** The two
-that did not are both inside `stripOpen`, whose whole job is to leave a box open;
-its four call sites are blocks anyway, because `stripClose` owns both of its
-closes. The emitted assembly for `momolo` and `mlodemo` is identical except for
-the emitter's source quotes, which now read `panel( blue ) {` and `}` where they
-read `panelOpen( blue )` and `closeBox()` - the structure is visible in the
-assembly for the first time.
-
-**And the `cfg` misreading the design predicted is real, confirmed by looking.**
-The config carrier is set *above* each open and consumed by it:
-
-```momo
-cfgGrowW()
-cfg.gap = u
-box {
-  ...
-}
-```
-
-That is unchanged semantically - the carrier was out of band before too - but the
-block boundary now looks like a scope, and those two lines configure the box whose
-brace follows rather than the one they sit inside. §20 already calls the carrier
-"the same discomfort one step along"; this sharpens it, and is the strongest
-argument for eventually giving the openers real parameters.
-
-**§49 is what that needs**, and it was written because of this. `cfgReset` turns
-out to be default arguments hand-rolled - the callee restoring its own defaults so
-a caller sets only what differs - which is a mechanism Momo's static parameter
-slots allow and a stack language cannot. Measured on the way there: the corpus's
-maximum arity is 6 rather than the fourteen the carrier's own comment argues
-against, and a box carries 2.2 settings.
+- **A bracket sharing a name with a routine.** `node()` and `node { }` would be
+  different things with nothing saying so.
+- **A duplicate declaration.** Declarations are program-wide, so two of one name
+  is an error rather than a shadowing rule.
+- **A declaration inside a routine.** It names a pair for the whole program, so
+  there is nothing for a routine to scope it to.
+- **An open and close that are the same routine.** It would emit the call twice
+  around the body, which is a miswriting rather than a shape anything wants.
 
 ---
 
