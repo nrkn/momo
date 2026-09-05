@@ -21,11 +21,13 @@ console is kept as `_reference/yuki.txt`.
   is `group` there too - the number is the topic and the file is the aspect. It
   exists because that material was interleaved with the description paragraph by
   paragraph, which is what made `DESIGN.md` hard to read straight through.
-- **`PEEPHOLES.md`** - the fifteen local rewrites the emitter applies, and how one
+- **`PEEPHOLES.md`** - the local rewrites the emitter applies, and how one
   gets added. Its own document because it is a catalogue with its own numbering,
   cited by number from `emitter.ts`, and because it grows by sweeping emitted
   assembly rather than by designing anything.
 - **`STYLE.md`** - TypeScript and Momo conventions.
+- **`LESSONS.md`** - the incidents behind the rules in this file and in
+  `CLAUDE.md`, kept out of both so the rules stay short.
 - **`PITFALLS.md`** - what bites when writing Momo *programs*, as opposed to the
   gotchas below, which are about working on the compiler. Each entry leads with
   the symptom, and every one of them cost real time to find.
@@ -49,7 +51,8 @@ projects/            programs, as <category>/<name>/<name>.momo
 tests/compile/       tier 1 tests
 editor/vscode/       generated syntax highlighting
 docs/                this file, DESIGN.md, PLAN.md, DECISIONS.md,
-                     PEEPHOLES.md, STYLE.md, PITFALLS.md, STUDIES.md
+                     PEEPHOLES.md, STYLE.md, LESSONS.md, PITFALLS.md,
+                     STUDIES.md
 ```
 
 `README.md` stays in the root because that is where it is read from, and so do
@@ -137,6 +140,9 @@ npm run test:e2e              # tier 2: run in DOSBox headless, compare output
 
 npm run grammar               # regenerate the grammar from tokens.ts
 npm run editor:install        # copy the extension to ~/.vscode/extensions
+
+npm run drift                 # counts, cross-references and paths; exits 1 on a finding
+npm run drift:since -- <ref>  # passages a range of commits may have invalidated
 ```
 
 ## Gotchas that have cost real time
@@ -277,71 +283,16 @@ change reaches by the end of a session.
 
 ## Working practices
 
-**Verify by running, not by reading.** Almost every real bug here was invisible
-to the type checker: scalar initialisers silently dropped, an `i8` path with a
-no-op double `xchg`, `_hsize` emitted 0x100 too large, a fn falling off its end
-into whatever the return slot last held, a sub-local initialiser that ran once at
-load rather than per call. Several existed only in what NASM did with the output.
-Compiling a two-line program and reading the assembly finds these; reasoning
-about the source does not.
+**Verify by running, not by reading.**
 
 **Check the suite has teeth.** After adding tests, deliberately break the thing
 they cover and confirm they fail. A suite that has never failed has not been
-tested. Three separate tests here turned out unable to fail for the reason they
-existed - output comparison only catches a bug when the wrong computation yields
-a *different* number, and small operands collide easily.
+tested.
 
-**The docs are load-bearing, and have drifted.** DESIGN.md described two
-peepholes as built that were never written, and carried a worst-case-stack
-formula that contradicted another section. Treat a claim about generated output
-as a hypothesis until the compiler agrees with it.
+**The docs are load-bearing, and have drifted.** Treat a claim about generated
+output as a hypothesis until the compiler agrees with it.
 
-**A count in a document is that kind of claim too, including in a section whose
-argument is that it measured something.** §48's wrapper-limit table said "25
-bracketable, 5 not" and then "25 of 30", and the file has 27 opens; the 25 was
-right and had arrived beside a total nobody had derived from it. It survived being
-written, reviewed and committed, and did not survive being read once. The premise
-in `momolo/build.momo` that a fourteen-parameter sub "would be unreadable at every
-call site" lasted much longer and was never anything but plausible - the corpus's
-largest routine takes six. **Recount before building on a number, especially your
-own**: both of those were one command away for as long as they stood.
-
-**Two sweeps, every few sessions.** Neither is prompted by a change. Both are
-periodic, and the cadence has been something like every four or five sessions
-rather than anything fixed.
-
-- **Sweep for drift** between code, comments and documents. This one keeps paying:
-  a tier 1 assertion count that had not moved with the tests, a glob that gained a
-  directory level while the sentence describing it did not, a file header quoted
-  in a document after the file it came from had been rewritten, a paragraph about
-  branching written before the one branch happened. **Not one of those was noticed
-  by whoever caused it**, which is the argument for a sweep rather than for being
-  more careful.
-
-  **Most of what a sweep finds is a stale number, and `STYLE.md` now has the
-  rule for deciding which numbers are worth keeping at all** - four kinds, of
-  which only present-tense counts about the repo cost anything. Reach for it
-  before recounting: a figure that is dated, or that a test reads, or that is
-  about the 8086 rather than about us, does not need checking and never has.
-  `DECISIONS.md` carries several hundred numerals and has never needed a sweep.
-
-  The sweep that produced that rule found the rule's own first draft sitting in
-  `STYLE.md` unapplied, and the sentence it was written about drifted a second
-  time underneath it. It also found a tally in a design that had not been built
-  yet - §49's routine arities - where the load-bearing claim was right and the
-  totals beside it could not be reproduced by any counting rule that also gave
-  the right answer. That is twice now, after §48's wrapper table. **A number
-  arriving beside a claim is not evidence for the claim**, and it is the
-  commonest way a wrong figure gets written down here.
-- **Sweep the emitted assembly for peephole opportunities.** `PEEPHOLES.md` has
-  the method under "How one gets added", and its first step - read emitted
-  assembly for a shape that repeats - *is* this sweep. Entries 12 and 13 were both
-  found that way, one from a probe written to see what a VRAM-to-VRAM copy
-  produced and one from reading an entry sequence and asking why an argument was
-  widened where an assignment beside it was not.
-
-They pair because they are the same motion: reading output rather than writing
-input, and finding things nobody was looking for.
+**Recount before building on a number, especially your own.**
 
 **Generated `.asm` must stay byte-identical** across any change that is not meant
 to alter behaviour. `npm test` enforces this for every project rather than
@@ -350,18 +301,15 @@ to alter output, adopt it with `npm run momoc:all` and read the diff - that
 reading is the point of the tier, not a formality.
 
 **Regenerate the grammar** (`npm run grammar`) after touching `tokens.ts` *or
-the builtin globals in `resolver.ts`* - the grammar is generated from both, and
-`far` and `_cf` both reached main with the committed extension stale because
-this rule used to name only the first. Verify the emitted regexes compile - a
-TypeScript template literal will turn `\b` into a backspace character if it is
-not doubled.
+the builtin globals in `resolver.ts`* - the grammar is generated from both.
+Verify the emitted regexes compile - a TypeScript template literal will turn
+`\b` into a backspace character if it is not doubled.
 
 **A new mnemonic means editing DESIGN §1**, and `npm test` now insists. The
 instruction table and its count are the only record of the subset - `cpu 8086`
 stops NASM assembling a 186+ instruction, but says nothing about an 8086 one the
-doc does not list. `_cf` added `pushf` and the table said 36 for a while.
-Everything else points at §1 rather than restating the number, so §1 is the only
-edit.
+doc does not list. Everything else points at §1 rather than restating the number,
+so §1 is the only edit.
 
 Three tier-1 assertions read `DESIGN.md` itself and check that the heading's count
 matches the table, that nothing outside the table is emitted, and that nothing in
@@ -369,44 +317,36 @@ the table goes unemitted. The third is a coverage claim: a mnemonic the emitter
 can produce but no committed program exercises is a codegen path no test has ever
 run.
 
-This was a manual instruction here for one commit, and got done wrong three times
-in a row - once by hand-typing the subset (`xchg` and `imul` in, `cwd` out), twice
-by a slice that swallowed the prose around the table and read `cmptest` as a
-mnemonic. Which is the argument for a test rather than a practice: the check is
-fiddlier than it looks, and being careful is not a method.
-
 **Prefer deleting a special case to adding a feature.** `include` retired the
 stdlib-as-prologue idea; `view` (§17) retired the emitter's byte-alias arithmetic
 and its hardcoded `_heapw equ _heap`. Features that remove compiler special cases
 while adding expressiveness have consistently been the right ones.
 
-Read what got retired carefully, though: `view` absorbed those two as *mechanism*,
-not as source. `_heapw` and `_al` still cannot be written as views - DESIGN said
-they could, and it was half wrong. A feature that subsumes a special case is worth
-having whether or not the special case can be re-spelled in it, but the two are
-different claims and only one of them survived contact.
+**A feature that subsumes a special case is worth having whether or not the
+special case can be re-spelled in it.** Read what got retired carefully: the two
+are different claims.
 
-**AI-assisted work is welcome; unexamined work is not.** A good deal of this repo
-was written that way - `CLAUDE.md` exists and the commit log is explicit about
-it - so this is a note from experience rather than a precaution.
+**AI-assisted work is welcome; unexamined work is not** - `LESSONS.md` has what
+that means in practice.
 
-None of the practices above are waived, because none of them are about who typed
-the change. `CLAUDE.md` already puts the agent's half plainly: *adopting whatever
-the tool printed proves only that it printed it.* The contributor's half is the
-same sentence.
+## Sweeping for drift
 
-What is genuinely new is that a change nobody has understood is now cheap to
-produce. So:
+A sweep is driven by a diff, not by a calendar.
 
-- **Be able to say what your change does and why, without the assistant in the
-  room.** If you cannot, learn it until you can. That is the same bar you would
-  clear by writing the code yourself, not a higher one.
-- **Work by dialogue.** Proposing, measuring, being told the measurement
-  disagrees, and changing the plan is the mode that has produced the good commits
-  here. A single prompt and a pull request is not, and it tends to produce changes
-  whose reasoning nobody can reconstruct - including whoever submitted them.
+- Run `npm run drift:since -- <ref>`, with the previous sweep's commit as the
+  ref. It gathers every passage in the documents and source headers that mentions
+  a term the range touched, and judges none of them.
+- Before reading the passages, write down which ones the changes probably
+  invalidated. Then read, and check that list against what you find.
+- A finding is a claim whose truth value changed: a status, where something sits
+  in the pipeline, a convention, a description of behaviour.
+- Counts and cross-references are `npm run drift`'s job with no arguments. A
+  stale number is not a finding of a sweep.
+- When a feature lands, flipping its status references across the documents is a
+  step in finishing the build, not sweep work.
 
-A review can catch a bug. It cannot supply an understanding that was never formed.
+Sweep the emitted assembly for peephole opportunities as well: `PEEPHOLES.md` has
+the method under "How one gets added".
 
 ## Current state
 
@@ -486,17 +426,7 @@ The cost of waiting is that the first thing a visitor reads is the weakest
 document in the repo. That trade is made deliberately, and preferred to shipping a
 second draft in the same voice as the first.
 
-421 tier-1 assertions (215 compile tests, 48 golden `.asm`, 53 type, 11 lex, 87
-round trip, 4 identity, 3 subset), 39 e2e programs, all green.
-
-Both figures have drifted before, and neither is enforced by anything - unlike
-§1's mnemonic count, which a test checks. The e2e one drifted furthest: it said
-26 against an actual 33, and was then incremented three times from the wrong
-base. The tier 1 one said 253 against an actual 268, because the golden and
-round-trip tiers both grew during the vector port and nothing brought the
-sentence with them.
-
-Counting `projects/*/*/*/*.expected` is the honest check on the e2e figure, and
-`npm test` prints the tier 1 breakdown so its parts can be added up. That glob
-gained a level when `projects/` was grouped and this sentence did not follow it,
-so the instruction for catching drift had drifted too.
+421 tier-1 assertions, 39 e2e programs, all green. `npm test` prints the tier 1
+breakdown, and `npm run drift` holds both figures against the harness and the
+committed expectations. Both have drifted before, which is why a script reads
+them now.

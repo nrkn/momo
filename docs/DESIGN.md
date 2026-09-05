@@ -1102,9 +1102,9 @@ benefits is C with X-macro tricks, and we have no macros. Two details make it
 hold:
 
 - Files are identified by `realpathSync.native()`, not by string. Windows
-  filesystems are case-insensitive, so `std/io.momo` and `Std/IO.momo` are one
-  file under two names - naive dedupe would include it twice and produce
-  duplicate-declaration errors that look insane.
+  filesystems are case-insensitive, so `std/io.momo` and the same path spelled
+  `Std/IO` are one file under two names - naive dedupe would include it twice
+  and produce duplicate-declaration errors that look insane.
 - A file is marked seen *before* its own includes are visited, so cycles
   terminate rather than looping.
 
@@ -1769,8 +1769,8 @@ past ours is already the program's (§13).
 one. DOS does not report it - the program knows it only because CS=DS=ES=SS at
 entry - and the PSP holds the *parent's* PSP and the environment segment, neither
 of which is ours. Both routes to more memory are blocked by the same thing:
-reaching past our segment needs our segment number. A read-only `_ds` closes it
-and is designed but not built - §35.
+reaching past our segment needs our segment number. A read-only `_ds` closes it,
+and §35 is built.
 
 Worth separating from "unlocks graphics", which the constant form does on its
 own. What the runtime form buys is **space**, not addressing.

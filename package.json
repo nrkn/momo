@@ -18,7 +18,9 @@
     "grammar": "tsc && node dist/tools/grammar.js",
     "editor:install": "tsc && node dist/tools/editor.js",
     "desugar": "tsc && node dist/tools/desugar.js",
-    "image": "tsc && node dist/tools/image.js"
+    "image": "tsc && node dist/tools/image.js",
+    "drift": "tsc && node dist/tools/drift.js",
+    "drift:since": "tsc && node dist/tools/drift.js --since"
   },
   "devDependencies": {
     "@types/node": "^26.1.1"

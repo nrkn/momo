@@ -244,7 +244,7 @@ than every time by a writer.
 
 ## Naming
 
-- Files: `kebab-case.ts`.
+- Files: `kebab-case`.
 - Functions and variables: `camelCase`.
 - Types: `PascalCase`.
 - DOS-visible filenames must be **8.3** - project directories and entry files
