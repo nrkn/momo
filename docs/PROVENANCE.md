@@ -74,20 +74,44 @@ convention gets used on real projects for fifteen years and written down nowhere
 because nobody documents the thing they always do. §50's separation of layout from
 paint is the clearest known instance and is corrected in its own section below.
 
-**The repositories are under-catalogued too, and that bias has no direction at
-all.** A substantial amount of work lives in git and has not been read yet -
-commercial and otherwise - and where a repository *has* been catalogued it is
-sometimes the fuller copy of something the Dropbox archive holds only a fragment
-of. Two of the sharpest findings in this document arrived that way, after the
-first draft was written and while the author was reading it: `PL101` and `mfml`,
-both of which are now in the catalogue, and both of which reversed a conclusion
-here rather than adding to one.
+**The repositories were under-covered too, and that has since been narrowed.** A
+large sweep of the git material happened while this document was being written:
+three organisations are now catalogued in full, along with sixty-eight of about a
+hundred and seventy-three locally checked-out repositories, chosen for interest
+rather than sampled. Several conclusions here were reversed by that sweep and are
+marked where they were.
 
-So the standing correction is not "look harder at commercial work". It is that
-**an absence in this document is weak evidence**, and gets weaker the further a
-subject is from the kind of thing that produces a dated scratch folder. Two
-sections below - Sound, and the text adventure - carry the scars of finding that
-out.
+**What is missing entirely is the contract work**, and it is the largest category
+of the author's output rather than a footnote to it. Dozens of substantial systems
+were built in clients' source control, frequently on clients' hardware, and no
+copy was kept. Nothing about them can be recovered. The consequence is worth
+stating in the strongest available form: judged by the archive his output looks
+like experiments with commercial work woven through, and judged accurately it is
+the other way round for long stretches.
+
+So the standing correction is that **an absence in this document is weak
+evidence**, and gets weaker the further a subject is from the kind of thing that
+produces a dated scratch folder. Three sections below - Sound, the text adventure,
+and the note on borrowed syntax - carry the scars of finding that out.
+
+**One caution about corroboration.** This framing was written here first and has
+since been adopted into the archive's own catalogue, which now states it in
+similar terms and says where it came from. That makes the two documents agree for
+a reason that is not evidence, so agreement between them should not be read as
+confirmation of anything. Where this document cites the catalogue below it is
+citing a finding, not a shared opinion.
+
+**And a caution about authorship in the recent work.** The catalogue records that
+a substantial amount of the recent and recent-ish work was built with LLM
+assistance, that the mixture runs continuously from hand-written to entirely
+generated, and that the author cannot always tell which is which himself - so no
+attribution is attempted there and none is attempted here. This matters for one
+class of claim in particular. Where a section below reads a *habit* off the recent
+material - unusual documentation density, a design document larger than its code,
+a house style applied consistently - that habit may belong to the assistance
+rather than to twenty years of practice. Claims about the older work are
+unaffected, and claims about a specific mechanism are unaffected. Claims about
+style after roughly 2024 should be read with this in view.
 
 ## The shortest version
 
@@ -176,9 +200,18 @@ machine and building a language for it:
   survives. Four dialects of the same program sit side by side purely to compare
   readability.
 
-The last of them, in May 2018, is where the reason for all of it is finally
-written down, and it is not in any of the compiler code. Its readme is a
-three-page design document for a **2D tile-based CRPG run as a small MMO**, in
+**The reason is written down twice, and the earlier one was missed here at
+first.** On 13 April 2018 the published `momo-vm` repository - the April machine
+put on npm at 0.1.0, thirteen instructions over 256 bytes with no registers and no
+stack - opens its readme with *"I'm thinking about making a game that involves
+programming so I needed a VM for it"*. That is the earliest statement of the
+motive anywhere, and it sits in a repository rather than in the archive, which is
+why the first draft of this section credited the May folder with it five weeks
+late.
+
+The May one is the full version, and it is not in any of the compiler code. Its
+readme is a three-page design document for a **2D tile-based CRPG run as a small
+MMO**, in
 which players wake in a one-room safe space containing a bed, a replicator and a
 computer terminal running a deliberately bare fantasy OS, explicitly modelled on
 PLATO and early BBSes. Players write and share programs on those terminals.
@@ -330,12 +363,42 @@ to be enforced afterward by rewriting the tree. Momo's syntax owes nothing to
 JavaScript's, which is why constructs like `view`, `group`, parameterised consts
 and `bracket` can exist at all - none of them would tokenise.
 
-The cost is visible too. There are far more parser stubs in the archive than
-parsers. Hand-written s-expression readers appear in 2018 and are carried between
-three projects; parser-combinator experiments run through 2019; a tokenizer with a
-parser that leaves everything unhandled as raw tokens is as far as the 2024
-specification got. Writing the parser is the step at which most of these projects
-stopped.
+### The cost, which is larger than the first draft of this section allowed
+
+There are far more parser stubs in the archive than parsers. Hand-written
+s-expression readers appear in 2018 and are carried between three projects;
+parser-combinator experiments run through 2019; a tokenizer whose parser leaves
+everything unhandled as raw tokens is as far as the 2024 specification got.
+Writing the parser is the step at which most of these projects stopped.
+
+**The sweep of the repositories turned that observation into a much harder
+one.** Borrowing a host's syntax is a thread in its own right running from 2003 to
+2023 - a website in XML with a hand-written DTD, an indentation-based JSON that
+shipped as a package and was consumed by a static-site generator, JSON put inside
+custom elements so that `querySelector` becomes the query language, a language
+proposed in HTML that derives its expression vocabulary from the content model so
+that elements which may legally nest become expressions which may nest, and
+`mfml`. The finding across it is blunt:
+
+> **The invented syntaxes mostly stopped at a readme, and the borrowed ones mostly
+> ran** - and the borrowed ones are also the only ones packaged, published and
+> consumed by other code.
+
+That is twenty years of evidence against the choice Momo made, and Momo made it
+anyway and shipped. So the honest statement is not that inventing a syntax was
+obviously right; it is that **Momo is the exception to a rule its own history
+establishes**, and it is worth asking why once rather than assuming the pattern
+was wrong.
+
+Two answers are visible and neither is about parsing. The first is that every
+borrowed-syntax project had a host to be a subset *of*, and Momo's target has no
+host - an 8086 will not lend you a tokeniser, so the saving those projects were
+chasing was not on offer. The second is that the corpus this time is the
+compiler's own: `tests/compile/` is weighted toward diagnostics, so the parser is
+under continuous pressure from programs written specifically to break it, which is
+the thing none of the stubs ever had. The pattern says a hand-written parser is
+where these projects die. What changed is not the difficulty; it is that this one
+was made to prove itself on every build.
 
 ## No stack frames, and no recursion
 
@@ -557,6 +620,13 @@ source-level changes that increase repetition beat source-level changes that
 shorten. That is the same reasoning as `PEEPHOLES.md`: what the emitter should
 produce is decided by what the next stage can do with it, not by what looks tidy.
 
+The principle got its own tool and its own number. A published macro preprocessor
+exists to be **deliberately anti-DRY** - it inlines everything, because the packer
+compresses repeated literal text better than it compresses a loop - and the
+measurement is 2,287 bytes of source packing down to 423. That is the strongest
+form of the argument available here: not that duplication is tolerable, but that
+under the right downstream stage it is the optimisation.
+
 ## Measure it, and write down what did not hold
 
 *Traced.*
@@ -580,8 +650,16 @@ the negative results are consistently the best-written parts of it.
   and asserting *when* it fires without separate evidence) and credits three
   practices with catching it. Corrections are left visible rather than edited away.
 
-That last project also adopted this repository's `STYLE.md` as its house style,
-so the influence runs both ways in 2026.
+That last project also adopted this repository's `STYLE.md` as its house style, so
+the influence runs both ways in 2026 - and further than that, since the archive's
+own catalogue has since taken this document's framing of its biases.
+
+**`STYLE.md` is not the origin of that style, though.** The catalogue counts three
+independent statements of the same house conventions in 2026, and the earliest is
+another repository's guidelines from March, four months before Momo existed. So
+what `STYLE.md` did was write down a convention that was already converging in
+several places at once, which is a weaker claim than the one this section would
+otherwise make and the correct one.
 
 `LESSONS.md` and `PITFALLS.md` are the same instinct given their own files, and
 `CONTRIBUTING.md`'s *verify by running, not by reading* is a sentence a study
@@ -720,12 +798,60 @@ been made in March 2026, keeping the original C verbatim in a comment above each
 one, and the study distilled *that*. `STUDIES.md` records this as the vector
 study's provenance running one level deeper than momolo's.
 
+**And `STUDIES.md`'s rule turns out to be a fix for a documented failure mode.**
+The archive sweep found a consistent pattern in how credit survives across the
+author's published work, and it is mechanical rather than moral: when a
+third-party file is **vendored whole**, its licence header almost always survives;
+credit is lost when code is **transcribed** - ported to another language, re-typed,
+adapted, or inlined from a neighbouring package. The catalogue states the
+consequence as *copying preserves provenance and history; retyping loses both*, and
+notes that it costs more than attribution - one element table was copied three
+times, and four bug fixes were silently reverted when a later copy was taken from
+the wrong ancestor.
+
+Both of Momo's ports are transcriptions. `momolo` was written by hand against its
+study; `momovec` came across a paper, then a playground, then a study, then a port.
+That is the exact operation that loses provenance, done twice, at the maximum
+distance - into a different language, for a different machine.
+
+`STUDIES.md` is what stands in for the lost header: a register naming what each
+port distils, a rule that upstream stays citable while the study never is, and the
+requirement that a port be held against its model **number for number** rather than
+by eye. Read against the archive that is not documentation discipline in general.
+It is a specific compensation for a specific failure the same author has committed
+repeatedly, in the one place where he could not avoid committing it again.
+
 **The earlier instance of the method**, in March 2026 and not called a study, is a
 QR encoder: reimplement just enough of an existing library to turn a URL into a
 bit matrix, with the whole of the real library checked in unmodified *as a
 reference rather than as a dependency*, and the result done properly from first
 principles at 324 lines. Build the smallest useful version, keep the model beside
 it, check against the model. That is the method, three months before it was named.
+
+**momolo's geometry line was already his own conclusion.** `STUDIES.md` records
+that the largest departure from Clay is that momolo is pure geometry - a leaf is
+two numbers the caller already measured, and the engine never asks what they
+described - and credits Clay with already externalising text measurement.
+
+The repository sweep shows he had got there independently, years earlier, and
+published it. The character grid is the most-rebuilt piece of infrastructure in
+the archive, rebuilt five ways between 2009 and 2026, and running through all of
+it is one trick: **render a single character into a scratch element and read its
+size back** - with a box-drawing cross, with an `X` in a bold tag, with a hidden
+span, and
+finally with a hidden SVG text node read through `getBBox()` because SVG counts
+the parts of a glyph that escape the box. Two libraries came out of that. One
+wraps text and its default measurer is `text => text.length` - *the character grid
+as the degenerate case*, which is exactly Momo's situation. The other is where the
+trick stops: measurement and drawing become callbacks, and the point of that is
+stated plainly - it is what lets the library run server-side, because the browser
+is no longer being asked.
+
+**Externalise measurement and the engine stops needing the host.** That is
+momolo's rule, arrived at for a hosting reason rather than a portability one,
+in his own published code, before the study that is credited with it. Clay
+confirmed a decision rather than supplying it - which is a better account of why
+the port went as smoothly as `STUDIES.md` says it did.
 
 **And the demos are period recreations for a reason.** The clay study's two window
 mockups - a Mac System 6 desktop and Windows 3.11 Program Manager - were chosen
@@ -831,7 +957,20 @@ ramps by eye; a 2023 generator exporting to a Photoshop colour table; and a 2023
 notebook that found the index-by-arithmetic trick and recorded the negative result
 that forced compositing back into RGB.
 
-The interesting Momo library really is small, as `PLAN.md` says. The model is not.
+The lattice idea is older than 2016, and it comes with a standing complaint. A
+2014 project already walks hues by saturations by lightnesses and spends the
+leftovers on greys, keeping a commented-out parameterised version with range knobs
+on each axis - the 2024 generator is that commented-out version with a name on it.
+Running against it the whole time is the objection that motivates it: **HSL's hue
+axis is perceptually uneven.** One observation, three remedies, eleven years apart
+- one project measures the poor spans and redistributes them, one invents a colour
+space outright because a linear ramp across hue comes out mostly green, and one
+simply deletes 150 degrees. A 2025 engine then makes the leftover arithmetic
+explicit, skipping the saturation and lightness values that duplicate the grey ramp
+and spending exactly the entries it saved on exactly those greys.
+
+The interesting Momo library really is small, as `PLAN.md` says. The model is not,
+and the unevenness complaint is the part that will arrive with it.
 
 ## A schema study
 
@@ -848,12 +987,33 @@ TypeScript type, whose readme states the central ambiguity plainly and works
 through solving it, and which became a runtime type library carried in-tree in a
 later project.
 
+The ambition was stated outright as early as 2016, in a published package: define
+your entities once as JSON Schema and generate the API routes, the TypeScript
+interfaces, the database schema and the HTML forms from that. A 2021 restatement
+goes further and has no counterpart in the archive at all - an object literal
+naming your entities *is* the type-level manifest of the application.
+
 `PLAN.md` says the audit of that prior work is part of the study's first job
 rather than a prerequisite. On this evidence the audit's finding will be that
 validation, TypeScript generation and property inspectors are all thoroughly
 covered, that **binary layout is covered exactly once** - by the 2019 WAD sketch,
 which was types only and never ran - and that the fourth thing on §43's list, the
 grammar of the text format, has no instance at all.
+
+**One result from that thread is worth taking as a design constraint rather than
+as history.** Turning a schema into a form is the archive's most-repeated web
+problem, attempted at least eight times from 2015, and the machinery underneath was
+thrown away six times - his own templating engine, component templates, per-type
+factories, schemas describing schemas, pointer containers, real DOM. Through all
+six, **the mapping stayed the same**: an enum becomes radio buttons, above about
+five options a select, a format annotation picks the input type, length and pattern
+become validation. One project is nothing but that mapping written down on its own.
+
+So the durable artefact is the mapping, not the generator - and the survivor in
+production is the one whose constraint was "no strings, generate actual elements",
+with validation delegated to the platform rather than reimplemented. Both of those
+transfer to a property inspector on an 8086 more or less unchanged, and neither is
+the part a study would naturally spend its time on.
 
 ## The tools: `momoed`, `momode`, `momove`, `momopnt`
 
@@ -960,6 +1120,29 @@ pipe data by type.
 
 `momoed`'s explorer beside a text pane, and `momode`'s single-tasking windowed
 shell, are that thread arriving somewhere it cannot revise the specification.
+
+**Two corrections the repository sweep forces on that paragraph, and they cut in
+opposite directions.** The first is deflationary: **no code is shared** between the
+2005 document, the 2022 attempts and the 2025 run - the recurrence is of appetite,
+not of files - and the finished desktop's own documented ancestors are two 2025
+projects rather than the windowing sequence at all. A twenty-year thread of
+*wanting* the same thing is a weaker claim than a twenty-year thread of building
+it, and this is the former.
+
+The second is that **it finished**, in August 2026, and the way it finished is the
+cleanest graduation in the archive: the Dropbox folder was emptied to a marker file
+naming its destination and warning against working there, and seven thousand lines
+landed in one commit. Its architecture is one sentence - *the DOM is the
+application*, no model and no diffing, a window's position **is** its style, z-order
+**is** DOM order, active **is** a class.
+
+That last idea does not port and is worth saying why, because the reason is
+flattering to both. It works because the browser already maintains a retained
+structure with layout and paint attached, so refusing a second model costs nothing.
+Momo has no such structure - `momolo` exists precisely because nothing underneath
+is keeping one - so `momode` has to hold the model the desktop was able to throw
+away. The two arrive at opposite designs from the same instinct, which is to avoid
+maintaining state that something else is already maintaining.
 
 ## The layout DSL (§50)
 
@@ -1182,10 +1365,18 @@ AssemblyScript port of a VM dispatch benchmarked against the JavaScript version 
 2018; toolchain spikes in 2019 and 2020; bitmap and memory-layout experiments in
 2021; a WebAssembly-text backend for a toy VM in 2024 that survives only as build
 output because its source was deleted; and the February 2026 note designing a
-JavaScript subset that compiles to WebAssembly text. §30's argument - that the
-abstract machine does not change and only the emitter and a shim do - is the thing
-none of those had, because none of them had an abstract machine already pinned
-down by a working target.
+JavaScript subset that compiles to WebAssembly text.
+
+**One of them is §30 done small and it was missed until the sweep.** A published
+repository, `toy-asm`, is *five backends for one nine-line assembly language* -
+written to answer the 2018 VM's own TODO, which asks, in full, "asm.js/wasm? c ?
+lol". One abstract machine, several emitters, the language unchanged between them.
+That is §30's thesis with the parts small enough to see, seven years early.
+
+§30's argument - that the abstract machine does not change and only the emitter and
+a shim do - is therefore not untested. What none of those had is an abstract machine
+already pinned down by a working target, which is what makes the claim worth
+something now rather than merely plausible.
 
 **Dropping the assembler (§31).** The 2024 6502 emulator's opcode metadata table
 doubles as a mini-assembler: name and addressing mode in, the right one, two or
