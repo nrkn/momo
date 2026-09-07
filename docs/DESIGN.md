@@ -3820,7 +3820,7 @@ Four more refusals, each of them a wrong answer with no diagnostic otherwise:
 
 ## Sections designed, but not built
 
-Thirteen sections carry numbers but no text here, because what they describe does
+Sixteen sections carry numbers but no text here, because what they describe does
 not exist yet. All are in `PLAN.md`. The heading names no range deliberately - the
 set stopped being contiguous the moment one of them was built.
 
@@ -3839,6 +3839,9 @@ set stopped being contiguous the moment one of them was built.
 | §43 | The screen library |
 | §46 | `alias` - a name for an indexed access, which §45's `of` is one case of |
 | §49 | Named and default arguments, which is what §48's `cfg` carrier needs |
+| §51 | `addr()` in an initialiser - the table of addresses that cannot be written down |
+| §52 | `group` data, written as rows - the field initialisers §18 left out |
+| §53 | Nested arrays, and the spine they need |
 
 ---
 
@@ -3888,6 +3891,86 @@ questions.
   prompt), and one game is a thin basis for an interface. A second program that
   wants held-key input is the thing to wait for, and §24's chained `int 9` would
   change the shape again.
+
+- **Is `$` Momo's string terminator, or DOS's?** Today it is written down as the
+  first and behaves as the second. `std/str.momo` declares `const strEnd = '$'`,
+  and until this question was written the comment above it stated the cost - that
+  a string cannot contain `$` - as though it were a property of the language.
+
+  It is not one. **No stage of the compiler has any knowledge of `$`**, and one
+  routine in `shared/lib/` requires it: `putStr`, which is `int 21h` AH=09 and
+  which never names `strEnd`, because DOS scans for the byte itself. Every file
+  that does name it - `std/str.momo`, `std/screen.momo`'s `writeStrAt`,
+  `mopaint.momo` - makes no DOS call at all. `mopaint` writes B800 directly and
+  word-wraps by scanning for a dollar sign.
+
+  So the convention spread by proximity rather than by decision, which is the
+  part worth recording. It has cost nothing yet: no string literal in the
+  repository contains an internal `$`. `shared/scenes/system6.momo`'s `"4,096K$"`
+  is the near miss, and a currency symbol is not an exotic thing for a program
+  drawing a file browser to want.
+
+  **What makes this a question now rather than a note is §53.** A length has
+  never been addressable, so a sentinel was the only representation available and
+  `$` was as good as any other byte. A spine makes a static string's length a
+  constant, which puts a third option on the table for the first time: no
+  sentinel at all for data the compiler wrote. That does not reach a buffer built
+  at runtime - `strCopy`'s destination, a line of input, a file read - so a
+  convention is still needed somewhere, and the question narrows usefully to
+  *which one, for which of the two*.
+
+  Three positions, none chosen. **Keep `$` throughout**, which reserves one
+  printable character in every string forever and keeps `putStr` free - the trade
+  the libraries already made, restated as a choice. **A sentinel that is not
+  printable, with `$` at the DOS edge only**, which is the property `$` lacks and
+  the reason C picked the byte it did; `putStr` then needs a copy with the
+  terminator swapped, or a caller that writes cells itself, and the programs that
+  care about speed already do the latter. **Or carry the length and keep no
+  sentinel at all**, which is stronger than the other two and gets the rest of
+  this entry.
+
+  **The counted form is already here, and `memCopy` is the precedent.**
+  `std/str.momo` holds two designs in one file without saying so:
+
+  ```momo
+  sub memCopy( u16 to, u16 from, u16 count )   // counted
+  sub strCopy( u16 to, u16 from )              // sentinel
+  ```
+
+  `memCopy` and `memFill` need no convention at all, because the caller passes
+  what they have to know. The string half does not, and the reason is not that
+  counted is worse - it is that a length was never available at the call site.
+  §53 makes one available for static data, and a runtime buffer's caller already
+  has one: DOS hands back a byte count from a file read, and `strCopy`'s caller
+  knows how much it meant to copy. So this is not a new mechanism. It is
+  `memCopy`'s, applied to the other half of its own file.
+
+  **A length prefix is the obvious counted form, and it is the wrong one.**
+  `db 4, 'File'` makes `strLen` a single `peek8`, and then costs more than that
+  saves. It gives up the property the library is built on: under a sentinel
+  `at + n` is *itself a valid string*, which is why `nthStr` can `return at + i`
+  and why `strFind` can hand back a position a caller then treats as a string. A
+  tail carries no prefix, so each of those becomes a copy into a new buffer.
+  Every consumer pays `at + 1` forever, on addresses that carry no type saying
+  which end they point at. And it does not reach the one call site that motivated
+  `$` anyway: AH=09 wants the terminator *after* the content, so a prefixed
+  string bound for DOS carries both. The 255-byte cap is the least of it.
+
+  So the counted position means **the length beside the address, not inside the
+  data** - which is what every other buffer in this language already does.
+
+  **One tension, which the first draft of this entry did not have.** §19's array
+  parameters would hand a routine `len(s)` as a folded constant, so a static
+  string could be passed with no representation cost whatever. But §19
+  monomorphises, so eight menu labels passed individually are eight copies of the
+  routine - the expensive kind of free, on this machine. The runtime index that
+  *cannot* monomorphise is the case §53's spine serves, and it is cheaper there
+  than the statically known one. That inversion is worth having in hand before
+  anything is chosen, because it is the opposite of what the shapes suggest.
+
+  Two of the positions above are only writable once §53 exists, so this is not
+  waiting on a preference. It is waiting on being able to prototype more than one
+  answer.
 
 - **`asm { }` passthrough** for hand-written NASM. Probably not needed for a long time.
 

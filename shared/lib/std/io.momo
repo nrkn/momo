@@ -29,6 +29,11 @@ sub putChar(u8 c) {
 }
 
 // Writes a '$'-terminated string. Pass addr(yourString).
+//
+// The terminator is DOS's, and this is where it is actually required: AH=09
+// scans for the byte itself, so the routine needs a '$' without ever naming
+// `strEnd`. Everything else in the libraries that stops at one chose to rather
+// than had to, which is the question in DESIGN §20.
 sub putStr(u16 at) {
   _ah = 0x09
   _dx = at

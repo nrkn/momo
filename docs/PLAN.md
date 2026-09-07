@@ -131,6 +131,11 @@ at all, which makes one a floor rather than a measurement.
   since a README that shows off wants something to show.
 - **Fixed-point division.** DESIGN §25 is half built and says which half: `*` on
   8.8 lands, division does not, and §25 sets out why it is the awkward one.
+- **`addr()` in an initialiser.** §51 - `const u16[] t = [ addr( a ), addr( b ) ]`
+  is rejected because an array's elements are folded to numbers and a label is
+  not one until NASM says so. The target has never objected: `emitData` already
+  writes `_hsize dw _htop - _heap`. It is the smallest item here, it deletes a
+  `PITFALLS` entry, and §41's directory and §53's spine both want it.
 
 ### Probably
 
@@ -234,6 +239,18 @@ at all, which makes one a floor rather than a measurement.
 - **Rewrite `README.md`.** `CONTRIBUTING.md` records that it is provisional, in a
   register the other documents do not use, and that rewriting it waits on programs
   worth showing and on a draft written rather than generated.
+- **Nested arrays.** §53 - `const u8[][] menu = [ "File$", "Edit$", "View$" ]`,
+  with a compiler-written table of child addresses in place of the blob and the
+  linear walk `std/str.momo`'s `nthStr` does today. Behind §51, which is the table.
+  It is the largest of the three because it is the only one that gives Momo an
+  expression whose type is an array, and §18 refused exactly that for `mob[i]` -
+  the refusal does not transfer, and the shape that replaces it is §45's: a name
+  bound to an access, with no storage.
+- **`group` data, written as rows.** §52 - the field initialisers §18 left out of
+  v1, in the spelling that makes structure-of-arrays readable. Pure parser
+  transposition: no table, no indirection, and nothing reaches the emitter that it
+  does not already emit. Here rather than Definitely because the corpus argues both
+  ways and one of the sites carries a comment arguing against it.
 
 ### Maybe
 
@@ -321,6 +338,14 @@ All are set out in DESIGN §20 unless noted.
   cannot see a held key.
 - **`asm { }` passthrough** for hand-written NASM. Probably not needed for a long
   time.
+- **Is `$` Momo's string terminator, or DOS's?** No stage of the compiler knows
+  about `$`, and the one routine that requires it - `putStr` - never names
+  `strEnd`, because DOS scans for the byte itself. Every file that does name it
+  makes no DOS call at all. Nothing is broken by that today, and §53 is what puts
+  a third option on the table: carry the length rather than mark the end, which
+  `memCopy` in the same file already does. A length *prefix* is the wrong form of
+  that and §20 says why. Waiting on being able to prototype more than one answer
+  rather than on a preference.
 - **What precision does constant folding happen at?** The folder runs on the
   host's numbers, so it folds at a precision the language cannot express. The
   analysis is in §32; three ways out, none chosen.
@@ -2332,3 +2357,298 @@ way, and a scene format earns its keep when there are more scenes than a person
 wants to read - which is a threshold this repository has not reached. The reason
 to write the design down anyway is that it was *tested and it held*, and the
 study that tested it is closed: this is the only place the result survives.
+
+---
+
+## 51. `addr()` in an initialiser - the table that cannot be written down
+
+**Designed, not built.** The smallest of three sections, and the one the other
+two rest on:
+
+```momo
+const u8[] sOne = "one$"
+const u8[] sTwo = "two$"
+
+const u16[] names = [ addr( sOne ), addr( sTwo ) ]     // rejected today
+```
+
+`PITFALLS.md` has the error - `array element must be a constant` - and the
+reason: `addr()` is a link-time constant, and an array initialiser is folded
+before there are any symbols to point at. So the obvious table is missing, and
+`std/str.momo`'s `nthStr` exists to walk a blob in its place.
+
+### The refusal is the folder's, not the target's
+
+`dw sOne` is something NASM has always resolved, and `emitData` already writes
+labels into the data section - `_hsize dw _htop - _heap` is one, with a comment
+saying NASM computes it. So nothing about the machine, the object format or the
+`.COM` model is in the way. What is in the way is that an array symbol carries
+`values: number[]`, and a label is not a number until the assembler says so.
+
+Widening that element to a number-or-label, and having `emitData` write the label
+where there is one, is the whole change. The folder gains one case: `addr(x)` in
+an initialiser position resolves to a label reference rather than raising.
+
+### `addr(a) + 1` stays out, and the reason is §18's
+
+Only a bare `addr(x)` is admitted. NASM would take `dw sOne + 1` happily, so this
+is a language rule rather than a capability limit, and it exists to keep one
+sentence in §18 true: **nothing guarantees two globals are adjacent.** Arithmetic
+on link-time addresses is one short step from `addr(b) - addr(a)`, which reads as
+a size and is not one. A program that wants a size has `len`.
+
+### Rules
+
+- **`u16` elements only.** An address does not fit in a `u8`, and §10 already
+  fixes an address at one word in our own segment.
+- **`const` only** in v1. A writable table of addresses is a pointer array in all
+  but name, and nothing has wanted one.
+- **The `far` carve-out is inherited, not new.** §16 already refuses `addr()` on
+  a far region - *it is in another segment* - and an initialiser position changes
+  nothing about that.
+- **No `addr()` of a `sub`.** The resolver already refuses it, and an indirect
+  `call` is not in §1's instruction subset.
+
+### What it unblocks that is not nesting
+
+Any table whose entries are consumed by `peek`/`poke`, which is the interface
+`std/str.momo` already presents. §41's `momowad` directory is one: a lump of
+assets wants a table of where each begins, and the alternative is the same linear
+walk `nthStr` does. Whether §52 or §53 ever land, this stands alone.
+
+---
+
+## 52. `group` data, written as rows
+
+**Designed, not built.** The field initialisers that §18 left out of v1, in the
+spelling that makes structure-of-arrays readable.
+
+That section says **no field initialisers in v1 - arrays zero-fill**, and that a
+const group carrying data is a separate question. This is that question. The
+columns form is the obvious one:
+
+```momo
+group mob[3] {
+  u8 x = [ 10, 30, 50 ]
+  u8 y = [ 20, 40, 60 ]
+}
+```
+
+and the rows form is the one worth having:
+
+```momo
+group mob[3] {
+  u8 x
+  u8 y
+} = [
+  [ 10, 20 ],
+  [ 30, 40 ],
+  [ 50, 60 ],
+]
+```
+
+Both emit `mob__x db 10, 30, 50` and `mob__y db 20, 40, 60`. The second is the
+first transposed by the parser, and **nothing reaches the emitter that it does
+not already emit today**.
+
+### There is no spine here, and that is the point
+
+A row in the rows form is punctuation. It is consumed at compile time, it names
+no storage, and no address of one exists at runtime. That makes this feature
+strictly cheaper than §53 and unrelated to it apart from the brackets: no table,
+no indirection, no relocation, and no expression whose type is an array.
+
+It is worth stating because the two look like one feature and must not be built
+as one. If a nested literal always emitted a spine, then `palR`, `palG` and
+`palB` in `shared/scenes/demo.momo` would pay for indirection to say what three
+flat arrays say for free.
+
+### The disambiguation comes from the declaration, not the literal
+
+`[ [1, 2], [3, 4] ]` reads equally well as two rows of a group and as two child
+arrays with a spine. Nothing in the literal decides. The declaration does:
+`group` has fields and a fixed instance count, so its literal is rows; `u8[][]`
+(§53) has neither, so its literal is children. No heuristic, and no third
+spelling.
+
+### The corpus argues both ways, and the counter-example is worth reading
+
+For: `shared/scenes/demo.momo` carries `palR`, `palG` and `palB` as three
+parallel arrays where a row is one colour, and `pathFill`, `pathStroke`,
+`pathHasFill` and `pathHasStroke` where a row is one path. Reading a colour or a
+path today means reading down four declarations and counting positions, and
+adding one means editing four lines in step.
+
+Against: `shared/scenes/system6.momo` holds three parallel runs and carries a
+comment saying why - *three parallel runs rather than one run of triples, because
+a column is what a caller indexes and a row is not*. That is a deliberate choice
+by the author of the file, against exactly this feature, on the grounds that the
+access pattern is columnar. It is also strings, so it would want §53 rather than
+this.
+
+So the honest claim is narrower than it first looks: **rows help where a row is
+what the writer edits and a column is what the program reads.** Where a column is
+both, the columns form is already right and this changes nothing.
+
+### Rules
+
+- **A row supplies every field, in declaration order.** No holes and no names in
+  v1 - §49 is where named arguments are being thought about, and a group literal
+  should not invent a second spelling for them before that lands.
+- **The row count equals the instance count.** `group mob[3]` takes three rows,
+  and a mismatch is an error rather than a zero-fill.
+- **Fields are still scalars.** §18's rule is untouched, so a row is a list of
+  scalars and nesting stops there.
+- **Both forms, or one, is open.** The columns form is nearly free and is what
+  the rows form lowers to, so shipping only rows leaves the longhand unwritable -
+  which is unlike every other piece of sugar here, since §44, §45 and `=>` all
+  have a longhand that can still be typed. Shipping both is two spellings for one
+  thing, which §18 avoided with `[n]`.
+- **The single-instance form takes no brackets.** `group player { ... } = [ 10, 20 ]`
+  is one row, not a list of them, matching the way `[n]` already decides one from
+  many.
+
+---
+
+## 53. Nested arrays, and the spine they need
+
+**Designed, not built.** The presenting problem, and the expensive one:
+
+```momo
+const u8[][] menu = [ "File$", "Edit$", "View$", "Special$" ]
+
+for ( s of menu ) labelPaint( s, black, white )
+```
+
+Today that is `"File$Edit$View$Special$"` and `nthStr( addr( sS6Menu ), i )` - a
+blob and a linear walk, chosen because §51's table could not be written. Given
+§51 it can be, and the compiler can write it rather than the program.
+
+### The type grammar gains one `[]` and nothing else
+
+A string literal is already a `u8[]` literal, and `[ ... ]` is already an array
+literal. So the surface is not invented, it is admitted: an array literal's
+element may itself be an array literal, and a type may carry a second `[]`. Outer
+length comes from the literal, each inner length from its own element. Ragged is
+the normal case rather than a special one.
+
+### What is emitted, and what it costs
+
+```nasm
+menu__0:        db      'File$'
+menu__1:        db      'Edit$'
+menu__2:        db      'View$'
+menu__3:        db      'Special$'
+menu:           dw      menu__0, menu__1, menu__2, menu__3
+```
+
+The children are ordinary arrays with mangled labels, the same manufactured-name
+treatment §18 gives group fields and §7 gives sub-locals. The spine is §51's
+table. `menu[i]` for a runtime `i` is a `shl` and a load, which is what §18
+already prices for a word field:
+
+```nasm
+        mov     bl, [i]
+        xor     bh, bh
+        shl     bx, 1
+        mov     ax, [menu + bx]
+```
+
+Against `nthStr` that trades a word of spine per string, plus the child labels,
+for a `while` loop and a walk whose length is the data. The figures are a
+measurement and belong in `DECISIONS.md` once something is built. What can be
+said now is that the spine is a fixed cost paid once and the walk is a variable
+cost paid per access, so the crossing point is low, and `s6demo`'s menu is
+redrawn per frame.
+
+### A constant index emits no spine at all
+
+`menu[1][0]` folds to a label plus an offset, with no table read and no table. So
+the spine is emitted only when something indexes it at runtime - which is §18's
+per-field tree-shaking one level up, and the same reasoning behind it: a program
+that never indexes dynamically should not pay for the ability to.
+
+That gives the feature two tiers rather than one, and the cheap tier is most of
+what a program that wants named strings in a list is doing.
+
+### `menu[i]` is an access, not a value, and §18 already refused the other reading
+
+This is the one real cost to the language. `menu[i]` for a runtime `i` is an
+expression whose type is an array, and Momo has never had one. §18 refuses
+`mob[i]` alone deliberately - *honest, since no record exists for them to denote*.
+
+The refusal does not transfer, because here a record does exist: `menu__1` is a
+real label with a real length. But the shape to give it is the one this
+repository has now chosen twice. §45: *`of` binds a name to an access, not a
+value, and that is the whole design*. §46 says the same of `alias`. So:
+
+- `menu[i]` may be indexed again, bound by `of`, or passed to a §19 array
+  parameter.
+- It may not be stored, assigned, compared, or returned.
+- It has no storage, so §12's footprint is unaffected by its existence.
+
+That keeps an array-typed thing out of the type system proper, which is where a
+records-shaped version of this would have gone and stayed.
+
+### `len` of a child needs a second spine, or a terminator
+
+`len( menu[1] )` folds. `len( menu[i] )` cannot - the compiler knows four lengths
+and not which one. It needs a parallel table:
+
+```nasm
+menu__len:      dw      5, 5, 5, 8
+```
+
+emitted under the same rule as the spine: only if something asks. Which gives the
+feature a consequence past convenience - **once a length is addressable, `$`
+becomes an interop convention rather than a data structure.** `putStr` and `int
+21h` AH=09 still want it; `strLen` stops being on the path to anything, and
+`std/str.momo`'s opening claim that a string cannot contain `$` stops being a
+property of Momo strings and becomes a property of printing one. §20 has that
+question, and it is the reason it is a question now.
+
+### The nested loop reloads the spine, and `of` already owns the fix
+
+```momo
+for ( s of menu ) {
+  for ( c in s ) putc( s[c] )
+}
+```
+
+`s` substitutes to `menu[ of__0 ]`, so `s[c]` is a spine load and then a byte
+load, per character. That is §34's hoisting problem arriving one level lower, and
+it would make the sugar slower than the blob it replaced.
+
+The fix is already paid for. §45 spends **one static slot per `of` loop** on a
+counter the program cannot name; an `of` over a nested array spends a second, for
+the child address, loaded once at the top of each iteration. `s[c]` is then a
+load through a known word rather than through the spine, and the inner loop is
+what the hand-written version emits. The cost is one word per nested `of` loop
+and one line in the `npm run memory` report that appears in no source line, which
+is a cost §45 has already accepted the shape of.
+
+This belongs in the first build rather than in an optimisation later: without it
+the feature is slower than what it replaces, which would be a poor outcome for
+sugar justified on a walk being linear.
+
+### Rules
+
+- **`const` only** in v1, for the whole shape. The spine is const regardless -
+  labels are fixed - so a mutable nested array means a const spine and mutable
+  leaves, and that split needs a customer before it needs a spelling.
+- **Two levels.** `u8[][][]` is not refused on principle, but nothing has wanted
+  it and each level is another spine.
+- **The outer array is `u16` by construction.** It holds addresses, and §51 says
+  those are words.
+- **`_ds` only**, which is §51's `far` carve-out again.
+- **Top-level only**, matching §18 and for the same reason: the children are
+  manufactured labels, and a routine-local one would need a scoped mangling that
+  buys nothing.
+
+### Scope of a first build
+
+In: `u8[][]` const declarations, constant-index folding, the runtime spine, `of`
+over the outer array with the address slot, and `len` on a constant index.
+
+Out: the length spine, mutable leaves, three levels, and `u16[][]`. Each is a
+paragraph of its own above, and none is needed in order to delete `nthStr`.

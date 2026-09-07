@@ -11,8 +11,15 @@
 // value, so there is no length to check it against. That is the trade peek and
 // poke exist to make, and it is why they are spelled visibly at every use.
 //
-// Strings are '$'-terminated, matching putStr and DOS int 21h AH=09 rather than
-// inventing a second convention. The cost is that a string cannot contain '$'.
+// Strings here are '$'-terminated. That is DOS's convention - int 21h AH=09
+// scans for the byte - and it was inherited rather than chosen. Nothing in the
+// compiler knows about '$' at any stage, so this is a convention of the
+// libraries and not a property of the language; `putStr` requires it without
+// ever naming the constant below, because DOS does the scanning. Every other
+// reader of `strEnd` chose it.
+//
+// The cost is that a string cannot contain '$'. Whether a convention only the
+// DOS edge needs should reach this far is DESIGN §20.
 
 const strEnd = '$'
 
