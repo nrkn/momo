@@ -167,10 +167,11 @@ at all, which makes one a floor rather than a measurement.
 - **The screen library.** §43 - a table of modes with the shape of a pixel in it,
   a yes/no/maybe query that resolves by setting a mode and reading it back, and the
   current-screen descriptor `momode` would set to put a program in a window. Mode
-  13h is set by hand in five places today and `screenCols` is a constant. One thing
-  wants settling before any of it is written: a runtime screen width costs nothing
-  now and about 7x once §29 lands, because §26's odd-residue tier was designed for
-  exactly these strides.
+  13h is set by hand in five places today and `screenCols` is a constant. The one
+  thing that wanted settling first is settled: `momode` imposes the mode, the
+  stride is a runtime value, and a table of row addresses makes that cost the same
+  as the best a constant stride could reach. That took a customer off §29 and off
+  §19 rather than adding one to either.
 - **A test tier below DOSBox.** §42 - an executor that decodes the assembled
   `.COM`. The headless half is done and cost two flags rather than a project, so
   what is left is counting cycles exactly: the timing tables in §16, §26 and
@@ -1862,30 +1863,101 @@ actual machine rather than invented ones; the price of that is that they vary, a
 asking for properties is how a program keeps a fixed-specification feel on hardware
 that will not cooperate.
 
-### The stride trade, which should be settled before a line is written
+### The stride question, and how it was settled
 
-`std/screen.momo` computes cell addresses as `row * screenCols + col`, and §26
-prices exactly that expression:
+**Settled: the stride is a runtime value, `momode` imposes the mode, and the
+multiply becomes a table of row addresses.** Nothing about that is a compromise,
+and the reasoning is kept because the question was asked badly twice before it was
+answered.
 
-| `x * 80` | cycles | bytes |
-|---|---|---|
-| `mov bx, 80` + `mul bx` | ~128 | 5 |
-| factored, `(x*4 + x) << 4` | **17** | 16 |
+**It used to price the wrong term.** This section used to say a runtime width
+"costs nothing now and roughly 7x later", weighing `mul bx` against §26's
+factored `(x*4 + x) << 4`. Both halves are true and the comparison is beside the
+point, because it prices *one* multiply and says nothing about **how many run**.
 
-The tier that performs that factoring is *"odd residues of 3, 5, 7 and 9, which
-covers 10, 40, 80, 160 and 320 - practically every 2D stride"* - and it sits
-**behind `-o`**, which is §29 and unbuilt. Only powers of two are reduced today.
+`mopaint.momo` had three cell-address computations and they did not agree with
+each other. `fillRect` worked out the row base once and walked it; `drawRun` and
+`drawText` computed `y * screenCols + x` **inside** the loop, for a value that
+could not move - `x` and `y` are parameters and neither is assigned in the body.
+So a multiply ran once per character where one per call would do.
 
-So the trade is not the one it appears to be. **A runtime screen width costs
-nothing now and roughly 7x later**: a `const 80` and a variable both emit `mul`
-today, and the difference is that the constant keeps a door open which a variable
-closes permanently. §26's `-o` tier was designed for screen strides specifically,
-so a dynamic-width library would put that optimisation out of reach of the code it
-exists for.
+Hoisting it saves ~146 cycles a character. Constant-versus-variable is ~10. The
+term this section spent its argument on is an order of magnitude smaller than the
+one it did not look at, and the measurement is in `DECISIONS.md` §36.
 
-**The escape is §19.** A routine monomorphised per mode gets its constant stride
-back - which hands that section the concrete want it has been missing, since it
-sits in Probably as designed in full with nothing having asked for it.
+**And it wanted two things that contradict.** Read against the rest of this
+section, the old framing could not have been satisfied:
+
+- **"Ask for properties, not a mode number"** means a program takes whatever
+  comes back from the query. Then the stride is *not knowable at compile time* -
+  that is what the query is for.
+- **"`momode` owns the mode, the palette and the screen"** means the shell
+  imposes. A program with a baked-in stride can then only be launched into the
+  one mode it was built for, or must refuse to launch.
+
+A constant stride requires a program that chooses its own mode and keeps it.
+Everything else here describes a program that is told. The two were never
+reconciled because they sat four paragraphs apart.
+
+**The decision: `momode` imposes.** A program is a fixed-specification artifact
+that runs where it is put, not a client that negotiates - which is the
+fantasy-console framing this project is built on, and it keeps the shell contract
+as small as this section already claims it is. Negotiation is the better idea in
+the abstract and it can wait; nothing is closed off by starting with impose, since
+a negotiating shell can always be added over a program that does not care what
+stride it was handed.
+
+So the stride is runtime, and the query works as designed.
+
+**What makes that free is a table of row addresses.** `rowBase[y]` holds the
+offset of each row's first cell, filled once when the mode is set. An address is
+then a lookup and two adds, with no multiply anywhere:
+
+| `row * stride + col` | cycles |
+|---|---|
+| runtime `mul`, both operands from memory | ~170 |
+| constant stride, factored by §26's `-o` tier | ~48 |
+| **`rowBase[y] + col`, stride runtime** | **~50** |
+
+The table lands within a couple of cycles of the best case a *constant* stride can
+reach, and it gets there without the stride being constant. That is the whole
+answer: the performance argument no longer forces the contract, so the contract
+was decided on design grounds instead.
+
+It costs two bytes a row - 400 for mode 13h's 200, 50 for text's 25 - and one pass
+to fill, which is an add and a store per row.
+
+**Four rules follow from it:**
+
+- **The screen library owns the table, not the program.** This section exists
+  because mode 13h is set by hand in five places; a row table re-derived per
+  program would be the same failure in a new place. It is sized by a `const` in
+  the library, the way `momolo` sizes `maxElements`, which means a text-only
+  program pays for a graphics-sized table until something better than a hardcoded
+  const exists.
+- **Fill it when the mode is set**, in the same routine, so the table cannot
+  disagree with the mode it describes.
+- **Hoist per row anyway.** The table makes an address cheap; it does not make it
+  free, and a loop that walks one row should read `rowBase` once. The two are
+  complementary rather than alternatives.
+- **Width is still not stride.** The table is indexed by row and built from the
+  *stride*; a window's width never enters into it. The bug named below is
+  unchanged by any of this.
+
+**Two things it costs elsewhere, which is the honest part:**
+
+- **§26's odd-residue tier loses its headline consumer.** That tier is described
+  as covering "practically every 2D stride", and screen strides were the concrete
+  thing it was for. A row table does not multiply at all, so the biggest
+  prospective customer for §29's `-o` has gone elsewhere. The tier is still right
+  for anything with a genuinely constant stride; it just has a weaker case for
+  being built.
+- **§19 loses the customer this section claimed to give it.** The old text said
+  "the escape is §19 - a routine monomorphised per mode gets its constant stride
+  back", and that does not work: §19 specialises on **array** parameters, a stride
+  is a scalar, and there is no scalar specialisation anywhere in that section. It
+  would have needed an extension to §19, not §19. With the table there is nothing
+  to escape from, so the claim is withdrawn rather than repaired.
 
 ### Windowing does not make that worse, which is the good news
 

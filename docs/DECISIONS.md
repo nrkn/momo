@@ -1222,6 +1222,46 @@ a second opinion.
 
 ---
 
+### The multiply that ran per character, and the section that priced the other term
+
+Found while pricing PLAN §43's stride question, which asked whether a screen width
+should be a constant or a runtime value and answered it by weighing one multiply
+against another.
+
+`mopaint.momo` had three cell-address computations and they disagreed. `fillRect`
+worked out a row base once and walked it. `drawRun` and `drawText` computed
+`y * screenCols + x` **inside** their loops, where `x` and `y` are parameters that
+nothing in the body assigns - so the multiply ran once per character to produce a
+value that could not move.
+
+Per character in the loop, before:
+
+| | cycles |
+|---|---|
+| `mov ax, [y]` | 14 |
+| `mov bx, 80` | 4 |
+| `mul bx` | ~125 |
+| `mov bx, [x]` | 14 |
+| `add ax, bx` | 3 |
+| | **~160** |
+
+After, `mov ax, [base]`: 14. So **~146 cycles a character**, against ~160 paid
+once per call - break-even at two characters, and about 7x for a twenty-character
+label. `drawText` also had its `y >= screenRows` test inside the loop, where it
+could only ever fail on the first pass; as a guard it says that, and it is what
+lets the multiply move.
+
+**The point is not the fix, which is four lines.** §43 had spent its stride
+argument on constant-versus-variable, worth ~10 cycles a multiply, while the
+number of multiplies actually run was worth an order of magnitude more and had
+never been looked at. A per-expression cost is not a program cost, and the two
+were being compared as though they were.
+
+The three demos are the only programs affected and they are golden-tier only, so
+all three were assembled under DOSBox by hand rather than trusting `momoc`'s `ok`.
+
+---
+
 ## 47. `block`
 
 ### The estimate was right about the library and wrong about the compiler

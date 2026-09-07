@@ -2780,6 +2780,13 @@ Three tiers, with the cutoff between the first two:
 - **Behind `-o`.** Odd residues of 3, 5, 7 and 9, which covers 10, 40, 80, 160
   and 320 - practically every 2D stride is `2^k x small`, so this catches almost
   everything real with no search.
+
+  **Its biggest prospective consumer has since gone elsewhere.** Screen strides
+  were the concrete thing this tier was for, and PLAN §43 settled on a table of
+  row addresses instead - which does not multiply at all, reaches within a couple
+  of cycles of what this tier would give, and works with a stride that is not
+  known until the mode is set. The tier is still right wherever a stride really is
+  constant; it is a weaker argument for building §29 than it was.
 - **Never.** General shift-add chain search. GCC ships tables for this; the
   return past the tier above is negligible.
 
