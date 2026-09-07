@@ -2280,7 +2280,8 @@ a size and is not one. A program that wants a size has `len`.
 Any table whose entries are consumed by `peek`/`poke`, which is the interface
 `std/str.momo` already presents. §41's `momowad` directory is one: a lump of
 assets wants a table of where each begins, and the alternative is the same linear
-walk `nthStr` does. Whether §52 or §53 ever land, this stands alone.
+walk `nthStr` does. §52 has landed and §53 may never; this stands alone either
+way.
 
 ---
 

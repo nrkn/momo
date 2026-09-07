@@ -105,7 +105,7 @@ this document is about a workflow rather than about two libraries.
   already decided and written down.
 - **Chunk the port**, and record what each chunk cost.
 - **Hold the port against the study number for number.** This is the part that
-  makes a port checkable rather than plausible: `momolo` runs six scenes and
+  makes a port checkable rather than plausible: `momolo` runs seven scenes and
   prints every resolved box, `tiger` digests 339 lines covering every scanline,
   every path and the order all 92,949 pixels were drawn in. Two implementations
   agreeing on every integer is a test; a picture that looks right is not.
@@ -132,7 +132,7 @@ What it did cost was a decision about **what to bring across first**, because
 after retirement there is no going back for anything. Three things came over on
 the way out:
 
-- **The four scenes that had never been ported.** `wrapping`, and the two window
+- **The three scenes that had never been ported.** `wrapping`, and the two window
   mockups as `pmdemo` and `s6demo` with `mlolayer` holding all 244 of their boxes
   against the study. Those numbers are now committed, which is what makes them
   survive the study that produced them.

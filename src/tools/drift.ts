@@ -27,6 +27,7 @@ import { keywords } from '../momo/tokens.js'
 const docsDir = join(root, 'docs')
 const editorGrammar = join(root, 'editor', 'vscode', 'syntaxes', 'momo.tmLanguage.json')
 const contributingPath = join(docsDir, 'CONTRIBUTING.md')
+const studiesPath = join(docsDir, 'STUDIES.md')
 
 // Directories with nothing a document should be cross-referenced against:
 // generated output, dependencies, scratch space, and the reference material.
@@ -402,6 +403,12 @@ const expectedCount = (): number =>
 // about present-tense counts exists to stop - so it is read here rather than
 // remembered. The builders are the count because a scene is exactly a `build`
 // sub that the harness runs.
+//
+// There was a fourth. STUDIES.md carries the same sentence and was not among
+// the three, because this check was written from the documents already found by
+// hand rather than from a grep for the phrasing - so the one claim nobody had
+// noticed was also the one the check did not cover, and it stayed wrong until
+// the next sweep read it. Adding a claim here is cheaper than finding it.
 const scenePath = join(root, 'shared', 'scenes', 'shell.momo')
 
 const sceneCount = (): number => {
@@ -421,6 +428,7 @@ const checkScenes = () => {
   const claims: [string, RegExp][] = [
     [contributingPath, /runs (\w+) scenes/],
     [designPath, /runs (\w+) scenes/],
+    [studiesPath, /runs (\w+) scenes/],
     [scenePath, /^\/\/ (\w+) scenes,/m],
   ]
 

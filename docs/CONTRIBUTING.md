@@ -51,6 +51,7 @@ shared/lib/std/      standard library, written in Momo
 shared/lib/momolo/   a layout engine, written in Momo
 shared/lib/momovec/  a vector rasteriser, written in Momo
 shared/lib/mopaint.momo  colour, borders and wrapping over momolo (§36)
+shared/lib/moflow.momo   items packed into as many rows as they need, above momolo
 shared/scenes/       data read by more than one project
 projects/            programs, as <category>/<name>/<name>.momo
 tests/compile/       tier 1 tests
@@ -439,7 +440,7 @@ of selling - which is not the voice of the three documents it links to. `STYLE.m
 describes the voice it should have.
 
 Rewriting it waits on two things. **Programs worth showing**, first: `simplerl` is
-deliberately the smallest thing that counts as a game, the six demos cannot be
+deliberately the smallest thing that counts as a game, the demos cannot be
 tier-2 tested, and everything else under `projects/` is a fixture. A README
 that shows off wants something to show, and the text adventure (a `PLAN.md` item) or a scroller
 once §22 is built are the candidates. And second, a draft **written rather than

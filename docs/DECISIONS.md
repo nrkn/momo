@@ -1607,7 +1607,7 @@ failure**, and the only thing that says so is breaking what it covers.
 
 ### The row table is affordable because of where the fill lives
 
-400 bytes is a lot to add to nine programs, and eight of them never index by row.
+400 bytes is a lot to add to nine programs, and not one of them indexes by row.
 Filling the table inside `setMode` would have kept it alive in every one, because
 a written array is a used array. An explicit `screenRowsInit` leaves it prunable,
 so `modetest` carries it and nothing else does.

@@ -1412,11 +1412,11 @@ press one - so everything interactive is golden-tier only. That is the whole of
 `programs/demos` and both games: the demos all draw, wait and put the display
 back, and `simplerl` and `tennis` block on input. Naming the directory rather
 than counting it is deliberate - the count was six until the vector port added
-two, and said six for a while afterwards. `mlodemo` is the
-case worth noting, because it is the only one whose *numbers* are covered
-elsewhere: `momolo` runs the same scenes through the same engine and
-prints every resolved box, so only the drawing is untested rather than the whole
-program.
+two, and said six for a while afterwards. The layout demos are the
+case worth noting, because their *numbers* are covered elsewhere: `momolo` runs
+`mlodemo`'s scenes through the same engine and `mlolayer` runs `pmdemo`'s and
+`s6demo`'s, both printing every resolved box, so only the drawing is untested
+rather than the whole program.
 
 **Comparison had eight jump mnemonics and no coverage.** `cmptest` fixes that, and
 its shape is worth copying: `-1` is `0xFFFF`, so every comparison in it answers the
@@ -3941,8 +3941,9 @@ exists, and building them would be writing code no program could run.
 ### What landed, and what nine programs stopped carrying
 
 Mode 13h was set by hand in five places and the mode was saved and restored in
-nine. All nine now call `saveMode`, `setMode` and `restoreMode`, and nothing in
-the repository writes `0x0013`, `AH=0Fh` or `AX=1010h` outside the library.
+nine. All nine now call `saveMode` and `restoreMode`, the five call `setMode`,
+and nothing in the repository writes `0x0013`, `AH=0Fh` or `AX=1010h` outside
+the library.
 
 **The palette disagreement is settled by naming both halves.** `mvpic` and
 `tigerpic` carry six-bit values their generator already divided by four; `tennis`
