@@ -1895,14 +1895,14 @@ drawScore__digitOnes: db      0        ; u8
 hitPaddle__yOffset: dw      0        ; i16
 
 ; ---- arrays ----
-scoreXTens:     db      ',e'        ; u8[2] const
-scoreXOnes:     db      '3l'        ; u8[2] const
+scoreXTens:     db      44, 101        ; u8[2] const
+scoreXOnes:     db      51, 108        ; u8[2] const
 held__up:       times 2 db 0        ; bool[2]
 held__down:     times 2 db 0        ; bool[2]
 held__left:     times 2 db 0        ; bool[2]
 held__right:    times 2 db 0        ; bool[2]
-t_pal__palette: db      224, 224, 244, 145, 255, 166, 206, 208, 255, 16, 16, 16, 255, '1S', 2,        ; u8[24] const
-                db      204, ']K?', 243, 252, 252, 252
+t_pal__palette: db      224, 224, 244, 145, 255, 166, 206, 208, 255, 16, 16, 16, 255, 49, 83, 2,        ; u8[24] const
+                db      204, 93, 75, 63, 243, 252, 252, 252
 textSprites:    db      7, 7, 7, 7, 7, 7, 3, 3, 3, 7, 7, 3, 3, 3, 7, 7, 3, 3, 3, 7, 7, 7, 7, 7,        ; u8[250] const
                 db      7, 3, 3, 7, 3, 3, 3, 3, 7, 3, 3, 3, 3, 7, 3, 3, 3, 3, 7, 3, 3, 3, 3, 7,
                 db      3, 3, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7, 3, 3, 3, 3, 7, 7,
@@ -1918,7 +1918,7 @@ player__y:      times 2 dw 0        ; i16[2]
 player__oldY:   times 2 dw 0        ; i16[2]
 player__score:  times 2 db 0        ; u8[2]
 player__speed:  times 2 db 0        ; u8[2]
-paddleX:        db      '(v'        ; u8[2] const
+paddleX:        db      40, 118        ; u8[2] const
 paddleColor:    db      4, 6        ; u8[2] const
 winColor:       dw      1028, 1542        ; u16[2] const
 serveX:         dw      0, 296        ; i16[2] const

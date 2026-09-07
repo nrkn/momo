@@ -3021,9 +3021,9 @@ pathFill:       db      1, 2, 3, 0, 4, 5        ; u8[6] const
 pathStroke:     db      5, 5, 5, 4, 0, 0        ; u8[6] const
 pathHasFill:    db      1, 1, 1, 0, 1, 1        ; u8[6] const
 pathHasStroke:  db      1, 1, 1, 1, 0, 0        ; u8[6] const
-palR:           db      4, '3', 18, 31, '::'        ; u8[6] const
-palG:           db      4, 28, '$14:'        ; u8[6] const
-palB:           db      6, 9, '6', 31, 18, ':'        ; u8[6] const
+palR:           db      4, 51, 18, 31, 58, 58        ; u8[6] const
+palG:           db      4, 28, 36, 49, 52, 58        ; u8[6] const
+palB:           db      6, 9, 54, 31, 18, 58        ; u8[6] const
 
 ; ============================================================ heap ====
 ; No storage is emitted - a .COM owns everything past its image, so

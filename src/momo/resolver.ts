@@ -81,6 +81,11 @@ export type MomoSymbol =
       length: number
       readonly: boolean
       values: number[]
+      // Written as a string literal rather than as numbers. The emitter groups
+      // printable runs back into quoted text for these and only these - see the
+      // `db` line in emitData, and DECISIONS §1 for why that used to be
+      // unconditional and looked correct for a year.
+      fromString?: boolean
       // The heap has no compile-time length: no storage, no bounds checks.
       dynamic: boolean
       alias?: Alias
@@ -1437,6 +1442,7 @@ export const resolve = (program: Program): ResolveResult => {
         frac: typeNode.frac,
         unit: typeNode.unit,
         length, readonly, values, dynamic: false,
+        fromString: init?.type === 'StringLiteral',
       },
       at,
       local,
@@ -1867,6 +1873,7 @@ export const resolve = (program: Program): ResolveResult => {
               length: count, readonly: false,
               values: columnValues(node, field, count),
               dynamic: false,
+              fromString: field.init?.type === 'StringLiteral',
             }
 
       // Pushed straight into the symbol table, never into scope - reachable only
@@ -1975,6 +1982,7 @@ export const resolve = (program: Program): ResolveResult => {
           readonly: true,
           values,
           dynamic: false,
+          fromString: node.init.type === 'StringLiteral',
         },
         node,
         node.local,

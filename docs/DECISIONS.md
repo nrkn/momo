@@ -1451,3 +1451,92 @@ runs, the rows are columns and a length error would otherwise be phrased in term
 the author never wrote - "field x has 2 values" for someone who wrote two rows.
 `fromRows` exists only so the message can say "was given 2 rows", which is a
 diagnostic paying for itself in one field.
+
+---
+
+## 1. Target
+
+### A readability heuristic that was correct by accident, for a year
+
+The emitter groups printable runs of a `db` array back into quoted text, so a
+string reads as a string rather than as `104, 101, 108, 108, 111`. That was
+unconditional, and it produced this:
+
+```nasm
+palR:  db  '?', 0, '3::;;<<=>>?39,)??3),9:;=>&', 25, ':<>', 12, 25, '&&', 19, '9,'
+```
+
+which is a VGA palette.
+
+**It arrived in the first commit**, carried in from the prototype workspace, so
+its origin predates this repository. What makes it worth a section is not the bug
+but why nothing could see it.
+
+At that commit there were about nine `u8` arrays written as strings and six
+written as numbers - and **every value in every one of the numeric ones fell
+outside 32-126**:
+
+```momo
+u8[6] partial = [ 1, 2, 3 ]
+u8[]  table   = [ 2, 4, 6, 8 ]
+const u8[] palette = [ color(white, black), color(red, yellow), color(cyan, blue) ]
+```
+
+The literals are all single digits, and even the interesting one evaluates to
+`15, 228, 19` - below the printable band, above it, below it. So the grouping
+fired on strings and nothing else, not because it tested for one, but because no
+data existed that could tell the difference. It was **untestable at the time it
+was written**, and indistinguishable from a correct implementation.
+
+### What broke it arrives by construction, not by luck
+
+A VGA palette byte is a 0-63 intensity, and **32-63 is `space` through `?`** - so
+half the legal range of a palette byte is printable ASCII, guaranteed. That is why
+`palR`, `palG` and `palB` read as line noise, and `t_pal__palette` carries `'1S'`
+in the middle of a run of numbers.
+
+It generalises past palettes. A text attribute is `fg | bg << 4`, so attributes on
+a green background land in 32-47. Tile indices, small coordinates and packed flags
+all drift into that band eventually. The heuristic was never wrong about palettes
+specifically - it was wrong about **numeric data**, and palettes are only where
+the corpus finally had some.
+
+### No tier could have caught it, and that is the interesting part
+
+Every tier passes on the broken output. `momoc` writes text and says `ok`. The
+golden tier compares that text against a copy of itself, so it locks the defect in
+rather than reporting it. NASM assembles `db '3::;;'` perfectly happily. Tier 2
+runs the program and gets the right answer, because **the bytes were always
+correct** - only their spelling was wrong.
+
+That is a class of defect this project is otherwise well defended against, and the
+defence does not reach it: §1 says the emitted assembly is the product rather than
+an intermediate, and there is no tier that reads the product *as a human would*.
+The thing that found it was someone looking at a `.asm` and thinking it looked
+odd. Worth stating plainly, because the honest conclusion is that **for
+readability, reading it is the tier**, and it runs when somebody happens to look.
+
+### The fix is smaller than a new rule
+
+It is not "group less". It is to make explicit the condition that happened to be
+true when the code was written: **group runs only for an array that was written as
+a string.** One flag on the array symbol, set at the three places an array with
+values is declared, and one condition at the `db` line.
+
+Three places rather than one is the only wrinkle, and it cost a wrong first
+attempt: `simplerl`'s map is `const map = "########    ########" ...`, an untyped
+const whose initialiser is a string, and that path does not go through
+`declareArray`. The first version turned a 200-byte map into twelve lines of
+`35, 35, 35, 46` before regenerating showed it. Reading the `momoc:all` diff is
+what caught it, which is the argument for that step being a step rather than a
+formality.
+
+The corpus has no array written as explicit character literals - checked - so
+string provenance is the whole rule, with no third case.
+
+### Both directions have teeth
+
+Grouping unconditionally fails `grpdata`, `tennis`, `tiger`, `tclip`, `tflat` and
+`mvpic`. Grouping never fails `cftest`, `filetest`, `maptest`, `mlodemo`,
+`mlolayer` and `momolo`. **The two sets are disjoint**, which is the discrimination
+the change exists to make, and neither set would have moved before it.

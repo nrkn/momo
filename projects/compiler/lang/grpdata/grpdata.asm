@@ -320,12 +320,12 @@ i:              dw      0        ; u16
 putNumber__i:   db      0        ; u8
 
 ; ---- arrays ----
-mob__x:         db      10, 30, '2'        ; u8[3]
+mob__x:         db      10, 30, 50        ; u8[3]
 mob__drift:     db      -1, 0, 1        ; i8[3]
 mob__hp:        dw      300, 400, 500        ; u16[3]
 mob__alive:     db      1, 0, 0        ; bool[3]
 pal__r:         db      0, 128, 255        ; u8[3]
-pal__g:         db      1, '@', 254        ; u8[3]
+pal__g:         db      1, 64, 254        ; u8[3]
 part__live:     db      1, 1        ; u8[2]
 part__age:      times 2 db 0        ; u8[2]
 putNumber__digits: times 5 db 0        ; u8[5]

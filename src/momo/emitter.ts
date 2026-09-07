@@ -1465,7 +1465,14 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
 
   // ---- data -----------------------------------------------------------------
 
-  // Group printable runs into quoted strings so data reads as what it is.
+  // Group printable runs into quoted strings so a string reads as one.
+  //
+  // **Only for data that was written as a string.** This was unconditional for
+  // the first year and looked correct, because every numeric byte array in the
+  // corpus then held values outside 32-126 and could not trigger it. A VGA
+  // palette byte is a 0-63 intensity and 32-63 is `space` through `?`, so half
+  // that range is printable by construction - which is how `palR` came to read
+  // as `'3::;;<<=>>?39,)??3),9:;=>&'`. DECISIONS §1 has the archaeology.
   const formatByteParts = (values: number[]): string[] => {
     const parts: string[] = []
     let run = ''
@@ -1612,7 +1619,9 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
         }
 
         const parts =
-          directive === 'db' ? formatByteParts(symbol.values) : symbol.values.map(String)
+          directive === 'db' && symbol.fromString
+            ? formatByteParts(symbol.values)
+            : symbol.values.map(String)
 
         emitArrayData(
           symbol.label,
