@@ -1504,32 +1504,85 @@ already knows how to reach.
 
 # What has no ancestor here
 
-Stating what is inherited is only useful next to what is not. The following are
-Momo's own, on this evidence.
+Stating what is inherited is only useful next to what is not.
 
-**Read the list against the bias named at the top.** Everything here is an absence
-of evidence in an archive that records experiments well and conventions badly, so
-each entry means *no folder does this* rather than *this was never done*. §50 is
-the worked example of that failing: it looked like a twenty-two-year gap and was
-in fact continuous practice, invisible because practice does not leave folders.
-The entries most likely to be wrong for the same reason are the ones that describe
-a working habit rather than a mechanism.
+**Two warnings before the list, and the second one is the more serious.**
 
-- **Commented NASM as the product.** The archive has plenty of generated code and
-  plenty of readable expansions kept beside golfed originals, but nothing where the
-  output is the artefact meant to be read and the input is the convenience.
-- **Recursion rejected by name, with the cycle reported.** The no-stack posture is
-  inherited; proving the call graph acyclic and turning that into an exact number
-  is not.
+The first is the bias named at the top: every entry is an absence of evidence in
+an archive that records experiments well and conventions badly, so each means *no
+folder does this* rather than *this was never done*. §50 is the worked example -
+it looked like a twenty-two-year gap and was continuous practice, invisible
+because practice does not leave folders.
+
+The second only became visible when the author read this list. **A provenance
+document goes looking for the origins of decisions, and so it silently assumes
+that the things it examines are decisions.** Some of them are not. A property that
+emerged while something was being built, and turned out to be worth keeping, looks
+in retrospect exactly like a choice with reasons - because by the time it is
+written up it *has* reasons, and they are good ones. This document cannot tell the
+two apart from the files, and it got at least one of them wrong that way.
+
+- **Commented NASM as the product.** The artefact is new; the habit under it is
+  not, in two ways.
+
+  **Transpiling is the archive's default mode**, not an unusual one - Yuki emits
+  JavaScript from JavaScript, the 2018 series maps one tree to another and prints
+  it back, a toy VM emits a `switch` and hands the string to `Function`, the
+  size-coding languages compile to a program counter and a table of thunks, a
+  schema becomes TypeScript or a form, an indentation format becomes JSON, and one
+  nine-line assembly language has five backends. Emitting a lower-level text and
+  keeping it inspectable is what he has almost always done.
+
+  And **the immediate reason is smaller and more specific than `DESIGN.md`'s**: he
+  was learning 8086 assembly while starting this, and wanted to see the
+  intermediate product. The README's second stated purpose - that assembly is not
+  overwhelming if you shrink it until it fits in your head - is that private need
+  generalised into a claim for other people, after the fact and correctly. Worth
+  knowing, because it explains why the annotations answer the questions a learner
+  actually has rather than the ones a compiler author would think to document.
+
+  There is one near-precedent for the shape as well: the rasteriser port that
+  became `momovec` keeps each original C routine verbatim in a comment above its
+  translation. Same arrangement - the thing being implemented quoted above the
+  implementation - one level up.
+- **Recursion rejected by name, with the cycle reported.** **This one was not a
+  design goal, and reading it as one is this document's mistake.** The author's
+  account is that Momo simply started being built that way, and the advantages
+  became apparent quickly enough that the shape was kept and then argued for. §2
+  reads as a decision because a decision is what a design document has to make of
+  it; the sequence was the other way round.
+
+  He also offers a candidate for why it fell out that way, and marks it as
+  unconscious rather than intended: **a decades-long preoccupation with trees and
+  directed acyclic graphs.** The archive supports the preoccupation without
+  hesitation - a tree library taken through three rewrites and published, asking
+  for five primitives and giving a full traversal API back; a node that is a cursor
+  into data the library did not create; specialisations for JSON, for schemas, for
+  strings, for a virtual filesystem; a whole year of factories then reduced to a
+  fifteen-line mapper. Someone who has spent that long on acyclic structures
+  reaching for an acyclic call graph, and finding it comfortable rather than
+  restrictive, is not a coincidence worth insisting on - but it is not nothing
+  either, and it is his suggestion rather than this document's.
 - **`view`, `group`, `far`, `_ds`, `_cf`.** Each answers something specific about
   this machine, and none has a shape in the archive beyond the general habit of
   viewing one buffer several ways.
 - **`bracket` (§48).** Born here, from a real defect in a real port.
-- **Three documents under one section-number namespace**, with a design moving
-  from `PLAN.md` to `DESIGN.md` and its number travelling with it. The archive
-  contains readmes that are design documents, readmes that revise themselves in
-  place with strikethrough, and readmes that catalogue their own errors - but no
-  structure over several of them.
+- **A section-number namespace spanning the documents.** Also an accretion rather
+  than a scheme. `PLAN.md` carried numbered sections from close to the beginning;
+  the documents then grew fast and had to be split; and keeping the numbers stable
+  across that split is what produced the property - a number that means a topic
+  wherever it currently lives. What looks like a designed cross-document
+  convention is the residue of splitting one document carefully.
 - **A test corpus weighted toward diagnostics**, and every program's generated
   assembly committed as a golden expectation. The habit of recording failures is
   inherited. Making the failures executable is not.
+
+**The pattern across the three annotated entries is worth naming**, because it is
+the last correction this document has to make about itself. In each case the
+mechanism really is new here, and in each case the reason given by `DESIGN.md` was
+reconstructed after the fact from something smaller: a learner wanting to see the
+output, a shape that fell out of building, a numbering scheme that survived a
+split. None of those reconstructions is wrong - they are all good arguments, and
+they are load-bearing now. But **a document that traces origins will systematically
+mistake a justification for a cause**, and the only defence against it is the one
+that corrected all three of these: asking the person who was there.
