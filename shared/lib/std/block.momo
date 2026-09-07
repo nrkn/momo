@@ -1,8 +1,8 @@
 // std/block.momo - the block DOS gave us, and whether a region fits in it
 // (DESIGN §13, §16, §35, §40, §47).
 //
-// Three routines over the word `arena` already reads. §13 says the robust
-// `_hsize` reads the end-of-allocation segment from `PSP:0x0002`, and `arena`
+// Three routines over the word `dosblk` already reads. §13 says the robust
+// `_hsize` reads the end-of-allocation segment from `PSP:0x0002`, and `dosblk`
 // proved that word reaches two thirds of a megabyte past our own segment on the
 // target, with no DOS call at all. This is that, with names on it, so no program
 // has to re-derive it.
@@ -31,13 +31,13 @@
 
 // Our own PSP as words, so offset 2 is index 1.
 //
-// `_ds` is the segment directly, which is what makes this file twenty lines and
+// `_ds` is the segment directly, which is what makes this file short and gives it
 // no startup sequence. §16 allows a segment register as a source, and §35 makes
 // `_ds` the only one - the read is `mov dx, ds`, the same two instructions a
 // constant segment costs. Before §47 that was a variable holding `_ds`, which a
 // library can only fill from a top-level statement, and no other file in
-// `shared/lib/std/` has one. DECISIONS §47 has why that was worth ten lines of
-// compiler.
+// `shared/lib/std/` has one. DECISIONS §47 has why that was worth changing the
+// compiler for.
 //
 // `local`, because a program that wants the block wants these routines rather
 // than a window onto its own PSP - the same call `time.momo` makes about the
@@ -59,7 +59,7 @@ u16 blockEnd() => blockPsp[1]
 // that is not a stylistic choice: a program loaded above 0xF000 wraps that sum,
 // and one loaded more than a paragraph above it wraps to a small non-zero
 // segment, which reads as an answer. Subtracting cannot wrap, because DOS cannot
-// end our block below where it started it - the invariant `arena` prints. And
+// end our block below where it started it - the invariant `dosblk` prints. And
 // the sum below cannot wrap either, because it has just been shown to be under
 // `blockEnd()`.
 u16 blockBase() {

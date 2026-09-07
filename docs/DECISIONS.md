@@ -1314,5 +1314,34 @@ not survive contact:
 | **An explicit `blockInit()`** instead of self-initialisation | no new pattern in `std/`, no ordering rule | moot: the segment register form needs no initialisation of any kind |
 | **Paragraphs** rather than bytes in the interface | the full 1 MB range, and it matches the machine | every caller writes the rounding by hand, which is where the trap lives - and it is why `blockParas` is `local` |
 | **Starting at the heap top** rather than above our own segment | uses the tail of our own 64 KB instead of stranding it | §13's `_hsize` is a conservative floor, so the boundary between two allocators would be fuzzy - and a fuzzy boundary between allocators is how heaps get corrupted |
-| **Verifying by write and read-back** rather than trusting `PSP:0x0002` | catches an emulator or a loader that lies | the word is the DOS contract, and `arena` already round-trips once |
-| **Naming it `arena`** | the obvious word | taken by the test project, and §40 reserves *zone* for §41's |
+| **Verifying by write and read-back** rather than trusting `PSP:0x0002` | catches an emulator or a loader that lies | the word is the DOS contract, and `dosblk` already round-trips once |
+| **Naming it `arena`** | the obvious word | it is not an arena - no bump pointer, no `free` - and §40 reserves *zone* for §41's. What was first written here instead was that the word was *taken*; see below |
+
+### The naming row defended a name on availability, and that was the tell
+
+The row above first read "taken by the test project". That is a true sentence and
+it is not a reason: it says the word was unavailable, not that `block` was right.
+Reading it back is what raised the question of whether the *test project* had any
+business holding the word, and it did not - `arena` allocated nothing, had no bump
+pointer and no `free`. It was named for what the memory past the segment felt like
+rather than for what the program did.
+
+**The word was ambiguous in the documents already**, which is the part that turns
+this from tidiness into a finding. §40 uses "arena" as a design term in four places
+- "a far arena for assets", "an arena and a zone are the same kind of thing" - and
+five lines below the first of those it said "`arena` reads `PSP:0x0002`", meaning
+the project. Only the backticks separated the two senses, and a reader had to know
+that convention to see it.
+
+So the project became `dosblk`, which says what it reads, and the three files that
+share the subject now read as a family: `dosblk` proves the mechanism by hand,
+`std/block.momo` is the library, `blktest` holds the library to it. The word
+`arena` is free for the allocator §40 still lists as open, and `block` keeps the
+name it should have had on its own merits - it is the thing DOS handed us, and it
+is not an allocator.
+
+**A project name is a single global slot**, since two projects sharing one is an
+error rather than something a path disambiguates. That makes it worth spending on
+the thing that most needs the word, and worth re-examining when a name was chosen
+because it seemed to fit rather than because it was checked.
+

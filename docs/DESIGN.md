@@ -1305,7 +1305,7 @@ reads the end-of-allocation segment from `PSP:0x0002` at startup - which for a
 and code starts at `0x100`. That would make `_hsize` a runtime computation rather
 than an assembly-time one.
 
-Nothing stands in the way of reading it. `arena` does exactly that - a `far u16`
+Nothing stands in the way of reading it. `dosblk` does exactly that - a `far u16`
 region based on `_ds` (§35), index 1 - and reports the block DOS actually gave it,
 which under DOSBox is 40,557 paragraphs where this `equ` assumes 4,096. So the
 value here is the conservative floor rather than the answer, and what is unbuilt is
@@ -3556,7 +3556,7 @@ rejected: nothing has wanted it, which is exactly what that tier is for.
 ## 47. `block` - the memory past the segment, as a library
 
 **Built.** `shared/lib/std/block.momo` - three routines answering where the block
-DOS gave us ends and whether a region fits inside it. `arena` (§40) proved the
+DOS gave us ends and whether a region fits inside it. `dosblk` (§40) proved the
 mechanism; this is what makes it usable without every program re-deriving it.
 
 ```momo
@@ -3644,7 +3644,7 @@ it was between fixing that by refusing the spelling and fixing it by honouring i
 ### Testing
 
 `blktest` runs the three routines against nine answers the machine cannot change:
-the invariants `arena` already prints, the two floor cases, and an exact ceiling
+the invariants `dosblk` already prints, the two floor cases, and an exact ceiling
 at `blockEnd() - 16`, where sixteen paragraphs mean 256 bytes fit and 257 do not.
 The rounding trap has a case of its own at 65,521 bytes, which is the smallest
 value where the naive expression is wrong - with sixteen paragraphs left it needs

@@ -1,5 +1,9 @@
-// arena.momo - memory past the program's own segment, with no compiler change
-// and no DOS call (PLAN §40, DESIGN §13, §16, §35).
+// dosblk.momo - the block DOS gave us: memory past the program's own segment,
+// with no compiler change and no DOS call (DESIGN §13, §16, §35, §40).
+//
+// It was called `arena` until it was noticed that it is not one - it allocates
+// nothing - and that the word was wanted for the allocator §40 still has open.
+// DECISIONS §47 has that.
 //
 // §40 said the back buffer, the far arena and the backing stores "need §35, which
 // is two bytes - the single cheapest unblocking available". §35 landed the day

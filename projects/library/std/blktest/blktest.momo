@@ -1,6 +1,6 @@
 // blktest.momo - std/block.momo (DESIGN §47).
 //
-// `arena` already proves the mechanism: the `PSP:0x0002` word is real, and a far
+// `dosblk` already proves the mechanism: the `PSP:0x0002` word is real, and a far
 // region at a runtime segment reaches past our own 64 KB on the target. What is
 // checked here is the three routines over it, and every answer below is one the
 // machine cannot change.
@@ -14,7 +14,7 @@
 // The one thing this cannot check is the far side of `blockBase()` on a machine
 // whose block is a single segment, where the answer is 0 and the boundary cases
 // below are false for that reason instead of the one they name. That machine
-// cannot run most of this suite either, and `arena` already rests on the same
+// cannot run most of this suite either, and `dosblk` already rests on the same
 // assumption when it writes at the top of the block.
 
 include "lib/std/io.momo"
@@ -24,7 +24,7 @@ u16 top
 
 // ---- the invariants
 
-// DOS cannot end our block below where it started it. Same claim `arena` opens
+// DOS cannot end our block below where it started it. Same claim `dosblk` opens
 // with, and the reason `blockEnd() - _ds` in blockBase() cannot wrap.
 putNumber( u16( blockEnd() > _ds ) )
 newline()

@@ -99,8 +99,8 @@ count says today.
 One thing worth knowing rather than fixing: **12 is exercised only by language
 tests.** It was found from a probe of a VRAM-to-VRAM copy, and no committed
 program has that shape - so the entry rests on `mov al, [es:...]` in `fartest`,
-`arena` and `dstest` rather than on the blitter it was written for. The audit
-found only `fartest`; `arena` and `dstest` arrived with §35 and `_ds` afterwards,
+`dosblk` and `dstest` rather than on the blitter it was written for. The audit
+found only `fartest`; `dosblk` and `dstest` arrived with §35 and `_ds` afterwards,
 which is a wider base for the same claim rather than a different one.
 
 ## The catalogue

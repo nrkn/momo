@@ -151,10 +151,10 @@ at all, which makes one a floor rather than a measurement.
   and delivered eight loops - the rule needs deciding and the reading claim needs
   measuring, in that order.
 - **Memory past the segment.** §40 - and **most of it turned out not to be
-  blocked**. `arena` reaches 634 KB past its own segment in tier 2 with no compiler
+  blocked**. `dosblk` reaches 634 KB past its own segment in tier 2 with no compiler
   change, because §35 landed the day after §40 said it was the one thing wanted;
   the allocators were always libraries; the robust `_hsize` reads the same
-  `PSP:0x0002` word `arena` already reads; and the swap file wanted §38, which is
+  `PSP:0x0002` word `dosblk` already reads; and the swap file wanted §38, which is
   built. **The library over that word is built too** - `std/block.momo`, DESIGN
   §47 - so what remains is the one genuinely blocked half: shrinking the program's
   own block, which needs a way to set ES that does not exist. Same shape as §38's
@@ -346,7 +346,7 @@ section that was itself a plan - see the note at the top for why, and where to
 look for the rest.
 
 - **`block`.** 2026-09-07. §47, now in `DESIGN.md`, and the record is DECISIONS
-  §47. Three routines over the `PSP:0x0002` word `arena` already reads, saying
+  §47. Three routines over the `PSP:0x0002` word `dosblk` already reads, saying
   where the block DOS gave us ends and whether a region fits in it. Seventeen lines
   of Momo, and the estimate of "no compiler change" was the half that missed: a
   library cannot fill a `u16` with `_ds` without growing the standard library a
@@ -1476,7 +1476,7 @@ stores need **no DOS call at all**. They needed §35, which is two bytes, and th
 section called that the single cheapest unblocking available.
 
 **§35 landed the day after that was written, and this section did not notice.**
-The claim has been collected since: `arena` reads `PSP:0x0002` through a far region
+The claim has been collected since: `dosblk` reads `PSP:0x0002` through a far region
 based on `_ds`, learns where the block DOS gave it ends, and writes and reads a
 region at the top of it - **40,557 paragraphs, 634 KB, two thirds of a megabyte
 past our own segment**, in tier 2, on the target. Every line of it is ordinary Momo
@@ -1489,7 +1489,7 @@ over that word that makes a back buffer and an allocator ordinary code. That is
 One thing this section did not foresee, and it is the reason §47 cost any compiler
 change at all: a library cannot fill a variable without a top-level
 statement, and no file in `shared/lib/std/` has one. So reaching `_ds` the way
-`arena` does - assign it to a `u16`, base a `far` region on that - was the
+`dosblk` does - assign it to a `u16`, base a `far` region on that - was the
 expensive spelling here rather than the ordinary one. §16 takes a segment register
 directly now, and going to look for that found a miscompile that had been sitting
 under §35 since the day it landed.
