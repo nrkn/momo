@@ -1502,9 +1502,12 @@ them and the MML work stopped at events rather than sound.
 and it is not notation. It is the hardware end, and that is the half `PLAN.md`
 already knows how to reach.
 
-# What has no ancestor here
+# What is new here
 
-Stating what is inherited is only useful next to what is not.
+Stating what is inherited is only useful next to what is not. This section was
+titled *what has no ancestor here* until every entry on it acquired one, which is
+the finding rather than an embarrassment: **the mechanisms are Momo's own and the
+tastes behind them are twenty years old.**
 
 **Two warnings before the list, and the second one is the more serious.**
 
@@ -1564,9 +1567,49 @@ two apart from the files, and it got at least one of them wrong that way.
   restrictive, is not a coincidence worth insisting on - but it is not nothing
   either, and it is his suggestion rather than this document's.
 - **`view`, `group`, `far`, `_ds`, `_cf`.** Each answers something specific about
-  this machine, and none has a shape in the archive beyond the general habit of
-  viewing one buffer several ways.
-- **`bracket` (§48).** Born here, from a real defect in a real port.
+  this machine and each fell out of needing to do something in a Momo-shaped way,
+  which is the same account as the entry above. But two long-standing tastes are
+  underneath them and both have archive behind them.
+
+  **Structure-of-arrays, which is `group`.** A 2016 note works through
+  representing objects as flat parallel arrays rather than as objects, and is
+  transliterated into QuickBASIC the same day - where, because the language has no
+  records worth the name, a "class" becomes an integer index into a set of parallel
+  arrays with constants standing in for type identity. That is `group` in 1990s
+  BASIC, ten years early. The habit runs on: a tree rebuilt as parallel arrays
+  indexed by node id where *the structure lives in the arrays, not in the objects*;
+  a voxel world as parallel typed arrays of column fields; a text view as three
+  parallel arrays indexed `y * width + x`. §18 argues structure-of-arrays from this
+  machine's addressing modes, and the argument is sound, but the preference
+  predates the machine.
+
+  **Memory as memory, which is `peek`, `poke`, `far` and `view`.** The author's
+  account is that C's pointer semantics are the least elegant part of an otherwise
+  excellent language, and that he prefers the assembly position: it is just memory,
+  addressed directly or indirectly. That is not a retrospective gloss - **it is
+  literally the 2018 Momo VM's operand model**, where a bare number is a direct
+  address, `$n` an immediate and `@n` an indirect one, and where the redesign a
+  week later makes every operand a triple whose location is `Address`, `Indirect`
+  or `Value`. The two Momos share no code, and the catalogue says so. They share
+  the memory model.
+- **`bracket` (§48).** Born here, from a real defect in a real port - and §48 leads
+  with correctness for good reason, since forgetting to close what you opened is
+  dangerous on this model rather than merely untidy.
+
+  **The other half of the motive is that it did not read well**, and that half has
+  a long ancestor: a fondness for data-in-code that reads cleanly. The hyperscript
+  line starts in February 2017 and is still running - published twice, most
+  recently as a dependency-free library that hand-writes a barrel of **169 named
+  exports** so that building a document reads as the document rather than as calls,
+  with prefixed names where HTML and SVG collide. It is used across the desktop
+  work, the games, the door game, the palette tool and `mfml`; when a schema DSL
+  was designed in 2025 its syntax was modelled on it explicitly, in preference to a
+  fluent chain.
+
+  `box { ... }` is that taste meeting a machine with no closures and no objects.
+  The nesting reads as nesting, and the compiler closes what the syntax opened -
+  which is the correctness half and the legibility half turning out to want the
+  same construct.
 - **A section-number namespace spanning the documents.** Also an accretion rather
   than a scheme. `PLAN.md` carried numbered sections from close to the beginning;
   the documents then grew fast and had to be split; and keeping the numbers stable
@@ -1577,12 +1620,24 @@ two apart from the files, and it got at least one of them wrong that way.
   assembly committed as a golden expectation. The habit of recording failures is
   inherited. Making the failures executable is not.
 
-**The pattern across the three annotated entries is worth naming**, because it is
-the last correction this document has to make about itself. In each case the
-mechanism really is new here, and in each case the reason given by `DESIGN.md` was
-reconstructed after the fact from something smaller: a learner wanting to see the
+**The pattern across the annotated entries is worth naming**, because it is the
+last correction this document has to make about itself.
+
+In every case the mechanism really is new here - none of these constructs exists
+in the archive, and none could, because none of the earlier work had this machine
+under it. And in every case the reason `DESIGN.md` gives was reconstructed after
+the fact from something smaller and less articulate: a learner wanting to see the
 output, a shape that fell out of building, a numbering scheme that survived a
-split. None of those reconstructions is wrong - they are all good arguments, and
-they are load-bearing now. But **a document that traces origins will systematically
-mistake a justification for a cause**, and the only defence against it is the one
-that corrected all three of these: asking the person who was there.
+split, a dislike of pointer syntax, a fondness for code that reads like the thing
+it describes.
+
+None of those reconstructions is wrong. They are good arguments and they are
+load-bearing now - §18 really does follow from the addressing modes whatever the
+author happened to like in 2016. But the order matters for anyone reading
+`DESIGN.md` as a record of thought rather than as a record of the system: **a
+document that traces origins will systematically mistake a justification for a
+cause**, because a justification is what survives in the files and a cause usually
+does not.
+
+The only defence is the one that corrected all five of these, and it is not
+available for most of what is above: asking the person who was there.
