@@ -1056,15 +1056,20 @@ export const parse = (tokens: Token[]): Program => {
 
       const fieldName = expect('ident')
 
-      // A deliberate v1 restriction rather than a syntax accident, so say so.
+      // The columns form (§52): an array literal for a counted group, a scalar
+      // for the single-instance one, matching what an ordinary declaration of
+      // this field would take. A field with no initialiser still zero-fills.
+      let init: Expression | null = null
       if (at('op', '=')) {
-        raise(peek(), 'group fields have no initialiser - they zero-fill, like "u8[4] buf"')
+        advance()
+        init = parseExpression()
       }
 
       fields.push({
         type: 'GroupField',
         name: fieldName.text,
         typeNode,
+        init,
         file: fieldName.file,
         line: fieldName.line,
         col: fieldName.col,
@@ -1076,11 +1081,77 @@ export const parse = (tokens: Token[]): Program => {
 
     expect('op', '}')
 
+    // The rows form (§52). A row is punctuation: it is consumed here, names no
+    // storage, and nothing downstream learns it existed. What the declaration
+    // carries afterwards is the columns form, which is what the resolver and the
+    // emitter already understand.
+    //
+    // The declaration decides how the literal reads, never the literal itself -
+    // `group` has fields and an instance count, so its literal is rows, where
+    // §53's `u8[][]` has neither and its literal is children.
+    let fromRows = false
+    if (at('op', '=')) {
+      const eq = advance()
+      if (fields.length === 0) {
+        raise(eq, 'a group with no fields has no rows to supply')
+      }
+      if (fields.some((field) => field.init)) {
+        raise(
+          eq,
+          'group data is written as rows or as fields, not both -' +
+            ' remove the "=" on the fields, or the one after "}"',
+        )
+      }
+
+      const literal = parseExpression()
+      if (literal.type !== 'ArrayLiteral') {
+        raise(literal, 'group data must be an array literal')
+      }
+
+      fromRows = true
+
+      // No `[n]`, so the whole literal is one row rather than a list of them -
+      // the same way `[n]` already decides one instance from many.
+      const rows = count === null ? [literal] : literal.elements
+
+      for (const [index, row] of rows.entries()) {
+        if (row.type !== 'ArrayLiteral') {
+          raise(row, `row ${index} of group "${name.text}" must be an array literal`)
+        }
+        if (row.elements.length !== fields.length) {
+          raise(
+            row,
+            `row ${index} of group "${name.text}" has ${row.elements.length} values,` +
+              ` and the group has ${fields.length} fields - a row supplies every field,` +
+              ' in declaration order',
+          )
+        }
+      }
+
+      // The transpose. Column `f` of the rows becomes field `f`'s initialiser,
+      // and for the single-instance form there is one row, so the field takes
+      // that row's scalar directly.
+      fields.forEach((field, f) => {
+        if (count === null) {
+          field.init = (rows[0] as ArrayLiteral).elements[f]
+          return
+        }
+        field.init = {
+          type: 'ArrayLiteral',
+          elements: rows.map((row) => (row as ArrayLiteral).elements[f]),
+          file: literal.file,
+          line: literal.line,
+          col: literal.col,
+        }
+      })
+    }
+
     return {
       type: 'GroupDeclaration',
       name: name.text,
       count,
       fields,
+      fromRows,
       file: start.file,
       line: start.line,
       col: start.col,

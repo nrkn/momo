@@ -1,4 +1,6 @@
-// EXPECT-ERROR: group fields have no initialiser
+// EXPECT-ERROR: has 4 instances, so "x" takes 4 values
+// A counted group takes a column per field, so a scalar is a miscount rather
+// than a shorthand - and saying so beats the array path's generic complaint.
 group mob[4] {
   u8 x = 5
 }

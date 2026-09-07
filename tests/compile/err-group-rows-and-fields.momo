@@ -1,0 +1,8 @@
+// EXPECT-ERROR: group data is written as rows or as fields, not both
+group mob[2] {
+  u8 x = [ 1, 2 ]
+  u8 y
+} = [
+  [ 1, 2 ],
+  [ 3, 4 ],
+]

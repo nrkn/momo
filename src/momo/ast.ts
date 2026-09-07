@@ -242,6 +242,10 @@ export type GroupField = Located & {
   type: 'GroupField'
   name: string
   typeNode: TypeNode
+  // §52. An array literal for a counted group, a scalar for the single-instance
+  // form - the same two shapes an ordinary declaration of that field would take.
+  // The rows form lowers to this in the parser, so nothing downstream sees rows.
+  init?: Expression | null
 }
 
 // Where a far region lives. Restricted to a literal or a name at parse time,
@@ -310,6 +314,11 @@ export type GroupDeclaration = Spanned & {
   count: Expression | null
   fields: GroupField[]
   local?: boolean
+  // §52. True when the data arrived as rows and the parser transposed it. Carried
+  // only so a length error can be phrased in the form the author actually wrote -
+  // the instance count is a constant expression, so the count check cannot happen
+  // until the resolver has folded it.
+  fromRows?: boolean
   // Set by the resolver. A group emits nothing under this name - its fields are
   // the arrays - so it is the mangled name a private carries, which the printer
   // needs to lower `local` (§14).

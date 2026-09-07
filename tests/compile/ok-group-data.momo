@@ -1,0 +1,63 @@
+// Every §52 shape that must work: both forms, counted and single.
+//
+// This is also where the printer's coverage of group data comes from. The rows
+// form lowers to the columns form in the parser, so what prints is always
+// columns - the round trip asserts that the two compile to the same thing, not
+// that the sugar survives.
+
+const mobCount = 3
+
+// Rows, where a row is one instance and the parser transposes.
+group mob[mobCount] {
+  u8   x
+  i8   drift
+  u16  hp
+  bool alive
+} = [
+  [ 10, -1, 300, true  ],
+  [ 30,  0, 400, false ],
+  [ 50,  1, 500, true  ],
+]
+
+// Columns, which is what the above becomes and is also writable directly.
+group pal[3] {
+  u8 r = [ 0, 128, 255 ]
+  u8 g = [ 0, 64, 255 ]
+  u8 b = [ 0, 32, 255 ]
+}
+
+// A field with no data still zero-fills, and mixes with fields that have some.
+group part[2] {
+  u8 live = [ 1, 1 ]
+  u8 age
+}
+
+// No [n], so the literal is one row rather than a list of them.
+group player {
+  u8  x
+  u16 hp
+} = [ 7, 250 ]
+
+// The columns form of the single-instance shape is a plain scalar per field,
+// which reads exactly like the variable declaration it compiles to.
+group ball {
+  i16 x = -5
+  i16 y = 12
+}
+
+// A local group carries data the same way - the mangling is the label's job.
+local group hidden[2] {
+  u8 v
+} = [
+  [ 1 ],
+  [ 2 ],
+]
+
+u8  i
+u16 total
+
+// Data or no data, a field is still an ordinary global afterwards.
+mob[i].hp = 100
+mob[i].x++
+total = mob[i].hp + player.hp + u16( pal[1].r ) + u16( part[0].age ) + u16( hidden[1].v )
+_al = u8( total ) + u8( mob[i].drift ) + u8( ball.x )

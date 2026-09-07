@@ -273,8 +273,14 @@ export const printStatement = (node: Statement, depth = 0): string => {
     // `local` modifier, and a second copy of it would land on the `}`.
     case 'GroupDeclaration': {
       const count = node.count ? `[${printExpression(node.count)}]` : ''
+      // Always the columns form, which is what the rows form lowered to in the
+      // parser (§52) - the same way §44 and §45 print their lowering rather than
+      // the sugar that produced it.
       const fields = node.fields
-        .map((field) => `${indent(depth + 1)}${printType(field.typeNode)} ${field.name}`)
+        .map((field) => {
+          const init = field.init ? ` = ${printExpression(field.init)}` : ''
+          return `${indent(depth + 1)}${printType(field.typeNode)} ${field.name}${init}`
+        })
         .join('\n')
       return `${pad}group ${declared(node)}${count} {\n${fields}\n${indent(depth)}}`
     }

@@ -1,0 +1,102 @@
+// grpdata.momo - data in a `group`, both forms (DESIGN §52).
+//
+// §18 built the shape and left the data out: "no field initialisers in v1 -
+// arrays zero-fill". This is that gap closed, and what it has to prove is that
+// the two spellings mean the same thing - the rows form is transposed by the
+// parser into the columns form, so anything true of one must be true of both.
+//
+// The i8 and bool columns are checked by comparison rather than by printing,
+// because `putNumber` takes a `u16` and a negative would come out as 65535.
+// What is being asserted is the value that reached the data section, not the
+// printer's opinion of it.
+
+include "lib/std/io.momo"
+
+// Rows. A row is one instance, and it is punctuation - it names no storage and
+// nothing downstream learns it existed.
+group mob[3] {
+  u8   x
+  i8   drift
+  u16  hp
+  bool alive
+} = [
+  [ 10, -1, 300, true  ],
+  [ 30,  0, 400, false ],
+  [ 50,  1, 500, false ],
+]
+
+// Columns, which is what the above lowers to and is also writable directly.
+group pal[3] {
+  u8 r = [ 0, 128, 255 ]
+  u8 g = [ 1, 64, 254 ]
+}
+
+// A field with no initialiser still zero-fills, beside one that has data.
+group part[2] {
+  u8 live = [ 1, 1 ]
+  u8 age
+}
+
+// No [n], so the literal is one row rather than a list of them.
+group player {
+  u8  x
+  u16 hp
+} = [ 7, 250 ]
+
+// The single-instance columns form is a scalar per field, reading exactly like
+// the variable declaration it compiles to.
+group ball {
+  i16 x = -5
+  u16 y = 12
+}
+
+u16 i
+
+// ---- the rows form, transposed
+
+for ( i = 0; i < 3; i++ ) {
+  putNumber( mob[i].x )
+  putChar( ' ' )
+  putNumber( mob[i].hp )
+  newline()
+}
+
+putNumber( u16( mob[0].drift == -1 ) )
+putChar( ' ' )
+putNumber( u16( mob[1].drift == 0 ) )
+putChar( ' ' )
+putNumber( u16( mob[2].drift == 1 ) )
+newline()
+
+putNumber( u16( mob[0].alive ) )
+putChar( ' ' )
+putNumber( u16( mob[1].alive ) )
+putChar( ' ' )
+putNumber( u16( mob[2].alive ) )
+newline()
+
+// ---- the columns form
+
+for ( i = 0; i < 3; i++ ) {
+  putNumber( pal[i].r )
+  putChar( ' ' )
+  putNumber( pal[i].g )
+  newline()
+}
+
+putNumber( part[0].live )
+putChar( ' ' )
+putNumber( part[1].age )
+newline()
+
+// ---- the single-instance forms
+
+putNumber( player.x )
+putChar( ' ' )
+putNumber( player.hp )
+newline()
+
+putNumber( u16( ball.x == -5 ) )
+putChar( ' ' )
+putNumber( ball.y )
+newline()

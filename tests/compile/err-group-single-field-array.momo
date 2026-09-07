@@ -1,0 +1,4 @@
+// EXPECT-ERROR: has a single instance, so "x" takes one value
+group player {
+  u8 x = [ 1, 2 ]
+}

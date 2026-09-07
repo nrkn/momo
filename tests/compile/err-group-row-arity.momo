@@ -1,0 +1,8 @@
+// EXPECT-ERROR: has 3 values, and the group has 2 fields
+group mob[2] {
+  u8 x
+  u8 y
+} = [
+  [ 1, 2 ],
+  [ 3, 4, 5 ],
+]

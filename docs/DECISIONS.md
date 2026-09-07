@@ -1385,3 +1385,69 @@ error rather than something a path disambiguates. That makes it worth spending o
 the thing that most needs the word, and worth re-examining when a name was chosen
 because it seemed to fit rather than because it was checked.
 
+---
+
+## 52. `group` data, written as rows
+
+### The estimate held exactly, and the check for it was already written
+
+The design said "pure parser transposition: no table, no indirection, and nothing
+reaches the emitter that it does not already emit". That is an unusually testable
+claim for a design note, because the golden tier answers it directly: **every
+committed `.asm` was byte-identical after the feature landed.** Not one program
+changed, because no program used the syntax yet, and the syntax is all there is.
+
+Worth recording as the shape of a cheap feature rather than as a triumph. What
+made it cheap is that a group field with data was already a legal symbol - an
+array carrying `values` - and had been since §18. The feature was a way to write
+one down, not a way to have one.
+
+### The rows form failed a type check before it could fail a value check
+
+The teeth check was to break the transpose and watch `grpdata` change. The first
+attempt gave every field the first column's values, and it did not produce wrong
+output - it produced `value 10 does not fit in bool`, because `mob`'s columns are
+`u8`, `i8`, `u16` and `bool` and a transposed row does not type-check against
+them.
+
+That is worth knowing about the feature rather than about the test: **a
+heterogeneous group is largely self-checking.** A wrong transpose has to survive
+every field's type before it can produce a wrong number, and a group whose fields
+differ in type will usually refuse first. It is the *homogeneous* group - three
+`u8` columns, which is exactly `palR`/`palG`/`palB` - where a transpose bug would
+be silent.
+
+So the second attempt reversed the row order instead, which keeps every column
+type-valid, and that failed properly: the three rows-derived lines of output
+flipped and the columns-derived lines did not move, which is the discrimination
+the test needed to show.
+
+**It also found a weak fixture.** With the rows reversed, the `bool` column still
+printed `1 0 1`, because the data happened to be `true, false, true` - a
+palindrome. A column that reads the same backwards cannot detect a reversal, so
+the fixture was changed to `true, false, false`. A test's data can be wrong in a
+way that costs it a whole class of failure, and nothing but deliberately breaking
+the thing it covers would have said so.
+
+### A short row is an error where a short array is not
+
+`u8[10] partial = [ 1, 2, 3 ]` zero-fills the tail, and §5 is right that it
+should: a buffer with a head and nothing else is a normal thing to want. A group
+with three rows and ten instances is not the same shape - it is a miscount, and
+the zero-filled instances are entities nobody wrote.
+
+The two rules live one function apart and disagree deliberately, which is the
+kind of thing that reads as an inconsistency later unless it says why here.
+
+### Where the check has to happen, and what that cost
+
+The instance count is a constant *expression* - `group mob[mobCount]` - so the
+parser cannot fold it and cannot check the row count. The parser checks what it
+can see, which is that each row supplies exactly as many values as there are
+fields; the resolver checks the row count once the count is folded.
+
+The cost of that split is one boolean on the declaration. By the time the resolver
+runs, the rows are columns and a length error would otherwise be phrased in terms
+the author never wrote - "field x has 2 values" for someone who wrote two rows.
+`fromRows` exists only so the message can say "was given 2 rows", which is a
+diagnostic paying for itself in one field.

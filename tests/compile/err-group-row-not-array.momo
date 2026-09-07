@@ -1,0 +1,8 @@
+// EXPECT-ERROR: row 1 of group "mob" must be an array literal
+group mob[2] {
+  u8 x
+  u8 y
+} = [
+  [ 1, 2 ],
+  3,
+]

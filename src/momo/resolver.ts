@@ -15,6 +15,7 @@ import type {
   FarAddress,
   FarDeclaration,
   GroupDeclaration,
+  GroupField,
   Identifier,
   RoutineDeclaration,
   TypeName,
@@ -1771,6 +1772,63 @@ export const resolve = (program: Program): ResolveResult => {
   // plain variable when it does not. Structure-of-arrays, so `mob[i].x` needs no
   // multiply: the field offset is folded into the label and the index is used
   // as-is.
+  // One field's column of §52 data, checked against the instance count.
+  //
+  // Unlike an ordinary array, a short initialiser is an **error** rather than a
+  // tail zero-fill: `u8[10] partial = [ 1, 2, 3 ]` is a buffer with a head, where
+  // a group with three rows and ten instances is a miscount. The message follows
+  // the form the author wrote, which is why `fromRows` is carried this far.
+  const columnValues = (node: GroupDeclaration, field: GroupField, count: number): number[] => {
+    if (!field.init) return new Array<number>(count).fill(0)
+
+    // Said here rather than left to the array path, which would report "an array
+    // must be initialised with an array or string literal" and never mention the
+    // count that makes a scalar wrong.
+    if (field.init.type !== 'ArrayLiteral' && field.init.type !== 'StringLiteral') {
+      raise(
+        field.init,
+        `group "${node.name}" has ${count} instances, so "${field.name}" takes` +
+          ` ${count} values - write "[ ... ]"`,
+      )
+    }
+
+    const values = arrayValuesFrom(field.init, field.typeNode.name, field.typeNode.frac)
+    if (values.length !== count) {
+      raise(
+        field.init,
+        node.fromRows
+          ? `group "${node.name}" has ${count} instances and was given ${values.length} rows`
+          : `field "${field.name}" of group "${node.name}" has ${values.length} values,` +
+              ` and the group has ${count} instances`,
+      )
+    }
+    return values
+  }
+
+  // The same for the single-instance form, where a field is a plain variable and
+  // its datum is one scalar rather than a column.
+  const scalarFieldValue = (node: GroupDeclaration, field: GroupField): number => {
+    if (!field.init) return 0
+
+    if (field.init.type === 'ArrayLiteral') {
+      raise(
+        field.init,
+        `group "${node.name}" has a single instance, so "${field.name}" takes one value`,
+      )
+    }
+
+    scaleDecimals(field.init, field.typeNode.frac)
+    const resolved = resolveExpression(field.init)
+    if (resolved.value === null) raise(field.init, 'group data must be constant')
+    if (resolved.frac !== field.typeNode.frac) {
+      checkAssignable(resolved, field.typeNode.name, field.typeNode.frac, field.init)
+    }
+    if (!fits(resolved.value, field.typeNode.name)) {
+      raise(field.init, `value ${resolved.value} does not fit in ${field.typeNode.name}`)
+    }
+    return resolved.value
+  }
+
   const resolveGroupDeclaration = (node: GroupDeclaration) => {
     node.label = labelFor(node.name, node.local)
 
@@ -1792,17 +1850,22 @@ export const resolve = (program: Program): ResolveResult => {
       const label = `${labelFor(node.name, node.local)}__${field.name}`
       claimLabel(label, field, `field "${field.name}" of group "${node.name}"`)
 
+      // §52's data, in the columns form - the rows form was transposed into this
+      // by the parser. A field with no initialiser zero-fills, exactly as it did
+      // before there was any way to write one.
       const symbol: MomoSymbol =
         count === null
           ? {
               kind: 'var', name: label, label, type: field.typeNode.name,
-              frac: field.typeNode.frac, builtin: false, init: 0,
+              frac: field.typeNode.frac, builtin: false,
+              init: scalarFieldValue(node, field),
             }
           : {
               kind: 'array', name: label, label, elementType: field.typeNode.name,
               frac: field.typeNode.frac,
               unit: field.typeNode.unit,
-              length: count, readonly: false, values: new Array<number>(count).fill(0),
+              length: count, readonly: false,
+              values: columnValues(node, field, count),
               dynamic: false,
             }
 

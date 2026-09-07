@@ -1,0 +1,8 @@
+// EXPECT-ERROR: has 3 instances and was given 2 rows
+group mob[3] {
+  u8 x
+  u8 y
+} = [
+  [ 1, 2 ],
+  [ 3, 4 ],
+]

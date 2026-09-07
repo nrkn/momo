@@ -1,0 +1,4 @@
+// EXPECT-ERROR: has 2 values, and the group has 3 instances
+group mob[3] {
+  u8 x = [ 1, 2 ]
+}

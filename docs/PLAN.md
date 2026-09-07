@@ -247,11 +247,6 @@ at all, which makes one a floor rather than a measurement.
   expression whose type is an array, and §18 refused exactly that for `mob[i]` -
   the refusal does not transfer, and the shape that replaces it is §45's: a name
   bound to an access, with no storage.
-- **`group` data, written as rows.** §52 - the field initialisers §18 left out of
-  v1, in the spelling that makes structure-of-arrays readable. Pure parser
-  transposition: no table, no indirection, and nothing reaches the emitter that it
-  does not already emit. Here rather than Definitely because the corpus argues both
-  ways and one of the sites carries a comment arguing against it.
 
 ### Maybe
 
@@ -371,6 +366,13 @@ All are set out in DESIGN §20 unless noted.
 section that was itself a plan - see the note at the top for why, and where to
 look for the rest.
 
+- **`group` data, written as rows.** 2026-09-07. §52, now in `DESIGN.md`, and the
+  record is DECISIONS §52. Both forms - a column per field, or rows the parser
+  transposes into columns - and the rows form lowers entirely in the parser, so
+  the resolver learns only that a field has an initialiser and the emitter learns
+  nothing at all. Every committed `.asm` was byte-identical afterwards, which is
+  what "nothing reaches the emitter that it does not already emit" looks like when
+  it is checked rather than claimed.
 - **`block`.** 2026-09-07. §47, now in `DESIGN.md`, and the record is DECISIONS
   §47. Three routines over the `PSP:0x0002` word `dosblk` already reads, saying
   where the block DOS gave us ends and whether a region fits in it. Seventeen lines
@@ -2537,98 +2539,6 @@ Any table whose entries are consumed by `peek`/`poke`, which is the interface
 `std/str.momo` already presents. §41's `momowad` directory is one: a lump of
 assets wants a table of where each begins, and the alternative is the same linear
 walk `nthStr` does. Whether §52 or §53 ever land, this stands alone.
-
----
-
-## 52. `group` data, written as rows
-
-**Designed, not built.** The field initialisers that §18 left out of v1, in the
-spelling that makes structure-of-arrays readable.
-
-That section says **no field initialisers in v1 - arrays zero-fill**, and that a
-const group carrying data is a separate question. This is that question. The
-columns form is the obvious one:
-
-```momo
-group mob[3] {
-  u8 x = [ 10, 30, 50 ]
-  u8 y = [ 20, 40, 60 ]
-}
-```
-
-and the rows form is the one worth having:
-
-```momo
-group mob[3] {
-  u8 x
-  u8 y
-} = [
-  [ 10, 20 ],
-  [ 30, 40 ],
-  [ 50, 60 ],
-]
-```
-
-Both emit `mob__x db 10, 30, 50` and `mob__y db 20, 40, 60`. The second is the
-first transposed by the parser, and **nothing reaches the emitter that it does
-not already emit today**.
-
-### There is no spine here, and that is the point
-
-A row in the rows form is punctuation. It is consumed at compile time, it names
-no storage, and no address of one exists at runtime. That makes this feature
-strictly cheaper than §53 and unrelated to it apart from the brackets: no table,
-no indirection, no relocation, and no expression whose type is an array.
-
-It is worth stating because the two look like one feature and must not be built
-as one. If a nested literal always emitted a spine, then `palR`, `palG` and
-`palB` in `shared/scenes/demo.momo` would pay for indirection to say what three
-flat arrays say for free.
-
-### The disambiguation comes from the declaration, not the literal
-
-`[ [1, 2], [3, 4] ]` reads equally well as two rows of a group and as two child
-arrays with a spine. Nothing in the literal decides. The declaration does:
-`group` has fields and a fixed instance count, so its literal is rows; `u8[][]`
-(§53) has neither, so its literal is children. No heuristic, and no third
-spelling.
-
-### The corpus argues both ways, and the counter-example is worth reading
-
-For: `shared/scenes/demo.momo` carries `palR`, `palG` and `palB` as three
-parallel arrays where a row is one colour, and `pathFill`, `pathStroke`,
-`pathHasFill` and `pathHasStroke` where a row is one path. Reading a colour or a
-path today means reading down four declarations and counting positions, and
-adding one means editing four lines in step.
-
-Against: `shared/scenes/system6.momo` holds three parallel runs and carries a
-comment saying why - *three parallel runs rather than one run of triples, because
-a column is what a caller indexes and a row is not*. That is a deliberate choice
-by the author of the file, against exactly this feature, on the grounds that the
-access pattern is columnar. It is also strings, so it would want §53 rather than
-this.
-
-So the honest claim is narrower than it first looks: **rows help where a row is
-what the writer edits and a column is what the program reads.** Where a column is
-both, the columns form is already right and this changes nothing.
-
-### Rules
-
-- **A row supplies every field, in declaration order.** No holes and no names in
-  v1 - §49 is where named arguments are being thought about, and a group literal
-  should not invent a second spelling for them before that lands.
-- **The row count equals the instance count.** `group mob[3]` takes three rows,
-  and a mismatch is an error rather than a zero-fill.
-- **Fields are still scalars.** §18's rule is untouched, so a row is a list of
-  scalars and nesting stops there.
-- **Both forms, or one, is open.** The columns form is nearly free and is what
-  the rows form lowers to, so shipping only rows leaves the longhand unwritable -
-  which is unlike every other piece of sugar here, since §44, §45 and `=>` all
-  have a longhand that can still be typed. Shipping both is two spellings for one
-  thing, which §18 avoided with `[n]`.
-- **The single-instance form takes no brackets.** `group player { ... } = [ 10, 20 ]`
-  is one row, not a list of them, matching the way `[n]` already decides one from
-  many.
 
 ---
 

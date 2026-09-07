@@ -2066,8 +2066,10 @@ ordinary array store. Bounds checks on constant indices work per field, unchange
   arrays, which is a separate problem.
 - **The count must be a constant**, as for any array.
 - **Top-level only** in v1. Entity pools are inherently global.
-- **No field initialisers** in v1 - arrays zero-fill, matching `u8[4] buf`. Const
-  groups carrying data are a separate question.
+- **Field initialisers arrived in §52**, in two forms - a column per field, or
+  rows the parser transposes into columns. A field with no initialiser still
+  zero-fills, matching `u8[4] buf`, which is what this rule used to say
+  outright. A `const` group carrying data is still a separate question.
 - **A view of a field is still not expressible**, and §17 landing did not change
   that. A field *is* an ordinary array, so nothing in the mechanism objects - but
   `view u8[16] firstWave = mob__x[0]` names a label deliberately out of scope
@@ -3825,9 +3827,108 @@ Four more refusals, each of them a wrong answer with no diagnostic otherwise:
 
 ---
 
+## 52. `group` data, written as rows
+
+**Built.** The field initialisers §18 left out of v1, in the spelling that makes
+structure-of-arrays readable. `grpdata` exercises both forms.
+
+The columns form is the obvious one, and is what a field's declaration would take
+if it were an ordinary array:
+
+```momo
+group mob[3] {
+  u8 x = [ 10, 30, 50 ]
+  u8 y = [ 20, 40, 60 ]
+}
+```
+
+and the rows form is the one worth having:
+
+```momo
+group mob[3] {
+  u8 x
+  u8 y
+} = [
+  [ 10, 20 ],
+  [ 30, 40 ],
+  [ 50, 60 ],
+]
+```
+
+Both emit `mob__x db 10, 30, 50` and `mob__y db 20, 40, 60`. The second is the
+first **transposed by the parser**, so the resolver learns only that a field has
+an initialiser, and the emitter learns nothing: a field with data is an array
+symbol carrying values, which is what it already was.
+
+### There is no spine, and that is the point
+
+A row is punctuation. It is consumed at parse time, it names no storage, and no
+address of one exists at runtime. That is what makes this strictly cheaper than
+§53 and unrelated to it apart from the brackets: no table, no indirection, no
+relocation, and no expression whose type is an array.
+
+The two look like one feature and must not be built as one. If a nested literal
+always emitted a spine, `palR`, `palG` and `palB` in `shared/scenes/demo.momo`
+would pay for indirection to say what three flat arrays say for free.
+
+### The disambiguation comes from the declaration, not the literal
+
+`[ [1, 2], [3, 4] ]` reads equally well as two rows of a group and as two child
+arrays with a spine. Nothing in the literal decides. The declaration does:
+`group` has fields and a fixed instance count, so its literal is rows; `u8[][]`
+(§53) has neither, so its literal is children. No heuristic, and no third
+spelling.
+
+### Rules
+
+- **A row supplies every field, in declaration order.** No holes and no names -
+  §49 is where named arguments are being thought about, and a group literal
+  should not invent a second spelling for them before that lands.
+- **The row count equals the instance count**, and a mismatch is an **error**
+  rather than a zero-fill. This is a deliberate difference from an ordinary
+  array, where `u8[10] partial = [ 1, 2, 3 ]` fills the tail: a buffer may have a
+  head and nothing else, where a group with three rows and ten instances is a
+  miscount. The instance count is a constant expression, so this is the resolver's
+  check rather than the parser's - which is the only reason the declaration
+  carries a note saying the data arrived as rows, so the message can be phrased
+  in the form that was written.
+- **Fields are still scalars.** §18's rule is untouched, so a row is a list of
+  scalars and nesting stops there.
+- **Both forms ship.** The columns form is what the rows form lowers to, so
+  shipping only rows would leave the longhand unwritable - unlike §44, §45 and
+  `=>`, which all have a longhand that can still be typed.
+- **The single-instance form takes no brackets.** `group player { ... } = [ 10, 20 ]`
+  is one row, not a list of them, matching the way `[n]` already decides one from
+  many. Its columns form is a plain scalar per field, which reads exactly like the
+  variable declaration it compiles to.
+- **In the columns form a field is independent**, initialised or zero-filled, the
+  way an ordinary declaration is. A row has no holes because a row is positional;
+  a column is named, so it does not need the same rule.
+
+### Where it helps, and the counter-example in the corpus
+
+For: `shared/scenes/demo.momo` carries `palR`, `palG` and `palB` as three
+parallel arrays where a row is one colour, and `pathFill`, `pathStroke`,
+`pathHasFill` and `pathHasStroke` where a row is one path. Reading a colour or a
+path means reading down four declarations and counting positions, and adding one
+means editing four lines in step.
+
+Against: `shared/scenes/system6.momo` holds three parallel runs and carries a
+comment saying why - *three parallel runs rather than one run of triples, because
+a column is what a caller indexes and a row is not*. That is a deliberate choice
+by the author of that file, against exactly this feature, on the grounds that the
+access pattern is columnar. It is also strings, so it would want §53 rather than
+this.
+
+So the claim is narrower than it first looks: **rows help where a row is what the
+writer edits and a column is what the program reads.** Where a column is both,
+the columns form was already right and this changes nothing.
+
+---
+
 ## Sections designed, but not built
 
-Sixteen sections carry numbers but no text here, because what they describe does
+Fifteen sections carry numbers but no text here, because what they describe does
 not exist yet. All are in `PLAN.md`. The heading names no range deliberately - the
 set stopped being contiguous the moment one of them was built.
 
@@ -3847,7 +3948,6 @@ set stopped being contiguous the moment one of them was built.
 | §46 | `alias` - a name for an indexed access, which §45's `of` is one case of |
 | §49 | Named and default arguments, which is what §48's `cfg` carrier needs |
 | §51 | `addr()` in an initialiser - the table of addresses that cannot be written down |
-| §52 | `group` data, written as rows - the field initialisers §18 left out |
 | §53 | Nested arrays, and the spine they need |
 
 ---
