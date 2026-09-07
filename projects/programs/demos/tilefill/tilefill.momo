@@ -73,19 +73,18 @@ sub blit( u16 from, u8 tx, u8 ty ) {
 
 // ---- entry ----
 
-saveMode()
-setMode( modeGfx256 )
+videoMode {
+  setMode( modeGfx256 )
 
-for( u8 ty = 0; ty < tilesDown; ty++ ){
-  for( u8 tx = 0; tx < tilesAcross; tx++ ){
-    if( ( ( tx + ty ) & 1 ) == 0 ){
-      blit( 0, tx, ty )
-    } else {
-      blit( tileBytes, tx, ty )
+  for( u8 ty = 0; ty < tilesDown; ty++ ){
+    for( u8 tx = 0; tx < tilesAcross; tx++ ){
+      if( ( ( tx + ty ) & 1 ) == 0 ){
+        blit( 0, tx, ty )
+      } else {
+        blit( tileBytes, tx, ty )
+      }
     }
   }
+
+  readKey()
 }
-
-readKey()
-
-restoreMode()

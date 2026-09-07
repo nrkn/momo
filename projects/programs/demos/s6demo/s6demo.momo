@@ -26,42 +26,41 @@ include "lib/std/mode.momo"
 
 // ---- entry ----
 
-// The mode is saved and put back by std/mode.momo (§43), which is where the six
-// lines this used to spell out now live once.
-saveMode()
+// The mode is saved and put back by std/mode.momo (§43). Its bracket (§48) makes
+// the compiler emit the restore, so the six lines this used to spell out are now
+// neither written here nor forgettable.
+videoMode {
+  setTextMode()
+  hideCursor()
+  useBrightBackgrounds()
 
-setTextMode()
-hideCursor()
-useBrightBackgrounds()
+  // Built, run and painted one at a time, because begin() takes the previous
+  // layer's elements away. Z-order is this order and nothing else.
 
-// Built, run and painted one at a time, because begin() takes the previous
-// layer's elements away. Z-order is this order and nothing else.
+  paint( 80 * u, 25 * lineHeight ) {
+    buildS6Screen()
+  }
+  runPasses()
+  paintLayer( 0, 0 )
 
-paint( 80 * u, 25 * lineHeight ) {
-  buildS6Screen()
+  paint( s6FinderW * u, s6FinderH * lineHeight ) {
+    buildS6Finder()
+  }
+  runPasses()
+  paintLayer( s6FinderX * u, s6FinderY * lineHeight )
+
+  paint( s6AboutW * u, s6AboutH * lineHeight ) {
+    buildS6About()
+  }
+  runPasses()
+  paintLayer( s6AboutX * u, s6AboutY * lineHeight )
+
+  paint( s6DlgW * u, s6DlgH * lineHeight ) {
+    buildS6Dialog()
+  }
+  runPasses()
+  paintLayer( s6DlgX * u, s6DlgY * lineHeight )
+
+  readKey()
 }
-runPasses()
-paintLayer( 0, 0 )
-
-paint( s6FinderW * u, s6FinderH * lineHeight ) {
-  buildS6Finder()
-}
-runPasses()
-paintLayer( s6FinderX * u, s6FinderY * lineHeight )
-
-paint( s6AboutW * u, s6AboutH * lineHeight ) {
-  buildS6About()
-}
-runPasses()
-paintLayer( s6AboutX * u, s6AboutY * lineHeight )
-
-paint( s6DlgW * u, s6DlgH * lineHeight ) {
-  buildS6Dialog()
-}
-runPasses()
-paintLayer( s6DlgX * u, s6DlgY * lineHeight )
-
-readKey()
-
-restoreMode()
 showCursor()

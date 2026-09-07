@@ -14,65 +14,65 @@ include "lib/std/mode.momo"
 
 u16 tall
 
-saveMode()
+videoMode {
+  // ---- 80x25, where every field is known
 
-// ---- 80x25, where every field is known
+  setMode( modeText )
 
-setMode( modeText )
+  putNumber( screenWidth() )
+  putChar( ' ' )
+  putNumber( screenHeight() )
+  newline()
 
-putNumber( screenWidth() )
-putChar( ' ' )
-putNumber( screenHeight() )
-newline()
+  putNumber( screenSegment() )
+  putChar( ' ' )
+  putNumber( u16( screenElemBytes() ) )
+  newline()
 
-putNumber( screenSegment() )
-putChar( ' ' )
-putNumber( u16( screenElemBytes() ) )
-newline()
+  // Width and stride coincide for every mode in the table, and the API keeps them
+  // apart anyway - see the comment on screenStride.
+  putNumber( u16( screenStride() == screenWidth() ) )
+  newline()
 
-// Width and stride coincide for every mode in the table, and the API keeps them
-// apart anyway - see the comment on screenStride.
-putNumber( u16( screenStride() == screenWidth() ) )
-newline()
+  // ---- the tall text mode, where only the inequality is portable
 
-// ---- the tall text mode, where only the inequality is portable
+  setMode( modeTall )
+  tall = screenHeight()
 
-setMode( modeTall )
-tall = screenHeight()
+  putNumber( u16( screenWidth() == 80 ) )
+  putChar( ' ' )
+  putNumber( u16( tall > 25 ) )
+  newline()
 
-putNumber( u16( screenWidth() == 80 ) )
-putChar( ' ' )
-putNumber( u16( tall > 25 ) )
-newline()
+  // ---- mode 13h, which reports 40 columns to the BIOS and 320 to us
 
-// ---- mode 13h, which reports 40 columns to the BIOS and 320 to us
+  setMode( modeGfx256 )
 
-setMode( modeGfx256 )
+  putNumber( screenWidth() )
+  putChar( ' ' )
+  putNumber( screenHeight() )
+  newline()
 
-putNumber( screenWidth() )
-putChar( ' ' )
-putNumber( screenHeight() )
-newline()
+  putNumber( screenSegment() )
+  putChar( ' ' )
+  putNumber( u16( screenElemBytes() ) )
+  newline()
 
-putNumber( screenSegment() )
-putChar( ' ' )
-putNumber( u16( screenElemBytes() ) )
-newline()
+  // ---- the row table
 
-// ---- the row table
+  screenRowsInit()
 
-screenRowsInit()
+  putNumber( screenRow( 0 ) )
+  putChar( ' ' )
+  putNumber( screenRow( 1 ) )
+  putChar( ' ' )
+  putNumber( screenRow( 199 ) )
+  newline()
 
-putNumber( screenRow( 0 ) )
-putChar( ' ' )
-putNumber( screenRow( 1 ) )
-putChar( ' ' )
-putNumber( screenRow( 199 ) )
-newline()
+  // The close is restoreMode, emitted by videoMode (§48).
+}
 
 // ---- restoring empties the descriptor rather than leaving a stale answer
-
-restoreMode()
 
 putNumber( screenWidth() )
 putChar( ' ' )

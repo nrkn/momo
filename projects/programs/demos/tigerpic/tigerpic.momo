@@ -91,27 +91,26 @@ sub emitSpan( u16 y, i16 x0, i16 x1 ) {
 
 u16 held
 
-saveMode()
-setMode( modeGfx256 )
-loadPalette()
+videoMode {
+  setMode( modeGfx256 )
+  loadPalette()
 
-// Paths in order, each filled then stroked. Array order IS declaration order for an
-// immediate-mode builder, so this is paint order - no command list, nothing to sort.
-for ( u16 p = 0; p < maxPaths; p++ ) {
-  if ( pathHasFill[p] != 0 ) {
-    ink = pathFill[p]
-    fillPath( p, true )
+  // Paths in order, each filled then stroked. Array order IS declaration order for an
+  // immediate-mode builder, so this is paint order - no command list, nothing to sort.
+  for ( u16 p = 0; p < maxPaths; p++ ) {
+    if ( pathHasFill[p] != 0 ) {
+      ink = pathFill[p]
+      fillPath( p, true )
+    }
+
+    if ( pathHasStroke[p] != 0 ) {
+      ink = pathStroke[p]
+      strokePath( p )
+    }
   }
 
-  if ( pathHasStroke[p] != 0 ) {
-    ink = pathStroke[p]
-    strokePath( p )
-  }
+  // std/key has readKey, which blocks and returns what was pressed. Nothing here
+  // wants the value, and discarding it is what a `sub` cannot do - so it goes into a
+  // variable that exists to be ignored.
+  held = readKey()
 }
-
-// std/key has readKey, which blocks and returns what was pressed. Nothing here
-// wants the value, and discarding it is what a `sub` cannot do - so it goes into a
-// variable that exists to be ignored.
-held = readKey()
-
-restoreMode()

@@ -46,7 +46,7 @@ modeCount:      equ     3
 ; =========================================================== entry ====
 
 __entry:
-; ---- saveMode()
+; ---- videoMode {
         call    saveMode
 ; ---- setTextMode()
         call    setTextMode
@@ -126,7 +126,7 @@ __entry:
         call    paintLayer
 ; ---- readKey()
         call    readKey
-; ---- restoreMode()
+; ---- }
         call    restoreMode
 ; ---- showCursor()
         call    showCursor
@@ -5043,15 +5043,15 @@ packRows:
         jne     .L622                       ; unsigned ==
         ret
 .L622:
-; ---- rowFirst[0] = 0
-        mov     word [rowFirst], 0
-; ---- rowCount[0] = 0
-        mov     word [rowCount], 0
+; ---- flowRow[ 0 ].first = 0
+        mov     word [flowRow__first], 0
+; ---- flowRow[ 0 ].count = 0
+        mov     word [flowRow__count], 0
 ; ---- flowRowCount = 1
         mov     word [flowRowCount], 1
 ; ---- used = 0
         mov     word [packRows__used], 0
-; ---- for ( i = 0; i < n; i++ ) {
+; ---- for ( u16 i = 0; i < n; i++ ) {
         mov     word [packRows__i], 0
 .L625:
         mov     ax, [packRows__i]
@@ -5060,12 +5060,12 @@ packRows:
         jb      .L628                       ; unsigned <
         jmp     .L627
 .L628:
-; ---- if ( rowCount[ flowRowCount - 1 ] == 0 ) {
+; ---- if ( flowRow[ flowRowCount - 1 ].count == 0 ) {
         mov     ax, [flowRowCount]
         dec     ax
         shl     ax, 1                       ; word elements
         mov     bx, ax
-        mov     ax, [rowCount + bx]
+        mov     ax, [flowRow__count + bx]
         test    ax, ax
         jne     .L629                       ; unsigned ==
 ; ---- extra = flowW[i]
@@ -5088,12 +5088,12 @@ packRows:
         add     ax, bx
         mov     [packRows__extra], ax
 .L630:
-; ---- if ( rowCount[ flowRowCount - 1 ] > 0 && used + extra > width ) {
+; ---- if ( flowRow[ flowRowCount - 1 ].count > 0 && used + extra > width ) {
         mov     ax, [flowRowCount]
         dec     ax
         shl     ax, 1                       ; word elements
         mov     bx, ax
-        mov     ax, [rowCount + bx]
+        mov     ax, [flowRow__count + bx]
         test    ax, ax
         ja      .L634                       ; unsigned >
         jmp     .L632
@@ -5113,19 +5113,19 @@ packRows:
 ; ---- return
         ret
 .L636:
-; ---- rowFirst[ flowRowCount ] = i
+; ---- flowRow[ flowRowCount ].first = i
         mov     ax, [packRows__i]
         push    ax                          ; save value while computing the index
         mov     ax, [flowRowCount]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         pop     ax
-        mov     [rowFirst + bx], ax
-; ---- rowCount[ flowRowCount ] = 1
+        mov     [flowRow__first + bx], ax
+; ---- flowRow[ flowRowCount ].count = 1
         mov     ax, [flowRowCount]
         shl     ax, 1                       ; word elements
         mov     bx, ax
-        mov     word [rowCount + bx], 1
+        mov     word [flowRow__count + bx], 1
 ; ---- flowRowCount++
         inc     word [flowRowCount]
 ; ---- used = flowW[i]
@@ -5136,12 +5136,12 @@ packRows:
         mov     [packRows__used], ax
         jmp     .L633
 .L632:
-; ---- rowCount[ flowRowCount - 1 ]++
+; ---- flowRow[ flowRowCount - 1 ].count++
         mov     ax, [flowRowCount]
         dec     ax
         shl     ax, 1                       ; word elements
         mov     bx, ax
-        inc     word [rowCount + bx]
+        inc     word [flowRow__count + bx]
 ; ---- used += extra
         mov     ax, [packRows__used]
         mov     bx, [packRows__extra]
@@ -5414,7 +5414,7 @@ w311Group:
         mov     byte [cfg__gap], 0
 ; ---- box {
         call    boxOpen
-; ---- for ( r = 0; r < flowRowCount; r++ ) {
+; ---- for ( u16 r = 0; r < flowRowCount; r++ ) {
         mov     word [w311Group__r], 0
 .L650:
         mov     ax, [w311Group__r]
@@ -5429,7 +5429,7 @@ w311Group:
         mov     byte [cfg__gap], 1
 ; ---- box {
         call    boxOpen
-; ---- for ( k = 0; k < rowCount[r]; k++ ) {
+; ---- for ( u16 k = 0; k < flowRow[ r ].count; k++ ) {
         mov     word [w311Group__k], 0
 .L654:
         mov     ax, [w311Group__k]
@@ -5437,18 +5437,18 @@ w311Group:
         mov     ax, [w311Group__r]
         shl     ax, 1                       ; word elements
         mov     bx, ax
-        mov     ax, [rowCount + bx]
+        mov     ax, [flowRow__count + bx]
         mov     bx, ax
         pop     ax
         cmp     ax, bx
         jae     .L656                       ; unsigned <
-; ---- progIcon( nthStr( names, rowFirst[r] + k ) )
+; ---- progIcon( nthStr( names, flowRow[ r ].first + k ) )
         mov     ax, [w311Group__names]
         mov     [nthStr__at], ax
         mov     ax, [w311Group__r]
         shl     ax, 1                       ; word elements
         mov     bx, ax
-        mov     ax, [rowFirst + bx]
+        mov     ax, [flowRow__first + bx]
         mov     bx, [w311Group__k]
         add     ax, bx
         mov     [nthStr__n], ax
@@ -6000,17 +6000,17 @@ place__base:    dw      0        ; u16
 place__room:    dw      0        ; u16
 place__cross:   dw      0        ; u16
 place__slot:    dw      0        ; u16
-packRows__n:    dw      0        ; u16
 packRows__i:    dw      0        ; u16
+packRows__n:    dw      0        ; u16
 packRows__used: dw      0        ; u16
 packRows__extra: dw      0        ; u16
 titleBar__bg:   db      0        ; u8
 titleBar__fg:   db      0        ; u8
 menuBar__i:     dw      0        ; u16
 w311Group__i:   dw      0        ; u16
-w311Group__inner: dw      0        ; u16
 w311Group__r:   dw      0        ; u16
 w311Group__k:   dw      0        ; u16
+w311Group__inner: dw      0        ; u16
 
 ; ---- arrays ----
 el__isCol:      times 96 db 0        ; bool[96]
@@ -6059,8 +6059,8 @@ place__stkI:    times 96 dw 0        ; u16[96]
 place__stkX:    times 96 dw 0        ; u16[96]
 place__stkY:    times 96 dw 0        ; u16[96]
 flowW:          times 16 dw 0        ; u16[16]
-rowFirst:       times 8 dw 0        ; u16[8]
-rowCount:       times 8 dw 0        ; u16[8]
+flowRow__first: times 8 dw 0        ; u16[8]
+flowRow__count: times 8 dw 0        ; u16[8]
 sProgMan:       db      'Program Manager$'        ; u8[16] const
 sMenu:          db      'File$Options$Window$Help$'        ; u8[25] const
 sAccTitle:      db      'Accessories$'        ; u8[12] const

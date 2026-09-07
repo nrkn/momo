@@ -33,45 +33,44 @@ include "lib/std/mode.momo"
 
 // ---- entry ----
 
-// The mode is saved and put back by std/mode.momo (§43), which is where the six
-// lines this used to spell out now live once.
-saveMode()
+// The mode is saved and put back by std/mode.momo (§43). Its bracket (§48) makes
+// the compiler emit the restore, so the six lines this used to spell out are now
+// neither written here nor forgettable.
+videoMode {
+  setTextMode()
+  hideCursor()
+  useBrightBackgrounds()
 
-setTextMode()
-hideCursor()
-useBrightBackgrounds()
+  // Layer by layer, and the order is forced rather than chosen: begin() resets the
+  // element array, so each layer has to be built, run, read and painted before the
+  // next one starts. Reading is what layer zero is for - everything after it is
+  // placed against the client rectangle it reports.
 
-// Layer by layer, and the order is forced rather than chosen: begin() resets the
-// element array, so each layer has to be built, run, read and painted before the
-// next one starts. Reading is what layer zero is for - everything after it is
-// placed against the client rectangle it reports.
+  paint( 80 * u, 25 * lineHeight ) {
+    buildW311Shell()
+  }
+  runPasses()
+  w311ReadClient()
+  paintLayer( 0, 0 )
 
-paint( 80 * u, 25 * lineHeight ) {
-  buildW311Shell()
+  paint( w311AccW * u, w311AccH * lineHeight ) {
+    buildW311Accessories()
+  }
+  runPasses()
+  paintLayer( clientX + w311AccX * u, clientY + w311AccY * lineHeight )
+
+  paint( w311MainW * u, w311MainH * lineHeight ) {
+    buildW311Main()
+  }
+  runPasses()
+  paintLayer( clientX + w311MainX * u, clientY + w311MainY * lineHeight )
+
+  paint( w311DlgW * u, w311DlgH * lineHeight ) {
+    buildW311Dialog()
+  }
+  runPasses()
+  paintLayer( clientX + w311DlgX * u, clientY + w311DlgY * lineHeight )
+
+  readKey()
 }
-runPasses()
-w311ReadClient()
-paintLayer( 0, 0 )
-
-paint( w311AccW * u, w311AccH * lineHeight ) {
-  buildW311Accessories()
-}
-runPasses()
-paintLayer( clientX + w311AccX * u, clientY + w311AccY * lineHeight )
-
-paint( w311MainW * u, w311MainH * lineHeight ) {
-  buildW311Main()
-}
-runPasses()
-paintLayer( clientX + w311MainX * u, clientY + w311MainY * lineHeight )
-
-paint( w311DlgW * u, w311DlgH * lineHeight ) {
-  buildW311Dialog()
-}
-runPasses()
-paintLayer( clientX + w311DlgX * u, clientY + w311DlgY * lineHeight )
-
-readKey()
-
-restoreMode()
 showCursor()

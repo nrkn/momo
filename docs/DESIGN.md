@@ -3971,6 +3971,12 @@ a truthful "we no longer know"; a stale one still reads as an answer.
   refuses to hoist a runtime segment, so the constant is the only form §34 can
   ever improve. `screenSegment()` is for a program that does not know its mode at
   compile time, which is the properties query and is not built.
+- **`saveMode` and `restoreMode` are a `bracket`**, `videoMode` (§48), declared
+  here because this file owns the routines. A program that forgets the restore
+  leaves the display in mode 13h at the DOS prompt, and the compiler emitting the
+  close is the difference between a pair that can be got wrong and one that
+  cannot. `setMode` is not in it: a mode may be set more than once inside one
+  block, which `modetest` does three times.
 - **The row table is filled by an explicit `screenRowsInit`**, never by
   `setMode`. That is what makes 400 bytes affordable: a program that never indexes
   by row has the array and the routine pruned entirely (§11), which is every one

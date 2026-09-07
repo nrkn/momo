@@ -198,8 +198,6 @@ sub progIcon( u16 name ) {
 // write down a table of addresses.
 sub w311Group( u16 title, u16 names, u16 count, u16 width ) {
   u16 inner
-  u16 r
-  u16 k
 
   inner = width - 2 * border - 2 * u
 
@@ -224,12 +222,12 @@ sub w311Group( u16 title, u16 names, u16 count, u16 width ) {
       cfgFixedW( inner )
       cfg.gap = lineHeight >> 1
       box {
-        for ( r = 0; r < flowRowCount; r++ ) {
+        for ( u16 r = 0; r < flowRowCount; r++ ) {
           cfgGrowW()
           cfg.gap = u
           box {
-            for ( k = 0; k < rowCount[r]; k++ ) {
-              progIcon( nthStr( names, rowFirst[r] + k ) )
+            for ( u16 k = 0; k < flowRow[ r ].count; k++ ) {
+              progIcon( nthStr( names, flowRow[ r ].first + k ) )
             }
           }
         }

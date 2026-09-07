@@ -14,7 +14,7 @@ modeCount:      equ     3
 ; =========================================================== entry ====
 
 __entry:
-; ---- saveMode()
+; ---- videoMode {
         call    saveMode
 ; ---- setMode( modeText )
         mov     byte [setMode__id], 0
@@ -166,7 +166,7 @@ __entry:
         call    putNumber
 ; ---- newline()
         call    newline
-; ---- restoreMode()
+; ---- }
         call    restoreMode
 ; ---- putNumber( screenWidth() )
         call    screenWidth

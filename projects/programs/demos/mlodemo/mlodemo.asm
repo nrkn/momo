@@ -31,7 +31,7 @@ modeCount:      equ     3
 ; =========================================================== entry ====
 
 __entry:
-; ---- saveMode()
+; ---- videoMode {
         call    saveMode
 ; ---- setTextMode()
         call    setTextMode
@@ -53,7 +53,7 @@ __entry:
         call    paintAll
 ; ---- readKey()
         call    readKey
-; ---- restoreMode()
+; ---- }
         call    restoreMode
 ; ---- showCursor()
         call    showCursor

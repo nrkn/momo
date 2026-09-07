@@ -117,6 +117,17 @@ sub restoreMode {
   curElemBytes = 0
 }
 
+// The pair as a bracket (§48), declared here because this file owns the two
+// routines. Every program that sets a mode has to put it back, and a program
+// that forgets leaves the display in mode 13h at the DOS prompt - which is
+// exactly the shape §48 exists for, since the compiler emits the close.
+//
+//   videoMode {
+//     setMode( modeGfx256 )
+//     ...
+//   }
+bracket videoMode = saveMode / restoreMode
+
 sub setMode( u8 id ) {
   _ah = 0x00
   _al = screenMode[id].bios

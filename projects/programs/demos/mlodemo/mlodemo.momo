@@ -28,21 +28,20 @@ include "lib/std/mode.momo"
 
 // ---- entry ----
 
-// The mode is saved and put back by std/mode.momo (§43), which is where the six
-// lines this used to spell out now live once.
-saveMode()
+// The mode is saved and put back by std/mode.momo (§43). Its bracket (§48) makes
+// the compiler emit the restore, so the six lines this used to spell out are now
+// neither written here nor forgettable.
+videoMode {
+  setTextMode()
+  hideCursor()
+  useBrightBackgrounds()
 
-setTextMode()
-hideCursor()
-useBrightBackgrounds()
+  paint( 80 * u, 25 * lineHeight ) {
+    buildShell()
+  }
+  runPasses()
+  paintAll()
 
-paint( 80 * u, 25 * lineHeight ) {
-  buildShell()
+  readKey()
 }
-runPasses()
-paintAll()
-
-readKey()
-
-restoreMode()
 showCursor()

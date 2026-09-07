@@ -24,7 +24,7 @@ paletteSize:    equ     39
 ; =========================================================== entry ====
 
 __entry:
-; ---- saveMode()
+; ---- videoMode {
         call    saveMode
 ; ---- setMode( modeGfx256 )
         mov     byte [setMode__id], 2
@@ -80,7 +80,7 @@ __entry:
         call    readKey
         mov     ax, [readKey__ret]
         mov     [held], ax
-; ---- restoreMode()
+; ---- }
         call    restoreMode
 
 ; ---- implicit exit ----

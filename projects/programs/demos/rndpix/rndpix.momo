@@ -20,17 +20,16 @@ far u8[64000] pixels = 0xA000
 
 // ---- entry ----
 
-saveMode()
-setMode( modeGfx256 )
+videoMode {
+  setMode( modeGfx256 )
 
-for( u16 i = 0; i < len( pixels ); i++ ){
-  // Any byte of the generator will do - std/rand.momo is xorshift, so the low
-  // bits are as good as the high ones. An earlier version of this took bits 1..8
-  // of an LCG, which repeat every 512 calls and banded the image every 1.6
-  // scanlines.
-  pixels[i] = u8( nextRandom() )
+  for( u16 i = 0; i < len( pixels ); i++ ){
+    // Any byte of the generator will do - std/rand.momo is xorshift, so the low
+    // bits are as good as the high ones. An earlier version of this took bits 1..8
+    // of an LCG, which repeat every 512 calls and banded the image every 1.6
+    // scanlines.
+    pixels[i] = u8( nextRandom() )
+  }
+
+  readKey()
 }
-
-readKey()
-
-restoreMode()

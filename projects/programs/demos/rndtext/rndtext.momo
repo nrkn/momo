@@ -15,29 +15,29 @@ far u16[2000] cells = 0xB800
 
 // ---- entry ----
 
-// The mode is saved and put back by std/mode.momo (§43), which is where the six
-// lines this used to spell out now live once.
-saveMode()
+// The mode is saved and put back by std/mode.momo (§43). Its bracket (§48)
+// makes the compiler emit the restore, so the six lines this used to spell out
+// are now neither written here nor forgettable.
+videoMode {
+  // 80x25, 16 colours - which is also what puts the buffer at 0xB800.
+  setTextMode()
+  hideCursor()
 
-// 80x25, 16 colours - which is also what puts the buffer at 0xB800.
-setTextMode()
-hideCursor()
+  for( u16 i = 0; i < len( cells ); i++ ){
+    // A random word is already a random character in a random colour, so no
+    // arithmetic is needed beyond one mask. Bit 15 is bit 7 of the attribute -
+    // the blink bit on default hardware - and a screen of blinking cells is
+    // unreadable. Clearing it also holds the background to the first eight
+    // colours, which is what makes the foreground readable against it.
+    //
+    // Every bit of the generator is usable, so the mask is the only requirement;
+    // with the old LCG the character byte also repeated every 512 cells.
+    cells[i] = nextRandom() & 0x7FFF
+  }
 
-for( u16 i = 0; i < len( cells ); i++ ){
-  // A random word is already a random character in a random colour, so no
-  // arithmetic is needed beyond one mask. Bit 15 is bit 7 of the attribute -
-  // the blink bit on default hardware - and a screen of blinking cells is
-  // unreadable. Clearing it also holds the background to the first eight
-  // colours, which is what makes the foreground readable against it.
-  //
-  // Every bit of the generator is usable, so the mask is the only requirement;
-  // with the old LCG the character byte also repeated every 512 cells.
-  cells[i] = nextRandom() & 0x7FFF
+  readKey()
+
+  // Back to whatever was there before. Setting a mode clears the screen, so the
+  // close tidies up as well as restoring.
+  showCursor()
 }
-
-readKey()
-
-// Back to whatever was there before. Setting a mode clears the screen, so this
-// tidies up as well as restoring.
-showCursor()
-restoreMode()

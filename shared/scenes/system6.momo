@@ -402,9 +402,6 @@ sub desktopIcon( u16 name ) {
 }
 
 sub buildS6Screen {
-  u16 r
-  u16 k
-
   for ( u16 i = 0; i < s6IconCount; i++ ) {
     flowW[i] = strLen( nthStr( addr( sS6Icons ), i ) ) + 2 * s6Pad
   }
@@ -442,12 +439,12 @@ sub buildS6Screen {
       cfgFixedW( 80 * u - 2 * u )
       cfg.gap = lineHeight >> 1
       box {
-        for ( r = 0; r < flowRowCount; r++ ) {
+        for ( u16 r = 0; r < flowRowCount; r++ ) {
           cfgGrowW()
           cfg.gap = u
           box {
-            for ( k = 0; k < rowCount[r]; k++ ) {
-              desktopIcon( nthStr( addr( sS6Icons ), rowFirst[r] + k ) )
+            for ( u16 k = 0; k < flowRow[ r ].count; k++ ) {
+              desktopIcon( nthStr( addr( sS6Icons ), flowRow[ r ].first + k ) )
             }
           }
         }

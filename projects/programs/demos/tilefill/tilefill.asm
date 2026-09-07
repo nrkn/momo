@@ -17,7 +17,7 @@ tileBytes:      equ     64
 ; =========================================================== entry ====
 
 __entry:
-; ---- saveMode()
+; ---- videoMode {
         call    saveMode
 ; ---- setMode( modeGfx256 )
         mov     byte [setMode__id], 2
@@ -74,7 +74,7 @@ __entry:
 .L3:
 ; ---- readKey()
         call    readKey
-; ---- restoreMode()
+; ---- }
         call    restoreMode
 
 ; ---- implicit exit ----
