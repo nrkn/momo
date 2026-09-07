@@ -1215,10 +1215,29 @@ editors are still unwritten and the language is still awkward, the pattern is
 broken. If everything waits for both gates, it is not - and this section will be
 the record of it having been foreseeable.
 
-One practical note that falls out of this and is not really about provenance. The
-paper notebooks are the only input in that plan which no catalogue covers, no
-repository holds and no backup protects. Of everything on the destination list
-they are the cheapest to secure and the only part that can be lost outright.
+One practical note, which is not really about provenance and which needed
+correcting as soon as it was first written down here. The paper notebooks are the
+only input in that plan that no catalogue covers, no repository holds and no
+backup protects, so they are the only part of it that can be lost outright.
+
+**They are also far less recoverable than that makes them sound.** The author has
+tried mining them before and found much of it incomprehensible. They are working
+notebooks kept on the desk, and they hold three different kinds of thing: very
+terse prose close to shorthand, rough diagrams and relationship maps, and jotted
+ideas. Only the last of those reliably still reads, and it is the part worth
+another attempt - which he intends at some point rather than having written off.
+
+**That failure already has a name in this document.** The finding about credit is
+that copying preserves provenance and retyping loses it, and shorthand is the
+lossiest retyping there is: what made a line meaningful was the context in his
+head at the time, and the context is precisely the part a working note does not
+record. The notebooks are a stripped licence header applied to his own thinking.
+
+Which sharpens what the assistance changed, from the note near the top of this
+document. The gap it closed - between having a design and having it written out in
+full - is exactly the gap the notebooks are made of. **They are what twenty years
+of that gap looks like when it is kept on paper**, and that is a better reason to
+expect little from them than any judgement about their contents.
 
 ### Where it starts being addressed
 
