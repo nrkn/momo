@@ -1826,3 +1826,88 @@ does not.
 
 The only defence is the one that corrected all five of these, and it is not
 available for most of what is above: asking the person who was there.
+
+# Why now
+
+Everything above is *where the ideas came from*. This section is the question that
+made anyone go looking: **these ideas are twenty years old and several of them
+failed repeatedly, so why are they converging now, and quickly.**
+
+It is worth being clear about the order of events, because it bears on how much
+weight this document can carry. The archive was catalogued properly *in order to
+answer this question* - the author knew he had been circling the same ideas for a
+long time and wanted to see how they were coming together and what the earlier
+failures had been. This document was then written from that catalogue. So both
+were made by the same person asking the same thing, and **they will agree partly
+for that reason rather than entirely on the evidence.** A reader should discount
+accordingly, in the same way as the note on the shared bias framing above.
+
+Three answers, and only the third is surprising.
+
+**The substrate was already there.** Momo began the way every previous attempt
+began - some language ideas - except that this time they landed on top of 8086
+assembly already being learned for its own sake. A small kernel worked, and the
+accumulated ideas turned out to fit it. That is covered above, under why the
+engine habit does not bite here.
+
+**Transcription got cheap.** The designs were always thought through; what was new
+was that they now reach the page in full. Also covered above.
+
+## The third answer is activation energy, and it explains the archive's shape
+
+The author's account is that a great many of the restarts and abandonments were
+not failures of interest or of ability. They were the cost of *resuming*. A thing
+that had stalled felt too hard to pick back up - the state had to be reconstructed
+before any work could happen - and starting fresh felt cheaper than paying that
+cost.
+
+**The archive is shaped by that, visibly.** It is organised as dated folders, one
+per attempt, and the vocabulary the catalogue reaches for to describe the
+relationships between them tells the story: restarted, rewrite, again, from
+scratch, abandoned - together roughly nine times as often as anything meaning
+resumed, reopened or picked back up. The same idea is attempted five, twelve,
+twenty times, and almost always from the beginning. Three virtual machines in nine
+days in 2018, one of them extracted into a fresh skeleton and abandoned the same
+day. Five desktop environments in four days in 2025. Three text-adventure engines
+in nine days in 2023.
+
+Read as taste that looks like restlessness. Read as economics it is the only
+rational move available: **when resuming costs more than restarting, you restart**,
+and you keep the good ideas by carrying them in your head rather than in the
+project.
+
+That also explains something this document noticed early and could not account
+for - why so many of these projects are a readme with no code beneath it. A design
+document is the cheapest possible way to preserve an idea across a gap you do not
+expect to be able to cross. It is not a plan for the next session. It is a message
+to a version of yourself who will have to start over.
+
+## What changed, and what it makes the archive into
+
+Agentic tooling collapsed the resume cost. The author's description of the move is
+literal: point an agent at a stalled codebase and ask what was being worked on and
+what likely caused the stall, then continue from there. The reconstruction that
+used to be the whole barrier is now the cheap part.
+
+He has spent the last year or two doing exactly that across the archive -
+revisiting older projects, clearing blockers, taking each a little further, and
+then parking it deliberately **in a state fit to be used as a study**: a model for
+future work, or a source for a port into another language.
+
+Which changes what the archive *is*. It has been read throughout this document as
+a record - evidence about the past. On this account it is also being converted,
+project by project, into a working library of models for the present. `STUDIES.md`
+describes that method as something two Momo studies arrived at independently in
+2026. The truer statement is that it is the formal version of an operation the
+author has been running informally over his own back catalogue for two years, and
+which the catalogue itself was built to make navigable.
+
+**And it is the plainest difference between Momo and everything before it.** Momo
+is not a better idea than its predecessors; several of them are the same idea. It
+is the first one that never had to be restarted - one repository, worked
+continuously, with the design documents growing alongside the code rather than
+standing in for the next attempt at it.
+
+The prediction above still holds and this does not soften it - a superb compiler
+with no `momoed` is still the old shape. But the failure mode it is measured
+against was substantially a cost, and the cost has changed.
