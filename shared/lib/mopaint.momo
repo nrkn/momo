@@ -411,27 +411,41 @@ local sub drawFrame( u16 x, u16 y, u16 w, u16 h, u8 b, u8 attr ) {
 // A run of exactly `count` characters, for a wrapped line - which is a slice of a
 // longer string and so has no terminator of its own.
 local sub drawRun( u16 at, u16 count, u16 x, u16 y, u8 attr ) {
+  u16 base
+
   if ( y >= screenRows ) return
+
+  // Where the run starts, worked out once. Neither `y` nor `x` changes in the
+  // loop, so `y * screenCols + x` was a multiply per *character* for a value
+  // that cannot move - and a multiply is ~125 cycles against an add's 3.
+  // `fillRect` above already spells it this way; these two did not.
+  base = y * screenCols + x
 
   for ( u16 i = 0; i < count; i++ ) {
     if ( x + i >= screenCols ) break
-    vram[ y * screenCols + x + i ] = peek8( at + i ) | ( attr << 8 )
+    vram[ base + i ] = peek8( at + i ) | ( attr << 8 )
   }
 }
 
 local sub drawText( u16 at, u16 x, u16 y, u8 attr ) {
   u16 i
+  u16 base
   u8  ch
 
+  // The row test was inside the loop and `y` is a parameter, so it could only
+  // ever fail on the first pass. As a guard it says that, and it is what lets
+  // the multiply below be hoisted - see drawRun.
+  if ( y >= screenRows ) return
+
+  base = y * screenCols + x
   i = 0
 
   for ( ;; ) {
     ch = peek8( at + i )
     if ( ch == strEnd ) break
     if ( x + i >= screenCols ) break
-    if ( y >= screenRows ) break
 
-    vram[ y * screenCols + x + i ] = ch | ( attr << 8 )
+    vram[ base + i ] = ch | ( attr << 8 )
     i++
   }
 }

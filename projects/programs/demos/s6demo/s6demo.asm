@@ -1930,6 +1930,13 @@ mopaint__drawRun:
         jb      .L147                       ; unsigned >=
         ret
 .L147:
+; ---- base = y * screenCols + x
+        mov     ax, [mopaint__drawRun__y]
+        mov     bx, 80
+        mul     bx                          ; low 16 bits are sign-agnostic
+        mov     bx, [mopaint__drawRun__x]
+        add     ax, bx
+        mov     [mopaint__drawRun__base], ax
 ; ---- for ( u16 i = 0; i < count; i++ ) {
         mov     word [mopaint__drawRun__i], 0
 .L150:
@@ -1947,7 +1954,7 @@ mopaint__drawRun:
         jb      .L154                       ; unsigned >=
         jmp     .L152
 .L154:
-; ---- vram[ y * screenCols + x + i ] = peek8( at + i ) | ( attr << 8 )
+; ---- vram[ base + i ] = peek8( at + i ) | ( attr << 8 )
         mov     ax, [mopaint__drawRun__at]
         mov     bx, [mopaint__drawRun__i]
         add     ax, bx
@@ -1963,11 +1970,7 @@ mopaint__drawRun:
         pop     ax
         or      ax, bx
         push    ax                          ; save value while computing the index
-        mov     ax, [mopaint__drawRun__y]
-        mov     bx, 80
-        mul     bx                          ; low 16 bits are sign-agnostic
-        mov     bx, [mopaint__drawRun__x]
-        add     ax, bx
+        mov     ax, [mopaint__drawRun__base]
         mov     bx, [mopaint__drawRun__i]
         add     ax, bx
         shl     ax, 1                       ; word elements
@@ -1985,10 +1988,23 @@ mopaint__drawRun:
 ; ============================================== sub mopaint__drawText ====
 
 mopaint__drawText:
+; ---- if ( y >= screenRows ) return
+        mov     ax, [mopaint__drawText__y]
+        cmp     ax, 25
+        jb      .L157                       ; unsigned >=
+        ret
+.L157:
+; ---- base = y * screenCols + x
+        mov     ax, [mopaint__drawText__y]
+        mov     bx, 80
+        mul     bx                          ; low 16 bits are sign-agnostic
+        mov     bx, [mopaint__drawText__x]
+        add     ax, bx
+        mov     [mopaint__drawText__base], ax
 ; ---- i = 0
         mov     word [mopaint__drawText__i], 0
 ; ---- for ( ;; ) {
-.L157:
+.L160:
 ; ---- ch = peek8( at + i )
         mov     ax, [mopaint__drawText__at]
         mov     bx, [mopaint__drawText__i]
@@ -1998,24 +2014,18 @@ mopaint__drawText:
         mov     [mopaint__drawText__ch], al ; u8 -> u8, no widening
 ; ---- if ( ch == strEnd ) break
         cmp     al, 36                      ; byte operands, no widening
-        jne     .L160                       ; unsigned ==
-        jmp     .L159
-.L160:
+        jne     .L163                       ; unsigned ==
+        jmp     .L162
+.L163:
 ; ---- if ( x + i >= screenCols ) break
         mov     ax, [mopaint__drawText__x]
         mov     bx, [mopaint__drawText__i]
         add     ax, bx
         cmp     ax, 80
-        jb      .L163                       ; unsigned >=
-        jmp     .L159
-.L163:
-; ---- if ( y >= screenRows ) break
-        mov     ax, [mopaint__drawText__y]
-        cmp     ax, 25
         jb      .L166                       ; unsigned >=
-        jmp     .L159
+        jmp     .L162
 .L166:
-; ---- vram[ y * screenCols + x + i ] = ch | ( attr << 8 )
+; ---- vram[ base + i ] = ch | ( attr << 8 )
         mov     al, [mopaint__drawText__ch]
         xor     ah, ah                      ; u8 -> u16
         push    ax                          ; save lhs: rhs is not a leaf
@@ -2027,11 +2037,7 @@ mopaint__drawText:
         pop     ax
         or      ax, bx
         push    ax                          ; save value while computing the index
-        mov     ax, [mopaint__drawText__y]
-        mov     bx, 80
-        mul     bx                          ; low 16 bits are sign-agnostic
-        mov     bx, [mopaint__drawText__x]
-        add     ax, bx
+        mov     ax, [mopaint__drawText__base]
         mov     bx, [mopaint__drawText__i]
         add     ax, bx
         shl     ax, 1                       ; word elements
@@ -2042,9 +2048,9 @@ mopaint__drawText:
         mov     [es:bx], ax
 ; ---- i++
         inc     word [mopaint__drawText__i]
-.L158:
-        jmp     .L157
-.L159:
+.L161:
+        jmp     .L160
+.L162:
         ret
 
 ; ============================================== sub paintLayer ====
@@ -6314,7 +6320,9 @@ mopaint__fillRect__base: dw      0        ; u16
 mopaint__fillRect__cell: dw      0        ; u16
 mopaint__drawFrame__side: dw      0        ; u16
 mopaint__drawRun__i: dw      0        ; u16
+mopaint__drawRun__base: dw      0        ; u16
 mopaint__drawText__i: dw      0        ; u16
+mopaint__drawText__base: dw      0        ; u16
 mopaint__drawText__ch: db      0        ; u8
 paintLayer__i:  dw      0        ; u16
 paintLayer__k:  dw      0        ; u16
