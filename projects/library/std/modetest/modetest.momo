@@ -1,0 +1,89 @@
+// modetest.momo - std/mode.momo (DESIGN §43).
+//
+// Text modes only for the geometry that has to be exact, because mode 3 is
+// 80x25 on everything that can run this at all. The tall mode is asserted as an
+// *inequality*, which is the honest claim: it is 43 rows on EGA and 50 on VGA
+// from an identical pair of calls, and that the descriptor knows which is the
+// whole reason it reads the BIOS back instead of trusting the table.
+//
+// Setting a mode clears the display and this program prints through DOS, which
+// tier 2 redirects to a file - so the output is unaffected by what is on screen.
+
+include "lib/std/io.momo"
+include "lib/std/mode.momo"
+
+u16 tall
+
+saveMode()
+
+// ---- 80x25, where every field is known
+
+setMode( modeText )
+
+putNumber( screenWidth() )
+putChar( ' ' )
+putNumber( screenHeight() )
+newline()
+
+putNumber( screenSegment() )
+putChar( ' ' )
+putNumber( u16( screenElemBytes() ) )
+newline()
+
+// Width and stride coincide for every mode in the table, and the API keeps them
+// apart anyway - see the comment on screenStride.
+putNumber( u16( screenStride() == screenWidth() ) )
+newline()
+
+// ---- the tall text mode, where only the inequality is portable
+
+setMode( modeTall )
+tall = screenHeight()
+
+putNumber( u16( screenWidth() == 80 ) )
+putChar( ' ' )
+putNumber( u16( tall > 25 ) )
+newline()
+
+// ---- mode 13h, which reports 40 columns to the BIOS and 320 to us
+
+setMode( modeGfx256 )
+
+putNumber( screenWidth() )
+putChar( ' ' )
+putNumber( screenHeight() )
+newline()
+
+putNumber( screenSegment() )
+putChar( ' ' )
+putNumber( u16( screenElemBytes() ) )
+newline()
+
+// ---- the row table
+
+screenRowsInit()
+
+putNumber( screenRow( 0 ) )
+putChar( ' ' )
+putNumber( screenRow( 1 ) )
+putChar( ' ' )
+putNumber( screenRow( 199 ) )
+newline()
+
+// ---- restoring empties the descriptor rather than leaving a stale answer
+
+restoreMode()
+
+putNumber( screenWidth() )
+putChar( ' ' )
+putNumber( screenSegment() )
+newline()
+
+// ---- the DAC conversion, which is arithmetic and needs no hardware
+
+putNumber( u16( dac8( 0 ) ) )
+putChar( ' ' )
+putNumber( u16( dac8( 4 ) ) )
+putChar( ' ' )
+putNumber( u16( dac8( 255 ) ) )
+newline()

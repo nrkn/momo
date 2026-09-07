@@ -3,18 +3,14 @@
         cpu     8086                        ; enforce the strict-8086 subset
         org     100h
 
+; ---- constants: no storage, folded at assembly time ----
+modeCount:      equ     3
+
 ; =========================================================== entry ====
 
 __entry:
-; ---- _ah = 0x0F
-        mov     byte [_ah], 15
-; ---- int 0x10
-        call    int10
-; ---- savedMode = _al & 0x7F
-        mov     al, [_al]
-        xor     ah, ah                      ; u8 -> u16
-        and     ax, 127
-        mov     [savedMode], al             ; narrowed to u8
+; ---- saveMode()
+        call    saveMode
 ; ---- setTextMode()
         call    setTextMode
 ; ---- hideCursor()
@@ -45,13 +41,8 @@ __entry:
         call    readKey
 ; ---- showCursor()
         call    showCursor
-; ---- _ah = 0x00
-        mov     byte [_ah], 0
-; ---- _al = savedMode
-        mov     al, [savedMode]
-        mov     [_al], al                   ; u8 -> u8, no widening
-; ---- int 0x10
-        call    int10
+; ---- restoreMode()
+        call    restoreMode
 
 ; ---- implicit exit ----
         mov     word [_ax], 0x4C00          ; DOS terminate, exit code 0
@@ -135,6 +126,42 @@ nextRandom:
         mov     [nextRandom__ret], ax
         ret
 
+; ============================================== sub saveMode ====
+
+saveMode:
+; ---- _ah = 0x0F
+        mov     byte [_ah], 15
+; ---- int 0x10
+        call    int10
+; ---- savedMode = _al & 0x7F
+        mov     al, [_al]
+        xor     ah, ah                      ; u8 -> u16
+        and     ax, 127
+        mov     [mode__savedMode], al       ; narrowed to u8
+        ret
+
+; ============================================== sub restoreMode ====
+
+restoreMode:
+; ---- _ah = 0x00
+        mov     byte [_ah], 0
+; ---- _al = savedMode
+        mov     al, [mode__savedMode]
+        mov     [_al], al                   ; u8 -> u8, no widening
+; ---- int 0x10
+        call    int10
+; ---- curW = 0
+        mov     word [mode__curW], 0
+; ---- curH = 0
+        mov     word [mode__curH], 0
+; ---- curElems = 0
+        mov     word [mode__curElems], 0
+; ---- curSeg = 0
+        mov     word [mode__curSeg], 0
+; ---- curElemBytes = 0
+        mov     byte [mode__curElemBytes], 0
+        ret
+
 ; ==================================================== int helpers ====
 ; One per distinct interrupt: the literal is baked in, so the register
 ; sync is emitted once rather than at every call site.
@@ -216,7 +243,12 @@ i:              dw      0        ; u16
 readKey__ret:   dw      0        ; u16
 rand__randomSeed: dw      42        ; u16 = 42
 nextRandom__ret: dw      0        ; u16
-savedMode:      db      0        ; u8
+mode__curW:     dw      0        ; u16
+mode__curH:     dw      0        ; u16
+mode__curElems: dw      0        ; u16
+mode__curSeg:   dw      0        ; u16
+mode__curElemBytes: db      0        ; u8
+mode__savedMode: db      0        ; u8
 
 ; ============================================================ heap ====
 ; No storage is emitted - a .COM owns everything past its image, so

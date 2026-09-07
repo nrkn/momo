@@ -5,8 +5,16 @@
 // and a far write in the same loop, and `y * 320` address arithmetic.
 
 include "lib/std/key.momo"
+include "lib/std/mode.momo"
 
 // 320 x 200, one byte per pixel, each an index into the palette.
+//
+// **A constant segment, deliberately, even though std/mode.momo knows it.**
+// §16 loads ES per access, so a `u16` variable costs ten cycles more than an
+// immediate every time - which `tigerpic` would pay 92,949 times - and §16 also
+// refuses to hoist a runtime segment, so the constant is the only form §34 can
+// ever improve. `screenSegment()` is for a program that does not know its mode
+// at compile time, which is the properties query and is not built.
 far u8[64000] pixels = 0xA000
 
 const tileW  = 8
@@ -45,7 +53,6 @@ const u8[] tiles = [
    0, 0, 0, 9, 9, 0, 0, 0,
 ]
 
-u8  savedMode
 
 // Copies one tile to grid position (tx, ty). `from` is a byte offset into
 // `tiles`. Sixty-four far writes per call, which is the shape §16's ES hoisting
@@ -66,13 +73,8 @@ sub blit( u16 from, u8 tx, u8 ty ) {
 
 // ---- entry ----
 
-_ah = 0x0F
-int 0x10
-savedMode = _al & 0x7F
-
-// AH=00h, AL=13h: 320x200, 256 colours, linear at 0xA000.
-_ax = 0x0013
-int 0x10
+saveMode()
+setMode( modeGfx256 )
 
 for( u8 ty = 0; ty < tilesDown; ty++ ){
   for( u8 tx = 0; tx < tilesAcross; tx++ ){
@@ -86,7 +88,4 @@ for( u8 ty = 0; ty < tilesDown; ty++ ){
 
 readKey()
 
-// Restore the mode we found, which also clears the screen.
-_ah = 0x00
-_al = savedMode
-int 0x10
+restoreMode()

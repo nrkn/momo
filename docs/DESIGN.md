@@ -3926,9 +3926,332 @@ the columns form was already right and this changes nothing.
 
 ---
 
+## 43. The screen library
+
+**Partly built.** `std/mode.momo` is the half that had consumers: the mode table,
+the current-screen descriptor, save, set and restore, the row table §43 settled on,
+and one spelling of a palette entry. `modetest` exercises it.
+
+**Not built**, and each waits on the same thing: the properties query with its
+fallback chain, aspect ratio, the interleaved, planar and banked layouts, and
+windowing. Every one of those serves `momode`, `momove` or `momopnt`, all three of
+which are blocked on a mouse - so none of them can be exercised by anything that
+exists, and building them would be writing code no program could run.
+
+### What landed, and what nine programs stopped carrying
+
+Mode 13h was set by hand in five places and the mode was saved and restored in
+nine. All nine now call `saveMode`, `setMode` and `restoreMode`, and nothing in
+the repository writes `0x0013`, `AH=0Fh` or `AX=1010h` outside the library.
+
+**The palette disagreement is settled by naming both halves.** `mvpic` and
+`tigerpic` carry six-bit values their generator already divided by four; `tennis`
+carries full-range bytes. `setDac` takes the six bits the hardware wants and
+`dac8` is the conversion, so data now says which convention it carries by whether
+it goes through `dac8` - which was previously only a comment, in two places, that
+did not agree.
+
+**A text mode's geometry is read back, not stated.** The descriptor takes width
+and height from the BIOS data area rather than from the table, because 80x43 on
+EGA and 80x50 on VGA are the same pair of calls and only the hardware knows which
+happened. The table carries 0 for those fields deliberately: a nominal figure
+would be a second answer nothing reads, and one that agrees often enough to hide a
+read-back that had stopped working.
+
+**`restoreMode` empties the descriptor.** What is on screen afterwards is a mode
+we found rather than one we set, and it need not be in the table. A zero width is
+a truthful "we no longer know"; a stale one still reads as an answer.
+
+### Rules
+
+- **The frame's segment stays a constant in the program**, even though the table
+  knows it. §16 loads ES per access, so a `u16` variable costs ten cycles more
+  than an immediate every time - `tigerpic` would pay it 92,949 times - and §16
+  refuses to hoist a runtime segment, so the constant is the only form §34 can
+  ever improve. `screenSegment()` is for a program that does not know its mode at
+  compile time, which is the properties query and is not built.
+- **The row table is filled by an explicit `screenRowsInit`**, never by
+  `setMode`. That is what makes 400 bytes affordable: a program that never indexes
+  by row has the array and the routine pruned entirely (§11), which is every one
+  of the nine that only wanted a mode set. Folding the fill into `setMode` would
+  keep it alive in all of them.
+- **Width is not stride**, and `screenStride()` exists to keep them apart even
+  though they coincide for every mode in the table. A caller that steps a row by
+  `screenWidth()` writes the bug named below, and it would keep working until the
+  first mode where they differ.
+- **The table is knowledge; the descriptor is fact.** A row says what a mode
+  nominally is. The descriptor says what the adapter gave us.
+
+### The repository was already the argument
+
+Mode 13h **was** set by hand in five places - `mvpic`, `rndpix`, `tigerpic`,
+`tilefill` and `t_scr` - and the mode was saved and restored in nine, counting the
+four text demos. The palette was loaded in two that disagreed about where eight
+bits become six. None of it was in `shared/lib/`.
+
+That is why this was a consolidation with nine existing consumers rather than a
+new capability, and it is why the built half was worth building before the
+designed half: every line of it was already written, just nine times.
+
+`std/screen.momo` still has `const screenCols = 80` and `const screenRows = 25`,
+and those are **not** superseded. A `far` declaration takes a constant size, so
+`mopaint`'s `far u16[screenCols * screenRows] vram` needs compile-time numbers -
+the descriptor says what is on screen, which is a different question from how big
+a region a program declared.
+
+### A mode is a record, and the shape of a pixel is one of its fields
+
+Width, height, colour depth, the framebuffer segment, the bytes per row, the data
+layout, and the pixel aspect. Every DOS mode happens to be shown on a 4:3 display,
+and that is exactly why the aspect belongs in the table rather than baked into the
+code: it is a fact about a mode, and the first mode that breaks the pattern should
+cost a row rather than a rewrite.
+
+### Availability is yes, no, or maybe - and "maybe" resolves
+
+Detection through `int 10h` is not reliable across cards and clones, so the design
+splits along that seam rather than pretending it is not there:
+
+- **The table is knowledge.** Static, and says what a mode *is* and whether it is
+  plausible on whatever adapter was detected.
+- **The query is probing.** Set the mode, read it back with `AH=0Fh`, confirm it
+  took, and fall back if it did not.
+
+"Maybe" then means "the table says plausible, go and ask", and what comes back is a
+fact rather than a guess.
+
+### Ask for properties, not a mode number
+
+The call a program should make is *"at least 256 colours, at least 320 across, and
+tell me the pixel shape"*, with a fallback chain behind it - not `0x13`.
+
+That is the mechanism by which **a fantasy console runs on real hardware**, and it
+is worth naming as such. `DESIGN.md` says the constraints here were somebody's
+actual machine rather than invented ones; the price of that is that they vary, and
+asking for properties is how a program keeps a fixed-specification feel on hardware
+that will not cooperate.
+
+### The stride question, and how it was settled
+
+**Settled: the stride is a runtime value, `momode` imposes the mode, and the
+multiply becomes a table of row addresses.** Nothing about that is a compromise,
+and the reasoning is kept because the question was asked badly twice before it was
+answered.
+
+**It used to price the wrong term.** This section used to say a runtime width
+"costs nothing now and roughly 7x later", weighing `mul bx` against §26's
+factored `(x*4 + x) << 4`. Both halves are true and the comparison is beside the
+point, because it prices *one* multiply and says nothing about **how many run**.
+
+`mopaint.momo` had three cell-address computations and they did not agree with
+each other. `fillRect` worked out the row base once and walked it; `drawRun` and
+`drawText` computed `y * screenCols + x` **inside** the loop, for a value that
+could not move - `x` and `y` are parameters and neither is assigned in the body.
+So a multiply ran once per character where one per call would do.
+
+Hoisting it saves ~146 cycles a character. Constant-versus-variable is ~10. The
+term this section spent its argument on is an order of magnitude smaller than the
+one it did not look at, and the measurement is in `DECISIONS.md` §36.
+
+**And it wanted two things that contradict.** Read against the rest of this
+section, the old framing could not have been satisfied:
+
+- **"Ask for properties, not a mode number"** means a program takes whatever
+  comes back from the query. Then the stride is *not knowable at compile time* -
+  that is what the query is for.
+- **"`momode` owns the mode, the palette and the screen"** means the shell
+  imposes. A program with a baked-in stride can then only be launched into the
+  one mode it was built for, or must refuse to launch.
+
+A constant stride requires a program that chooses its own mode and keeps it.
+Everything else here describes a program that is told. The two were never
+reconciled because they sat four paragraphs apart.
+
+**The decision: `momode` imposes.** A program is a fixed-specification artifact
+that runs where it is put, not a client that negotiates - which is the
+fantasy-console framing this project is built on, and it keeps the shell contract
+as small as this section already claims it is. Negotiation is the better idea in
+the abstract and it can wait; nothing is closed off by starting with impose, since
+a negotiating shell can always be added over a program that does not care what
+stride it was handed.
+
+So the stride is runtime, and the query works as designed.
+
+**What makes that free is a table of row addresses.** `rowBase[y]` holds the
+offset of each row's first cell, filled once when the mode is set. An address is
+then a lookup and two adds, with no multiply anywhere:
+
+| `row * stride + col` | cycles |
+|---|---|
+| runtime `mul`, both operands from memory | ~170 |
+| constant stride, factored by §26's `-o` tier | ~48 |
+| **`rowBase[y] + col`, stride runtime** | **~50** |
+
+The table lands within a couple of cycles of the best case a *constant* stride can
+reach, and it gets there without the stride being constant. That is the whole
+answer: the performance argument no longer forces the contract, so the contract
+was decided on design grounds instead.
+
+It costs two bytes a row - 400 for mode 13h's 200, 50 for text's 25 - and one pass
+to fill, which is an add and a store per row.
+
+**Four rules follow from it:**
+
+- **The screen library owns the table, not the program.** This section exists
+  because mode 13h is set by hand in five places; a row table re-derived per
+  program would be the same failure in a new place. It is sized by a `const` in
+  the library, the way `momolo` sizes `maxElements`, which means a text-only
+  program pays for a graphics-sized table until something better than a hardcoded
+  const exists.
+- **Fill it when the mode is set**, in the same routine, so the table cannot
+  disagree with the mode it describes.
+- **Hoist per row anyway.** The table makes an address cheap; it does not make it
+  free, and a loop that walks one row should read `rowBase` once. The two are
+  complementary rather than alternatives.
+- **Width is still not stride.** The table is indexed by row and built from the
+  *stride*; a window's width never enters into it. The bug named below is
+  unchanged by any of this.
+
+**Two things it costs elsewhere, which is the honest part:**
+
+- **§26's odd-residue tier loses its headline consumer.** That tier is described
+  as covering "practically every 2D stride", and screen strides were the concrete
+  thing it was for. A row table does not multiply at all, so the biggest
+  prospective customer for §29's `-o` has gone elsewhere. The tier is still right
+  for anything with a genuinely constant stride; it just has a weaker case for
+  being built.
+- **§19 loses the customer this section claimed to give it.** The old text said
+  "the escape is §19 - a routine monomorphised per mode gets its constant stride
+  back", and that does not work: §19 specialises on **array** parameters, a stride
+  is a scalar, and there is no scalar specialisation anywhere in that section. It
+  would have needed an extension to §19, not §19. With the table there is nothing
+  to escape from, so the claim is withdrawn rather than repaired.
+
+### Windowing does not make that worse, which is the good news
+
+A window's address is
+
+```
+base + (y + originY) * stride + (x + originX)
+```
+
+**Stride is a property of the mode, not of the window.** The multiply keeps a
+mode-constant operand and the window contributes two adds, so the expensive part
+stays reducible even when the visible width is arbitrary. What has to stay constant
+is the *stride*, and it can.
+
+The bug this invites is silent and worth naming: **width is not stride.** A windowed
+program that uses its own width as the row step renders everything, skewed into a
+diagonal.
+
+### Aspect ratio, and why an editor turns it into correctness
+
+Mode 13h is 320x200 on a 4:3 display, so a pixel is about 1.2 times taller than it
+is wide and a circle drawn with equal pixel counts on both axes comes out an
+ellipse. Text mode is far worse.
+
+For a viewer that is a quality problem. **For `momove` it is a correctness problem**
+- a drawing tool that shows you something other than what you are making is lying
+about your own document.
+
+The fix is nearly free and already most of the way there. `zoom.momo` applies a
+transform as geometry is read, and `mapX` and `mapY` are already separate
+parameterised consts - but they share one `zoomScale`. Aspect correction is a second
+global and one changed line, and it is **the same work as the vector library's open
+item** "the scene format carrying a transform" rather than a second piece of it.
+
+One thing to check rather than assume: the subdivider decides how many segments a
+curve flattens into, and may assume a uniform scale. A non-uniform one could want
+its tolerance considered per axis.
+
+### Layout types, and the one §22 already reaches
+
+Linear (mode 13h), text (character and attribute pairs), interleaved (CGA's even
+and odd scanlines), planar (EGA and VGA sixteen-colour, four planes behind `0x3C4`
+and `0x3CE`), and banked for anything past VESA.
+
+§16's `far` and §17's `view` already handle linear and text. **Planar is not
+theoretical**: DECISIONS §22 records port I/O as built for *"EGA/VGA planar modes,
+the PIT and the speaker"*, and nothing in the repository touches those ports - so
+the layout field would be the first thing to use a capability that was justified by
+it.
+
+### Where the table lives was a real question, and stopped being one at this size
+
+The worry was that a full table as `const` arrays costs bytes in every program
+that includes it, since §11 drops an unused array but not an unused *entry* of a
+used one. Three modes and seven fields is small enough that it does not arise:
+§11 prunes the whole table from a program that only calls `saveMode` and
+`restoreMode`, which is four of the nine, and the rest pay tens of bytes.
+
+It becomes a question again at a full mode table. The options are unchanged - §8
+parameterised consts so a program pays only for the modes it names; a lump read at
+runtime (§41), which would be `momowad` earning its keep for something that is not
+an asset; or choosing a mode at compile time and carrying nothing.
+
+### The current screen, and windows under `momode`
+
+The same record, describing what is actually on screen, plus an origin. `momode`
+sets it; an aware program is handed a rectangle and draws inside it; an unaware
+program never asks and gets the whole screen. Single-tasking means a window that is
+not running does not update - **it has simply left its pixels behind**, which is the
+whole trick and costs nothing to implement.
+
+Three things follow, and two of them are not obvious.
+
+**The contract is small.** `momode` owns the mode, the palette and the screen; the
+program owns a rectangle. "Aware" minimally means "does not set the video mode",
+which is also exactly why an unaware program gets everything.
+
+**The palette is the sharp edge.** Mode 13h has one 256-entry DAC shared by
+everything visible, so a windowed program loading its own palette recolours its
+neighbour. This is where a *structured* palette stops being a nicety: when the
+layout is arithmetic, `momode` can hand out a sub-range - a hue band, a grey ramp, N
+entries from K - and the program indexes inside it with no lookup table. An
+unstructured palette offers no cheap way to subdivide one. The palette study is
+load-bearing for windowing, which is not where anybody would have gone looking for
+it.
+
+**The handshake needs nothing new.** The rectangle can travel on the command line,
+and a `.COM` reads its command tail from **PSP:0080h** - offset 0x80 of its own
+segment, reachable with `peek` (§10) today. The one part of this that sounds like
+infrastructure is not. Note §38's collision, though: `FindFirst` writes to the DTA,
+which defaults to those same 128 bytes.
+
+**It is cooperative, and a misbehaving program wins.** There is no MMU. A program
+that ignores its rectangle scribbles over its neighbour and nothing stops it. That
+is DOS-honest and fine, but the contract is discipline rather than enforcement, and
+it should be written down as such rather than discovered.
+
+**`momode` must be able to redraw what it cannot ask to redraw.** An unaware program
+destroys the whole screen, and a window that is not running cannot restore itself -
+so the shell has to hold a baked bitmap per window. That is §35 again, plus §41 for
+where the pixels came from.
+
+### momolo is already resolution-independent
+
+`mopaint` decides that a layout unit is a character cell, and the same scenes have
+been run against a pixel target where a unit was 11 or 20. The seam a screen library
+would feed already exists and has been exercised both ways, which is most of what
+`momoed` needs in order to support text modes larger than 80x25.
+
+### What the rest needs that does not exist
+
+Nothing, in the language. The table and the descriptor were `int 10h`, `far` and
+data, and they are built; the query and the window handshake need nothing either.
+
+What the unbuilt half waits on is a **consumer**, not a feature. The query needs a
+program that does not know its mode, aspect needs one that draws circles, the
+layouts need one that touches EGA planes, and windowing needs `momode` - and all
+four of those are blocked on a mouse. Building any of them now would mean writing
+code nothing could run, which is the one thing the tiers here cannot check.
+
+
+---
+
 ## Sections designed, but not built
 
-Fifteen sections carry numbers but no text here, because what they describe does
+Fourteen sections carry numbers but no text here, because what they describe does
 not exist yet. All are in `PLAN.md`. The heading names no range deliberately - the
 set stopped being contiguous the moment one of them was built.
 
@@ -3944,7 +4267,6 @@ set stopped being contiguous the moment one of them was built.
 | §40 | Memory past the segment |
 | §41 | `momowad` - asset storage |
 | §42 | A test tier below DOSBox |
-| §43 | The screen library |
 | §46 | `alias` - a name for an indexed access, which §45's `of` is one case of |
 | §49 | Named and default arguments, which is what §48's `cfg` carrier needs |
 | §51 | `addr()` in an initialiser - the table of addresses that cannot be written down |

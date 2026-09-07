@@ -24,6 +24,7 @@ const maxCrossings = 256
 
 include "lib/std/io.momo"
 include "lib/std/key.momo"
+include "lib/std/mode.momo"
 include "lib/std/math.momo"
 include "lib/momovec/direct.momo"
 include "lib/momovec/types.momo"
@@ -34,41 +35,24 @@ include "lib/momovec/fill.momo"
 
 include "scenes/demo.momo"
 
-// Mode 13h video memory: 320x200, one byte per pixel, at A000:0000. A `far` region,
-// so ES is loaded per access and the tiny model stays intact everywhere else.
+// Mode 13h video memory: 320x200, one byte per pixel, at A000:0000.
+//
+// **A constant segment, deliberately, even though std/mode.momo knows it.**
+// §16 loads ES per access, so a `u16` variable costs ten cycles more than an
+// immediate every time - which `tigerpic` would pay 92,949 times - and §16 also
+// refuses to hoist a runtime segment, so the constant is the only form §34 can
+// ever improve. `screenSegment()` is for a program that does not know its mode
+// at compile time, which is the properties query and is not built.
 far u8[64000] pixels = 0xA000
 
-local u8 savedMode
-
-sub saveMode {
-  _ah = 0x0F
-  int 0x10
-  savedMode = _al & 0x7F
-}
-
-sub restoreMode {
-  _ah = 0x00
-  _al = savedMode
-  int 0x10
-}
-
-sub mode13 {
-  _ax = 0x0013
-  int 0x10
-}
-
-// The DAC, one entry at a time. The values are already six bits, divided by four by
-// the generator.
+// The DAC, one entry at a time. The scene's values are already six bits - the
+// generator divided by four - so they go straight to setDac, which takes the six
+// the hardware wants. `dac8` is the other convention, and nothing here needs it.
 sub loadPalette {
   u16 i
 
   for ( i = 0; i < paletteSize; i++ ) {
-    _ax = 0x1010
-    _bx = i
-    _dh = palR[i]
-    _ch = palG[i]
-    _cl = palB[i]
-    int 0x10
+    setDac( u8( i ), palR[i], palG[i], palB[i] )
   }
 }
 
@@ -102,7 +86,7 @@ u16 p
 u16 held
 
 saveMode()
-mode13()
+setMode( modeGfx256 )
 loadPalette()
 
 for ( p = 0; p < maxPaths; p++ ) {

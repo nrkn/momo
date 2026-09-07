@@ -21,17 +21,14 @@
 include "lib/std/key.momo"
 
 include "scenes/system6.momo"
+include "lib/std/mode.momo"
 
-u8 savedMode
 
 // ---- entry ----
 
-// Ask the BIOS what mode we are in so it can be put back on the way out. AH=0Fh
-// reports the mode in AL; bit 7 is set when the last mode change suppressed the
-// screen clear, so it is masked off.
-_ah = 0x0F
-int 0x10
-savedMode = _al & 0x7F
+// The mode is saved and put back by std/mode.momo (§43), which is where the six
+// lines this used to spell out now live once.
+saveMode()
 
 setTextMode()
 hideCursor()
@@ -66,8 +63,5 @@ paintLayer( s6DlgX * u, s6DlgY * lineHeight )
 
 readKey()
 
-// Put the display back the way it was found.
-_ah = 0x00
-_al = savedMode
-int 0x10
+restoreMode()
 showCursor()

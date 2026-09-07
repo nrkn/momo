@@ -6,21 +6,18 @@
 include "lib/std/screen.momo"
 include "lib/std/key.momo"
 include "lib/std/rand.momo"
+include "lib/std/mode.momo"
 
 // 80x25 cells. Each cell is a word: the character in the low byte, the
 // attribute in the high byte.
 far u16[2000] cells = 0xB800
 
-u8  savedMode
 
 // ---- entry ----
 
-// Ask the BIOS what mode we are in so it can be put back on the way out.
-// AH=0Fh reports the mode in AL; bit 7 is set when the last mode change
-// suppressed the screen clear, so it is masked off.
-_ah = 0x0F
-int 0x10
-savedMode = _al & 0x7F
+// The mode is saved and put back by std/mode.momo (§43), which is where the six
+// lines this used to spell out now live once.
+saveMode()
 
 // 80x25, 16 colours - which is also what puts the buffer at 0xB800.
 setTextMode()
@@ -43,6 +40,4 @@ readKey()
 // Back to whatever was there before. Setting a mode clears the screen, so this
 // tidies up as well as restoring.
 showCursor()
-_ah = 0x00
-_al = savedMode
-int 0x10
+restoreMode()

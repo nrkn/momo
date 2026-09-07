@@ -52,7 +52,7 @@ u8 volleyCount
 // -- start
 
 saveMode()
-mode13()
+setMode( modeGfx256 )
 initPal()
 keyboardBegin()
 

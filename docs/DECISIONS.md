@@ -1540,3 +1540,91 @@ Grouping unconditionally fails `grpdata`, `tennis`, `tiger`, `tclip`, `tflat` an
 `mvpic`. Grouping never fails `cftest`, `filetest`, `maptest`, `mlodemo`,
 `mlolayer` and `momolo`. **The two sets are disjoint**, which is the discrimination
 the change exists to make, and neither set would have moved before it.
+
+---
+
+## 43. The screen library
+
+### The consolidation was nine programs, not five
+
+§43 counted five hand-set mode 13h sites and made its case on those. The save and
+restore pair turned out to be in **nine** - the four text demos duplicate it too -
+and folding them in cost nothing to find, because grepping for what was left after
+the first five was how the leftovers surfaced.
+
+It cost nothing to *do*, either, and that is worth recording because it looked as
+though it would. A text demo including the mode library seemed likely to pay for a
+mode table it never reads. §11 prunes the whole table, both BDA regions, `setMode`,
+`setDac` and the row table from a program that calls only `saveMode` and
+`restoreMode` - verified before converting them, not after - so the four text demos
+pay one byte and two routines for six lines each they no longer carry.
+
+### Reading the diff caught a per-pixel regression
+
+The first version had every program take its frame segment from the descriptor:
+`frameSeg = screenSegment()`, then `far u8[64000] pixels = frameSeg`. It compiled,
+assembled, and passed every tier.
+
+The `momoc:all` diff is where it fell over. `mov dx, [frameSeg]` is 14 cycles
+against `mov dx, 0xA000`'s 4, **per far access**, and §16 loads ES on every one -
+so `tigerpic` would have paid ten extra cycles 92,949 times, about 0.2s at
+4.77MHz, and `tennis` would have paid it per frame. §16 also refuses to hoist a
+runtime segment, so the change would have put those programs permanently out of
+reach of §34.
+
+Re-reading §43 settles it: the section complains that *mode 13h is set by hand in
+five places* and never once complains about `0xA000`. **The segment for a known
+mode is a compile-time fact**, and making it runtime buys nothing until a program
+does not know its mode - which is the properties query, and is not built. So the
+constant stayed and `screenSegment()` is there for when that changes.
+
+The general shape is worth keeping: a consolidation can be correct, pass
+everything, and still be a regression, because the tiers check what the code does
+and not what it costs. The diff is the only place that showed.
+
+### The test could not see its own distinctive feature
+
+The descriptor reads a text mode's geometry back from the BIOS data area rather
+than trusting the table, because 80x43 on EGA and 80x50 on VGA are the same pair
+of calls. That is the one thing in the library that is not just a routine with a
+name.
+
+**And `modetest` could not tell whether it worked.** The table's nominal 50 for
+the tall mode and VGA's actual 50 are the same number, so neutering the read-back
+changed nothing the test looked at. It passed either way, which was discovered by
+trying to break it rather than by writing it.
+
+The fix was to the *design*, not the test: the text rows carry 0 for `nomW` and
+`nomH`. A nominal figure there is a second answer nothing reads, and one that
+agrees with the hardware often enough to hide a read-back that had stopped
+working. With zeros, neutering the read-back turns `80 25` into `0 0` and the
+test fails loudly.
+
+That is the second time in two sections that a teeth check improved the thing
+under test rather than confirming it - §52's `bool` column was a palindrome and
+could not detect a reversal. **A test's fixture can cost it a whole class of
+failure**, and the only thing that says so is breaking what it covers.
+
+### The row table is affordable because of where the fill lives
+
+400 bytes is a lot to add to nine programs, and eight of them never index by row.
+Filling the table inside `setMode` would have kept it alive in every one, because
+a written array is a used array. An explicit `screenRowsInit` leaves it prunable,
+so `modetest` carries it and nothing else does.
+
+The cost is an ordering rule - call it after `setMode` - and a program that
+forgets gets zeros rather than garbage, which is the failure shape §47 chose
+deliberately when it made 0 mean "no".
+
+### What was deliberately not built, and why that is not caution
+
+The properties query, aspect ratio, the interleaved, planar and banked layouts,
+and windowing are all still designed and not built. They are not harder than what
+landed; they have **no consumer**. The query needs a program that does not know
+its mode, aspect needs one that draws circles, the layouts need one that touches
+EGA planes, and windowing needs `momode` - and every one of those is blocked on a
+mouse.
+
+Building them now would mean writing code nothing can run, and this repository has
+exactly one defence against that, which is that a program exercises a library. The
+half that landed had nine programs waiting for it. The half that did not has none.

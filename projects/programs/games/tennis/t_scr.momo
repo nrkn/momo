@@ -14,6 +14,8 @@
   160x100 is 16k - fits easily
 */
 
+include "lib/std/mode.momo"
+
 include "t_cfg.momo"
 
 local const vgaStatus = 0x3da
@@ -22,31 +24,20 @@ local const vgaVRetrace = 1 << 3
 // predicate rather than a wait, so the caller owns it
 bool inRetrace() => ( in8( vgaStatus ) & vgaVRetrace ) != 0
 
+// Mode 13h video memory: 320x200, one byte per pixel, at A000:0000.
+//
+// **A constant segment, deliberately, even though std/mode.momo knows it.**
+// §16 loads ES per access, so a `u16` variable costs ten cycles more than an
+// immediate every time - which `tigerpic` would pay 92,949 times - and §16 also
+// refuses to hoist a runtime segment, so the constant is the only form §34 can
+// ever improve. `screenSegment()` is for a program that does not know its mode
+// at compile time, which is the properties query and is not built.
 far u8[64000] pixels = 0xA000
 
 // for later optimisation of setPixel
 view u16[32000] pxwords = pixels[0]
 
 local const pxIndex( u16 x, u16 y ) = y * screenW + x
-
-local u8 savedMode
-
-sub saveMode {
-  _ah = 0x0F
-  int 0x10
-  savedMode = _al & 0x7F
-}
-
-sub restoreMode {
-  _ah = 0x00
-  _al = savedMode
-  int 0x10
-}
-
-sub mode13 {
-  _ax = 0x0013
-  int 0x10
-}
 
 local const screenWNext = screenW + 1
 

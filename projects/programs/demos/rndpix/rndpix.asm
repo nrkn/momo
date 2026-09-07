@@ -3,22 +3,18 @@
         cpu     8086                        ; enforce the strict-8086 subset
         org     100h
 
+; ---- constants: no storage, folded at assembly time ----
+modeGfx256:     equ     2
+modeCount:      equ     3
+
 ; =========================================================== entry ====
 
 __entry:
-; ---- _ah = 0x0F
-        mov     byte [_ah], 15
-; ---- int 0x10
-        call    int10
-; ---- savedMode = _al & 0x7F
-        mov     al, [_al]
-        xor     ah, ah                      ; u8 -> u16
-        and     ax, 127
-        mov     [savedMode], al             ; narrowed to u8
-; ---- _ax = 0x0013
-        mov     word [_ax], 19
-; ---- int 0x10
-        call    int10
+; ---- saveMode()
+        call    saveMode
+; ---- setMode( modeGfx256 )
+        mov     byte [setMode__id], 2
+        call    setMode
 ; ---- for( u16 i = 0; i < len( pixels ); i++ ){
         mov     word [i], 0
 .L1:
@@ -42,13 +38,8 @@ __entry:
 .L3:
 ; ---- readKey()
         call    readKey
-; ---- _ah = 0x00
-        mov     byte [_ah], 0
-; ---- _al = savedMode
-        mov     al, [savedMode]
-        mov     [_al], al                   ; u8 -> u8, no widening
-; ---- int 0x10
-        call    int10
+; ---- restoreMode()
+        call    restoreMode
 
 ; ---- implicit exit ----
         mov     word [_ax], 0x4C00          ; DOS terminate, exit code 0
@@ -64,6 +55,123 @@ readKey:
 ; ---- return _ax
         mov     ax, [_ax]
         mov     [readKey__ret], ax
+        ret
+
+; ============================================== sub saveMode ====
+
+saveMode:
+; ---- _ah = 0x0F
+        mov     byte [_ah], 15
+; ---- int 0x10
+        call    int10
+; ---- savedMode = _al & 0x7F
+        mov     al, [_al]
+        xor     ah, ah                      ; u8 -> u16
+        and     ax, 127
+        mov     [mode__savedMode], al       ; narrowed to u8
+        ret
+
+; ============================================== sub restoreMode ====
+
+restoreMode:
+; ---- _ah = 0x00
+        mov     byte [_ah], 0
+; ---- _al = savedMode
+        mov     al, [mode__savedMode]
+        mov     [_al], al                   ; u8 -> u8, no widening
+; ---- int 0x10
+        call    int10
+; ---- curW = 0
+        mov     word [mode__curW], 0
+; ---- curH = 0
+        mov     word [mode__curH], 0
+; ---- curElems = 0
+        mov     word [mode__curElems], 0
+; ---- curSeg = 0
+        mov     word [mode__curSeg], 0
+; ---- curElemBytes = 0
+        mov     byte [mode__curElemBytes], 0
+        ret
+
+; ============================================== sub setMode ====
+
+setMode:
+; ---- _ah = 0x00
+        mov     byte [_ah], 0
+; ---- _al = screenMode[id].bios
+        mov     al, [setMode__id]
+        xor     ah, ah                      ; u8 -> u16
+        mov     bx, ax
+        mov     al, [screenMode__bios + bx]
+        mov     [_al], al                   ; u8 -> u8, no widening
+; ---- int 0x10
+        call    int10
+; ---- if ( screenMode[id].smallFont != 0 ) {
+        mov     al, [setMode__id]
+        xor     ah, ah                      ; u8 -> u16
+        mov     bx, ax
+        mov     al, [screenMode__smallFont + bx]
+        test    al, al
+        je      .L5                         ; unsigned !=
+; ---- _ax = 0x1112
+        mov     word [_ax], 4370
+; ---- _bl = 0
+        mov     byte [_bl], 0
+; ---- int 0x10
+        call    int10
+.L5:
+; ---- curSeg = screenMode[id].seg
+        mov     al, [setMode__id]
+        xor     ah, ah                      ; u8 -> u16
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [screenMode__seg + bx]
+        mov     [mode__curSeg], ax
+; ---- curElemBytes = screenMode[id].elemBytes
+        mov     al, [setMode__id]
+        xor     ah, ah                      ; u8 -> u16
+        mov     bx, ax
+        mov     al, [screenMode__elemBytes + bx]
+        mov     [mode__curElemBytes], al    ; u8 -> u8, no widening
+; ---- if ( screenMode[id].elemBytes == 2 ) {
+        mov     al, [setMode__id]
+        xor     ah, ah                      ; u8 -> u16
+        mov     bx, ax
+        mov     al, [screenMode__elemBytes + bx]
+        cmp     al, 2                       ; byte operands, no widening
+        jne     .L8                         ; unsigned ==
+; ---- curW = bdaCols[0]
+        mov     dx, 0x40                    ; segment of mode__bdaCols
+        mov     es, dx
+        mov     ax, [es:74]
+        mov     [mode__curW], ax
+; ---- curH = u16( bdaRows[0] ) + 1
+        mov     dx, 0x40                    ; segment of mode__bdaRows
+        mov     es, dx
+        mov     al, [es:132]
+        xor     ah, ah                      ; u8 -> u16
+        inc     ax
+        mov     [mode__curH], ax
+        jmp     .L9
+.L8:
+; ---- curW = screenMode[id].nomW
+        mov     al, [setMode__id]
+        xor     ah, ah                      ; u8 -> u16
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [screenMode__nomW + bx]
+        mov     [mode__curW], ax
+; ---- curH = screenMode[id].nomH
+        mov     al, [setMode__id]
+        xor     ah, ah                      ; u8 -> u16
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [screenMode__nomH + bx]
+        mov     [mode__curH], ax
+.L9:
+; ---- curElems = curW
+        mov     ax, [mode__curW]
+        mov     [mode__curElems], ax
         ret
 
 ; ============================================== u16 nextRandom ====
@@ -180,9 +288,23 @@ _di:            dw      0
 ; ---- variables ----
 i:              dw      0        ; u16
 readKey__ret:   dw      0        ; u16
+mode__curW:     dw      0        ; u16
+mode__curH:     dw      0        ; u16
+mode__curElems: dw      0        ; u16
+mode__curSeg:   dw      0        ; u16
+mode__curElemBytes: db      0        ; u8
+mode__savedMode: db      0        ; u8
+setMode__id:    db      0        ; u8
 rand__randomSeed: dw      42        ; u16 = 42
 nextRandom__ret: dw      0        ; u16
-savedMode:      db      0        ; u8
+
+; ---- arrays ----
+screenMode__bios: db      3, 3, 19        ; u8[3]
+screenMode__smallFont: db      0, 1, 0        ; u8[3]
+screenMode__nomW: dw      0, 0, 320        ; u16[3]
+screenMode__nomH: dw      0, 0, 200        ; u16[3]
+screenMode__seg: dw      47104, 47104, 40960        ; u16[3]
+screenMode__elemBytes: db      2, 2, 1        ; u8[3]
 
 ; ============================================================ heap ====
 ; No storage is emitted - a .COM owns everything past its image, so

@@ -1,0 +1,200 @@
+// std/mode.momo - what screen we are on, and where a row starts (DESIGN §43).
+//
+// Mode 13h was set by hand in five places, each with its own copy of save, set
+// and restore, and the palette was loaded in two that disagreed about where
+// eight bits become six. This is that consolidation. It is not a new capability:
+// every line here was already written somewhere, just five times.
+//
+// **The table is knowledge and the descriptor is fact.** A row says what a mode
+// nominally is; the descriptor says what the adapter actually gave us, which for
+// a text mode is read back rather than assumed. That is §43's "the query is
+// probing" at its cheapest - no fallback chain yet, just refusing to guess where
+// the BIOS already knows.
+//
+// Deliberately not here yet: the properties query with a fallback chain, aspect
+// ratio, and the interleaved, planar and banked layouts. Every one of those
+// serves a program that is blocked on a mouse, so none of them can be exercised.
+
+include "lib/std/io.momo"
+
+// ---- the modes we can actually reach --------------------------------------
+
+// Our own ids rather than BIOS numbers, because 80x25 and the tall text mode are
+// both `AH=00 AL=03` and the BIOS has no number that separates them. The second
+// is mode 3 followed by the 8x8 font, and **the adapter decides what that means**
+// - 43 rows on EGA, 50 on VGA - which is exactly why the descriptor reads the
+// answer back instead of carrying it here.
+const modeText   = 0
+const modeTall   = 1
+const modeGfx256 = 2
+
+const modeCount = 3
+
+// `elems` is the row stride in whatever the mode's element is: cells for text,
+// bytes for 8-bit linear. `elemBytes` says how wide one is, so a caller knows
+// whether to declare a `far u8[]` or a `far u16[]` over the segment.
+//
+// **`nomW` and `nomH` are 0 for the text modes, and that is deliberate.** A text
+// mode reports its real geometry and the descriptor takes that, so a nominal
+// figure here would be a second answer nothing reads - and one that agrees with
+// the hardware often enough to hide a read-back that had stopped working. It hid
+// exactly that in the first draft of `modetest`, where the table's 50 and VGA's
+// 50 were indistinguishable. Zero means "ask", and a descriptor that comes back
+// zero says the asking failed.
+//
+// Written as rows, which is §52's first real customer: a row here is one mode,
+// and it is what anybody editing this file edits. As seven parallel arrays the
+// two text rows could drift apart a column at a time and nothing would say so.
+group screenMode[modeCount] {
+  u8  bios
+  u8  smallFont
+  u16 nomW
+  u16 nomH
+  u16 elems
+  u16 seg
+  u8  elemBytes
+} = [
+  [ 0x03, 0,   0,   0,  80, 0xB800, 2 ],
+  [ 0x03, 1,   0,   0,  80, 0xB800, 2 ],
+  [ 0x13, 0, 320, 200, 320, 0xA000, 1 ],
+]
+
+// ---- the BIOS data area, which knows what a text mode actually did ---------
+
+// `const far`, because DOS and the BIOS write these and nothing here should be
+// able to write them back. Two regions rather than one with views, because the
+// two values are different widths.
+local const far u16[1] bdaCols = 0x0040:0x004A
+local const far u8[1]  bdaRows = 0x0040:0x0084
+
+// ---- the current screen ----------------------------------------------------
+
+// `local`: a program that assigned any of these would be telling itself
+// something no mode set produced. Same call `rand.momo` makes about its seed.
+local u16 curW = 0
+local u16 curH = 0
+local u16 curElems = 0
+local u16 curSeg = 0
+local u8  curElemBytes = 0
+
+u16 screenWidth()     => curW
+u16 screenHeight()    => curH
+u16 screenSegment()   => curSeg
+u8  screenElemBytes() => curElemBytes
+
+// **Width is not stride**, and this is the routine that keeps them apart. They
+// coincide for every mode in the table above, because all three are linear with
+// no padding - but a caller that steps a row by `screenWidth()` is writing the
+// bug §43 names, and would keep working until the first mode where they differ.
+u16 screenStride() => curElems
+
+// ---- setting one ------------------------------------------------------------
+
+// Bit 7 of the mode byte is "do not clear on set", which a caller may have asked
+// for. Masking it off is what makes the saved value safe to hand straight back.
+local u8 savedMode = 0
+
+sub saveMode {
+  _ah = 0x0F
+  int 0x10
+  savedMode = _al & 0x7F
+}
+
+// Puts the hardware back and **empties the descriptor**, because what is on
+// screen afterwards is a mode we found rather than one we set - it need not be
+// in the table above, and describing it would mean guessing. A zero width is a
+// truthful "we no longer know" rather than a stale answer that still reads as
+// one, which is the failure shape §47 called the worst available.
+sub restoreMode {
+  _ah = 0x00
+  _al = savedMode
+  int 0x10
+
+  curW = 0
+  curH = 0
+  curElems = 0
+  curSeg = 0
+  curElemBytes = 0
+}
+
+sub setMode( u8 id ) {
+  _ah = 0x00
+  _al = screenMode[id].bios
+  int 0x10
+
+  // AX=1112h BL=0 loads the 8x8 font, which is what makes a tall text mode.
+  if ( screenMode[id].smallFont != 0 ) {
+    _ax = 0x1112
+    _bl = 0
+    int 0x10
+  }
+
+  curSeg = screenMode[id].seg
+  curElemBytes = screenMode[id].elemBytes
+
+  // A text mode reports its real geometry, so take it: that is the only thing
+  // that tells 43 rows from 50 after an identical pair of calls. A graphics mode
+  // reports 40 columns in the same word, which is true of the text overlay and
+  // not of the frame, so those take the table.
+  if ( screenMode[id].elemBytes == 2 ) {
+    curW = bdaCols[0]
+    curH = u16( bdaRows[0] ) + 1
+  } else {
+    curW = screenMode[id].nomW
+    curH = screenMode[id].nomH
+  }
+
+  curElems = curW
+}
+
+// ---- rows -------------------------------------------------------------------
+
+// Sized for the tallest mode above. **Filled by an explicit call rather than by
+// setMode**, and that is the whole reason it is affordable: a program that never
+// indexes by row has this array and the routine below pruned entirely (§11), so
+// the five demos that only needed a mode set pay nothing for it. Folding the
+// fill into `setMode` would keep it alive in every program that sets a mode.
+const screenMaxRows = 200
+
+local u16[screenMaxRows] rowBase
+
+// Call after `setMode`. §43 settled the stride question on this table: an
+// address becomes a lookup and an add, with no multiply, and it works with a
+// stride that was not known until the mode was set.
+sub screenRowsInit {
+  u16 at
+
+  at = 0
+
+  for ( u16 y = 0; y < curH; y++ ) {
+    rowBase[y] = at
+    at = at + curElems
+  }
+}
+
+// The first element of row `y`, in the mode's own element. Read it once per row
+// and walk - the table makes an address cheap, not free.
+u16 screenRow( u16 y ) => rowBase[y]
+
+// ---- the palette ------------------------------------------------------------
+
+// One DAC entry, in **the six bits the hardware takes**. int 10h AX=1010h.
+//
+// This is where the repository's two conventions meet. `mvpic` and `tigerpic`
+// carry palettes their generator already divided by four and passed them
+// straight through; `tennis` carries full-range bytes and converted at load
+// time. Neither was wrong and they could not both be the interface, so the
+// interface is six bits and the conversion below is named.
+sub setDac( u8 index, u8 r, u8 g, u8 b ) {
+  _ax = 0x1010
+  _bx = index
+  _dh = r
+  _ch = g
+  _cl = b
+  int 0x10
+}
+
+// Full-range to DAC range, for data authored as eight bits. Unsigned, so the
+// divide reduces to a shift. Data says which convention it carries by whether it
+// goes through here, which is the part that was previously only in a comment.
+const u8 dac8( u8 v ) = v / 4

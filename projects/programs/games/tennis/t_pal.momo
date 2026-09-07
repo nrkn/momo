@@ -2,17 +2,12 @@
   doesn't really need optimising as it runs once on startup
 */
 
-// 8bpp -> 6bpp. Unsigned, so / 4 reduces to the same shr.
-local const u8 dac( u8 v ) = v / 4
-
+// The palette below is authored full-range, so it goes through `dac8` (§43) on
+// the way to a DAC that wants six bits. The vector scenes carry six-bit values
+// already and call `setDac` directly - the two conventions used to be two
+// loaders that disagreed, and are now one interface and a named conversion.
 local sub setPaletteColor( u8 index, u8 r, u8 g, u8 b ) {
-  _ax = 0x1010
-  _bx = index
-  _dh = dac( r )
-  _ch = dac( g )
-  _cl = dac( b )
-
-  int 0x10
+  setDac( index, dac8( r ), dac8( g ), dac8( b ) )
 }
 
 local const palette = [

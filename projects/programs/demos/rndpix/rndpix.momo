@@ -5,24 +5,23 @@
 // store - no interrupt per pixel.
 
 include "lib/std/key.momo"
+include "lib/std/mode.momo"
 include "lib/std/rand.momo"
 
-// 320 x 200, one byte per pixel, each an index into the palette.
+// Mode 13h video memory: 320x200, one byte per pixel, at A000:0000.
+//
+// **A constant segment, deliberately, even though std/mode.momo knows it.**
+// §16 loads ES per access, so a `u16` variable costs ten cycles more than an
+// immediate every time - which `tigerpic` would pay 92,949 times - and §16 also
+// refuses to hoist a runtime segment, so the constant is the only form §34 can
+// ever improve. `screenSegment()` is for a program that does not know its mode
+// at compile time, which is the properties query and is not built.
 far u8[64000] pixels = 0xA000
-
-u8  savedMode
 
 // ---- entry ----
 
-// AH=0Fh reports the current mode in AL; bit 7 is set when the last mode change
-// suppressed the screen clear, so it is masked off before saving.
-_ah = 0x0F
-int 0x10
-savedMode = _al & 0x7F
-
-// AH=00h, AL=13h: 320x200, 256 colours, linear at 0xA000.
-_ax = 0x0013
-int 0x10
+saveMode()
+setMode( modeGfx256 )
 
 for( u16 i = 0; i < len( pixels ); i++ ){
   // Any byte of the generator will do - std/rand.momo is xorshift, so the low
@@ -34,7 +33,4 @@ for( u16 i = 0; i < len( pixels ); i++ ){
 
 readKey()
 
-// Restore the mode we found, which also clears the screen.
-_ah = 0x00
-_al = savedMode
-int 0x10
+restoreMode()
