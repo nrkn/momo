@@ -230,6 +230,10 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     if (symbol.segment.from === 'const') {
       const hex = symbol.segment.value.toString(16).toUpperCase()
       ins('mov', `dx, 0x${hex}`, `segment of ${symbol.label}`)
+    } else if (symbol.segment.from === 'reg') {
+      // A segment register, so the read is register-to-register and there is no
+      // label - `_ds` has no storage. Same cost as the constant form.
+      ins('mov', `dx, ${symbol.segment.reg}`, `segment of ${symbol.label}`)
     } else {
       ins('mov', `dx, [${symbol.segment.label}]`, `segment of ${symbol.label}`)
     }
@@ -451,6 +455,15 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
 
     const symbol = symbolFor((node as { label?: string }).label)
     if (symbol.kind !== 'var') return
+
+    // A segment register has no storage, so there is no label to read - the same
+    // case `loadVariable` handles one register along. Missing it here emitted
+    // `mov bx, [_ds]` against a label nothing defines, which only showed up when
+    // `_ds` first appeared as the right operand of a binary expression.
+    if (symbol.segment) {
+      ins('mov', `bx, ${symbol.segment}`)
+      return
+    }
 
     if (widthOf(symbol.type) === 2) {
       ins('mov', `bx, [${symbol.label}]`)

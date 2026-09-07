@@ -1219,3 +1219,100 @@ and `overshoot` says how much of the box the insets ate - so both the flag and
 the shrink deficit come out as the study's, with no intermediate below zero. The
 seven existing scenes are unchanged by it, which is what says it is a fix and not
 a second opinion.
+
+---
+
+## 47. `block`
+
+### The estimate was right about the library and wrong about the compiler
+
+§47 said "twenty lines and no compiler change" and put itself top of the Definitely
+list on that ratio. The library is 17 lines of Momo once the comments come out, so
+the first half held with room to spare.
+
+The second half did not, and the reason is worth separating from the estimate being
+optimistic - it was not. **The section knew the problem and priced the wrong
+solution to it.** It has a heading called "It initialises itself, which is a pattern
+this repo does not have yet", which correctly worked out that a `far` region needs a
+`u16` holding `_ds`, that §5 forbids initialising that variable in its declaration,
+that only a library's own top-level statement can fill it, and that **no file in
+`shared/lib/std/` has one**. It weighed self-initialisation against an explicit
+`blockInit()` and chose the first.
+
+What it never asked was whether the variable was necessary. §16 already models a far
+region's segment as *where the value comes from* rather than as a number - its own
+words - and `_ds` is a value the machine can hand over in one instruction. Adding it
+as a third source came to 35 added lines across three files, most of them comment:
+a widened union, one `return` in the resolver, one branch in the emitter, and a case
+in the symbol-table dump. The code was already shaped for it.
+
+**The cost of the missing question was one alternative row**, and the trade it hides
+is real: the standard library would have grown a startup sequence and an ordering
+rule, permanently, to save ten lines of compiler once. Written down as those two
+things it is not close. It reads close when the compiler change is unknown and the
+startup sequence is already designed.
+
+### Going to look for it found a miscompile that had been there since §35
+
+`far u16[2] psp = _ds` compiled clean and emitted `mov dx, [_ds]`. `_ds` has no
+storage - §35 says so in three places and `npm run memory` skips it for exactly that
+reason - so the label does not exist and NASM rejects the file. `momoc` said `ok`.
+
+This is the failure `CONTRIBUTING.md` describes under "momoc reports `ok` for
+programs NASM will reject", and it is the most exact instance of it yet: the
+compiler's job ends at emitting text, tier 1 compiles and diffs that text, and
+neither reads it as assembly. A second site had the same bug - `_ds` as the *right*
+operand of a binary expression loads through BX rather than AX, and `loadIntoBx` had
+no case for a register-backed symbol either. That one needed no `far` region at all:
+`x = y - _ds` was enough, in any program, from the day §35 landed.
+
+**Nothing in the corpus wrote either spelling**, which is why both survived. §35 is a
+feature with one obvious use and `dstest` uses it the obvious way. Neither line is
+exotic; they are just not the line somebody wrote first.
+
+### What that says about where the tiers are thin
+
+Not that tier 2 should be bigger. Tier 2 caught both the moment a program used them,
+and the teeth check confirms it: neutering either fix turns `blktest` into
+`symbol `_ds' not defined` rather than a wrong number.
+
+What it says is that **a builtin with no storage is a shape the emitter has to
+special-case in every path that reads a variable**, and nothing structural connects
+those paths - each is a literal `[${symbol.label}]` written out where a value is
+loaded. There are three that read: into AX, which had the case; into BX, which did
+not; and the byte-operand path, which `_ds` cannot reach because it only takes a
+one-byte variable. The two that write are safe for a different reason again - the
+resolver refuses to assign `_ds` at all - so if a *writable* register-backed builtin
+is ever added, those are where to look first. Four ways to be correct, three of them
+accidental, and the one that was load-bearing was missing.
+
+### The rule the design did not have
+
+Two routines that compose have an interface between them the design never wrote
+down. §47 specified "failure returns 0" and it specified the floor, and it gave a
+worked example - `bufSeg = blockBase()` then `blockFits( bufSeg, 64000 )` - in which
+those two facts contradict each other: a failed `blockBase()` hands `blockFits` a 0,
+and `blockFits` as specified would answer that segment 0 has room for 64,000 bytes.
+A program that checked exactly as instructed would then write over the interrupt
+vector table.
+
+**It was found by writing the second routine against the first**, which is the
+argument for building a small design rather than refining it further on paper. The
+fix is one line and it is now a rule in DESIGN §47, along with the two wrap cases -
+the one the design did spot in `blockFits`, and the one it did not spot in its own
+spelling of the floor, `_ds + 0x1000`, which wraps for a program loaded high and can
+wrap to a small non-zero segment that reads as an answer.
+
+### What was weighed and set aside
+
+Carried over from the design, since these are what to reconsider if the surface does
+not survive contact:
+
+| | for | against |
+|---|---|---|
+| **A stateful bump arena** instead of three pure routines | earns its place with two or more regions, or sizes computed at runtime; `heaptest` shows the idiom is at home here | needs state, an init story and a policy, for a case §40 says should not be allocating at all |
+| **An explicit `blockInit()`** instead of self-initialisation | no new pattern in `std/`, no ordering rule | moot: the segment register form needs no initialisation of any kind |
+| **Paragraphs** rather than bytes in the interface | the full 1 MB range, and it matches the machine | every caller writes the rounding by hand, which is where the trap lives - and it is why `blockParas` is `local` |
+| **Starting at the heap top** rather than above our own segment | uses the tail of our own 64 KB instead of stranding it | §13's `_hsize` is a conservative floor, so the boundary between two allocators would be fuzzy - and a fuzzy boundary between allocators is how heaps get corrupted |
+| **Verifying by write and read-back** rather than trusting `PSP:0x0002` | catches an emulator or a loader that lies | the word is the DOS contract, and `arena` already round-trips once |
+| **Naming it `arena`** | the obvious word | taken by the test project, and §40 reserves *zone* for §41's |

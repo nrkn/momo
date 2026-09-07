@@ -31,10 +31,14 @@ const describe = (symbol: MomoSymbol): string => {
   if (symbol.kind === 'far') {
     // No bytes of ours, so no size is reported - the extent is an assertion
     // about hardware, not something we allocated.
+    // A register source is printed bare rather than in brackets, because there
+    // is nothing at an address to read - it is `mov dx, ds`.
     const where =
       symbol.segment.from === 'const'
         ? `0x${symbol.segment.value.toString(16).toUpperCase()}`
-        : `[${symbol.segment.label}]`
+        : symbol.segment.from === 'reg'
+          ? symbol.segment.reg
+          : `[${symbol.segment.label}]`
     const at = symbol.offset === 0 ? where : `${where}:0x${symbol.offset.toString(16).toUpperCase()}`
     const extent = symbol.length === null ? '' : `[${symbol.length}]`
     return `far ${symbol.elementType}${extent} @ ${at}${symbol.readonly ? '  const' : ''}`

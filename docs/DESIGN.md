@@ -1596,19 +1596,33 @@ const far u8[]      font      = 0xF000:0xFA6E   // ROM 8x8 font, read-only
 
 ### The address, and what may be a segment
 
-Both forms, since the constant one alone cannot double-buffer mode 13h:
+All three forms, since the constant one alone cannot double-buffer mode 13h:
 
 ```momo
 far u8[64000] pixels     = 0xA000      // constant segment
 far u8[64000] backBuffer = bufferSeg   // runtime, from a u16 variable
+far u16[2]    psp        = _ds         // runtime, from a segment register
 ```
 
-- **The segment must be a constant or a plain `u16` variable**, never an
-  arbitrary expression. It keeps the load to one `mov`, mirrors §19's
-  "arguments must be names", and settles that `= bufferSeg` is a **live
-  reference re-read per access**, not a load-time snapshot - a snapshot would
-  be useless, since `far` declarations are top-level and run before anything
-  could have produced a segment.
+- **The segment must be a constant, a plain `u16` variable, or a segment
+  register**, never an arbitrary expression. It keeps the load to one `mov`,
+  mirrors §19's "arguments must be names", and settles that `= bufferSeg` is a
+  **live reference re-read per access**, not a load-time snapshot - a snapshot
+  would be useless, since `far` declarations are top-level and run before
+  anything could have produced a segment.
+- **A segment register is `_ds` and nothing else** (§35), and it is the cheapest
+  of the three rather than the most expensive: `mov dx, ds` is register-to-
+  register, where a variable costs a memory read. Its point is not speed but that
+  it needs no variable, so a *library* can open a window on our own segment
+  without a startup sequence to fill one in - which is what `std/block.momo`
+  (§47) is, and why that section has no startup sequence.
+
+  The three sources are already how this is modelled: the symbol records where
+  the segment comes from, so the register form was ten lines and no new concept.
+  It was also, for the whole life of §35, a **silent miscompile** - `= _ds` was
+  accepted and emitted a read from a label `_ds` that nothing defines, because
+  `_ds` has no storage. `momoc` said `ok` and NASM rejected it. DECISIONS §47 has
+  what that says about where the tiers are thin.
 - **A runtime segment is never hoisted.** Hoisting (§34) is safe for a constant
   because ES is callee-saved. A runtime segment breaks that reasoning in the one
   way this section calls the worst possible failure: a callee that reassigns the
@@ -2821,12 +2835,17 @@ no storage, no startup code, and no new mnemonic - `mov` already gained a
 segment-register operand class with §16.
 
 ```momo
-u16 ourSeg
-far u16[1] memTop = ourSeg:2        // PSP:0002 - the end of what DOS granted
+far u16[2] pspw = _ds               // PSP as words: index 1 is the end of the block
 far u8[64000] backBuffer = bufSeg
-
-ourSeg = _ds
 ```
+
+**It can be a `far` segment directly**, which is §16's third source and is what
+the example above rests on. That was not true until §47: `= _ds` was accepted and
+emitted a read from a label that does not exist, so every program wanting the PSP
+went through a `u16` variable and a statement to fill it. The variable form still
+works and `dstest` still exercises both, but it is no longer the only way in - and
+for a library it was the expensive way, since only a top-level statement can fill
+a variable and no other file in `shared/lib/std/` has one.
 
 **What it unblocks is a second segment.** A `.COM` cannot learn where it is any
 other way: DOS does not report it, the program knows it only because CS=DS=ES=SS
@@ -2855,6 +2874,13 @@ What does not vary is the PSP. Its first two bytes are always `CD 20`, an
 declares `far u8[2] psp = ourSeg` and prints them, and finding 205 and 32 is what
 proves `_ds` is *our* segment rather than some other plausible number. It rests on
 §16's runtime segment, which is the half this was built to be useful with.
+
+It prints them **twice**, once through a variable and once through `far u8[2]
+pspDirect = _ds`, and then prints `ourSeg - _ds`. The three cover the three ways
+the emitter reads this symbol - as a segment, into AX, and into BX - and the last
+two of those emitted an undefined label until §47 went looking. Tier 2 is the only
+tier that can see any of it, which is the whole reason they are here rather than
+in `tests/compile/`.
 
 ---
 
@@ -3527,6 +3553,116 @@ rejected: nothing has wanted it, which is exactly what that tier is for.
 
 ---
 
+## 47. `block` - the memory past the segment, as a library
+
+**Built.** `shared/lib/std/block.momo` - three routines answering where the block
+DOS gave us ends and whether a region fits inside it. `arena` (§40) proved the
+mechanism; this is what makes it usable without every program re-deriving it.
+
+```momo
+u16  blockEnd()                       // segment one past the end of our block
+u16  blockBase()                      // first segment past our own addressable 64 KB
+bool blockFits( u16 seg, u16 bytes )  // does a region of that size fit there?
+```
+
+and the whole of the back buffer case:
+
+```momo
+include "lib/std/block.momo"
+
+u16 bufSeg
+far u8[64000] backBuffer = bufSeg
+
+bufSeg = blockBase()
+if ( !blockFits( bufSeg, 64000 ) ) { ... no room, say so and stop ... }
+```
+
+**It is deliberately not an allocator**, and §40 settles that rather than this
+section: *"`view` (§17) is often the better answer... A program that knows its
+regions at compile time should not be allocating."* A mode 13h back buffer is
+exactly such a program - one region, 64,000 bytes, known when it is written. The
+stateful arena is the thing to revisit when a second caller exists, and
+`DECISIONS.md` §47 keeps it with the rest of what was weighed.
+
+### What the language decided rather than the design
+
+None of this was a preference:
+
+- **It hands out segments**, because §16 allows a `far` region's address to be a
+  constant, a `u16` variable or a segment register, and a `u16` is the only
+  runtime currency in that list.
+- **The program declares the region; the library only says where.** `far`
+  declarations are top-level with constant sizes, so no routine can return one.
+- **Granularity is paragraphs**, because the machine's is.
+- **The base is `PSP:0x0002`.** §13 names it as the robust source, and nothing
+  else knows where the block ends.
+- **The floor is `_ds + 0x1000`.** Our own 64 KB is addressable without a segment
+  register and already holds the image, the stack and the heap.
+- **Failure is 0**, because Momo has no exceptions and `dstest` already rests on
+  DOS never loading a `.COM` at segment 0.
+- **There is no `free`.** That is what makes it not an allocator, and §40 assigns
+  the tagged, purgeable version to the zone, which it says is one design with §41.
+
+### Rules
+
+- **`blockFits` is false below `blockBase()`.** This is the rule the design did
+  not have and the code could not do without: `blockBase()` returns 0 when there
+  is no memory past our own segment, so the worked example above hands
+  `blockFits` a 0 - and a `blockFits` that answered "yes, segment 0 has room for
+  64,000 bytes" would send a program that checked properly straight into the
+  interrupt vector table. It also keeps the floor stated once, which is §40's
+  warning about fuzzy boundaries between allocators.
+- **Round up as `( bytes >> 4 ) + u16( ( bytes & 15 ) != 0 )`.** The obvious
+  `( bytes + 15 ) >> 4` overflows a `u16` above 65,520, which is inside the range
+  a caller can pass: 65,521 bytes becomes 0 paragraphs, so a region that fits
+  nowhere reports that it fits everywhere. Silent, and the wrong way round.
+- **Compare against the space remaining, never against a computed end.**
+  `seg + paragraphs` wraps for a high `seg` and the answer comes back true. The
+  same care applies to the floor: `blockBase()` tests the *size* of our block
+  rather than forming `_ds + 0x1000`, because that sum wraps for a program loaded
+  above `0xF000` and can wrap to a small non-zero segment, which reads as an
+  answer rather than as a failure.
+- **The rounding stays private.** Exporting it would put the trap above back in
+  every caller, which is the reason paragraphs are not the interface.
+
+### It needed some compiler after all
+
+The design said "twenty lines and no compiler change", and it over-estimated the
+library: seventeen lines of Momo once the comments come out. What it did not know is that a library has no way to fill a variable: a
+`far` region needs its segment from a constant, a variable or - as of this
+section - a segment register, and `_ds` was supposed to be reachable only by
+assigning it to a variable first. Only a top-level statement can do that in a
+library, and **no file in `shared/lib/std/` has one**, so the alternative was for
+the standard library to grow a startup sequence and an ordering rule.
+
+Checking whether `far u16[2] blockPsp = _ds` could be written instead found that
+it already compiled - and emitted a read from a label nothing defines, which NASM
+rejects. So the choice was never between a startup sequence and a compiler change;
+it was between fixing that by refusing the spelling and fixing it by honouring it.
+§16 carries the rule and `DECISIONS.md` §47 carries the reasoning.
+
+### Testing
+
+`blktest` runs the three routines against nine answers the machine cannot change:
+the invariants `arena` already prints, the two floor cases, and an exact ceiling
+at `blockEnd() - 16`, where sixteen paragraphs mean 256 bytes fit and 257 do not.
+The rounding trap has a case of its own at 65,521 bytes, which is the smallest
+value where the naive expression is wrong - with sixteen paragraphs left it needs
+4,096, and the naive form needs none.
+
+Every one of those was checked by neutering the thing it covers and watching only
+the expected lines flip. `dstest` covers the compiler half, in the tier that can
+see it.
+
+### What it unblocks
+
+A double-buffered mode 13h back buffer, which is what §20's open graphics question
+keeps circling; the far arena for assets that §41 wants; and §43's backing stores.
+All three are §40 rows that had been open since §35 landed, and none of them needs
+anything further from the language.
+
+---
+
 ## 48. `bracket` - an open/close pair the compiler closes
 
 **Built.** A declaration naming two routines as a pair, and a block form that
@@ -3684,7 +3820,7 @@ Four more refusals, each of them a wrong answer with no diagnostic otherwise:
 
 ## Sections designed, but not built
 
-Fourteen sections carry numbers but no text here, because what they describe does
+Thirteen sections carry numbers but no text here, because what they describe does
 not exist yet. All are in `PLAN.md`. The heading names no range deliberately - the
 set stopped being contiguous the moment one of them was built.
 
@@ -3702,7 +3838,6 @@ set stopped being contiguous the moment one of them was built.
 | §42 | A test tier below DOSBox |
 | §43 | The screen library |
 | §46 | `alias` - a name for an indexed access, which §45's `of` is one case of |
-| §47 | `block` - the memory past the segment as a library, spun out of §40 |
 | §49 | Named and default arguments, which is what §48's `cfg` carrier needs |
 
 ---

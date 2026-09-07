@@ -12,6 +12,8 @@ far u16[2000] byConst = videoSeg            // a scalar const names a segment
 u16 seg
 far u8[64000] backBuffer = seg              // a u16 variable: read at each access
 
+far u16[2] psp = _ds                        // a segment register (§35), likewise
+
 u16 i
 u16 v
 u8  b
@@ -27,4 +29,5 @@ v = byConst[i]
 b = unsized[i]
 b = font[0]
 backBuffer[i] = 1
+v = psp[1]
 v = len( cells )                            // a declared size is reportable

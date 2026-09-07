@@ -1,0 +1,105 @@
+// std/block.momo - the block DOS gave us, and whether a region fits in it
+// (DESIGN §13, §16, §35, §40, §47).
+//
+// Three routines over the word `arena` already reads. §13 says the robust
+// `_hsize` reads the end-of-allocation segment from `PSP:0x0002`, and `arena`
+// proved that word reaches two thirds of a megabyte past our own segment on the
+// target, with no DOS call at all. This is that, with names on it, so no program
+// has to re-derive it.
+//
+// **It is not an allocator, and there is no `free`.** §40 settles that: "`view`
+// (§17) is often the better answer... A program that knows its regions at
+// compile time should not be allocating." A mode 13h back buffer is exactly that
+// program - one region, 64,000 bytes, known when it is written:
+//
+//   include "lib/std/block.momo"
+//
+//   u16 bufSeg
+//   far u8[64000] backBuffer = bufSeg
+//
+//   bufSeg = blockBase()
+//   if ( !blockFits( bufSeg, 64000 ) ) { ... no room, say so and stop ... }
+//
+// The program declares the region and the library only says where, because a
+// `far` declaration is top-level with a constant size and no routine can return
+// one. A segment is the only runtime currency §16 offers, so segments are what
+// these hand back, and paragraphs are the granularity because the machine's are.
+//
+// **Failure is 0.** DOS never loads a `.COM` at segment 0 - `dstest` already
+// rests on that - so 0 cannot be a real answer, and needs no second return value
+// in a language with no exceptions.
+
+// Our own PSP as words, so offset 2 is index 1.
+//
+// `_ds` is the segment directly, which is what makes this file twenty lines and
+// no startup sequence. §16 allows a segment register as a source, and §35 makes
+// `_ds` the only one - the read is `mov dx, ds`, the same two instructions a
+// constant segment costs. Before §47 that was a variable holding `_ds`, which a
+// library can only fill from a top-level statement, and no other file in
+// `shared/lib/std/` has one. DECISIONS §47 has why that was worth ten lines of
+// compiler.
+//
+// `local`, because a program that wants the block wants these routines rather
+// than a window onto its own PSP - the same call `time.momo` makes about the
+// BIOS data area. `const`, because DOS wrote it and nothing here should be able
+// to write it back.
+local const far u16[2] blockPsp = _ds
+
+// Segment one past the end of the block DOS gave us. `_hsize` (§13) assumes the
+// full 64 KB and is the conservative floor; this is what DOS actually said.
+u16 blockEnd() => blockPsp[1]
+
+// First segment past our own addressable 64 KB. Our own segment holds the image,
+// the stack and the heap, and every byte of it is reachable without a segment
+// register - so this is where memory that needs `far` begins.
+//
+// 0 when there is none, which is a block of one segment or less.
+//
+// The test is on the size of our own block rather than on `_ds + 0x1000`, and
+// that is not a stylistic choice: a program loaded above 0xF000 wraps that sum,
+// and one loaded more than a paragraph above it wraps to a small non-zero
+// segment, which reads as an answer. Subtracting cannot wrap, because DOS cannot
+// end our block below where it started it - the invariant `arena` prints. And
+// the sum below cannot wrap either, because it has just been shown to be under
+// `blockEnd()`.
+u16 blockBase() {
+  if ( blockEnd() - _ds <= 0x1000 ) return 0
+
+  return _ds + 0x1000
+}
+
+// Bytes rounded up to paragraphs.
+//
+// **Not `( bytes + 15 ) >> 4`.** That overflows a `u16` above 65,520, which is
+// inside the range a caller can pass: 65,521 bytes becomes 0 paragraphs, and a
+// region too large to fit anywhere reports that it fits everywhere. The failure
+// is silent and it is the wrong way round, which is the worst pair available.
+//
+// `local`, and §47's own reasoning is why: it rejected paragraphs in the
+// interface because "every caller writes the rounding by hand, which is where
+// the trap lives". Exporting this would be the same mistake one step further in.
+local const u16 blockParas( u16 bytes ) = ( bytes >> 4 ) + u16( ( bytes & 15 ) != 0 )
+
+// Does a region of `bytes` fit at segment `seg`, inside the block DOS gave us?
+//
+// False below `blockBase()`, and that is what makes the two compose: a failed
+// `blockBase()` returns 0, and 0 must not be a place where anything fits. It
+// also keeps the floor stated once - a caller cannot reach under our own segment
+// by passing a low number, which §40 warns is how a fuzzy boundary between two
+// allocators corrupts a heap.
+//
+// The space remaining is compared against rather than the region's end computed,
+// so a high `seg` cannot wrap and come back true.
+bool blockFits( u16 seg, u16 bytes ) {
+  u16 base
+  u16 end
+
+  base = blockBase()
+  end = blockEnd()
+
+  if ( base == 0 ) return false
+  if ( seg < base ) return false
+  if ( seg >= end ) return false
+
+  return blockParas( bytes ) <= end - seg
+}

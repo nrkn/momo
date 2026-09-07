@@ -18,6 +18,13 @@ u16 ourSeg
 // is what lets this be declared before `ourSeg` has been given a value.
 far u8[2] psp = ourSeg
 
+// The same two bytes with no variable in the way. §16 takes a segment register
+// as a source, and `_ds` is the only one - the load is `mov dx, ds` rather than
+// a read from a label, because this one has no storage. It used to emit a read
+// from `_ds` as though it did, which compiled clean and NASM rejected; §47 is
+// where that was found and fixed, and this is its tier-2 home.
+far u8[2] pspDirect = _ds
+
 // ---- entry ----
 
 ourSeg = _ds
@@ -30,4 +37,17 @@ newline()
 
 // DOS never loads a .COM at segment 0, so this is 1 on any machine.
 putNumber( u16( ourSeg > 0 ) )
+newline()
+
+// The same PSP through the segment register, so the same two bytes.
+putNumber( pspDirect[0] )
+putChar( ' ' )
+putNumber( pspDirect[1] )
+newline()
+
+// `_ds` as the RIGHT operand of a binary expression, which loads it through BX
+// instead of AX. That is a second code path and it had the same bug: `mov bx,
+// [_ds]` against a label nothing defines. Zero on any machine, since `ourSeg`
+// was assigned from `_ds` above.
+putNumber( ourSeg - _ds )
 newline()

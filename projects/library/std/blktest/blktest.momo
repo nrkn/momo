@@ -1,0 +1,74 @@
+// blktest.momo - std/block.momo (DESIGN §47).
+//
+// `arena` already proves the mechanism: the `PSP:0x0002` word is real, and a far
+// region at a runtime segment reaches past our own 64 KB on the target. What is
+// checked here is the three routines over it, and every answer below is one the
+// machine cannot change.
+//
+// **Nothing here depends on how much memory DOS handed out.** Two of the answers
+// are invariants - DOS cannot end our block below where it started it, and
+// segment 0 is not inside it - and the rest are exact boundaries relative to
+// `blockEnd()`, which is wherever it is. A machine with twice the memory prints
+// the same nine lines.
+//
+// The one thing this cannot check is the far side of `blockBase()` on a machine
+// whose block is a single segment, where the answer is 0 and the boundary cases
+// below are false for that reason instead of the one they name. That machine
+// cannot run most of this suite either, and `arena` already rests on the same
+// assumption when it writes at the top of the block.
+
+include "lib/std/io.momo"
+include "lib/std/block.momo"
+
+u16 top
+
+// ---- the invariants
+
+// DOS cannot end our block below where it started it. Same claim `arena` opens
+// with, and the reason `blockEnd() - _ds` in blockBase() cannot wrap.
+putNumber( u16( blockEnd() > _ds ) )
+newline()
+
+// There is memory past our own segment, and it starts above us.
+putNumber( u16( blockBase() > _ds ) )
+newline()
+
+putNumber( u16( blockEnd() > blockBase() ) )
+newline()
+
+// ---- the floor
+
+// A small region at the floor fits.
+putNumber( u16( blockFits( blockBase(), 256 ) ) )
+newline()
+
+// Segment 0 is not in our block, and this is the case that makes the routines
+// compose: a `blockBase()` that failed returns 0, and if 0 were somewhere a
+// region fitted, a program that checked would write over the interrupt vectors.
+putNumber( u16( blockFits( 0, 16 ) ) )
+newline()
+
+// Nor is our own segment. `_heap` owns that, and §40 warns that a fuzzy boundary
+// between two allocators is how heaps get corrupted.
+putNumber( u16( blockFits( _ds, 16 ) ) )
+newline()
+
+// ---- the ceiling, exactly
+
+// Sixteen paragraphs below the end, so there is room for 256 bytes and not 257.
+top = blockEnd() - 16
+
+putNumber( u16( blockFits( top, 256 ) ) )
+newline()
+
+putNumber( u16( blockFits( top, 257 ) ) )
+newline()
+
+// The rounding trap, and the reason it has a case of its own. 65,521 bytes is
+// the smallest size where `( bytes + 15 ) >> 4` overflows a u16: it computes 0
+// paragraphs, so a region that fits nowhere reports that it fits everywhere.
+// With 16 paragraphs remaining and 4,096 needed, the honest answer is 0 and the
+// naive one is 1 - which is what makes this line the whole test for that
+// expression.
+putNumber( u16( blockFits( top, 65521 ) ) )
+newline()

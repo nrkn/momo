@@ -45,6 +45,33 @@ __entry:
         call    putNumber
 ; ---- newline()
         call    newline
+; ---- putNumber( pspDirect[0] )
+        mov     dx, ds                      ; segment of pspDirect
+        mov     es, dx
+        mov     al, [es:0]
+        xor     ah, ah                      ; u8 -> u16
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- putChar( ' ' )
+        mov     byte [putChar__c], 32
+        call    putChar
+; ---- putNumber( pspDirect[1] )
+        mov     dx, ds                      ; segment of pspDirect
+        mov     es, dx
+        mov     al, [es:1]
+        xor     ah, ah                      ; u8 -> u16
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- newline()
+        call    newline
+; ---- putNumber( ourSeg - _ds )
+        mov     ax, [ourSeg]
+        mov     bx, ds
+        sub     ax, bx
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- newline()
+        call    newline
 
 ; ---- implicit exit ----
         mov     word [_ax], 0x4C00          ; DOS terminate, exit code 0

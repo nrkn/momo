@@ -148,7 +148,10 @@ export type MomoSymbol =
       unit?: string
       length: number | null // null when unsized: no bounds checks, as for `u8[]`
       readonly: boolean
-      segment: { from: 'const'; value: number } | { from: 'var'; label: string }
+      segment:
+        | { from: 'const'; value: number }
+        | { from: 'var'; label: string }
+        | { from: 'reg'; reg: string }
       offset: number
     }
   // Namespacing over structure-of-arrays. The group itself has no storage - it
@@ -1494,13 +1497,17 @@ export const resolve = (program: Program): ResolveResult => {
     )
   }
 
-  // A segment is a compile-time constant, or a `u16` variable read at each
-  // access. An offset is always compile-time: it folds into the displacement of
-  // an addressing mode we already emit, so it costs nothing.
+  // A segment is a compile-time constant, a `u16` variable read at each access,
+  // or a segment register read at each access - which today means `_ds` and
+  // nothing else. An offset is always compile-time: it folds into the
+  // displacement of an addressing mode we already emit, so it costs nothing.
   const resolveFarAddress = (
     node: FarAddress,
     what: 'segment' | 'offset',
-  ): { from: 'const'; value: number } | { from: 'var'; label: string } => {
+  ):
+    | { from: 'const'; value: number }
+    | { from: 'var'; label: string }
+    | { from: 'reg'; reg: string } => {
     if (node.type === 'Identifier') {
       const symbol = lookup(node.name)
       if (!symbol) raise(node, `"${node.name}" is not declared`)
@@ -1514,6 +1521,11 @@ export const resolve = (program: Program): ResolveResult => {
         if (symbol.type !== 'u16') {
           raise(node, `a far segment must be u16 - "${node.name}" is ${symbol.type}`)
         }
+        // A segment register has no storage, so there is no label to read. It
+        // used to fall through to the branch below and emit `mov dx, [_ds]`
+        // against a label nothing defines - which compiled clean and NASM
+        // rejected. §16 now says a segment register is one of the three sources.
+        if (symbol.segment) return { from: 'reg', reg: symbol.segment }
         // Deliberately NOT `node.label`: the reference is to the variable's
         // storage, read afresh at every access rather than captured here.
         return { from: 'var', label: symbol.label }
