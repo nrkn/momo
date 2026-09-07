@@ -542,6 +542,56 @@ a compile-time parameter.
 Compile-time parameters also preserve the no-pointers property that `poke8` gives
 up, so where both fit, this is the more Momo-shaped answer.
 
+### This section keeps being cited for things it cannot do
+
+Three other sections have reached for it, from three directions, and none of the
+three survived being checked. They are collected here rather than corrected only
+where they were written, because **the pattern is the finding** and this is the
+page somebody would be on when they make the same mistake again.
+
+- **§43's stride.** "A routine monomorphised per mode gets its constant stride
+  back", offered as the escape that made a runtime screen width survivable. A
+  stride is a **scalar**, and there is no scalar specialisation here. Withdrawn
+  when §43 settled on a row table instead.
+- **§53's `menu[i]`.** Listed among the things an array-typed access may be
+  passed to. For a *constant* index that is right - the child is a real label with
+  a real length, and it is an ordinary array. For the **runtime** index the
+  section is written for, `menu[i]` is an address in a register, and a
+  specialisation cannot be chosen at runtime without a dispatch table, which is
+  not this mechanism.
+- **The `type` keyword**, in Maybe. This one is right about the mechanism and
+  aimed at the wrong half: it would make **group parameters** affordable by
+  removing the structural comparison, and group parameters are the extension this
+  section excludes below as "a distinct feature rather than an increment". It is
+  not a want for §19; it is the thing that would make §19's deepest extension cost
+  what this section said it could not.
+
+**What all three share is reading this as "arrays in routines".** It is
+compile-time monomorphisation, and the test is one question: *is the argument a
+name that is known when the program is compiled?* If it is not, the answer is
+`peek`/`poke` and a `u16` address, per the table above - which is what
+`std/str.momo` and `mopaint`'s `drawText` already do.
+
+### Nothing is queuing for it, which is worth saying plainly
+
+The four routines named at the top of this section were the case for it:
+`memcpy`, `fill`, `strLen` and `drawString`. **All four now exist, and not one of
+them is written this way.** `std/str.momo` has `strLen`, `strCopy`, `memCopy` and
+`memFill`, every one of them a `u16` address and `peek8`/`poke8` - its header says
+outright that it "could not be written before peek8/poke8 existed" - and
+`mopaint`'s `drawText` takes an address for the same reason.
+
+So the case was not deferred, it was **answered by something else while this
+section waited**. That is a stronger statement than "nothing has wanted it", and a
+different one: the demand was real and it went somewhere.
+
+That does not make the section wrong - a `clearBuffer` over two large arrays still
+wants this, and the no-pointers argument above still holds. It means the section
+should not be read as having demand waiting, which is how the citations above kept
+arising. **The want to look for is a routine over a small, fixed set of named
+arrays**, where one copy each is affordable and the address indirection is what
+you are trying to avoid.
+
 ### Higher-order and generic routines
 
 This section stops at array and view parameters. Two natural extensions were left
