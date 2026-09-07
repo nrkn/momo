@@ -101,17 +101,32 @@ a reason that is not evidence, so agreement between them should not be read as
 confirmation of anything. Where this document cites the catalogue below it is
 citing a finding, not a shared opinion.
 
-**And a caution about authorship in the recent work.** The catalogue records that
-a substantial amount of the recent and recent-ish work was built with LLM
-assistance, that the mixture runs continuously from hand-written to entirely
-generated, and that the author cannot always tell which is which himself - so no
-attribution is attempted there and none is attempted here. This matters for one
-class of claim in particular. Where a section below reads a *habit* off the recent
-material - unusual documentation density, a design document larger than its code,
-a house style applied consistently - that habit may belong to the assistance
-rather than to twenty years of practice. Claims about the older work are
-unaffected, and claims about a specific mechanism are unaffected. Claims about
-style after roughly 2024 should be read with this in view.
+**And a note about authorship in the recent work, which is narrower than it first
+appears.** The catalogue records that a substantial amount of the recent work was
+built with LLM assistance, that the mixture runs continuously from hand-written to
+entirely generated, and that the author cannot always tell which is which himself
+- so no attribution is attempted there and none is attempted here.
+
+An earlier draft of this note warned that recent *habits* - documentation density,
+a design document larger than its code, a consistently applied house style - might
+belong to the assistance rather than to twenty years of practice. That was too
+broad, and the archive says so: writing the design first is one of the oldest
+habits in it, and the study method is at least twelve years old. Both are
+corrected in their own sections below.
+
+**What changed is scale, and the author's account of the mechanism is specific
+enough to be useful.** The assistance made transcription cheap: outline a design
+in terse prose, have the agent interrogate it and probe the weak spots, refine,
+then commit the whole thing to markdown, then review and correct what ambiguity
+introduced. The thinking is the same thinking. What is new is that it now reaches
+the page in full rather than as a readme sketch that stops when typing it out
+stops being interesting.
+
+So the honest division is: **the practices in `DESIGN.md` are twenty years old and
+its completeness is one year old.** A reader deciding what to credit should credit
+the habits to the archive and the finish to the tooling - and should not read the
+sheer volume of the design documents as evidence that these ideas were thought
+about harder than the ones that only ever got a readme.
 
 ## The shortest version
 
@@ -821,12 +836,44 @@ by eye. Read against the archive that is not documentation discipline in general
 It is a specific compensation for a specific failure the same author has committed
 repeatedly, in the one place where he could not avoid committing it again.
 
-**The earlier instance of the method**, in March 2026 and not called a study, is a
-QR encoder: reimplement just enough of an existing library to turn a URL into a
-bit matrix, with the whole of the real library checked in unmodified *as a
-reference rather than as a dependency*, and the result done properly from first
-principles at 324 lines. Build the smallest useful version, keep the model beside
-it, check against the model. That is the method, three months before it was named.
+**The method is much older than the word for it**, and this document twice
+mistook the naming for the invention.
+
+The nearest unnamed instance is a QR encoder from March 2026: reimplement just
+enough of an existing library to turn a URL into a bit matrix, with the whole of
+the real library checked in unmodified *as a reference rather than as a
+dependency*, and the result done properly from first principles at 324 lines.
+Build the smallest useful version, keep the model beside it, check against the
+model. That is the method three months before it was named.
+
+But the construction *"built to find out whether"* runs through the archive from
+at least 2014, and three earlier projects meet `STUDIES.md`'s definition including
+the part that is supposed to be strict - a model the result can be held against:
+
+- **2016** - a bit-budget calculator for an imaginary 8-bit machine, written to
+  find out whether a proposed hardware specification fits in memory. A study of a
+  *specification* rather than of code, which is a form `STUDIES.md` does not
+  anticipate and probably should.
+- **2019** - one nine-line assembly language and five ways of running it, built to
+  find out how much of native JavaScript's speed an interpreter gives away. The
+  model is native execution and the finding is a ratio.
+- **2025** - a compositor lifted out of a desktop environment and benchmarked on
+  its own. Distil, isolate, measure.
+
+So `STUDIES.md` did not introduce a practice. It gave a twelve-year-old habit a
+name, a register, a citation rule and the requirement to hold a port against its
+model number for number - and it says so itself, in the observation that the
+workflow was *noticed rather than reconstructed* only at the third study. The
+first two did it without knowing it had a name, which is what a habit is.
+
+**The same correction applies to writing the design first.** That is not a recent
+discipline either; it is close to the archive's dominant mode. Half the language
+thread is readmes with no code beneath them. A 2026 language note is a 12 KB
+specification beside a zero-byte source file. A 2024 one is a 300-line
+specification written entirely as commented example code. A text adventure has a
+15 KB design document and a first screen. `mfml`'s README *is* the language. The
+catalogue states it plainly: in a number of cases the most substantial artefact is
+a readme.
 
 **momolo's geometry line was already his own conclusion.** `STUDIES.md` records
 that the largest departure from Clay is that momolo is pure geometry - a leaf is
@@ -1106,19 +1153,72 @@ object recovering the 2018 constants.
 Seven years, five restarts, one shipped version, and the shipped one is the
 constrained one.
 
-### Which is an argument about Momo, not only about the past
+### Why the habit does not bite here
 
-Momo is the tightest constraint yet - one 64 KB segment, no allocation, 8.3
-filenames - and by the logic above that predicts small finished things, which is
-what `DECISIONS.md` §15 records and what `tennis` is.
+The obvious reading of this project is that something changed. It did not, and the
+author's account of how Momo started is the plainest evidence: it began like every
+other attempt - some language ideas - except that this time they landed on top of
+8086 assembly he was already learning for its own sake. A small kernel came
+together unusually well, and then ideas he had been circling for years and in some
+cases decades turned out to fit, and he kept going because it was finally
+collecting them in one place.
 
-But the destination list in `PLAN.md` is not small, and it is not a list of games.
-It is `momoed`, `momode`, `momove`, `momopnt`, and tilemap, sound and music
-editors. **It is the tooling, named as the work, in the one project where the
-constraint is tight enough that building it is tractable.** Whether that ordering
-holds is the open question the past makes worth asking - and it is the reason the
-schema study matters more than its two stated customers suggest, since generating
-an inspector from a description is the cheapest available version of exactly this.
+Nothing in that is a change of method. What changed is the target.
+
+**The failure mode was: have a game idea, descend into the engine, descend into a
+primitive, lose the game.** Every step is locally justified and the stack never
+unwinds. Here the substrate *is* the product. There is no game being lost sight
+of, so descending into the machine is not a detour from the work - it is the work.
+Twenty years of getting distracted by the engine is, in this one project, simply
+doing the thing.
+
+It also explains why the accumulated ideas fit rather than merely accumulating
+again. They were all *language* ideas - bit-width types, a static memory budget,
+units, fixed point, no recursion, memory as memory - and this is the first time
+there has been a language he controls all the way down to the instruction to put
+them in.
+
+### The risk, stated as a prediction so it can be checked
+
+That reading is generous and may be early. The same shape is available one level
+up: **a superb compiler with no `momoed` in two years is a superb engine with no
+game.** The destination list is editors and small applications, none of them
+exists, and the argument that the constraint makes them tractable is exactly the
+kind of argument the last twenty years also had.
+
+The author's answer is a plan rather than a denial, and it is worth recording
+because it is testable. The intent is to mine the archive itself - past partial
+attempts, finished small games, scraps of ideas, and a quantity of material that
+has only ever existed in paper notebooks or in his head - and build those out,
+**once** there is comfortable tooling and a home for them, and **once** the
+language is pleasant enough that ordinary program code reads well, with the rough
+edges kept in the library.
+
+Note the shape of that: two preconditions, and then the content. Which is the
+failure mode's shape as well, described by the person who has lived it. That is
+not a reason to disbelieve it, but it is the thing to watch.
+
+**Three things do differ from every previous run**, and they are why this is a
+prediction rather than a verdict:
+
+- **The tooling is named as the work**, in `PLAN.md`, with sections and
+  dependencies, rather than assumed as something to be got to.
+- **The corpus already exists and has been indexed.** "Ideas I will have" is not
+  the input; a catalogued archive of fifteen hundred entries is, and cataloguing
+  it was itself the unglamorous up-front investment the pattern says never happens.
+- **Content has already landed before either gate.** `tennis` and `simplerl` were
+  written with the screen library unbuilt, no editor, and the ergonomics rough.
+  Small, but on the correct side of the argument.
+
+**So the test is specific.** If something from the notebooks gets built while the
+editors are still unwritten and the language is still awkward, the pattern is
+broken. If everything waits for both gates, it is not - and this section will be
+the record of it having been foreseeable.
+
+One practical note that falls out of this and is not really about provenance. The
+paper notebooks are the only input in that plan which no catalogue covers, no
+repository holds and no backup protects. Of everything on the destination list
+they are the cheapest to secure and the only part that can be lost outright.
 
 ### Where it starts being addressed
 
