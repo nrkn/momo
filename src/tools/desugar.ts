@@ -1,4 +1,6 @@
-// Print a Momo project back as Momo, with the surface sugar already lowered.
+// Print a Momo project as lomo: the same program back as Momo, with the surface
+// sugar already lowered. DESIGN.md §14 names the form and CONTRIBUTING.md's
+// pipeline section says why it is a form and not a stage.
 //
 //   npm run desugar -- simplerl
 //

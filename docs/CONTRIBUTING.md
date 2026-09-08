@@ -111,6 +111,14 @@ and tree-shaking) and `brackets.ts` (§48's lowering, run at the head of the
 resolver). Both are passes over a whole program rather than translations between
 representations, which is what keeps them out of the diagram.
 
+**`lomo` is the desugared form of Momo**, and it is not a stage on that line. It
+is what the program already is once `load` and `resolve` have run - one merged
+file, every `include` spliced, every surface sugar lowered - written back out as
+Momo text rather than held as an AST. `printer.ts` writes it, `npm run desugar`
+prints it, and DESIGN §14's round trip compiles it and requires the same
+instructions as the source it came from. Anything below that describes "the
+printed form" or "the desugared program" is describing lomo.
+
 **A file is parsed completely before the includes inside it are visited.** So the
 parser cannot know anything a *later* file declares, and a design that says "lower
 it in the parser" has to check that first. This has cost real time twice: §39
@@ -146,7 +154,7 @@ npm run lex:nl -- <project>   # statement terminators only
 npm run parse -- <project>    # AST
 npm run check -- <project>    # symbol table
 npm run memory -- <project>   # exact static footprint
-npm run desugar -- <project>  # the program with its surface sugar lowered
+npm run desugar -- <project>  # print the program as lomo, its desugared form
 
 npm test                      # tier 1: compile, golden .asm, types, lexing, ~1s
 npm run test:e2e              # tier 2: run in DOSBox headless, compare output

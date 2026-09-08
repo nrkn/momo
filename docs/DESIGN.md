@@ -517,7 +517,9 @@ Structural decisions that matter more than the table:
   Every use in the reference file is already a bare statement.
 - **Comparison is non-associative** - `a < b < c` is a compile error.
 - Compound assignment (`+= -= *= /= %= &= |= ^= <<= >>=`) desugars to
-  `x = x op e`, which loads through the index and stores through it again. If the
+  `x = x op e` **in the emitter**, so it is codegen rather than sugar the printer
+  lowers - `+=` survives into lomo (§14) as itself. The expansion
+  loads through the index and stores through it again. If the
   index calls a routine it would run twice - possibly landing on a *different*
   element the second time - so that is rejected. Plain `=` and `++`/`--` evaluate
   the index once and are unrestricted.
@@ -1445,6 +1447,13 @@ prints a program back as Momo from its AST, by which point the parser has alread
 lowered `=>`, `else if`, prefix and postfix `++` and adjacent string literals, and
 the loader has spliced every `include`. Tier 1 prints every program and compile
 test, compiles the printed copy, and requires the same code from both.
+
+**That printed form is `lomo`** - Momo with its surface sugar lowered, and the
+one name for what this section, §25, §44, §45, §48 and §52 all otherwise call
+"the printed form" or "the desugared program". It is a form and not a stage:
+lomo is the program after `load` and `resolve`, and every sugar that is gone by
+then is gone from it. What is *not* gone is anything the emitter lowers instead,
+which is why lomo still carries `x += e` and every `if` and `for` written in it.
 
 It asserts nothing about how the AST is arranged - only that printing and parsing
 are inverse - so it survives every refactor that keeps the meaning, which is the
@@ -2507,7 +2516,13 @@ i8.8 c = fixMul( a, b )
 
 `fixMul` is an ordinary hand-written `sub` in `shared/lib/std/fixed.momo`, so the printed form
 *is* the hand-written Momo - the same route `=>`, `else if`, `++`, adjacent string
-literals, compound assignment and `group` all arrive by.
+literals and `group` all arrive by, which is to say it arrives in lomo (§14).
+
+**Compound assignment used to be in that list and does not belong there.** `x += e`
+prints as itself: the parser keeps the operator, the resolver only type-checks the
+pair, and it is the *emitter* that builds the synthetic `x = x + e`. So it survives
+into lomo intact, and the sentence in §6 saying it "desugars to `x = x op e`" is
+describing codegen rather than anything `desugar` will show you.
 
 But **the decision to lower needs the operand types**, and the parser has no symbol
 table. So this happens in the resolver, which today annotates and never rewrites - and

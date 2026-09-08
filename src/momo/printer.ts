@@ -1,5 +1,8 @@
 // AST -> Momo source. The inverse of the parser, as far as one exists.
 //
+// The text it writes is lomo - the desugared form, named in DESIGN.md §14. This
+// file is the only thing that produces it.
+//
 // Not a formatter, and it must not become one: the AST carries no comments, so
 // everything a reader wrote alongside the code is gone by the time this runs.
 // What survives is the program, which is the point - the parser has already
