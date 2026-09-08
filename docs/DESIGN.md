@@ -3945,6 +3945,12 @@ nine. All nine now call `saveMode` and `restoreMode`, the five call `setMode`,
 and nothing in the repository writes `0x0013`, `AH=0Fh` or `AX=1010h` outside
 the library.
 
+**`simplerl` is a tenth, and it is the one that gained behaviour rather than
+losing duplication.** It set a text mode and never put one back, which is
+invisible from a text-mode prompt and clobbers anyone running at 80x43 or 80x50.
+It pays eighty bytes for the fix, which is what the library costs a program with
+nothing to trade for it; DECISIONS §43 has the figures.
+
 **The palette disagreement is settled by naming both halves.** `mvpic` and
 `tigerpic` carry six-bit values their generator already divided by four; `tennis`
 carries full-range bytes. `setDac` takes the six bits the hardware wants and

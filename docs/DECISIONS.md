@@ -1602,12 +1602,23 @@ restore pair turned out to be in **nine** - the four text demos duplicate it too
 and folding them in cost nothing to find, because grepping for what was left after
 the first five was how the leftovers surfaced.
 
-It cost nothing to *do*, either, and that is worth recording because it looked as
-though it would. A text demo including the mode library seemed likely to pay for a
-mode table it never reads. §11 prunes the whole table, both BDA regions, `setMode`,
-`setDac` and the row table from a program that calls only `saveMode` and
-`restoreMode` - verified before converting them, not after - so the four text demos
-pay one byte and two routines for six lines each they no longer carry.
+It cost little to *do*, either, and that is worth recording because it looked as
+though it would cost more. A text demo including the mode library seemed likely to
+pay for a mode table it never reads. §11 prunes the whole table, both BDA regions,
+`setMode`, `setDac` and the row table from a program that calls only `saveMode`
+and `restoreMode` - verified before converting them, not after.
+
+**What survives pruning is ten bytes, and this said one.** The descriptor does not
+go with the table: `restoreMode` *writes* `curW`, `curH`, `curElems`, `curSeg` and
+`curElemBytes` to empty it, and a written global is a used global, so all five
+stay. `rndtext` carried `savedMode: db 0` before and carries those plus
+`mode__savedMode` after - one byte against ten, so the four text demos each pay
+**nine bytes more** than they did, for six lines each they no longer carry.
+
+The number was written from the pruning check rather than from the data section,
+which is the shape of mistake `CONTRIBUTING.md` means by treating a claim about
+generated output as a hypothesis: the check that ran answered "is the table gone",
+and the sentence it produced answered "what does this cost".
 
 ### Reading the diff caught a per-pixel regression
 
@@ -1665,6 +1676,33 @@ so `modetest` carries it and nothing else does.
 The cost is an ordering rule - call it after `setMode` - and a program that
 forgets gets zeros rather than garbage, which is the failure shape §47 chose
 deliberately when it made 0 mean "no".
+
+### The tenth program was not a consolidation
+
+`simplerl` is the only program that set a mode and never put one back. It calls
+`setTextMode()` and stops, which is invisible from a text-mode prompt and clobbers
+anyone running at 80x43 or 80x50 - the two modes the table exists to describe.
+It now runs inside `videoMode`, which is the first use of this library that
+*added* behaviour rather than moving it.
+
+So it is the one that shows the price with nothing on the other side of the
+ledger, both measured against a fresh build rather than against `build/`:
+
+| | before | after |
+|---|---|---|
+| code | 810 | 880 |
+| data | 236 | 246 |
+| image | 1,046 | 1,126 |
+| heap | 63,970 | 63,890 |
+
+**Eighty bytes, seventy of them code**, which is the two routines the nine already
+pay for and the ten bytes above. The data figure is the correction in the section
+above arriving on a program that had nothing to trade for it.
+
+Worth having on a program deliberately kept at its smallest, because it is the
+case where the library is a straight cost. Eighty bytes against a 64 KB segment
+buys the property that no program here leaves a mode it chose, and the file it
+buys it in is the one that most wanted a reason to say no.
 
 ### What was deliberately not built, and why that is not caution
 

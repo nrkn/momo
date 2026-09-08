@@ -11,6 +11,7 @@ include "lib/std/screen.momo"
 include "lib/std/key.momo"
 include "lib/std/rand.momo"
 include "lib/std/math.momo"
+include "lib/std/mode.momo"
 
 // const
 
@@ -40,16 +41,12 @@ const solidBlock = 219
 u8 playerX = 9
 u8 playerY = 4
 
-// start
+// draw and move
 
-sub cls => clearScreen( defAttr )
-
-setTextMode()
-hideCursor()
-
-// tick
-
-// The main loop's own state - read by isMove and by the loop itself.
+// The main loop's own state - read by isMove and by the loop itself. Declared
+// out here rather than in the block below because scoping is flat: a bracket
+// body is a body, not a scope, and putting a declaration inside one would say
+// otherwise.
 u8 oldPx
 u8 oldPy
 u16 lastKey
@@ -70,38 +67,49 @@ sub draw {
   }
 }
 
-draw()
-writeAt( playerX, playerY, '@', playerAttr )
+sub cls => clearScreen( defAttr )
 
-while( true ){
-  lastKey = readKey()
+// run
 
-  if( lo( lastKey ) == keyEsc ) break  
-  
-  oldPx = playerX
-  oldPy = playerY
+// The mode is saved and put back by std/mode.momo (§43). Its bracket (§48)
+// makes the compiler emit the restore, so this leaves the display in whatever
+// mode it was started from rather than in the one it chose. §11 prunes the mode
+// table, since save and restore are all this calls.
+videoMode {
+  setTextMode()
+  hideCursor()
 
-  if( isMove( keyUp ) && playerY > 0 ){
-    playerY--
-  } else if( isMove( keyDown ) && playerY < mapH - 1 ){
-    playerY++
-  } else if( isMove( keyLeft ) && playerX > 0 ){
-    playerX--
-  } else if( isMove( keyRight ) && playerX < mapW - 1 ){
-    playerX++
+  draw()
+  writeAt( playerX, playerY, '@', playerAttr )
+
+  while( true ){
+    lastKey = readKey()
+
+    if( lo( lastKey ) == keyEsc ) break
+
+    oldPx = playerX
+    oldPy = playerY
+
+    if( isMove( keyUp ) && playerY > 0 ){
+      playerY--
+    } else if( isMove( keyDown ) && playerY < mapH - 1 ){
+      playerY++
+    } else if( isMove( keyLeft ) && playerX > 0 ){
+      playerX--
+    } else if( isMove( keyRight ) && playerX < mapW - 1 ){
+      playerX++
+    }
+
+    if( tileAt( playerX, playerY ) == '#'){
+      playerX = oldPx
+      playerY = oldPy
+    } else {
+      writeAt( oldPx, oldPy, tileAt( oldPx, oldPy ), defAttr )
+      writeAt( playerX, playerY, '@', playerAttr )
+    }
   }
 
-  if( tileAt( playerX, playerY ) == '#'){
-    playerX = oldPx
-    playerY = oldPy
-  } else {
-    writeAt( oldPx, oldPy, tileAt( oldPx, oldPy ), defAttr )
-    writeAt( playerX, playerY, '@', playerAttr )
-  }
+  moveTo( 0, 0 )
+  showCursor()
+  cls()
 }
-
-// end
-
-moveTo( 0, 0 )
-showCursor()
-cls()

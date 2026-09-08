@@ -14,6 +14,7 @@ keyDown:        equ     80
 keyLeft:        equ     75
 keyRight:       equ     77
 keyEsc:         equ     27
+modeCount:      equ     3
 mapW:           equ     20
 mapH:           equ     10
 defAttr:        equ     7
@@ -23,6 +24,8 @@ solidBlock:     equ     219
 ; =========================================================== entry ====
 
 __entry:
+; ---- videoMode {
+        call    saveMode
 ; ---- setTextMode()
         call    setTextMode
 ; ---- hideCursor()
@@ -172,6 +175,8 @@ __entry:
         call    showCursor
 ; ---- cls()
         call    cls
+; ---- }
+        call    restoreMode
 
 ; ---- implicit exit ----
         mov     word [_ax], 0x4C00          ; DOS terminate, exit code 0
@@ -291,12 +296,40 @@ readKey:
         mov     [readKey__ret], ax
         ret
 
-; ============================================== sub cls ====
+; ============================================== sub saveMode ====
 
-cls:
-; ---- sub cls => clearScreen( defAttr )
-        mov     byte [clearScreen__attr], 7
-        call    clearScreen
+saveMode:
+; ---- _ah = 0x0F
+        mov     byte [_ah], 15
+; ---- int 0x10
+        call    int10
+; ---- savedMode = _al & 0x7F
+        mov     al, [_al]
+        xor     ah, ah                      ; u8 -> u16
+        and     ax, 127
+        mov     [mode__savedMode], al       ; narrowed to u8
+        ret
+
+; ============================================== sub restoreMode ====
+
+restoreMode:
+; ---- _ah = 0x00
+        mov     byte [_ah], 0
+; ---- _al = savedMode
+        mov     al, [mode__savedMode]
+        mov     [_al], al                   ; u8 -> u8, no widening
+; ---- int 0x10
+        call    int10
+; ---- curW = 0
+        mov     word [mode__curW], 0
+; ---- curH = 0
+        mov     word [mode__curH], 0
+; ---- curElems = 0
+        mov     word [mode__curElems], 0
+; ---- curSeg = 0
+        mov     word [mode__curSeg], 0
+; ---- curElemBytes = 0
+        mov     byte [mode__curElemBytes], 0
         ret
 
 ; ============================================== bool isMove ====
@@ -376,6 +409,14 @@ draw:
         inc     byte [draw__y]
         jmp     .L30
 .L32:
+        ret
+
+; ============================================== sub cls ====
+
+cls:
+; ---- sub cls => clearScreen( defAttr )
+        mov     byte [clearScreen__attr], 7
+        call    clearScreen
         ret
 
 ; ==================================================== int helpers ====
@@ -459,6 +500,12 @@ writeAt__row:   db      0        ; u8
 writeAt__ch:    db      0        ; u8
 writeAt__attr:  db      0        ; u8
 readKey__ret:   dw      0        ; u16
+mode__curW:     dw      0        ; u16
+mode__curH:     dw      0        ; u16
+mode__curElems: dw      0        ; u16
+mode__curSeg:   dw      0        ; u16
+mode__curElemBytes: db      0        ; u8
+mode__savedMode: db      0        ; u8
 playerX:        db      9        ; u8 = 9
 playerY:        db      4        ; u8 = 4
 oldPx:          db      0        ; u8
