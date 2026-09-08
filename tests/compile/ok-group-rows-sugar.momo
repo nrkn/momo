@@ -1,0 +1,52 @@
+// DESIGN §52: `group` data, written as rows.
+//
+// The twin of ok-group-rows-plain.momo, and the pair has to emit the same
+// instructions - see the identity tier in test.ts. A row is punctuation: the
+// parser consumes it, it names no storage, and it must leave behind exactly what
+// the columns form leaves behind and nothing else.
+//
+// `grpdata` exercises both forms but cannot assert this, because its rows group
+// and its columns group hold different data. This pair holds the same data twice.
+//
+// Every field is read, and that is not decoration: `prune` drops a symbol nobody
+// touches, so a pair that initialised data and never looked at it would agree on
+// an empty data section and assert nothing.
+
+group mob[3] {
+  u8   x
+  i8   drift
+  u16  hp
+  bool alive
+} = [
+  [ 10, -1, 300, true  ],
+  [ 30,  0, 400, false ],
+  [ 50,  1, 500, false ],
+]
+
+// No [n], so the literal is one row rather than a list of them.
+group player {
+  u8  x
+  u16 hp
+} = [ 7, 250 ]
+
+u16 total = 0
+u16 i
+
+for ( i = 0; i < 3; i++ ) {
+  total = total + mob[ i ].x
+  total = total + mob[ i ].hp
+
+  // A comparison rather than a sum, because `drift` is signed and `total` is
+  // not - what is being asserted is that the column kept its own type through
+  // the transpose, and a mixing error would say so at either spelling.
+  if ( mob[ i ].drift < 0 ) {
+    total = total + 1
+  }
+
+  if ( mob[ i ].alive ) {
+    total = total + 1
+  }
+}
+
+total = total + player.x
+total = total + player.hp

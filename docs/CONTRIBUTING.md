@@ -127,6 +127,40 @@ lowering after the merge instead. Program-wide-and-order-free is the better
 property in both cases, so this is less a limitation than a fork in the road that
 is easy not to notice you are at.
 
+### Where a lowering goes
+
+**The earliest stage that has the information it needs.** That is the positive
+form of the paragraph above, and it is the rule every lowering in the compiler
+already follows - written down because only the negative form was, and the
+negative form is what cost the time twice. Read it as a gradient:
+
+| What it needs | Stage | Instances |
+|---|---|---|
+| nothing beyond the tokens in hand | parser | `=>`, `else if`, `++` collapsing to one form, adjacent string literals joining, §44's lifted counter, §45's `in` and `of`, §52's rows transposed to columns |
+| a program-wide fact about *tokens* | loader, as a first walk | §39's `unit` names |
+| the merged program, but no types | `brackets.ts`, at the head of the resolver | §48's pairs |
+| operand types | resolver | §25's `*` on two fixed values |
+| the instruction stream | emitter | control flow and `&&`, `\|\|`, `?:` to labels; `x op= e` to `x = x op e`; `++` to `inc`; §26's strength reduction; every peephole |
+
+`local` is not on the gradient and is not a lowering: the resolver's mangled
+label is the whole mechanism (§11), and the printer only decides to show it (§14).
+
+**§45 is the case worth studying**, because it looks like it needs the resolver
+and does not. Lowering `for ( x in a )` to `i < len( a )` rather than to a
+constant leaves the size to a stage that knows it, which is what keeps the
+feature context-free and in the parser. When a lowering seems to need a later
+stage, that is the trick to look for before moving it.
+
+**There is no post-resolve rewrite pass**, and two placements are shaped by its
+absence rather than by the gradient. `prune` runs after the resolver but only
+filters symbols; it never touches the tree. So §25's lowering hangs off the
+original node as `lowered` instead of replacing it, and three consumers have to
+follow it - and `x op= e` reaches the emitter intact because §6's index rule reads
+the operator, so it can neither lower earlier nor stop anywhere in between. One
+instance each is cheaper than the pass. **A second type-dependent lowering is the
+point at which that stops being true**, and is the thing to notice rather than to
+plan for.
+
 ## Getting set up
 
 Node 22+. Tier 2 and `npm start` run under DOSBox; `npm test` needs neither.
@@ -458,7 +492,7 @@ The cost of waiting is that the first thing a visitor reads is the weakest
 document in the repo. That trade is made deliberately, and preferred to shipping a
 second draft in the same voice as the first.
 
-441 tier-1 assertions, 43 e2e programs, all green. `npm test` prints the tier 1
+446 tier-1 assertions, 43 e2e programs, all green. `npm test` prints the tier 1
 breakdown, and `npm run drift` holds both figures against the harness and the
 committed expectations. Both have drifted before, which is why a script reads
 them now.

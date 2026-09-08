@@ -1,0 +1,43 @@
+// The longhand twin of ok-group-rows-sugar.momo: the same data written as
+// columns, which is the form the parser transposes rows into.
+//
+// The identity tier compiles both and requires the assembly to match. Since
+// source quotes are the only lines it drops, the data section is compared too -
+// which is where this pair does its work, because the transpose is entirely a
+// question of which bytes end up under which label.
+//
+// Both forms ship (§52), so this file is writable Momo rather than a print of
+// the other one. That is what makes the assertion possible at all.
+
+group mob[3] {
+  u8   x     = [ 10, 30, 50 ]
+  i8   drift = [ -1, 0, 1 ]
+  u16  hp    = [ 300, 400, 500 ]
+  bool alive = [ true, false, false ]
+}
+
+// The single-instance columns form is a scalar per field, which reads exactly
+// like the variable declaration it compiles to.
+group player {
+  u8  x  = 7
+  u16 hp = 250
+}
+
+u16 total = 0
+u16 i
+
+for ( i = 0; i < 3; i++ ) {
+  total = total + mob[ i ].x
+  total = total + mob[ i ].hp
+
+  if ( mob[ i ].drift < 0 ) {
+    total = total + 1
+  }
+
+  if ( mob[ i ].alive ) {
+    total = total + 1
+  }
+}
+
+total = total + player.x
+total = total + player.hp

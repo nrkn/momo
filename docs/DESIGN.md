@@ -3845,7 +3845,10 @@ Four more refusals, each of them a wrong answer with no diagnostic otherwise:
 ## 52. `group` data, written as rows
 
 **Built.** The field initialisers §18 left out of v1, in the spelling that makes
-structure-of-arrays readable. `grpdata` exercises both forms.
+structure-of-arrays readable. `grpdata` exercises both forms, and
+`ok-group-rows-sugar.momo` and `ok-group-rows-plain.momo` hold them against each
+other in §14's identity tier - which `grpdata` cannot do, because its rows group
+and its columns group carry different data.
 
 The columns form is the obvious one, and is what a field's declaration would take
 if it were an ordinary array:

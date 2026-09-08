@@ -510,6 +510,11 @@ const identityPairs: [string, string, string][] = [
   ],
   ['in and of leave no trace (§45)', 'ok-for-iter-sugar.momo', 'ok-for-iter-plain.momo'],
   ['a bracket is two calls and nothing else (§48)', 'ok-bracket-sugar.momo', 'ok-bracket-plain.momo'],
+  [
+    'group rows are the columns form transposed (§52)',
+    'ok-group-rows-sugar.momo',
+    'ok-group-rows-plain.momo',
+  ],
 ]
 
 const identityTests = (): number => {
