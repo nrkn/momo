@@ -81,11 +81,8 @@ putNumber:
         mov     ax, dx                      ; remainder
         xor     ah, ah                      ; cast to u8
         add     ax, 48
-        push    ax                          ; save value while computing the index
-        mov     al, [putNumber__i]
-        xor     ah, ah                      ; u8 -> u16
-        mov     bx, ax
-        pop     ax
+        mov     bl, [putNumber__i]
+        xor     bh, bh                      ; u8 -> u16
         mov     [putNumber__digits + bx], al
 ; ---- n /= ioBase
         mov     ax, [putNumber__n]

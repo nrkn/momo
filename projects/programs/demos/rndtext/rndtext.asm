@@ -25,13 +25,10 @@ __entry:
         call    nextRandom
         mov     ax, [nextRandom__ret]
         and     ax, 32767
-        push    ax                          ; save value while computing the index
-        mov     ax, [i]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
+        mov     bx, [i]
+        shl     bx, 1                       ; word elements
         mov     dx, 0xB800                  ; segment of cells
         mov     es, dx
-        pop     ax
         mov     [es:bx], ax
 .L2:
         inc     word [i]
@@ -254,7 +251,7 @@ mode__savedMode: db      0        ; u8
 ; No storage is emitted - a .COM owns everything past its image, so
 ; these are addresses and NASM does the arithmetic.
 
-_hstack:        equ     262        ; 6 worst-case + 256 interrupt reserve
+_hstack:        equ     260        ; 4 worst-case + 256 interrupt reserve
 _htop:          equ     0FFFEh - _hstack
 
 _hsize:         dw      _htop - _heap        ; NASM computes this

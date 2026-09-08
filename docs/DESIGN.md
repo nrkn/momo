@@ -2677,7 +2677,7 @@ value multiplies as though it were positive.
 *"scratch and never live"*: a port has to stay in `DX` from the load until the `out`,
 and `mul` and `div` both write it. A *stored* 32-bit value is that problem
 everywhere - it needs `DX` live across arbitrary code - and that is a change to the
-accumulator model, which fifteen peepholes and every golden `.asm` stand on. Fixed
+accumulator model, which eighteen peepholes and every golden `.asm` stand on. Fixed
 point never stores a wide value: the 32-bit intermediate exists inside one expression
 and is never named.
 

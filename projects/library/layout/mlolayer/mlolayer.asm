@@ -272,11 +272,8 @@ putNumber:
         mov     ax, dx                      ; remainder
         xor     ah, ah                      ; cast to u8
         add     ax, 48
-        push    ax                          ; save value while computing the index
-        mov     al, [putNumber__i]
-        xor     ah, ah                      ; u8 -> u16
-        mov     bx, ax
-        pop     ax
+        mov     bl, [putNumber__i]
+        xor     bh, bh                      ; u8 -> u16
         mov     [putNumber__digits + bx], al
 ; ---- n /= ioBase
         mov     ax, [putNumber__n]
@@ -375,21 +372,15 @@ setSize:
         jz      .L23
 ; ---- el[i].w = v
         mov     ax, [setSize__v]
-        push    ax                          ; save value while computing the index
-        mov     ax, [setSize__i]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [setSize__i]
+        shl     bx, 1                       ; word elements
         mov     [el__w + bx], ax
         jmp     .L24
 .L23:
 ; ---- el[i].h = v
         mov     ax, [setSize__v]
-        push    ax                          ; save value while computing the index
-        mov     ax, [setSize__i]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [setSize__i]
+        shl     bx, 1                       ; word elements
         mov     [el__h + bx], ax
 .L24:
         ret
@@ -530,105 +521,63 @@ build__pushElement:
         mov     [build__pushElement__i], ax
 ; ---- el[i].isCol = cfg.isCol
         mov     al, [cfg__isCol]
-        push    ax                          ; save value while computing the index
-        mov     ax, [build__pushElement__i]
-        mov     bx, ax
-        pop     ax
+        mov     bx, [build__pushElement__i]
         mov     [el__isCol + bx], al
 ; ---- el[i].insetL = cfg.insetL
         mov     al, [cfg__insetL]
-        push    ax                          ; save value while computing the index
-        mov     ax, [build__pushElement__i]
-        mov     bx, ax
-        pop     ax
+        mov     bx, [build__pushElement__i]
         mov     [el__insetL + bx], al
 ; ---- el[i].insetR = cfg.insetR
         mov     al, [cfg__insetR]
-        push    ax                          ; save value while computing the index
-        mov     ax, [build__pushElement__i]
-        mov     bx, ax
-        pop     ax
+        mov     bx, [build__pushElement__i]
         mov     [el__insetR + bx], al
 ; ---- el[i].insetT = cfg.insetT
         mov     al, [cfg__insetT]
-        push    ax                          ; save value while computing the index
-        mov     ax, [build__pushElement__i]
-        mov     bx, ax
-        pop     ax
+        mov     bx, [build__pushElement__i]
         mov     [el__insetT + bx], al
 ; ---- el[i].insetB = cfg.insetB
         mov     al, [cfg__insetB]
-        push    ax                          ; save value while computing the index
-        mov     ax, [build__pushElement__i]
-        mov     bx, ax
-        pop     ax
+        mov     bx, [build__pushElement__i]
         mov     [el__insetB + bx], al
 ; ---- el[i].gap = cfg.gap
         mov     al, [cfg__gap]
-        push    ax                          ; save value while computing the index
-        mov     ax, [build__pushElement__i]
-        mov     bx, ax
-        pop     ax
+        mov     bx, [build__pushElement__i]
         mov     [el__gap + bx], al
 ; ---- el[i].alignMain = cfg.alignMain
         mov     al, [cfg__alignMain]
-        push    ax                          ; save value while computing the index
-        mov     ax, [build__pushElement__i]
-        mov     bx, ax
-        pop     ax
+        mov     bx, [build__pushElement__i]
         mov     [el__alignMain + bx], al
 ; ---- el[i].alignCross = cfg.alignCross
         mov     al, [cfg__alignCross]
-        push    ax                          ; save value while computing the index
-        mov     ax, [build__pushElement__i]
-        mov     bx, ax
-        pop     ax
+        mov     bx, [build__pushElement__i]
         mov     [el__alignCross + bx], al
 ; ---- el[i].wGrow = cfg.wGrow
         mov     al, [cfg__wGrow]
-        push    ax                          ; save value while computing the index
-        mov     ax, [build__pushElement__i]
-        mov     bx, ax
-        pop     ax
+        mov     bx, [build__pushElement__i]
         mov     [el__wGrow + bx], al
 ; ---- el[i].wMin = cfg.wMin
         mov     ax, [cfg__wMin]
-        push    ax                          ; save value while computing the index
-        mov     ax, [build__pushElement__i]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [build__pushElement__i]
+        shl     bx, 1                       ; word elements
         mov     [el__wMin + bx], ax
 ; ---- el[i].wMax = cfg.wMax
         mov     ax, [cfg__wMax]
-        push    ax                          ; save value while computing the index
-        mov     ax, [build__pushElement__i]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [build__pushElement__i]
+        shl     bx, 1                       ; word elements
         mov     [el__wMax + bx], ax
 ; ---- el[i].hGrow = cfg.hGrow
         mov     al, [cfg__hGrow]
-        push    ax                          ; save value while computing the index
-        mov     ax, [build__pushElement__i]
-        mov     bx, ax
-        pop     ax
+        mov     bx, [build__pushElement__i]
         mov     [el__hGrow + bx], al
 ; ---- el[i].hMin = cfg.hMin
         mov     ax, [cfg__hMin]
-        push    ax                          ; save value while computing the index
-        mov     ax, [build__pushElement__i]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [build__pushElement__i]
+        shl     bx, 1                       ; word elements
         mov     [el__hMin + bx], ax
 ; ---- el[i].hMax = cfg.hMax
         mov     ax, [cfg__hMax]
-        push    ax                          ; save value while computing the index
-        mov     ax, [build__pushElement__i]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [build__pushElement__i]
+        shl     bx, 1                       ; word elements
         mov     [el__hMax + bx], ax
 ; ---- el[i].childStart = 0
         mov     ax, [build__pushElement__i]
@@ -709,11 +658,8 @@ build__attachToParent:
         inc     word [el__childCount + bx]
 ; ---- childBuf[ childBufLen ] = i
         mov     ax, [build__attachToParent__i]
-        push    ax                          ; save value while computing the index
-        mov     ax, [childBufLen]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [childBufLen]
+        shl     bx, 1                       ; word elements
         mov     [childBuf + bx], ax
 ; ---- childBufLen++
         inc     word [childBufLen]
@@ -727,11 +673,8 @@ openBox:
         mov     ax, [build__pushElement__ret]
         mov     [openBox__i], ax
 ; ---- openStack[ openDepth ] = i
-        push    ax                          ; save value while computing the index
-        mov     ax, [openDepth]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [openDepth]
+        shl     bx, 1                       ; word elements
         mov     [openStack + bx], ax
 ; ---- openDepth++
         inc     word [openDepth]
@@ -764,11 +707,8 @@ closeBox:
         mov     [closeBox__n], ax
 ; ---- el[i].childStart = childListLen
         mov     ax, [childListLen]
-        push    ax                          ; save value while computing the index
-        mov     ax, [closeBox__i]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [closeBox__i]
+        shl     bx, 1                       ; word elements
         mov     [el__childStart + bx], ax
 ; ---- base = childBufLen - n
         mov     ax, [childBufLen]
@@ -789,11 +729,8 @@ closeBox:
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [childBuf + bx]
-        push    ax                          ; save value while computing the index
-        mov     ax, [childListLen]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [childListLen]
+        shl     bx, 1                       ; word elements
         mov     [childList + bx], ax
 ; ---- childListLen++
         inc     word [childListLen]
@@ -912,11 +849,8 @@ leaf:
         add     ax, bx
 .L49:
 .L46:
-        push    ax                          ; save value while computing the index
-        mov     ax, [leaf__i]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [leaf__i]
+        shl     bx, 1                       ; word elements
         mov     [el__w + bx], ax
 ; ---- el[i].h = clamp( insetY + h, el[i].hMin, el[i].hMax )
         mov     ax, [leaf__insetY]
@@ -960,11 +894,8 @@ leaf:
         add     ax, bx
 .L55:
 .L52:
-        push    ax                          ; save value while computing the index
-        mov     ax, [leaf__i]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [leaf__i]
+        shl     bx, 1                       ; word elements
         mov     [el__h + bx], ax
 ; ---- el[i].minW = clamp( insetX + mw, el[i].wMin, el[i].wMax )
         mov     ax, [leaf__insetX]
@@ -1008,11 +939,8 @@ leaf:
         add     ax, bx
 .L61:
 .L58:
-        push    ax                          ; save value while computing the index
-        mov     ax, [leaf__i]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [leaf__i]
+        shl     bx, 1                       ; word elements
         mov     [el__minW + bx], ax
 ; ---- el[i].minH = clamp( insetY + mh, el[i].hMin, el[i].hMax )
         mov     ax, [leaf__insetY]
@@ -1056,11 +984,8 @@ leaf:
         add     ax, bx
 .L67:
 .L64:
-        push    ax                          ; save value while computing the index
-        mov     ax, [leaf__i]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [leaf__i]
+        shl     bx, 1                       ; word elements
         mov     [el__minH + bx], ax
 ; ---- attachToParent( i )
         mov     ax, [leaf__i]
@@ -1156,11 +1081,8 @@ setLeafHeight:
         add     ax, bx
 .L73:
 .L70:
-        push    ax                          ; save value while computing the index
-        mov     ax, [setLeafHeight__i]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [setLeafHeight__i]
+        shl     bx, 1                       ; word elements
         mov     [el__h + bx], ax
 ; ---- el[i].minH = clamp( insetY + h, el[i].hMin, el[i].hMax )
         mov     ax, [setLeafHeight__insetY]
@@ -1204,11 +1126,8 @@ setLeafHeight:
         add     ax, bx
 .L79:
 .L76:
-        push    ax                          ; save value while computing the index
-        mov     ax, [setLeafHeight__i]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [setLeafHeight__i]
+        shl     bx, 1                       ; word elements
         mov     [el__minH + bx], ax
         ret
 
@@ -1293,10 +1212,7 @@ panelOpen:
         call    mopaint__stClear
 ; ---- st[i].bg = bg
         mov     al, [panelOpen__bg]
-        push    ax                          ; save value while computing the index
-        mov     ax, [panelOpen__i]
-        mov     bx, ax
-        pop     ax
+        mov     bx, [panelOpen__i]
         mov     [st__bg + bx], al
         ret
 
@@ -1312,24 +1228,15 @@ panelTextured:
         call    mopaint__stClear
 ; ---- st[i].bg = bg
         mov     al, [panelTextured__bg]
-        push    ax                          ; save value while computing the index
-        mov     ax, [panelTextured__i]
-        mov     bx, ax
-        pop     ax
+        mov     bx, [panelTextured__i]
         mov     [st__bg + bx], al
 ; ---- st[i].fg = fg
         mov     al, [panelTextured__fg]
-        push    ax                          ; save value while computing the index
-        mov     ax, [panelTextured__i]
-        mov     bx, ax
-        pop     ax
+        mov     bx, [panelTextured__i]
         mov     [st__fg + bx], al
 ; ---- st[i].fill = fill
         mov     al, [panelTextured__fill]
-        push    ax                          ; save value while computing the index
-        mov     ax, [panelTextured__i]
-        mov     bx, ax
-        pop     ax
+        mov     bx, [panelTextured__i]
         mov     [st__fill + bx], al
         ret
 
@@ -1373,24 +1280,15 @@ panelFramed:
         call    mopaint__stClear
 ; ---- st[i].bg = bg
         mov     al, [panelFramed__bg]
-        push    ax                          ; save value while computing the index
-        mov     ax, [panelFramed__i]
-        mov     bx, ax
-        pop     ax
+        mov     bx, [panelFramed__i]
         mov     [st__bg + bx], al
 ; ---- st[i].border = borderW
         mov     al, [panelFramed__borderW]
-        push    ax                          ; save value while computing the index
-        mov     ax, [panelFramed__i]
-        mov     bx, ax
-        pop     ax
+        mov     bx, [panelFramed__i]
         mov     [st__border + bx], al
 ; ---- st[i].borderColor = frameColor
         mov     al, [panelFramed__frameColor]
-        push    ax                          ; save value while computing the index
-        mov     ax, [panelFramed__i]
-        mov     bx, ax
-        pop     ax
+        mov     bx, [panelFramed__i]
         mov     [st__borderColor + bx], al
         ret
 
@@ -1417,25 +1315,16 @@ labelPaint:
         call    mopaint__stClear
 ; ---- st[i].text = at
         mov     ax, [labelPaint__at]
-        push    ax                          ; save value while computing the index
-        mov     ax, [labelPaint__i]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [labelPaint__i]
+        shl     bx, 1                       ; word elements
         mov     [st__text + bx], ax
 ; ---- st[i].fg = fg
         mov     al, [labelPaint__fg]
-        push    ax                          ; save value while computing the index
-        mov     ax, [labelPaint__i]
-        mov     bx, ax
-        pop     ax
+        mov     bx, [labelPaint__i]
         mov     [st__fg + bx], al
 ; ---- st[i].bg = bg
         mov     al, [labelPaint__bg]
-        push    ax                          ; save value while computing the index
-        mov     ax, [labelPaint__i]
-        mov     bx, ax
-        pop     ax
+        mov     bx, [labelPaint__i]
         mov     [st__bg + bx], al
         ret
 
@@ -1462,33 +1351,21 @@ paraPaint:
         call    mopaint__stClear
 ; ---- st[i].text = at
         mov     ax, [paraPaint__at]
-        push    ax                          ; save value while computing the index
-        mov     ax, [paraPaint__i]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [paraPaint__i]
+        shl     bx, 1                       ; word elements
         mov     [st__text + bx], ax
 ; ---- st[i].fg = fg
         mov     al, [paraPaint__fg]
-        push    ax                          ; save value while computing the index
-        mov     ax, [paraPaint__i]
-        mov     bx, ax
-        pop     ax
+        mov     bx, [paraPaint__i]
         mov     [st__fg + bx], al
 ; ---- st[i].bg = bg
         mov     al, [paraPaint__bg]
-        push    ax                          ; save value while computing the index
-        mov     ax, [paraPaint__i]
-        mov     bx, ax
-        pop     ax
+        mov     bx, [paraPaint__i]
         mov     [st__bg + bx], al
 ; ---- paraEl[paraCount] = i
         mov     ax, [paraPaint__i]
-        push    ax                          ; save value while computing the index
-        mov     ax, [mopaint__paraCount]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [mopaint__paraCount]
+        shl     bx, 1                       ; word elements
         mov     [mopaint__paraEl + bx], ax
 ; ---- paraCount++
         inc     word [mopaint__paraCount]
@@ -1565,10 +1442,7 @@ paraAuto:
         xor     ah, ah                      ; u8 -> u16
         push    ax                          ; argument evaluated before any is stored
         mov     al, [paraAuto__bg]
-        xor     ah, ah                      ; u8 -> u16
-        push    ax                          ; argument evaluated before any is stored
-        pop     ax
-        mov     [paraPaint__bg], al         ; narrowed to u8
+        mov     [paraPaint__bg], al         ; u8 -> u8, no widening
         pop     ax
         mov     [paraPaint__fg], al         ; narrowed to u8
         pop     ax
@@ -1701,19 +1575,12 @@ mopaint__wrapInto:
         mov     ax, [mopaint__wrapInto__at]
         mov     bx, [mopaint__wrapInto__lineStart]
         add     ax, bx
-        push    ax                          ; save value while computing the index
-        mov     ax, [mopaint__lineTop]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [mopaint__lineTop]
+        shl     bx, 1                       ; word elements
         mov     [mopaint__lineAt + bx], ax
 ; ---- lineLen[lineTop] = u8( lineLength )
         mov     ax, [mopaint__wrapInto__lineLength]
-        xor     ah, ah                      ; cast to u8
-        push    ax                          ; save value while computing the index
-        mov     ax, [mopaint__lineTop]
-        mov     bx, ax
-        pop     ax
+        mov     bx, [mopaint__lineTop]
         mov     [mopaint__lineLen + bx], al
 ; ---- lineTop++
         inc     word [mopaint__lineTop]
@@ -1737,19 +1604,12 @@ mopaint__wrapInto:
         mov     ax, [mopaint__wrapInto__at]
         mov     bx, [mopaint__wrapInto__lineStart]
         add     ax, bx
-        push    ax                          ; save value while computing the index
-        mov     ax, [mopaint__lineTop]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [mopaint__lineTop]
+        shl     bx, 1                       ; word elements
         mov     [mopaint__lineAt + bx], ax
 ; ---- lineLen[lineTop] = u8( lineLength )
         mov     ax, [mopaint__wrapInto__lineLength]
-        xor     ah, ah                      ; cast to u8
-        push    ax                          ; save value while computing the index
-        mov     ax, [mopaint__lineTop]
-        mov     bx, ax
-        pop     ax
+        mov     bx, [mopaint__lineTop]
         mov     [mopaint__lineLen + bx], al
 ; ---- lineTop++
         inc     word [mopaint__lineTop]
@@ -1762,11 +1622,8 @@ mopaint__wrapInto:
         jne     .L134                       ; unsigned ==
 ; ---- lineAt[lineTop] = at
         mov     ax, [mopaint__wrapInto__at]
-        push    ax                          ; save value while computing the index
-        mov     ax, [mopaint__lineTop]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [mopaint__lineTop]
+        shl     bx, 1                       ; word elements
         mov     [mopaint__lineAt + bx], ax
 ; ---- lineLen[lineTop] = 0
         mov     ax, [mopaint__lineTop]
@@ -1835,19 +1692,12 @@ reflowAll:
         mov     [reflowAll__n], ax
 ; ---- st[i].line0 = first
         mov     ax, [reflowAll__first]
-        push    ax                          ; save value while computing the index
-        mov     ax, [reflowAll__i]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [reflowAll__i]
+        shl     bx, 1                       ; word elements
         mov     [st__line0 + bx], ax
 ; ---- st[i].lineCount = u8( n )
         mov     ax, [reflowAll__n]
-        xor     ah, ah                      ; cast to u8
-        push    ax                          ; save value while computing the index
-        mov     ax, [reflowAll__i]
-        mov     bx, ax
-        pop     ax
+        mov     bx, [reflowAll__i]
         mov     [st__lineCount + bx], al
 ; ---- setLeafHeight( i, n * lineHeight )
         mov     ax, [reflowAll__i]
@@ -2170,11 +2020,8 @@ fitSize:
         add     ax, bx
 .L171:
 .L168:
-        push    ax                          ; save value while computing the index
-        mov     ax, [fitSize__i]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [fitSize__i]
+        shl     bx, 1                       ; word elements
         mov     [el__w + bx], ax
 ; ---- el[i].h = clamp( insetY + contentH, el[i].hMin, el[i].hMax )
         mov     ax, [fitSize__insetY]
@@ -2218,11 +2065,8 @@ fitSize:
         add     ax, bx
 .L177:
 .L174:
-        push    ax                          ; save value while computing the index
-        mov     ax, [fitSize__i]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [fitSize__i]
+        shl     bx, 1                       ; word elements
         mov     [el__h + bx], ax
 ; ---- el[i].minW = clamp( insetX + minContentW, el[i].wMin, el[i].wMax )
         mov     ax, [fitSize__insetX]
@@ -2266,11 +2110,8 @@ fitSize:
         add     ax, bx
 .L183:
 .L180:
-        push    ax                          ; save value while computing the index
-        mov     ax, [fitSize__i]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [fitSize__i]
+        shl     bx, 1                       ; word elements
         mov     [el__minW + bx], ax
 ; ---- el[i].minH = clamp( insetY + minContentH, el[i].hMin, el[i].hMax )
         mov     ax, [fitSize__insetY]
@@ -2314,11 +2155,8 @@ fitSize:
         add     ax, bx
 .L189:
 .L186:
-        push    ax                          ; save value while computing the index
-        mov     ax, [fitSize__i]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [fitSize__i]
+        shl     bx, 1                       ; word elements
         mov     [el__minH + bx], ax
         ret
 
@@ -2340,11 +2178,8 @@ size__candRemove:
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [size__cand + bx]
-        push    ax                          ; save value while computing the index
-        mov     ax, [size__candRemove__j]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [size__candRemove__j]
+        shl     bx, 1                       ; word elements
         mov     [size__cand + bx], ax
 .L192:
         inc     word [size__candRemove__j]
@@ -3016,9 +2851,7 @@ sizeAxis:
         mov     ax, [sizeAxis__k]
         mov     bx, [sizeAxis__n]
         cmp     ax, bx
-        jb      .L338                       ; unsigned <
-        jmp     .L337
-.L338:
+        jae     .L337                       ; unsigned <
 ; ---- ci = childAt( i, k )
         mov     ax, [sizeAxis__i]
         shl     ax, 1                       ; word elements
@@ -3038,11 +2871,8 @@ sizeAxis:
         jbe     .L339                       ; unsigned >
 ; ---- bfs[bfsLen] = ci
         mov     ax, [sizeAxis__ci]
-        push    ax                          ; save value while computing the index
-        mov     ax, [size__bfsLen]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [size__bfsLen]
+        shl     bx, 1                       ; word elements
         mov     [size__bfs + bx], ax
 ; ---- bfsLen++
         inc     word [size__bfsLen]
@@ -3490,11 +3320,8 @@ sizeAxis:
         jbe     .L428                       ; unsigned >
 ; ---- cand[candLen] = ci
         mov     ax, [sizeAxis__ci]
-        push    ax                          ; save value while computing the index
-        mov     ax, [size__candLen]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [size__candLen]
+        shl     bx, 1                       ; word elements
         mov     [size__cand + bx], ax
 ; ---- candLen++
         inc     word [size__candLen]
@@ -3583,11 +3410,8 @@ sizeAxis:
         jz      .L447
 ; ---- cand[candLen] = ci
         mov     ax, [sizeAxis__ci]
-        push    ax                          ; save value while computing the index
-        mov     ax, [size__candLen]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [size__candLen]
+        shl     bx, 1                       ; word elements
         mov     [size__cand + bx], ax
 ; ---- candLen++
         inc     word [size__candLen]
@@ -3692,11 +3516,8 @@ refitY:
         mov     ax, [childList + bx]
         mov     [refitY__ci], ax
 ; ---- rfI[rfTop] = ci
-        push    ax                          ; save value while computing the index
-        mov     ax, [refit__rfTop]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [refit__rfTop]
+        shl     bx, 1                       ; word elements
         mov     [refit__rfI + bx], ax
 ; ---- rfSeen[rfTop] = false
         mov     ax, [refit__rfTop]
@@ -3931,11 +3752,8 @@ refitY:
         add     ax, bx
 .L491:
 .L488:
-        push    ax                          ; save value while computing the index
-        mov     ax, [refitY__i]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [refitY__i]
+        shl     bx, 1                       ; word elements
         mov     [el__h + bx], ax
 ; ---- el[i].minH = clamp( insetY + minContentH, el[i].hMin, el[i].hMax )
         mov     ax, [refitY__insetY]
@@ -3979,11 +3797,8 @@ refitY:
         add     ax, bx
 .L497:
 .L494:
-        push    ax                          ; save value while computing the index
-        mov     ax, [refitY__i]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [refitY__i]
+        shl     bx, 1                       ; word elements
         mov     [el__minH + bx], ax
 .L457:
         jmp     .L456
@@ -4021,22 +3836,16 @@ place:
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [place__stkX + bx]
-        push    ax                          ; save value while computing the index
-        mov     ax, [place__i]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [place__i]
+        shl     bx, 1                       ; word elements
         mov     [el__x + bx], ax
 ; ---- el[i].y = stkY[stkTop]
         mov     ax, [place__stkTop]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [place__stkY + bx]
-        push    ax                          ; save value while computing the index
-        mov     ax, [place__i]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [place__i]
+        shl     bx, 1                       ; word elements
         mov     [el__y + bx], ax
 ; ---- n = el[i].childCount
         mov     ax, [place__i]
@@ -4392,11 +4201,8 @@ place:
         mov     [place__slot], ax
 ; ---- stkI[slot] = ci
         mov     ax, [place__ci]
-        push    ax                          ; save value while computing the index
-        mov     ax, [place__slot]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [place__slot]
+        shl     bx, 1                       ; word elements
         mov     [place__stkI + bx], ax
 ; ---- stkX[slot] = row ? el[i].x + cursor : el[i].x + cross
         mov     al, [place__row]
@@ -4417,11 +4223,8 @@ place:
         mov     bx, [place__cross]
         add     ax, bx
 .L557:
-        push    ax                          ; save value while computing the index
-        mov     ax, [place__slot]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [place__slot]
+        shl     bx, 1                       ; word elements
         mov     [place__stkX + bx], ax
 ; ---- stkY[slot] = row ? el[i].y + cross : el[i].y + cursor
         mov     al, [place__row]
@@ -4442,11 +4245,8 @@ place:
         mov     bx, [place__cursor]
         add     ax, bx
 .L560:
-        push    ax                          ; save value while computing the index
-        mov     ax, [place__slot]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [place__slot]
+        shl     bx, 1                       ; word elements
         mov     [place__stkY + bx], ax
 ; ---- cursor += ( row ? el[ci].w : el[ci].h ) + el[i].gap
         mov     ax, [place__cursor]
@@ -4595,11 +4395,8 @@ packRows:
 .L582:
 ; ---- flowRow[ flowRowCount ].first = i
         mov     ax, [packRows__i]
-        push    ax                          ; save value while computing the index
-        mov     ax, [flowRowCount]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [flowRowCount]
+        shl     bx, 1                       ; word elements
         mov     [flowRow__first + bx], ax
 ; ---- flowRow[ flowRowCount ].count = 1
         mov     ax, [flowRowCount]
@@ -4760,10 +4557,7 @@ menuBar:
         push    ax                          ; argument evaluated before any is stored
         xor     ax, ax                      ; 0
         push    ax                          ; argument evaluated before any is stored
-        mov     ax, 7
-        push    ax                          ; argument evaluated before any is stored
-        pop     ax
-        mov     [labelPaint__bg], al        ; narrowed to u8
+        mov     byte [labelPaint__bg], 7
         pop     ax
         mov     [labelPaint__fg], al        ; narrowed to u8
         pop     ax
@@ -5385,10 +5179,7 @@ finderRow:
         push    ax                          ; argument evaluated before any is stored
         xor     ax, ax                      ; 0
         push    ax                          ; argument evaluated before any is stored
-        mov     ax, 15
-        push    ax                          ; argument evaluated before any is stored
-        pop     ax
-        mov     [labelPaint__bg], al        ; narrowed to u8
+        mov     byte [labelPaint__bg], 15
         pop     ax
         mov     [labelPaint__fg], al        ; narrowed to u8
         pop     ax
@@ -5410,10 +5201,7 @@ finderRow:
         push    ax                          ; argument evaluated before any is stored
         xor     ax, ax                      ; 0
         push    ax                          ; argument evaluated before any is stored
-        mov     ax, 15
-        push    ax                          ; argument evaluated before any is stored
-        pop     ax
-        mov     [labelPaint__bg], al        ; narrowed to u8
+        mov     byte [labelPaint__bg], 15
         pop     ax
         mov     [labelPaint__fg], al        ; narrowed to u8
         pop     ax
@@ -5442,10 +5230,7 @@ finderRow:
         push    ax                          ; argument evaluated before any is stored
         xor     ax, ax                      ; 0
         push    ax                          ; argument evaluated before any is stored
-        mov     ax, 15
-        push    ax                          ; argument evaluated before any is stored
-        pop     ax
-        mov     [labelPaint__bg], al        ; narrowed to u8
+        mov     byte [labelPaint__bg], 15
         pop     ax
         mov     [labelPaint__fg], al        ; narrowed to u8
         pop     ax
@@ -5609,10 +5394,7 @@ memoryBar:
         push    ax                          ; argument evaluated before any is stored
         xor     ax, ax                      ; 0
         push    ax                          ; argument evaluated before any is stored
-        mov     ax, 15
-        push    ax                          ; argument evaluated before any is stored
-        pop     ax
-        mov     [labelPaint__bg], al        ; narrowed to u8
+        mov     byte [labelPaint__bg], 15
         pop     ax
         mov     [labelPaint__fg], al        ; narrowed to u8
         pop     ax
@@ -5841,11 +5623,8 @@ buildS6Screen:
         call    strLen
         mov     ax, [strLen__ret]
         add     ax, 2
-        push    ax                          ; save value while computing the index
-        mov     ax, [buildS6Screen__i]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [buildS6Screen__i]
+        shl     bx, 1                       ; word elements
         mov     [flowW + bx], ax
 .L625:
         inc     word [buildS6Screen__i]
@@ -5894,10 +5673,7 @@ buildS6Screen:
         push    ax                          ; argument evaluated before any is stored
         xor     ax, ax                      ; 0
         push    ax                          ; argument evaluated before any is stored
-        mov     ax, 15
-        push    ax                          ; argument evaluated before any is stored
-        pop     ax
-        mov     [labelPaint__bg], al        ; narrowed to u8
+        mov     byte [labelPaint__bg], 15
         pop     ax
         mov     [labelPaint__fg], al        ; narrowed to u8
         pop     ax
@@ -6471,7 +6247,7 @@ putNumber__digits: times 5 db 0        ; u8[5]
 ; No storage is emitted - a .COM owns everything past its image, so
 ; these are addresses and NASM does the arithmetic.
 
-_hstack:        equ     288        ; 32 worst-case + 256 interrupt reserve
+_hstack:        equ     282        ; 26 worst-case + 256 interrupt reserve
 _htop:          equ     0FFFEh - _hstack
 
 _hsize:         dw      _htop - _heap        ; NASM computes this

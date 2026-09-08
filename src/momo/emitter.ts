@@ -411,6 +411,35 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     return type
   }
 
+  // A cast to a byte type ends in a widening - `xor ah, ah` for u8, `cbw` for
+  // i8 - and both write AH and nothing else. A destination one byte wide keeps
+  // AL alone, so that instruction is computed and thrown away: emit the cast's
+  // argument and stop.
+  //
+  // This is peephole 4's argument one step along. 4 drops the widening a bare
+  // *load* would have paid; the widening here is the one the cast inserted, and
+  // `u8( someU16 )` into a byte slot is the shape - the cast masks the high byte
+  // and the store discards it a second time.
+  //
+  // Returns null where the cast emits nothing anyway (§6's cases), so those keep
+  // taking the ordinary path and the output does not move for them.
+  //
+  // Reports the type it came *from* rather than the cast's own, so the store's
+  // note reads `u16 -> u8, no widening` - source to destination, as 4's does -
+  // and says which of the two dropped the widening. `u8 -> u8` would be both
+  // indistinguishable from 4 and untrue about the source.
+  const emitNarrowingCast = (node: Expression): ValueType | null => {
+    if (node.type !== 'CastExpression') return null
+    if (node.to !== 'u8' && node.to !== 'i8') return null
+
+    const from = typeOf(node.argument)
+    if (node.to === from) return null
+    if (node.to === 'u8' && from === 'bool') return null
+
+    emitExpression(node.argument)
+    return from
+  }
+
   // Leaves the operand's truth in ZF. A byte is zero exactly when its widening
   // is - `xor ah, ah` cannot change that and `cbw` cannot either - and only ZF
   // is read here, so the widening is dead work.
@@ -473,6 +502,21 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     ins('xor', 'bh, bh', `${symbol.type} -> u16`)
   }
 
+  // Computes an index into BX for a store whose value is already in AX, and
+  // reports whether it could. A leaf index is peephole 1's case: it loads
+  // straight into BX and touches AX not at all, so the push/pop that was
+  // protecting the value while the index went through the accumulator has
+  // nothing left to protect and is not emitted.
+  //
+  // `shl bx, 1` is an ordinary 8086 shift - only the immediate-count form is
+  // 186+ - so the doubling stays where the index landed.
+  const indexIntoBx = (index: Expression, width: number): boolean => {
+    if (!isLeaf(index)) return false
+    loadIntoBx(index)
+    if (width === 2) ins('shl', 'bx, 1', 'word elements')
+    return true
+  }
+
   // Leaves the left operand in AX and returns the operand string to use for the
   // right - an immediate where possible, otherwise BX.
   const emitOperands = (left: Expression, right: Expression, needRegister: boolean): string => {
@@ -519,11 +563,24 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     const viaStack = args.length > 1 && args.some(containsCall)
 
     if (viaStack) {
-      for (const argument of args) {
-        emitExpression(argument)
+      const last = args.length - 1
+
+      for (let i = 0; i < last; i++) {
+        emitExpression(args[i])
         ins('push', 'ax', 'argument evaluated before any is stored')
       }
-      for (let i = args.length - 1; i >= 0; i--) {
+
+      // The rule this path exists for is that no slot is written until every
+      // argument has been evaluated. The LAST argument satisfies it by being
+      // last: nothing is evaluated after it, so its push had nothing to protect
+      // it from and was popped on the very next instruction.
+      //
+      // It goes through emitValueToLabel rather than storeToLabel, which is the
+      // spelling the direct path uses - so the byte and constant shortcuts reach
+      // one argument of a via-stack call too, and the two paths cannot drift.
+      emitValueToLabel(symbol.params[last].label, symbol.params[last].type, args[last])
+
+      for (let i = last - 1; i >= 0; i--) {
         ins('pop', 'ax')
         storeToLabel(symbol.params[i].label, symbol.params[i].type)
       }
@@ -592,6 +649,12 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
       const loaded = emitByteLoad(value)
       if (loaded) {
         ins('mov', `[${label}], al`, `${loaded} -> ${type}, no widening`)
+        return
+      }
+
+      const cast = emitNarrowingCast(value)
+      if (cast) {
+        ins('mov', `[${label}], al`, `${cast} -> ${type}, no widening`)
         return
       }
     }
@@ -1070,13 +1133,21 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
         return
       }
 
+      const at = farOperand(symbol, null)
+
+      // loadSegment reaches ES through DX, so it does not touch AX either.
+      if (indexIntoBx(target.index, width)) {
+        loadSegment(symbol)
+        ins('mov', width === 2 ? `[${at}], ax` : `[${at}], al`)
+        return
+      }
+
       ins('push', 'ax', 'save value while computing the index')
       emitExpression(target.index)
       if (width === 2) ins('shl', 'ax, 1', 'word elements')
       ins('mov', 'bx, ax')
       loadSegment(symbol)
       ins('pop', 'ax')
-      const at = farOperand(symbol, null)
       ins('mov', width === 2 ? `[${at}], ax` : `[${at}], al`)
       return
     }
@@ -1093,12 +1164,19 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
       return
     }
 
+    const store = width === 2 ? `[${symbol.label} + bx], ax` : `[${symbol.label} + bx], al`
+
+    if (indexIntoBx(target.index, width)) {
+      ins('mov', store)
+      return
+    }
+
     ins('push', 'ax', 'save value while computing the index')
     emitExpression(target.index)
     if (width === 2) ins('shl', 'ax, 1', 'word elements')
     ins('mov', 'bx, ax')
     ins('pop', 'ax')
-    ins('mov', width === 2 ? `[${symbol.label} + bx], ax` : `[${symbol.label} + bx], al`)
+    ins('mov', store)
   }
 
   // `x = 0` is `mov byte [x], 0` - no round trip through AX. A constant value
@@ -1164,6 +1242,12 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
         const loaded = emitByteLoad(node.value)
         if (loaded) {
           storeTo(node.target, `${loaded} -> ${targetType}, no widening`)
+          return
+        }
+
+        const cast = emitNarrowingCast(node.value)
+        if (cast) {
+          storeTo(node.target, `${cast} -> ${targetType}, no widening`)
           return
         }
       }

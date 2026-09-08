@@ -726,12 +726,9 @@ setPixel:
         mov     [setPixel__at], ax
 ; ---- pixels[ at ] = color
         mov     al, [setPixel__color]
-        push    ax                          ; save value while computing the index
-        mov     ax, [setPixel__at]
-        mov     bx, ax
+        mov     bx, [setPixel__at]
         mov     dx, 0xA000                  ; segment of pixels
         mov     es, dx
-        pop     ax
         mov     [es:bx], al
 ; ---- pixels[ at + 1 ] = color
         mov     al, [setPixel__color]
@@ -832,13 +829,10 @@ drawBackground:
         jae     .L101                       ; unsigned <
 ; ---- pxwords[ dy ] = color
         mov     ax, [drawBackground__color]
-        push    ax                          ; save value while computing the index
-        mov     ax, [drawBackground__dy]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
+        mov     bx, [drawBackground__dy]
+        shl     bx, 1                       ; word elements
         mov     dx, 0xA000                  ; segment of pxwords
         mov     es, dx
-        pop     ax
         mov     [es:bx], ax
 .L100:
         inc     word [drawBackground__dy]
@@ -1257,12 +1251,9 @@ movePaddle:
         mov     bx, ax
         pop     ax
         sub     ax, bx
-        push    ax                          ; save value while computing the index
-        mov     al, [movePaddle__pi]
-        xor     ah, ah                      ; u8 -> u16
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bl, [movePaddle__pi]
+        xor     bh, bh                      ; u8 -> u16
+        shl     bx, 1                       ; word elements
         mov     [player__y + bx], ax
 .L127:
 ; ---- if ( held[ pi ].down ) player[ pi ].y += player[ pi ].speed
@@ -1286,12 +1277,9 @@ movePaddle:
         mov     bx, ax
         pop     ax
         add     ax, bx
-        push    ax                          ; save value while computing the index
-        mov     al, [movePaddle__pi]
-        xor     ah, ah                      ; u8 -> u16
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bl, [movePaddle__pi]
+        xor     bh, bh                      ; u8 -> u16
+        shl     bx, 1                       ; word elements
         mov     [player__y + bx], ax
 .L130:
 ; ---- if ( player[ pi ].y < 0 ) player[ pi ].y = 0
@@ -1336,11 +1324,8 @@ movePaddle:
         mov     al, [player__speed + bx]
         xor     ah, ah                      ; u8 -> u16
         add     ax, 2
-        push    ax                          ; save value while computing the index
-        mov     al, [movePaddle__pi]
-        xor     ah, ah                      ; u8 -> u16
-        mov     bx, ax
-        pop     ax
+        mov     bl, [movePaddle__pi]
+        xor     bh, bh                      ; u8 -> u16
         mov     [player__speed + bx], al
 .L139:
         jmp     .L123

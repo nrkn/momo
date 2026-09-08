@@ -41,8 +41,10 @@ obvious from any single one of them:
 ## Where each one lives
 
 Audited 2026-08-29 against `emitter.ts` and the committed `.asm` at that date. **All
-fifteen are built**, which was not a foregone conclusion: 4 and 5 stood here as
+fifteen were built**, which was not a foregone conclusion: 4 and 5 stood here as
 fiction for a long time and nothing in the document could have contradicted them.
+**16, 17 and 18 landed on 2026-09-08** and are listed the same way, checked against
+output the same day.
 
 **The counts in the right-hand column are fixed at the audit and are not
 maintained.** What each one is evidence for is that the rewrite *fires in
@@ -75,6 +77,9 @@ call site proves the code exists and only the output proves it fires.
 | 13 | `emitValueToLabel`, `storeToLabel`, `storeImmediateTo` | 1,381 immediates straight into a slot |
 | 14 | `previousInstruction`, `isDeadReload`, `ins` | no store-then-reload pair anywhere |
 | 15 | `jumpIf`, `branchBound`, `tightenBranches` | 1,750 of 2,224 conditional jumps tightened |
+| 16 | `indexIntoBx`, and the array paths of `storeTo` | 431 `shl bx, 1`; index-protecting pushes down from 704 to 31 |
+| 17 | `emitNarrowingCast`, `emitValueToLabel`, `emitAssignment` | 8 `u16 -> u8, no widening`, and 32 more where the indexed store takes no note |
+| 18 | the via-stack branch of `emitCall` | no `push ax` followed immediately by `pop ax` anywhere |
 
 ### Three things the audit corrected
 
@@ -337,127 +342,130 @@ wherever the branch genuinely cannot reach.
 The `-Ox` behaviour is still worth knowing, because it means this pass can
 never break a build - the worst an under-estimate can do is leave NASM to
 expand a branch, which costs the honesty above and nothing else.
+### 16. A leaf index loads straight into BX, and the value stops being saved
+
+Peephole 1's rewrite, reaching the one path that never asked for it. A store
+through a computed index put the index in AX and moved it, which meant the value
+already in AX had to be pushed out of the way and brought back:
+
+```nasm
+        push    ax                          ; save value while computing the index
+        mov     ax, [i]                     ->      mov     bx, [i]
+        shl     ax, 1                       ->      shl     bx, 1
+        mov     bx, ax
+        pop     ax
+        mov     [values + bx], ax                   mov     [values + bx], ax
+```
+
+`loadIntoBx` already existed and `isLeaf` already decided when it applies, so the
+whole rewrite is one guard in front of the sequence. **The push and pop go with
+it**, and that is the larger half: nothing on the new path touches AX, so there is
+nothing to protect the value from.
+
+`shl bx, 1` is an ordinary 8086 shift - only the immediate-count form is 186+ -
+and it was checked by building a probe under `cpu 8086` rather than assumed. The
+`.COM` grew by exactly ten bytes for `mov bx, [m]` / `shl bx, 1` / `mov [m], bx`,
+which also confirms that a non-accumulator load costs one byte more than the
+accumulator's short form.
+
+**The safety argument is the same one `isLeaf` already carries.** A leaf is a
+constant or a `var` that is not `i8`, and `loadIntoBx` writes BX and nothing else -
+so a value in AX survives an index that goes this way, and the pair protecting it
+is dead. `i8` stays excluded because `loadIntoBx` zero-extends with `xor bh, bh`,
+which is wrong for a signed byte; a nested index like `cy[i] * 2` is not a leaf and
+takes the old path unchanged.
+
+**673 of the 704 index-protecting pushes** in the committed output are gone, and
+every one of the 31 that remain has an index that is genuinely not a leaf.
+
+### 17. A cast to a byte type does not widen for a byte destination
+
+4's argument one step along. 4 drops the widening a bare *load* would have paid;
+this drops the one the **cast** inserted, when the destination is one byte and
+discards it a second time:
+
+```nasm
+        mov     ax, [double__ret]
+        xor     ah, ah                      ; cast to u8      <- gone
+        mov     [double__n], al             ; u16 -> u8, no widening
+```
+
+`xor ah, ah` for `u8` and `cbw` for `i8` both write AH and nothing else, and a
+one-byte destination keeps AL alone - so the instruction is computed and thrown
+away. A cast to `bool` is not in this family and is untouched: it computes a value
+rather than widening one.
+
+Casts that already emit nothing under 6 are left on the ordinary path deliberately,
+so the output does not move for them.
+
+**40 dead widenings**, of which 8 are into a plain variable and carry the note
+above; the other 32 are into an array element, where `storeTo` has never taken a
+note on the indexed paths - so those show as an absence rather than as a comment.
+That asymmetry predates this entry and belongs to 4 as much as to it.
+
+### 18. The last argument of a via-stack call is not pushed
+
+3's stack path exists so that no parameter slot is written until every argument has
+been evaluated - otherwise `outer( f(), g() )` where `g` calls `outer` would have
+`g` overwrite a slot already filled. Every argument was evaluated onto the stack
+and then popped back in reverse.
+
+**The last argument satisfies the rule by being last.** Nothing is evaluated after
+it, so its push had nothing to protect it from and the very next instruction popped
+it back:
+
+```nasm
+        mov     ax, [add__ret]
+        push    ax                          ; argument evaluated before any is stored
+        pop     ax                          <- both gone
+        mov     [add__b], ax
+```
+
+It goes through `emitValueToLabel` now rather than `storeToLabel`, which is the
+spelling the direct path already uses - so 2, 4 and 13 reach one argument of a
+via-stack call as well, and a constant last argument goes straight to memory
+instead of through AX. That comment on `emitValueToLabel` saying the via-stack path
+"cannot use this" was true of a popped argument and never of this one.
+
 ## Candidates, found and not built
 
 **Deliberately outside the catalogue.** A number here would be the mistake this
 document has already made once - 4 and 5 stood in the catalogue as built and were
 not, and nothing in the text could contradict them. A rewrite gets a number when
-it fires in committed output and not before, so these are described and measured
-and left unnumbered.
+it fires in committed output and not before.
 
-Found by the sweep of 2026-09-08 over the 56 committed `.asm` files, 60,093
-instructions. Counts are from that date and are evidence that the shape repeats,
-not a figure to maintain.
+The sweep of 2026-09-08 found four shapes over the 56 committed `.asm` files and
+60,093 instructions. Three are 16, 17 and 18 above. This is the fourth, and it is
+here because it was measured and declined rather than because it is unfinished.
 
-**The sweep confirmed three entries still hold.** 14 has *no* misses - not one
-store followed by a reload of the same symbol anywhere. 7 and 10 leave nothing
-behind: no `mov ax, 0`, no `cmp` against 0, no `add ax, 1`. And 4's documented gap
-is still **exactly the three sites** the 2026-08-29 audit recorded, one in
-`maptest` and two in `simplerl`, which is what that entry predicted and is worth
-more than the count going up would be.
+### 16 on a *load* is a size win and a speed loss
 
-### A leaf index reaches BX through AX
-
-The shape, `values[i] = v` with `i` a plain variable:
-
-```nasm
-        push    ax                          ; save value while computing the index
-        mov     ax, [i]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
-        mov     [values + bx], ax
-```
-
-`loadIntoBx` already exists for peephole 1 and would write `mov bx, [i]` directly.
-Then `shl bx, 1` doubles in place, **and the push/pop disappears with it** -
-nothing on that path touches AX, so there is nothing to protect. Three
-instructions, three bytes and 17 clocks a site:
-
-| | now | with `loadIntoBx` |
-|---|---|---|
-| `push ax` | 1 byte, 11c | - |
-| index into a register | `mov ax, [i]` 3 bytes, 10c | `mov bx, [i]` 4 bytes, 14c |
-| double it | `shl ax, 1` | `shl bx, 1` |
-| `mov bx, ax` | 2 bytes, 2c | - |
-| `pop ax` | 1 byte, 8c | - |
-
-**622 store sites**, so 1,866 instructions, 1,866 bytes and ~10,600 clocks of
-static work - more at runtime, because most of them are inside loops. The biggest
-single holders are the layout programs, at 60-65 each.
-
-This is peephole 13's shape rather than a hole in 1: the rewrite exists, and the
-index path never asks for it. Both `emitStatement`'s store path and
-`emitExpression`'s load path spell the sequence out by hand.
-
-**`shl bx, 1` was checked by building it**, because the whole idea rests on it: a
-probe under `cpu 8086` assembles clean, and the `.COM` grew by exactly ten bytes
-for `mov bx, [m]` / `shl bx, 1` / `mov [m], bx` - so 4, 2 and 4, confirming that a
-non-accumulator load costs the byte the table says it does.
-
-### The same rewrite on a *load* is a size win and a speed loss
-
-`x = values[i]` has no push to remove, so the trade is the accumulator short form
+16's rewrite applies to a load through a leaf index as readily as to a store - but
+a load has no push to remove, so the whole trade is the accumulator short form
 against one `mov`:
 
 ```nasm
         mov     ax, [i]     ; 3 bytes, 10c        mov     bx, [i]     ; 4 bytes, 14c
-        shl     ax, 1       ;                     shl     bx, 1
-        mov     bx, ax      ; 2 bytes, 2c
+        shl     ax, 1       ; 2 bytes,  2c        shl     bx, 1       ; 2 bytes,  2c
+        mov     bx, ax      ; 2 bytes,  2c
         mov     ax, [values + bx]                 mov     ax, [values + bx]
 ```
 
 **1,500 sites**: 1,500 bytes smaller and ~3,000 clocks slower. Every entry in the
-catalogue above is a win in both directions or a win in clocks, and this is the
-first candidate that is neither - so it is recorded as measured rather than
-adopted with the store half. The reason to be careful is §26 and §27: this
-repository reasons about speed by counting instructions in the `.asm`, because
-DOSBox cannot time an 8086, and a rewrite that trades clocks for bytes is one the
-counting cannot see the cost of unless somebody writes it down. This is it
-written down.
+catalogue is a win in clocks or in both, and this is the first candidate that is
+neither.
 
-The store half above does not have this problem - it is 3 bytes *and* 17 clocks -
-so the two halves can land separately and the load half needs an argument the
-store half does not.
+**The reason to write it down rather than take it** is §26 and §27. This
+repository reasons about speed by counting instructions in the emitted `.asm`,
+because DOSBox cannot time an 8086 - so a rewrite that removes an instruction and
+adds clocks is one the counting method reports as a win. That is the only place
+where instruction-counting and the machine disagree, and a candidate that lives in
+exactly that gap should be recorded in it rather than adopted quietly.
 
-### A cast to `u8` widens for a byte store that discards it
-
-```nasm
-        mov     ax, [double__ret]
-        xor     ah, ah                      ; cast to u8
-        mov     [double__n], al             ; narrowed to u8
-```
-
-Peephole 6 already drops a cast that cannot change the bits; this is a cast that
-*can* - `u8(someU16)` has to mask - reaching a destination one byte wide, which
-masks it again. **30 sites**, 2 bytes and 3 clocks each: 60 bytes, 90 clocks.
-
-Small, and worth having because it is 4's argument one step along: 4 says a
-same-width copy skips the widening, and the widening here is the one the *cast*
-inserted rather than the load. These are not the three sites named above - those
-are `u8 -> u16` through a parameterised const, and these are all `cast to u8`.
-
-### The last argument pushed is popped immediately
-
-Peephole 3's stack path evaluates every argument before storing any, then pops
-them into slots in reverse. The last one pushed is the first popped, always
-adjacent:
-
-```nasm
-        mov     ax, [add__ret]
-        push    ax                          ; argument evaluated before any is stored
-        pop     ax
-        mov     [add__b], ax
-```
-
-Nothing is evaluated between them, so the pair is dead by construction rather
-than by any liveness argument - the last argument has nothing after it to protect
-against. **17 sites**, 2 bytes and 19 clocks each: 34 bytes, 323 clocks.
-
-### What the three together are worth
-
-1,960 bytes and roughly 11,000 clocks of static work, on the 56 committed files.
-The store half is 95% of it.
+It would also be indistinguishable in the diff from 16's own hunks, which is the
+second reason to keep it separate: the store half is 3 bytes *and* 17 clocks, and
+letting the two land together would put a measured regression inside a change whose
+headline is a saving.
 
 ## How this list has been wrong
 

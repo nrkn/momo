@@ -264,11 +264,8 @@ putNumber:
         mov     ax, dx                      ; remainder
         xor     ah, ah                      ; cast to u8
         add     ax, 48
-        push    ax                          ; save value while computing the index
-        mov     al, [putNumber__i]
-        xor     ah, ah                      ; u8 -> u16
-        mov     bx, ax
-        pop     ax
+        mov     bl, [putNumber__i]
+        xor     bh, bh                      ; u8 -> u16
         mov     [putNumber__digits + bx], al
 ; ---- n /= ioBase
         mov     ax, [putNumber__n]
@@ -353,26 +350,16 @@ addCrossing:
 .L56:
 ; ---- cy[ crossingCount ] = u8( y )
         mov     ax, [addCrossing__y]
-        xor     ah, ah                      ; cast to u8
-        push    ax                          ; save value while computing the index
-        mov     ax, [crossingCount]
-        mov     bx, ax
-        pop     ax
+        mov     bx, [crossingCount]
         mov     [cy + bx], al
 ; ---- cx[ crossingCount ] = x
         mov     ax, [addCrossing__x]
-        push    ax                          ; save value while computing the index
-        mov     ax, [crossingCount]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [crossingCount]
+        shl     bx, 1                       ; word elements
         mov     [cx_ + bx], ax
 ; ---- cdir[ crossingCount ] = dir
         mov     al, [addCrossing__dir]
-        push    ax                          ; save value while computing the index
-        mov     ax, [crossingCount]
-        mov     bx, ax
-        pop     ax
+        mov     bx, [crossingCount]
         mov     [cdir + bx], al
 ; ---- crossingCount += 1
         mov     ax, [crossingCount]
@@ -443,11 +430,8 @@ sortCrossings:
         jae     .L72                        ; unsigned <
 ; ---- runStart[y] = running
         mov     ax, [sortCrossings__running]
-        push    ax                          ; save value while computing the index
-        mov     ax, [sortCrossings__y]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [sortCrossings__y]
+        shl     bx, 1                       ; word elements
         mov     [runStart + bx], ax
 ; ---- running += rowCount[y]
         mov     ax, [sortCrossings__running]
@@ -514,30 +498,21 @@ sortCrossings:
         mov     ax, [sortCrossings__i]
         mov     bx, ax
         mov     al, [cy + bx]
-        push    ax                          ; save value while computing the index
-        mov     ax, [sortCrossings__at]
-        mov     bx, ax
-        pop     ax
+        mov     bx, [sortCrossings__at]
         mov     [sy_ + bx], al
 ; ---- sx_[at] = cx[i]
         mov     ax, [sortCrossings__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [cx_ + bx]
-        push    ax                          ; save value while computing the index
-        mov     ax, [sortCrossings__at]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [sortCrossings__at]
+        shl     bx, 1                       ; word elements
         mov     [sx_ + bx], ax
 ; ---- sd_[at] = cdir[i]
         mov     ax, [sortCrossings__i]
         mov     bx, ax
         mov     al, [cdir + bx]
-        push    ax                          ; save value while computing the index
-        mov     ax, [sortCrossings__at]
-        mov     bx, ax
-        pop     ax
+        mov     bx, [sortCrossings__at]
         mov     [sd_ + bx], al
 ; ---- rowCount[y] += 1
         mov     ax, [sortCrossings__y]
@@ -545,11 +520,8 @@ sortCrossings:
         mov     bx, ax
         mov     ax, [rowCount + bx]
         inc     ax
-        push    ax                          ; save value while computing the index
-        mov     ax, [sortCrossings__y]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [sortCrossings__y]
+        shl     bx, 1                       ; word elements
         mov     [rowCount + bx], ax
 .L79:
         inc     word [sortCrossings__i]
@@ -623,21 +595,15 @@ sortCrossings:
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [sx_ + bx]
-        push    ax                          ; save value while computing the index
-        mov     ax, [sortCrossings__k]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [sortCrossings__k]
+        shl     bx, 1                       ; word elements
         mov     [sx_ + bx], ax
 ; ---- sd_[k] = sd_[k - 1]
         mov     ax, [sortCrossings__k]
         dec     ax
         mov     bx, ax
         mov     al, [sd_ + bx]
-        push    ax                          ; save value while computing the index
-        mov     ax, [sortCrossings__k]
-        mov     bx, ax
-        pop     ax
+        mov     bx, [sortCrossings__k]
         mov     [sd_ + bx], al
 ; ---- k -= 1
         mov     ax, [sortCrossings__k]
@@ -648,18 +614,12 @@ sortCrossings:
 .L92:
 ; ---- sx_[k] = keyX
         mov     ax, [sortCrossings__keyX]
-        push    ax                          ; save value while computing the index
-        mov     ax, [sortCrossings__k]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [sortCrossings__k]
+        shl     bx, 1                       ; word elements
         mov     [sx_ + bx], ax
 ; ---- sd_[k] = keyDir
         mov     al, [sortCrossings__keyDir]
-        push    ax                          ; save value while computing the index
-        mov     ax, [sortCrossings__k]
-        mov     bx, ax
-        pop     ax
+        mov     bx, [sortCrossings__k]
         mov     [sd_ + bx], al
 .L87:
         inc     word [sortCrossings__i]
@@ -675,37 +635,26 @@ sortCrossings:
         mov     ax, [sortCrossings__i]
         mov     bx, [crossingCount]
         cmp     ax, bx
-        jb      .L98                        ; unsigned <
-        jmp     .L97
-.L98:
+        jae     .L97                        ; unsigned <
 ; ---- cy[i] = sy_[i]
         mov     ax, [sortCrossings__i]
         mov     bx, ax
         mov     al, [sy_ + bx]
-        push    ax                          ; save value while computing the index
-        mov     ax, [sortCrossings__i]
-        mov     bx, ax
-        pop     ax
+        mov     bx, [sortCrossings__i]
         mov     [cy + bx], al
 ; ---- cx[i] = sx_[i]
         mov     ax, [sortCrossings__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [sx_ + bx]
-        push    ax                          ; save value while computing the index
-        mov     ax, [sortCrossings__i]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [sortCrossings__i]
+        shl     bx, 1                       ; word elements
         mov     [cx_ + bx], ax
 ; ---- cdir[i] = sd_[i]
         mov     ax, [sortCrossings__i]
         mov     bx, ax
         mov     al, [sd_ + bx]
-        push    ax                          ; save value while computing the index
-        mov     ax, [sortCrossings__i]
-        mov     bx, ax
-        pop     ax
+        mov     bx, [sortCrossings__i]
         mov     [cdir + bx], al
 .L96:
         inc     word [sortCrossings__i]
@@ -1856,11 +1805,8 @@ plot:
         mov     bx, ax
         mov     ax, [rowPixels + bx]
         inc     ax
-        push    ax                          ; save value while computing the index
-        mov     ax, [plot__uy]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [plot__uy]
+        shl     bx, 1                       ; word elements
         mov     [rowPixels + bx], ax
 ; ---- rowSumX[ uy ] += ux
         mov     ax, [plot__uy]
@@ -1869,11 +1815,8 @@ plot:
         mov     ax, [rowSumX + bx]
         mov     bx, [plot__ux]
         add     ax, bx
-        push    ax                          ; save value while computing the index
-        mov     ax, [plot__uy]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [plot__uy]
+        shl     bx, 1                       ; word elements
         mov     [rowSumX + bx], ax
 ; ---- pathPixels[ currentPath ] += 1
         mov     ax, [currentPath]
@@ -1881,11 +1824,8 @@ plot:
         mov     bx, ax
         mov     ax, [pathPixels + bx]
         inc     ax
-        push    ax                          ; save value while computing the index
-        mov     ax, [currentPath]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [currentPath]
+        shl     bx, 1                       ; word elements
         mov     [pathPixels + bx], ax
 ; ---- orderHash = orderHash * 31 + ux + uy
         mov     ax, [orderHash]
@@ -3150,7 +3090,7 @@ putNumber__digits: times 5 db 0        ; u8[5]
 ; No storage is emitted - a .COM owns everything past its image, so
 ; these are addresses and NASM does the arithmetic.
 
-_hstack:        equ     272        ; 16 worst-case + 256 interrupt reserve
+_hstack:        equ     270        ; 14 worst-case + 256 interrupt reserve
 _htop:          equ     0FFFEh - _hstack
 
 _hsize:         dw      _htop - _heap        ; NASM computes this

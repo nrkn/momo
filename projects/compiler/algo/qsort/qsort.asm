@@ -112,11 +112,8 @@ putNumber:
         mov     ax, dx                      ; remainder
         xor     ah, ah                      ; cast to u8
         add     ax, 48
-        push    ax                          ; save value while computing the index
-        mov     al, [putNumber__i]
-        xor     ah, ah                      ; u8 -> u16
-        mov     bx, ax
-        pop     ax
+        mov     bl, [putNumber__i]
+        xor     bh, bh                      ; u8 -> u16
         mov     [putNumber__digits + bx], al
 ; ---- n /= ioBase
         mov     ax, [putNumber__n]
@@ -215,11 +212,8 @@ randomBelow:
 pushRange:
 ; ---- ranges[sp] = lo
         mov     ax, [lo]
-        push    ax                          ; save value while computing the index
-        mov     ax, [sp_]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [sp_]
+        shl     bx, 1                       ; word elements
         mov     [ranges + bx], ax
 ; ---- ranges[sp + 1] = hi
         mov     ax, [hi]
@@ -270,11 +264,8 @@ fill:
         mov     word [randomBelow__n], 100
         call    randomBelow
         mov     ax, [randomBelow__ret]
-        push    ax                          ; save value while computing the index
-        mov     ax, [i]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [i]
+        shl     bx, 1                       ; word elements
         mov     [values + bx], ax
 .L23:
         inc     word [i]
@@ -372,19 +363,13 @@ quicksort:
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [values + bx]
-        push    ax                          ; save value while computing the index
-        mov     ax, [i]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [i]
+        shl     bx, 1                       ; word elements
         mov     [values + bx], ax
 ; ---- values[j] = tmp
         mov     ax, [tmp]
-        push    ax                          ; save value while computing the index
-        mov     ax, [j]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [j]
+        shl     bx, 1                       ; word elements
         mov     [values + bx], ax
 ; ---- i++
         inc     word [i]
@@ -404,19 +389,13 @@ quicksort:
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [values + bx]
-        push    ax                          ; save value while computing the index
-        mov     ax, [i]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [i]
+        shl     bx, 1                       ; word elements
         mov     [values + bx], ax
 ; ---- values[fromHi] = tmp
         mov     ax, [tmp]
-        push    ax                          ; save value while computing the index
-        mov     ax, [fromHi]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [fromHi]
+        shl     bx, 1                       ; word elements
         mov     [values + bx], ax
 ; ---- pivotAt = i
         mov     ax, [i]
@@ -520,7 +499,7 @@ putNumber__digits: times 5 db 0        ; u8[5]
 ; No storage is emitted - a .COM owns everything past its image, so
 ; these are addresses and NASM does the arithmetic.
 
-_hstack:        equ     268        ; 12 worst-case + 256 interrupt reserve
+_hstack:        equ     266        ; 10 worst-case + 256 interrupt reserve
 _htop:          equ     0FFFEh - _hstack
 
 _hsize:         dw      _htop - _heap        ; NASM computes this

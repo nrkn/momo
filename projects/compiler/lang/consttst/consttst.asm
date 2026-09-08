@@ -91,8 +91,7 @@ __entry:
         mov     byte [double__n], 3
         call    double
         mov     ax, [double__ret]
-        xor     ah, ah                      ; cast to u8
-        mov     [double__n], al             ; narrowed to u8
+        mov     [double__n], al             ; u16 -> u8, no widening
         call    double
         mov     ax, [double__ret]
         inc     ax
@@ -155,11 +154,8 @@ putNumber:
         mov     ax, dx                      ; remainder
         xor     ah, ah                      ; cast to u8
         add     ax, 48
-        push    ax                          ; save value while computing the index
-        mov     al, [putNumber__i]
-        xor     ah, ah                      ; u8 -> u16
-        mov     bx, ax
-        pop     ax
+        mov     bl, [putNumber__i]
+        xor     bh, bh                      ; u8 -> u16
         mov     [putNumber__digits + bx], al
 ; ---- n /= ioBase
         mov     ax, [putNumber__n]
@@ -255,7 +251,7 @@ putNumber__digits: times 5 db 0        ; u8[5]
 ; No storage is emitted - a .COM owns everything past its image, so
 ; these are addresses and NASM does the arithmetic.
 
-_hstack:        equ     264        ; 8 worst-case + 256 interrupt reserve
+_hstack:        equ     262        ; 6 worst-case + 256 interrupt reserve
 _htop:          equ     0FFFEh - _hstack
 
 _hsize:         dw      _htop - _heap        ; NASM computes this

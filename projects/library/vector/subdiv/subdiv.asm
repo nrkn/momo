@@ -176,11 +176,8 @@ putNumber:
         mov     ax, dx                      ; remainder
         xor     ah, ah                      ; cast to u8
         add     ax, 48
-        push    ax                          ; save value while computing the index
-        mov     al, [putNumber__i]
-        xor     ah, ah                      ; u8 -> u16
-        mov     bx, ax
-        pop     ax
+        mov     bl, [putNumber__i]
+        xor     bh, bh                      ; u8 -> u16
         mov     [putNumber__digits + bx], al
 ; ---- n /= ioBase
         mov     ax, [putNumber__n]
@@ -258,26 +255,16 @@ addCrossing:
 .L34:
 ; ---- cy[ crossingCount ] = u8( y )
         mov     ax, [addCrossing__y]
-        xor     ah, ah                      ; cast to u8
-        push    ax                          ; save value while computing the index
-        mov     ax, [crossingCount]
-        mov     bx, ax
-        pop     ax
+        mov     bx, [crossingCount]
         mov     [cy + bx], al
 ; ---- cx[ crossingCount ] = x
         mov     ax, [addCrossing__x]
-        push    ax                          ; save value while computing the index
-        mov     ax, [crossingCount]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [crossingCount]
+        shl     bx, 1                       ; word elements
         mov     [cx_ + bx], ax
 ; ---- cdir[ crossingCount ] = dir
         mov     al, [addCrossing__dir]
-        push    ax                          ; save value while computing the index
-        mov     ax, [crossingCount]
-        mov     bx, ax
-        pop     ax
+        mov     bx, [crossingCount]
         mov     [cdir + bx], al
 ; ---- crossingCount += 1
         mov     ax, [crossingCount]
@@ -1423,51 +1410,33 @@ drawQuadAny:
         mov     [drawQuadAny__my], ax
 ; ---- subX0[ subTop ] = mx
         mov     ax, [drawQuadAny__mx]
-        push    ax                          ; save value while computing the index
-        mov     ax, [subTop]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [subTop]
+        shl     bx, 1                       ; word elements
         mov     [subX0 + bx], ax
 ; ---- subY0[ subTop ] = my
         mov     ax, [drawQuadAny__my]
-        push    ax                          ; save value while computing the index
-        mov     ax, [subTop]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [subTop]
+        shl     bx, 1                       ; word elements
         mov     [subY0 + bx], ax
 ; ---- subX1[ subTop ] = bx
         mov     ax, [drawQuadAny__bx]
-        push    ax                          ; save value while computing the index
-        mov     ax, [subTop]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [subTop]
+        shl     bx, 1                       ; word elements
         mov     [subX1 + bx], ax
 ; ---- subY1[ subTop ] = by
         mov     ax, [drawQuadAny__by]
-        push    ax                          ; save value while computing the index
-        mov     ax, [subTop]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [subTop]
+        shl     bx, 1                       ; word elements
         mov     [subY1 + bx], ax
 ; ---- subX2[ subTop ] = px2
         mov     ax, [drawQuadAny__px2]
-        push    ax                          ; save value while computing the index
-        mov     ax, [subTop]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [subTop]
+        shl     bx, 1                       ; word elements
         mov     [subX2 + bx], ax
 ; ---- subY2[ subTop ] = py2
         mov     ax, [drawQuadAny__py2]
-        push    ax                          ; save value while computing the index
-        mov     ax, [subTop]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [subTop]
+        shl     bx, 1                       ; word elements
         mov     [subY2 + bx], ax
 ; ---- subTop += 1
         mov     ax, [subTop]
@@ -1475,51 +1444,33 @@ drawQuadAny:
         mov     [subTop], ax
 ; ---- subX0[ subTop ] = px0
         mov     ax, [drawQuadAny__px0]
-        push    ax                          ; save value while computing the index
-        mov     ax, [subTop]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [subTop]
+        shl     bx, 1                       ; word elements
         mov     [subX0 + bx], ax
 ; ---- subY0[ subTop ] = py0
         mov     ax, [drawQuadAny__py0]
-        push    ax                          ; save value while computing the index
-        mov     ax, [subTop]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [subTop]
+        shl     bx, 1                       ; word elements
         mov     [subY0 + bx], ax
 ; ---- subX1[ subTop ] = ax
         mov     ax, [drawQuadAny__ax]
-        push    ax                          ; save value while computing the index
-        mov     ax, [subTop]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [subTop]
+        shl     bx, 1                       ; word elements
         mov     [subX1 + bx], ax
 ; ---- subY1[ subTop ] = ay
         mov     ax, [drawQuadAny__ay]
-        push    ax                          ; save value while computing the index
-        mov     ax, [subTop]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [subTop]
+        shl     bx, 1                       ; word elements
         mov     [subY1 + bx], ax
 ; ---- subX2[ subTop ] = mx
         mov     ax, [drawQuadAny__mx]
-        push    ax                          ; save value while computing the index
-        mov     ax, [subTop]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [subTop]
+        shl     bx, 1                       ; word elements
         mov     [subX2 + bx], ax
 ; ---- subY2[ subTop ] = my
         mov     ax, [drawQuadAny__my]
-        push    ax                          ; save value while computing the index
-        mov     ax, [subTop]
-        shl     ax, 1                       ; word elements
-        mov     bx, ax
-        pop     ax
+        mov     bx, [subTop]
+        shl     bx, 1                       ; word elements
         mov     [subY2 + bx], ax
 ; ---- subTop += 1
         mov     ax, [subTop]
@@ -1720,7 +1671,7 @@ putNumber__digits: times 5 db 0        ; u8[5]
 ; No storage is emitted - a .COM owns everything past its image, so
 ; these are addresses and NASM does the arithmetic.
 
-_hstack:        equ     276        ; 20 worst-case + 256 interrupt reserve
+_hstack:        equ     272        ; 16 worst-case + 256 interrupt reserve
 _htop:          equ     0FFFEh - _hstack
 
 _hsize:         dw      _htop - _heap        ; NASM computes this

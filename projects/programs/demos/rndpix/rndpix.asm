@@ -24,13 +24,9 @@ __entry:
 ; ---- pixels[i] = u8( nextRandom() )
         call    nextRandom
         mov     ax, [nextRandom__ret]
-        xor     ah, ah                      ; cast to u8
-        push    ax                          ; save value while computing the index
-        mov     ax, [i]
-        mov     bx, ax
+        mov     bx, [i]
         mov     dx, 0xA000                  ; segment of pixels
         mov     es, dx
-        pop     ax
         mov     [es:bx], al
 .L2:
         inc     word [i]
@@ -310,7 +306,7 @@ screenMode__elemBytes: db      2, 2, 1        ; u8[3]
 ; No storage is emitted - a .COM owns everything past its image, so
 ; these are addresses and NASM does the arithmetic.
 
-_hstack:        equ     262        ; 6 worst-case + 256 interrupt reserve
+_hstack:        equ     260        ; 4 worst-case + 256 interrupt reserve
 _htop:          equ     0FFFEh - _hstack
 
 _hsize:         dw      _htop - _heap        ; NASM computes this

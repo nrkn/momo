@@ -172,11 +172,8 @@ putNumber:
         mov     ax, dx                      ; remainder
         xor     ah, ah                      ; cast to u8
         add     ax, 48
-        push    ax                          ; save value while computing the index
-        mov     al, [putNumber__i]
-        xor     ah, ah                      ; u8 -> u16
-        mov     bx, ax
-        pop     ax
+        mov     bl, [putNumber__i]
+        xor     bh, bh                      ; u8 -> u16
         mov     [digits + bx], al
 ; ---- n /= base
         mov     ax, [putNumber__n]
@@ -409,8 +406,7 @@ checksum:
         mov     bx, ax
         pop     ax
         xor     ax, bx
-        xor     ah, ah                      ; cast to u8
-        mov     [hash], al                  ; narrowed to u8
+        mov     [hash], al                  ; u16 -> u8, no widening
 ; ---- if (i == maxDigits - 1) break
         mov     al, [checksum__i]
         cmp     al, 4                       ; byte operands, no widening
@@ -441,8 +437,7 @@ checksum:
 ; ---- hash = u8(~hash)
         xor     ah, ah                      ; u8 -> u16
         not     ax
-        xor     ah, ah                      ; cast to u8
-        mov     [hash], al                  ; narrowed to u8
+        mov     [hash], al                  ; u16 -> u8, no widening
 ; ---- hash = u8(hash + table[1])
         xor     ah, ah                      ; u8 -> u16
         push    ax                          ; save lhs: rhs is not a leaf
@@ -451,8 +446,7 @@ checksum:
         mov     bx, ax
         pop     ax
         add     ax, bx
-        xor     ah, ah                      ; cast to u8
-        mov     [hash], al                  ; narrowed to u8
+        mov     [hash], al                  ; u16 -> u8, no widening
 ; ---- hash = u8((hash & mask) | (i * 2))  // bare & | * (compound forms above)
         xor     ah, ah                      ; u8 -> u16
         and     ax, 127
@@ -463,13 +457,11 @@ checksum:
         mov     bx, ax
         pop     ax
         or      ax, bx
-        xor     ah, ah                      ; cast to u8
-        mov     [hash], al                  ; narrowed to u8
+        mov     [hash], al                  ; u16 -> u8, no widening
 ; ---- hash = u8(hash ^ stripe)
         xor     ah, ah                      ; u8 -> u16
         xor     ax, 170
-        xor     ah, ah                      ; cast to u8
-        mov     [hash], al                  ; narrowed to u8
+        mov     [hash], al                  ; u16 -> u8, no widening
 ; ---- signedAcc = i16(value) - 1        // u16 x signed needs an explicit cast
         mov     ax, [value]
         dec     ax
@@ -618,7 +610,7 @@ table:          db      2, 4, 6, 8        ; u8[4]
 ; No storage is emitted - a .COM owns everything past its image, so
 ; these are addresses and NASM does the arithmetic.
 
-_hstack:        equ     268        ; 12 worst-case + 256 interrupt reserve
+_hstack:        equ     266        ; 10 worst-case + 256 interrupt reserve
 _htop:          equ     0FFFEh - _hstack
 
 _hsize:         dw      _htop - _heap        ; NASM computes this
