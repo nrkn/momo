@@ -21,6 +21,7 @@ u16 double(u8 n) => n * 2
 const plusOne(u8 n) = double(n) + 1
 
 u16 runtime
+u16 wide
 
 // ---- entry ----
 
@@ -59,4 +60,14 @@ putChar(' ')
 // the same fn in the argument as well: double(double(3) + 1) is not what this
 // says - it is double(6) + 1, with the argument evaluated via the stack
 putNumber(plusOne(u8(double(3))))
+newline()
+
+// A narrowing cast whose destination is a WORD, which is what makes peephole 17
+// checkable. 17 drops the widening a cast to a byte type emits when the store
+// keeps AL alone - so the case that proves the guard is the one where the store
+// keeps AX, and the mask has to survive. 0x1234 narrows to 0x34; a store that
+// kept the high byte would print 4660.
+runtime = 0x1234
+wide = u8(runtime)
+putNumber(wide)
 newline()

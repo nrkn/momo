@@ -427,6 +427,41 @@ via-stack call as well, and a constant last argument goes straight to memory
 instead of through AX. That comment on `emitValueToLabel` saying the via-stack path
 "cannot use this" was true of a popped argument and never of this one.
 
+### The teeth check on all three, and what 17 needed first
+
+Each guard was neutered with a condition `tsc` cannot fold, and the suite read
+for *which* case failed rather than for the tally.
+
+**16** - letting the non-leaf path skip the push/pop that protects the value.
+`qsort` stops terminating and is reported as a timeout, which is the same failure
+14's teeth check produced and is caught only because that check added the timeout.
+Several other programs hang with it, so the run goes from four minutes to a long
+one - a slow suite is the first symptom here, not a red line.
+
+**18** - filling the first parameter slot before the other arguments are
+evaluated, instead of the last one after. `fntest` prints 100 where it expects 73:
+`add( add( 1, 2 ), add( 30, 40 ) )` fills `add__a` with 3 and the inner call
+overwrites it with 30. Exactly the clobber 3's stack path exists to prevent, which
+is the right thing for the neuter to reproduce.
+
+**17 had no teeth at all, and getting them meant a new case.** Its guard is that
+the destination is one byte, so the violation is a narrowing cast stored into a
+*word* - and no committed program had one, because casting to `u8` and keeping
+sixteen bits is not a thing anyone writes on purpose. Neutering the guard changed
+not one instruction in the corpus.
+
+`consttst` now has `wide = u8( runtime )` with `runtime` at `0x1234`, printing 52.
+Neutered, it prints 4660: the mask is dropped and the store keeps both bytes. That
+is one line of Momo and one line of expectation, and without it 17 would have been
+a rewrite whose safety condition nothing in the repository could contradict -
+which is precisely what 4 and 5 were.
+
+**A neuter that preserves the invariant proves nothing**, and 18's first one did.
+Reordering so the first argument was stored after the others were pushed still
+evaluated it last, so the rule held and `fntest` passed. The check was reading as
+a pass for the code rather than as a miss by the neuter, and the only thing that
+distinguished them was going back to what the rule actually says.
+
 ## Candidates, found and not built
 
 **Deliberately outside the catalogue.** A number here would be the mistake this

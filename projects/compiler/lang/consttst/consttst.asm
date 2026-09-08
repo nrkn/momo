@@ -99,6 +99,17 @@ __entry:
         call    putNumber
 ; ---- newline()
         call    newline
+; ---- runtime = 0x1234
+        mov     word [runtime], 4660
+; ---- wide = u8(runtime)
+        mov     ax, [runtime]
+        xor     ah, ah                      ; cast to u8
+        mov     [wide], ax
+; ---- putNumber(wide)
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- newline()
+        call    newline
 
 ; ---- implicit exit ----
         mov     word [_ax], 0x4C00          ; DOS terminate, exit code 0
@@ -241,6 +252,7 @@ putNumber__n:   dw      0        ; u16
 double__n:      db      0        ; u8
 double__ret:    dw      0        ; u16
 runtime:        dw      0        ; u16
+wide:           dw      0        ; u16
 putNumber__i:   db      0        ; u8
 
 ; ---- arrays ----
