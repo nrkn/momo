@@ -4598,6 +4598,89 @@ would be an optimisation on a path that is already bounded by what is on screen.
 
 ---
 
+## 57. `key` - a keystroke as one number
+
+**Built.** `shared/lib/std/key.momo`. `edloop` exercises the normalisation - it
+drives an editor from a script of the AX and flag pairs a real BIOS produced -
+and `keyprobe` is where those pairs came from and is kept as the record.
+
+**Everything here was measured rather than read.** `keyprobe` asks for one
+combination at a time and writes down what came back, under DOSBox and under
+86Box, and the two agree on all thirty-two rows. Two of the answers are not what
+the documentation leads with, and both would have compiled and run.
+
+### Two reads, and the newer one is not a superset by accident
+
+`readKey` is `int 16h AH=00h`, the original call. `readKeyEx` is `AH=10h`, the
+enhanced one, which reports keys `AH=00h` discards - Alt with a letter, and the
+grey navigation block as distinct from the numeric keypad.
+
+**`AH=10h` reports an extended key as `AL = 0E0h`, not 0.** That is the
+distinction it exists to make: the grey keys carry `0E0h` and the keypad carries
+0, on the same scancodes. Anything deciding "is this a character" on `AL` against
+zero alone - which is the obvious reading, and was the first draft - normalises
+every grey key to the character `0E0h` and collides the lot onto one binding.
+`edloop` fails loudly on that neuter: End, Down and Home all stop working at once
+and the text lands in the wrong place.
+
+### The shift state carries more than the modifiers
+
+`keyShiftState` is `AH=12h`. The low byte holds right shift, left shift, ctrl and
+alt in bits 0 to 3 - **and NumLock, CapsLock and Insert as state above them.**
+
+So anything reading it masks, and that is a rule rather than a precaution. The
+same Insert keypress reports `0000` under DOSBox and `0080` under 86Box, because
+the BIOS updates the toggle at a different moment relative to the read. A binding
+comparing the whole byte would behave differently on the two emulators, and the
+difference would look like anything except what it is.
+
+### One key is one `u16`
+
+| | |
+|---|---|
+| `0..255` | an ASCII character |
+| `keyExt + scancode` | an extended key |
+| `keyShift + scancode` | an extended key with Shift held |
+
+**Ctrl needs no handling at all**: `int 16h` reports it as ASCII 1-26, so `^S` is
+19 and lands in the first row without anything being asked.
+
+**Shift with a navigation key is the only case the flags decide**, which is why
+there is no modifier column anywhere above this. Ctrl with the arrows and
+Home/End gets its own scancodes, `Shift+Tab`, `Ctrl+Backspace` and `Ctrl+Enter`
+get their own codes, and Alt arrives extended. Only `Shift+Left` is byte for byte
+what `Left` reports, so Shift is folded into the key space and costs one
+comparison.
+
+The keypad aliases the grey keys, because both normalise on the scancode. That is
+what every editor does and it means they cannot be bound apart, which is the cost
+of the alias and is worth knowing before somebody wants it.
+
+### Rules
+
+- **Normalise before anything looks at a key.** Nothing above this should see
+  `AL`, `AH` or a flags byte.
+- **Extended means `AL` is 0 or `0E0h`**, and the `0E0h` arm tests the scancode
+  too, because `0E0h` is a real character in codepage 437 and a non-zero scancode
+  is what separates the key from the letter.
+- **Mask the flags to the modifier bits.** They carry state as well, and the
+  state differs between machines for the same keypress.
+- **Read the key first and the flags immediately after.** `AH=10h` is what waits,
+  and the modifier has to still be held when the flags are sampled.
+- **This file includes nothing.** `lo` and `hi` would have been the natural way to
+  split AX and would have made every caller inherit `std/math.momo`, which the
+  file's own header refuses; two masks are cheaper.
+
+### What is not reachable, and it is the hardware's refusal
+
+`Ctrl+/` produces nothing at all. A PC BIOS has no translation for Ctrl with most
+non-alphabetic keys, so no key event is generated and there is nothing to bind.
+It is worth naming because it is VS Code's comment toggle and the first thing a
+modern binding table reaches for; `^K ^C` is the answer, and is a Borland chord
+and VS Code's own alternative for the same command.
+
+---
+
 ## Sections designed, but not built
 
 Sixteen sections carry numbers but no text here, because what they describe does
@@ -4621,7 +4704,7 @@ set stopped being contiguous the moment one of them was built.
 | §50 | A layout DSL: content, layout and paint as three documents |
 | §51 | `addr()` in an initialiser - the table of addresses that cannot be written down |
 | §53 | Nested arrays, and the spine they need |
-| §55 | `momoed` - the editor, whose buffer is §54 and whose window is §56 |
+| §55 | `momoed` - the editor, whose buffer is §54, window §56 and keys §57 |
 
 ---
 

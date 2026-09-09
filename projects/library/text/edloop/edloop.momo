@@ -1,0 +1,320 @@
+// edloop.momo - keys driving edits, with no keyboard (PLAN §55, §14).
+//
+// The whole command layer under test: a keystroke normalised by std/key.momo,
+// looked up in a binding table, dispatched to an action, applied to §54's buffer
+// and shown through §56's window. Everything an editor does except drawing and
+// waiting for a key.
+//
+// **`nextKey` is the program's routine**, and that is the whole trick. Here it
+// reads a script of the AX and flag pairs `keyprobe` measured; in an editor it
+// is `readKeyNorm()`. Nothing between them can tell, so a tier that cannot run a
+// program which blocks can run this one.
+//
+// The bindings are VS Code's where the machine allows: CUA throughout, with ^K
+// as the one chord prefix. `Ctrl+/` is absent because a PC BIOS generates
+// nothing for it - `keyprobe` asked, twice, on two emulators.
+
+include "lib/std/io.momo"
+include "lib/std/key.momo"
+include "lib/moview.momo"
+
+const u8[] source = "alpha\nbeta\ngamma\n"
+
+// ---- what a key can do ----
+
+const actNone   = 0
+const actInsert = 1
+const actLeft   = 2
+const actRight  = 3
+const actUp     = 4
+const actDown   = 5
+const actHome   = 6
+const actEnd    = 7
+const actBack   = 8
+const actDelete = 9
+const actEnter  = 10
+const actUndo   = 11
+const actSave   = 12
+const actQuit   = 13
+const actTop    = 14
+const actBottom = 15
+
+// Three const arrays rather than a `group`, and not as a style choice: a group's
+// fields are storage and take no initialiser, so a table known at compile time
+// cannot be written as one. §18 is for a pool filled at runtime; this is data.
+//
+// A prefix of 0 is a plain key. `keyExt + keyLeft` is std/key.momo's normalised
+// space, so nothing here spells a scancode or touches a flags byte.
+const u16[] bindPrefix = [
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  11, 11
+]
+
+const u16[] bindKey = [
+  keyExt + keyLeft,
+  keyExt + keyRight,
+  keyExt + keyUp,
+  keyExt + keyDown,
+  keyExt + keyHome,
+  keyExt + keyEnd,
+  keyExt + keyDelete,
+  8,                     // Backspace
+  13,                    // Enter
+  26,                    // ^Z
+  19,                    // ^S
+  20,                    // ^K ^T
+  5                      // ^K ^E
+]
+
+const u8[] bindAction = [
+  actLeft, actRight, actUp, actDown, actHome, actEnd, actDelete,
+  actBack, actEnter, actUndo, actSave,
+  actTop, actBottom
+]
+
+// ^Q is bound outside the table on purpose: the loop has to stop whatever the
+// table says, so quitting is not a binding anybody can rebind away.
+const keyQuit = 17
+
+u16 pending
+
+u8 keyAction( u16 k ) {
+  for ( u16 i = 0; i < len( bindKey ); i++ ) {
+    if ( bindKey[i] == k && bindPrefix[i] == pending ) return bindAction[i]
+  }
+  return actNone
+}
+
+bool keyIsPrefix( u16 k ) {
+  for ( u16 i = 0; i < len( bindPrefix ); i++ ) {
+    if ( bindPrefix[i] == k ) return true
+  }
+  return false
+}
+
+// ---- the key source, which is the program's ----
+//
+// AX and the shift flags exactly as keyprobe reported them, in the order a
+// person would press them.
+
+const u16[] script = [
+  0x4FE0,     // End
+  0x0221,     // !
+  0x50E0,     // Down
+  0x47E0,     // Home
+  0x2D58,     // X
+  0x1C0D,     // Enter
+  0x2C5A,     // Z
+  0x2C1A,     // ^Z
+  0x2C1A,     // ^Z
+  0x250B,     // ^K, which does nothing on its own
+  0x1205,     // ^E, which completes the chord
+  0x0E08,     // Backspace, at column 0, which is a join
+  0x1F13,     // ^S
+  0x1011      // ^Q
+]
+
+const u16[] scriptFlags = [
+  0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+  0x0104, 0x0104, 0x0104, 0x0104,
+  0x0000,
+  0x0104, 0x0104
+]
+
+u16 scriptAt
+
+// The one routine an editor would write differently, where it is
+// `return readKeyNorm()`. Returns 0 past the end of the script, which no
+// normalised keystroke can be.
+u16 nextKey() {
+  u16 k
+  if ( scriptAt >= len( script ) ) return 0
+
+  k = keyNorm( script[scriptAt], scriptFlags[scriptAt] )
+  scriptAt++
+  return k
+}
+
+// ---- the actions ----
+
+u8[16] rowBuf
+
+sub doInsert( u8 ch ) {
+  lineInsert( viewLine(), viewCol(), ch )
+  viewGoto( viewLine(), viewCol() + 1 )
+}
+
+// Backspace at column 0 is a join, which is why §54 records one. The length has
+// to be read before the join, because afterwards it is the length of both.
+sub doBack {
+  u16 ln
+  u16 col
+  u16 prevLen
+
+  ln = viewLine()
+  col = viewCol()
+
+  if ( col > 0 ) {
+    lineDelete( ln, col - 1 )
+    viewGoto( ln, col - 1 )
+    return
+  }
+
+  if ( ln == 0 ) return
+
+  prevLen = lineLength( ln - 1 )
+  lineJoin( ln - 1 )
+  viewGoto( ln - 1, prevLen )
+}
+
+sub doEnter {
+  lineSplit( viewLine(), viewCol() )
+  viewGoto( viewLine() + 1, 0 )
+}
+
+// An undo that left the cursor where it was would put it somewhere the document
+// no longer has, so the buffer reports where the entry acted and the cursor
+// follows it. Nothing else can work that out afterwards - the edit it would have
+// looked at has been reversed.
+sub doUndo {
+  undoOnce()
+  viewGoto( undoLine(), undoCol() )
+}
+
+sub apply( u8 a, u16 k ) {
+  if ( a == actInsert ) {
+    doInsert( u8( k ) )
+  } else if ( a == actLeft ) {
+    if ( viewCol() > 0 ) viewGoto( viewLine(), viewCol() - 1 )
+  } else if ( a == actRight ) {
+    viewGoto( viewLine(), viewCol() + 1 )
+  } else if ( a == actUp ) {
+    if ( viewLine() > 0 ) viewGoto( viewLine() - 1, viewCol() )
+  } else if ( a == actDown ) {
+    viewGoto( viewLine() + 1, viewCol() )
+  } else if ( a == actHome ) {
+    viewGoto( viewLine(), 0 )
+  } else if ( a == actEnd ) {
+    viewGoto( viewLine(), lineLength( viewLine() ) )
+  } else if ( a == actBack ) {
+    doBack()
+  } else if ( a == actDelete ) {
+    lineDelete( viewLine(), viewCol() )
+  } else if ( a == actEnter ) {
+    doEnter()
+  } else if ( a == actUndo ) {
+    doUndo()
+  } else if ( a == actTop ) {
+    viewGoto( 0, 0 )
+  } else if ( a == actBottom ) {
+    viewGoto( textLines() - 1, 0 )
+  } else if ( a == actSave ) {
+    putStr( addr( sSaved ) )
+    newline()
+  }
+}
+
+const u8[] sSaved = "saved$"
+
+// ---- the loop ----
+
+bool running
+
+// One key: normalise, look up, open a chord or act. A chord that resolves to
+// nothing is discarded rather than typed, which is why `had` is read rather than
+// `pending`.
+sub step( u16 k ) {
+  u16 had
+  u8  a
+
+  had = pending
+  a = keyAction( k )
+
+  if ( a == actNone && had == 0 && keyIsPrefix( k ) ) {
+    pending = k
+    return
+  }
+
+  pending = 0
+
+  if ( k == keyQuit ) {
+    running = false
+    return
+  }
+
+  if ( a == actNone && had == 0 && k >= 32 && k < 127 ) a = actInsert
+
+  apply( a, k )
+}
+
+sub runKeys( u16 n ) {
+  u16 k
+
+  for ( u16 i = 0; i < n; i++ ) {
+    if ( !running ) return
+
+    k = nextKey()
+    if ( k == 0 ) {
+      running = false
+      return
+    }
+
+    step( k )
+  }
+}
+
+// ---- showing it ----
+
+sub viewRow( u16 y, u16 at, u16 n ) {
+  for ( u16 i = 0; i < n; i++ ) {
+    putChar( peek8( at + i ) )
+  }
+  putChar( '|' )
+  newline()
+}
+
+sub frame {
+  viewRender()
+
+  putNumber( viewLine() )
+  putChar( ' ' )
+  putNumber( viewCol() )
+  putChar( ' ' )
+  putNumber( textLines() )
+  newline()
+}
+
+// ---- entry ----
+
+textInit()
+
+for ( u16 i = 0; i < len( source ); i++ ) {
+  textLoad( source[i] )
+}
+
+viewSize( 4, 12 )
+viewHome()
+running = true
+
+// End, '!', Down, Home, 'X' - both axes of motion and two inserts.
+runKeys( 5 )
+frame()
+
+// Enter in the middle of a line, then type on the new one.
+runKeys( 2 )
+frame()
+
+// Two steps back, and the cursor follows the edits rather than staying put.
+runKeys( 2 )
+frame()
+
+// ^K ^E - a chord, and the only two-key binding here.
+runKeys( 2 )
+frame()
+
+// Backspace at column 0, which joins rather than deletes.
+runKeys( 1 )
+frame()
+
+// ^S then ^Q, which stops the loop whatever the table says.
+runKeys( 2 )

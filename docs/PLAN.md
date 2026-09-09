@@ -2457,11 +2457,11 @@ paragraph of its own above, and none is needed in order to delete `nthStr`.
 ## 55. `momoed` - the editor
 
 **Partly built**, and which half is which matters more than the status. The
-buffer is §54 and the window onto it is §56, both built and both with test
-projects; the input path is designed and measured against real hardware and is
-not written. **The explorer and the screen are named here and not designed**, and
-saying so is the point - this section exists to hold what is decided, not to look
-complete.
+buffer is §54, the window onto it §56 and the keyboard §57, all built and all
+with test projects - and `edloop` drives an editor through the lot from a script
+of keystrokes, so the command layer is exercised as well. **The explorer, the
+screen and the program itself are named here and not designed**, and saying so is
+the point - this section exists to hold what is decided, not to look complete.
 
 An explorer beside a text pane, toggled away for width, and text modes `edit.com`
 never had.
@@ -2475,7 +2475,7 @@ reads as a hard ceiling on what can be tested, and it is not one:
 |---|---|
 | §54's buffer and its own project | numbers, no screen, no keys |
 | a file read into the buffer and a viewport rendered - **built**, §56 | a `.expected`, still no keys |
-| navigation and editing | **also a `.expected`** |
+| navigation and editing - **built**, `edloop` | **also a `.expected`** |
 
 The third row is the one worth having. **The editor never calls `readKey`.**
 `nextKey` is a routine the *program* defines, so a test feeds it a script of
@@ -2492,41 +2492,12 @@ the program supplies, so the stage that prints and the stage that writes cells
 share everything but that one routine, and **the printing stage stays as the
 permanent test** rather than being scaffolding.
 
-### A keystroke is one `u16`, and the hardware was asked rather than assumed
+### A keystroke is one `u16`, and it is §57 now
 
-`keyprobe` exists because no headless tier could answer this, and it was run
-under DOSBox and 86Box. Both agree, and both disagreed with the first design:
-
-| | |
-|---|---|
-| `0..255` | an ASCII character - **Ctrl already lands here**, `^S` is 19 |
-| `256 + scancode` | an extended key |
-| `512 + scancode` | an extended key with Shift held |
-
-**Extended means `AL` is 0 or `0E0h`.** The enhanced read (`int 16h AH=10h`)
-flags the grey navigation keys with `0E0h` and the keypad with 0, so a test of
-`AL` against zero alone reads every grey key as the character `0E0h` and collides
-them onto one binding. The `0E0h` arm carries `AH != 0` with it, because `0E0h`
-is a real character in codepage 437 and the scancode is what separates the key
-from the letter.
-
-**Shift with a navigation key is the only case the flags decide.** `Shift+Left`
-is `4BE0`, byte for byte what `Left` reports. Everything else modifies the code
-itself: Ctrl with the arrows and Home/End get their own scancodes, `Shift+Tab`,
-`Ctrl+Backspace` and `Ctrl+Enter` get their own codes, Alt arrives extended, and
-Ctrl with a letter is already ASCII. So the one case that needs the flags is
-folded into the key space rather than given a modifier column, and a binding
-stays one `u16`.
-
-**The flags are masked to the modifier bits, never compared whole.** That byte
-also carries NumLock, CapsLock and Insert as *state*. The two runs prove it
-rather than assert it: the same Insert keypress reported flags `0000` under
-DOSBox and `0080` under 86Box, because the BIOS updates the toggle at a different
-moment relative to the read. A binding comparing the whole byte would behave
-differently on the two emulators.
-
-`keyprobe` is kept rather than run once and written down, because every line of
-this is a property of a machine.
+Built, in `std/key.momo`, and moved out of here with it - the normalisation, the
+`0E0h` rule, the masking, and what `keyprobe` measured on two emulators. What
+stays below is the half that is this editor's policy rather than the keyboard's
+behaviour: which key means what, and what that costs.
 
 ### Keys are data, and a person is slow enough to pay for it
 
@@ -2695,8 +2666,9 @@ language feature.
 ### Scope of a first build
 
 In: one file named on the command line, read through §38 into §54's buffer; §56's
-window, which is built; the binding table with CUA motion, insert, delete, Enter
-and undo; save; and the two testable stages above it.
+window and §57's keys, both built; the binding table with CUA motion, insert,
+delete, Enter and undo, which `edloop` has; save; and drawing to a real screen,
+which is the one thing none of the three stages above covers.
 
 Out: the explorer and therefore directory enumeration; more than one file open;
 search; redo and undo coalescing; the status bar; syntax colour; and text in a

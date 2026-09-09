@@ -1788,6 +1788,19 @@ library, so the same neuter now produces a wrong count and correct text. A teeth
 check that used to fail loudly for the wrong reason now fails quietly for the
 right one.
 
+### Undo did not say where it acted, and an editor has to put the cursor back
+
+Found by writing the dispatch in `edloop`, not by writing the buffer. An undo
+reverses an edit and leaves the cursor wherever it was, which after a join is a
+line the document no longer has - so the cursor drifts, and the caller cannot work
+out where to put it because the edit it would have looked at has been reversed.
+
+The entry knows: it carries the line and column the edit happened at.
+`undoLine()` and `undoCol()` report them, set before the reversal is applied.
+Neutering the follow in `edloop` leaves the cursor on line 2 where it belongs on
+line 1 - a wrong number rather than wrong text, which is the kind of defect that
+survives a suite that only compares content.
+
 ### A prediction that held
 
 Every number in the test - four chunk counts, nine lengths, two line counts, two
@@ -1858,3 +1871,60 @@ using `moview` are not the library's size but the size of what it reached. The
 one number worth keeping is that the row buffer is the library's only static
 capacity, at `viewMaxWidth` bytes, and it is the reason `viewSize` clamps rather
 than trusting its caller.
+
+---
+
+## 57. `key`
+
+### It was measured because it could not be tested
+
+The question - is `Shift+Left` distinguishable from `Left` - is a fact about a
+BIOS and a keyboard, and no headless tier can answer it. So `keyprobe` was
+written to ask, one combination at a time, and it is kept rather than run once
+and its answer written down, because the answer is a property of a machine and
+most of `PITFALLS.md` was found where DOSBox and 86Box differ.
+
+Two runs under DOSBox and one under 86Box. **All thirty-two rows agree**, and two
+of them contradicted a design that had already been drafted and had already
+passed its own test against codes taken from documentation.
+
+### The two findings, and both would have shipped
+
+**`AH=10h` reports an extended key as `AL = 0E0h`, not 0.** The first draft
+decided "is this a character" on `AL` against zero, which is the obvious reading
+and normalises every grey navigation key to the character `0E0h`. They would all
+have collided on one binding. It passed its test because the test fed codes
+invented from documentation; `keyprobe` fed it what a BIOS actually sends and it
+fell over. `edloop` now fails loudly on the same neuter: End, Down and Home stop
+working together and two inserts land at the start of the wrong line.
+
+**The shift flags carry state as well as modifiers.** The byte holds NumLock,
+CapsLock and Insert above the four modifier bits, and the evidence is an accident
+rather than a document: an Insert keypress four rows earlier left the toggle on,
+and the same keypress reported `0000` under DOSBox and `0080` under 86Box because
+the two update the state at different moments relative to the read. A binding
+comparing the whole byte would have worked on one emulator and not the other, and
+nobody would have suspected the flags.
+
+Both are the same shape of mistake - a reasonable reading of what the hardware
+does, tested against a model of the hardware rather than against the hardware.
+
+### Two decisions that are not the keyboard's
+
+**Quitting is not a binding.** `edloop` tests `^Q` outside the table, because a
+loop has to be able to stop whatever the table says and a rebindable quit is a
+rebindable way to lose the ability to leave.
+
+**The keypad aliases the grey keys**, because both normalise on the scancode and
+`0E0h` is discarded. That is what every editor does and it was not decided so
+much as fallen into, so it is written down: they cannot be bound apart, and the
+day somebody wants that is the day the normalisation grows a third row.
+
+### What the table costs, and why that is the point
+
+§55 has the figures. The short version is that a linear scan of the bindings and
+an if-chain to dispatch them comes to roughly half a percent of the time between
+two keystrokes, so the key map can be data and the flavour of the editor stops
+being a decision that has to be right the first time. The emitted scan is not
+tight code, which is exactly the point: **the flexible option is affordable here
+in a way it never is in an inner loop.**

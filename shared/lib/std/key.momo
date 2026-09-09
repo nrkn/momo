@@ -42,3 +42,87 @@ bool keyWaiting() {
   int 0x21
   return _al != 0
 }
+
+// ---- the enhanced keyboard, and one key as one number ----
+//
+// Everything below was measured by `keyprobe` under DOSBox and 86Box rather than
+// taken from documentation, and two of the answers were not what the
+// documentation suggested. That program is kept, and its file is the record.
+
+// AH=10h, the enhanced read. Same AX as AH=00h for ordinary keys, and reports
+// the ones AH=00h discards - Alt with a letter, and the grey navigation keys as
+// distinct from the numeric keypad.
+u16 readKeyEx() {
+  _ah = 0x10
+  int 0x16
+  return _ax
+}
+
+// AH=12h, the shift state. AL bit 0 is right shift, 1 left shift, 2 ctrl,
+// 3 alt; AH carries the extended flags, including which side of the keyboard.
+//
+// **The low byte also carries NumLock, CapsLock and Insert as state**, so
+// anything testing it masks. Measured: the same Insert keypress reports 0000
+// under DOSBox and 0080 under 86Box, because the BIOS updates the toggle at a
+// different moment relative to the read - so a binding comparing the whole byte
+// behaves differently on the two.
+u16 keyShiftState() {
+  _ah = 0x12
+  int 0x16
+  return _ax
+}
+
+const keyModShift = 0x03
+const keyModCtrl  = 0x04
+const keyModAlt   = 0x08
+
+// A keystroke and the one modifier that cannot be read from the code, as a
+// single u16:
+//
+//   0..255            an ASCII character, which is where Ctrl already lands - ^S
+//                     is 19, so Ctrl needs no handling at all
+//   keyExt + scan     an extended key - `keyExt + keyLeft`
+//   keyShift + scan   an extended key with Shift held
+//
+// **Shift with a navigation key is the only case the flags decide.** Ctrl with
+// the arrows and Home/End gets its own scancodes, Shift+Tab and Ctrl+Backspace
+// and Ctrl+Enter get their own codes, and Alt arrives extended - so folding
+// Shift into the key space costs one comparison and removes the need for a
+// modifier column anywhere above.
+const keyExt   = 256
+const keyShift = 512
+
+// **Extended means AL is 0 or 0E0h**, and the second half is the one the
+// documentation does not lead with: AH=10h flags the grey navigation keys with
+// 0E0h and the keypad with 0. Deciding on AL against zero alone - which is the
+// obvious reading - makes every grey key normalise to the character 0E0h and
+// collide on one binding.
+//
+// The 0E0h arm tests the scancode too, because 0E0h is a real character in
+// codepage 437 and a non-zero scancode is what separates the key from the letter.
+//
+// `lo` and `hi` are deliberately not used here: this file does not include
+// std/math.momo, for the reason its header gives, and two masks are cheaper than
+// making every caller inherit an include they did not ask for.
+u16 keyNorm( u16 ax, u16 flags ) {
+  u16 low
+  u16 scan
+
+  low = ax & 0xFF
+  scan = ax >> 8
+
+  if ( low != 0 && ( low != 0xE0 || scan == 0 ) ) return low
+  if ( ( flags & keyModShift ) != 0 ) return keyShift + scan
+
+  return keyExt + scan
+}
+
+// One normalised keystroke, blocking. The pair has to be read in this order:
+// the key first, because AH=10h is what waits, and the flags immediately after,
+// while the modifier is still held.
+u16 readKeyNorm() {
+  u16 ax
+  ax = readKeyEx()
+
+  return keyNorm( ax, keyShiftState() )
+}

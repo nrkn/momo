@@ -92,6 +92,12 @@ local u16 undoCount
 // log would never drain. `textLoad` suspends it too.
 local bool undoing
 
+// Where the last undo acted. An editor has to put the cursor back, and the entry
+// is the only thing that knows: the caller cannot work it out afterwards,
+// because the edit it is looking at has already been reversed.
+local u16 undoAtLine
+local u16 undoAtCol
+
 // lineSeek answers three things and a routine returns one. `seekPrev` is 0 when
 // the chunk found is the line's head, and it exists because unlinking a chunk
 // needs the one before it - which a forward chain only knows while walking.
@@ -173,6 +179,9 @@ local sub undoPush( u8 op, u16 ln, u16 col, u8 ch ) {
 }
 
 u16 textUndos() => undoCount
+
+u16 undoLine() => undoAtLine
+u16 undoCol() => undoAtCol
 
 // ---- writing ----
 
@@ -431,6 +440,9 @@ sub undoOnce {
 
   undoCount--
   at = ( undoHead + undoCount ) % maxUndo
+
+  undoAtLine = undo[at].line
+  undoAtCol  = undo[at].col
 
   undoing = true
 
