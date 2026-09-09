@@ -52,6 +52,7 @@ shared/lib/momolo/   a layout engine, written in Momo
 shared/lib/momovec/  a vector rasteriser, written in Momo
 shared/lib/mopaint.momo  colour, borders and wrapping over momolo (§36)
 shared/lib/moflow.momo   items packed into as many rows as they need, above momolo
+shared/lib/motext.momo   the text buffer an editor edits (§54)
 shared/scenes/       data read by more than one project
 projects/            programs, as <category>/<name>/<name>.momo
 tests/compile/       tier 1 tests
@@ -79,6 +80,7 @@ compiler/algo       real algorithms, proving the language carries one
 library/std         exercises a library in shared/lib/std
 library/vector      holds shared/lib/momovec against the study it was ported from
 library/layout      the same for shared/lib/momolo
+library/text        the same for shared/lib/motext.momo
 programs/games      the games
 programs/demos      draws, waits for a key, and cannot have a .expected
 toolchain/          hand-written .asm, checked before the compiler is involved
@@ -511,7 +513,7 @@ The cost of waiting is that the first thing a visitor reads is the weakest
 document in the repo. That trade is made deliberately, and preferred to shipping a
 second draft in the same voice as the first.
 
-448 tier-1 assertions, 43 e2e programs, all green. `npm test` prints the tier 1
+450 tier-1 assertions, 44 e2e programs, all green. `npm test` prints the tier 1
 breakdown, and `npm run drift` holds both figures against the harness and the
 committed expectations. Both have drifted before, which is why a script reads
 them now.

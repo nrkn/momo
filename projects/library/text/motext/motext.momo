@@ -1,0 +1,109 @@
+// motext.momo - shared/lib/motext.momo held against numbers (DESIGN §54, §14).
+//
+// The chunk counts are the half that matters. Lengths and text would pass over
+// any buffer that stored characters at all; a chunk count is the only place this
+// design's two policies are visible - the append that fills a chunk rather than
+// splitting it, and the merge that folds one back when a deletion empties it.
+// Neuter either and the lengths still agree.
+//
+// It needs nothing on the disk: the fixture is a const here, so every number
+// printed is one this run produced.
+
+include "lib/std/io.momo"
+include "lib/motext.momo"
+
+const u8[] source = "the quick brown fox jumps over the lazy dog and keeps on running\n"
+                    "short\n"
+                    "another line that is comfortably longer than one chunk\n"
+
+u8[80] buf
+
+sub show( u16 n ) {
+  putNumber( n )
+  putChar( ' ' )
+}
+
+// A slice printed as characters, so a wrong byte reads as a wrong letter rather
+// than as a number nobody can check by eye.
+sub showLine( u16 ln, u16 col, u16 count ) {
+  u16 n
+  n = lineSlice( ln, col, count, addr( buf ) )
+
+  for ( u16 i = 0; i < n; i++ ) {
+    putChar( buf[i] )
+  }
+  newline()
+}
+
+// ---- entry ----
+
+textInit()
+
+for ( u16 i = 0; i < len( source ); i++ ) {
+  textLoad( source[i] )
+}
+
+// The trailing newline makes a fourth line, empty, which is what a file ending
+// in one actually has.
+show( textLines() )
+show( lineLength( 0 ) )
+show( lineLength( 1 ) )
+show( lineLength( 2 ) )
+show( lineChunks( 0 ) )
+newline()
+
+// Four chunks for sixty-four characters is the append policy: every one full.
+// Splitting on append instead would give seven.
+
+showLine( 0, 20, 20 )
+
+// An insert inside a full chunk splits it, so the count goes up by one.
+lineInsert( 0, 20, 'X' )
+show( lineLength( 0 ) )
+show( lineChunks( 0 ) )
+newline()
+
+lineSplit( 0, 25 )
+show( textLines() )
+show( lineLength( 0 ) )
+show( lineLength( 1 ) )
+newline()
+
+lineJoin( 0 )
+show( textLines() )
+show( lineLength( 0 ) )
+newline()
+
+// Thirty deletions from a line of fifty-four in four chunks. Without the merge
+// the chunks empty and stay on the chain, and the count does not move.
+for ( u16 i = 0; i < 30; i++ ) {
+  lineDelete( 2, 10 )
+}
+show( lineLength( 2 ) )
+show( lineChunks( 2 ) )
+newline()
+
+showLine( 2, 0, 80 )
+
+// Three edits of different kinds on line 1, then three steps back. The text
+// coming back is the assertion; the counts say the records came back too.
+lineInsert( 1, 0, 'Z' )
+lineDelete( 1, 3 )
+lineSplit( 1, 4 )
+show( textLines() )
+show( lineLength( 1 ) )
+newline()
+
+undoOnce()
+undoOnce()
+undoOnce()
+show( textLines() )
+show( lineLength( 1 ) )
+newline()
+
+showLine( 1, 0, 80 )
+
+// A slice past the end returns what was there rather than what was asked for.
+show( lineSlice( 1, 3, 40, addr( buf ) ) )
+show( lineSlice( 1, 99, 8, addr( buf ) ) )
+newline()

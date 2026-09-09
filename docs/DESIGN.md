@@ -4289,9 +4289,238 @@ commits the editor to.
 
 ---
 
+## 54. `motext` - the text buffer
+
+**Built.** `shared/lib/motext.momo`, one file, and `motext` is the worked example
+for this section (§14) - it holds the library against numbers, and the chunk
+counts in it are the only place the two policies below are visible.
+
+A line is a chain of chunks, the chunks are deliberately not kept full, and every
+edit is bounded by a chunk rather than by the document. A line has no length
+limit.
+
+```momo
+const chunkSize = 16
+
+group chunk[maxChunks] {          // one link and a fill level
+  u16 next
+  u8  used
+}
+
+group line[textMaxLines] {        // a line names a chain, never owns text
+  u16 head
+  u16 length
+}
+
+view u8[textBytes] text = _heap[0]
+```
+
+A chunk's bytes are at `chunk * chunkSize`, a line's text is the chunks on its
+chain in order, and an edit touches one chunk and the records. Nothing else moves.
+
+### The storage question was decided by what a byte move costs
+
+**There are no string instructions** (§1), so `memCopy` is a `peek8`/`poke8` loop
+and the emitter writes seventeen instructions per byte moved - roughly 180 cycles
+by documented 8086 timings.
+
+That one figure decides the design, and it decides it against the obvious answer.
+**A gap buffer is the right structure on a machine with a fast block move, and
+this machine has none**: moving a 16 KB gap is about 0.6 seconds, and a `u16`
+view halves it to 0.3. So the buffer had to be one that never moves bulk text,
+and every candidate was judged on that.
+
+### Three shapes were drafted, and two were measured out
+
+Each was written as a working program and run on the target before one was
+chosen. Figures from 2026-09-09.
+
+| | per keystroke | scales with |
+|---|---|---|
+| piece table, flat line index | 17 instructions x every line in the document | file size |
+| one fixed 80-byte slot per line | 15 instructions x up to 80 bytes | nothing, but caps a line at 80 |
+| **chunk chains** | **seek, then 15 instructions x up to 16 bytes** | **nothing** |
+
+**The piece table lost on its line index, not on its pieces.** It never moves
+text - which is what recommended it - and moves *line offsets* instead, of which
+there are far more than there are bytes in a line. Roughly 18 ms a keystroke at
+500 lines and 35 ms at 1,000, growing with the file.
+
+**Fixed slots lost on the line cap**, which cannot be lifted by widening the
+slot: 255 characters across 400 lines is 102,000 bytes against a 64 KB segment.
+A line long enough to be worth supporting cannot have a slot of its own.
+
+**Chunks turned out to be faster than fixed slots as well as unbounded.** The
+byte shift is bounded by the chunk rather than by the line width, so the common
+case got cheaper at the same time as the uncommon one became possible.
+
+### Redraw distinguishes none of them, and the naive interface is a trap
+
+Asking a piece table for one byte at a time costs a search per character - about
+a second for an 80x25 screen. Walking the pieces once costs thirteen instructions
+a byte. The line-record buffers land in the same place once the row base is
+hoisted per line, so redraw was not an argument for any shape.
+
+What it is instead is a rule, and it applies to the chunk chain equally: **the
+chain is walked once per line, never once per character.** `lineSlice` is the
+whole read interface, and there is deliberately no "character at" call for a
+caller to put in a loop.
+
+### Far memory is the wrong home for this, and §16 says why
+
+Everything lives in `_heap` through a `view` (§17). A `far` region past the
+segment (§47) would buy space and lose more than it buys:
+
+- **§16 reloads ES on every access and refuses to hoist a runtime segment**,
+  deliberately, because a callee reassigning the variable leaves ES pointing at
+  memory we no longer mean. §34 does not cover the runtime case even once built.
+  A text buffer is touched per keystroke and per character drawn.
+- **§38 requires a DOS buffer in our own segment.** `DS = CS` cannot be
+  suspended, so a far buffer means staging every read through the heap and
+  copying out - through the loop above, twice per file.
+- **§47's regions take a constant size anyway**, so a far buffer is not a larger
+  buffer, only the same fixed one somewhere more expensive.
+
+With no `far` declaration a program emits no segment register at all (§1), and
+this one does not need to.
+
+### An ordinary array would be in the image, which is why the view is not a preference
+
+A plain array is emitted as `times N db 0`, so `u8[16384] text` is 16 KB of
+`.COM`. §13 emits no storage for the heap at all, so the same capacity as a view
+over `_heap` costs the binary nothing.
+
+The records are the other half of that and do cost image: the chunk links, the
+line heads and the undo log are ordinary arrays, so **the image grows with
+capacity even though the text does not.** `npm run memory` reports both halves,
+and reports the view as a claim rather than an alias precisely so `maxChunks` can
+be tuned against an answer.
+
+**It claims the bottom of the heap**, and a program partitioning the rest starts
+after it:
+
+```momo
+view u8[myBytes] mine = _heap[textBytes]
+```
+
+which is §17's static partitioning with the library going first. Two libraries
+both wanting the heap is the point at which that stops being enough, and nothing
+here pre-solves it.
+
+### The chunk size is ours, which is what a screen stride is not
+
+`chunkBase` was drafted as a table of chunk addresses, by analogy with §43's row
+table, and it was dead weight. `chunkSize` is a power of two, so §26 already
+folds the multiply:
+
+```nasm
+        mov     cl, 4                       ; 8086 has no shift-by-immediate
+        shl     ax, cl                      ; * 16 is << 4
+```
+
+Removing the table took 254 bytes off the draft's image and cost no cycles. The
+rule is the distinction rather than either half of it: **a table of row addresses
+earns its place when the stride is imposed - 320, or 80 - and not when the stride
+is ours to pick, because then it is picked as a power of two and §26 does it for
+free.**
+
+The same thing pays again in the undo log, where `% maxUndo` emits `and ax, 31`
+rather than a `div`.
+
+### Occupancy has a floor, and only because chunks merge
+
+A chunk that fills splits in half, so both halves have room. That alone has no
+floor - splitting only ever adds chunks - so a session of editing would drift
+toward half-empty and only reloading the file would recover it.
+
+**A deletion that leaves a chunk short folds the next chunk into it, when the two
+together fit.** After that fold no adjacent pair can sum to a chunk or less, so a
+line cannot go below half occupancy however long the session runs.
+
+**Redistribution is deliberately absent.** A short chunk beside a full one stays
+short, which the floor already tolerates, and borrowing is a second policy to get
+wrong for a better constant.
+
+**An append does not split.** Appending past the end of a full last chunk links a
+fresh one instead, because splitting there would leave both halves half empty and
+do it again half a chunk later - so a file read in character by character would
+occupy twice the buffer it needs. Loading is the append case, so the naive policy
+doubles the cost of every file the moment it is opened.
+
+Both policies are visible in exactly one number each, and `motext` reads both.
+
+### Undo records edits, not storage
+
+An entry is an operation, a line, a column and a character - six bytes - and
+nothing in it knows what a chunk is. So the same log would work over any of the
+three shapes above, and reversal goes back through the ordinary operations:
+insert against delete, split against join.
+
+**That is why undo is not an argument for any buffer shape.** The piece table was
+argued for partly on undo being cheap over a piece list; it is equally cheap over
+all of them.
+
+**`lineJoin` was owed anyway.** Backspace at column 0 is the same operation, so
+the half of undo that looked like new code is a routine the editor wanted
+regardless.
+
+### Rules
+
+- **The chain is walked once per line, never once per character.** `lineSlice` is
+  the read interface, and it copies out rather than answering per byte.
+- **`chunkSize` is a power of two.** It is what removes the address table, and
+  §26 does the rest.
+- **Recording is suspended while an undo runs, and while a file loads.** A
+  reversal that records its own entry gives a log that never drains; a file read
+  in is not an edit anybody wants to step back through, and a log full of the
+  file would leave no room for the session.
+- **Every operation that can be got wrong records its inverse**, including
+  `lineJoin`, which is reachable from backspace as well as from undo.
+- **The undo log is a window, not a stack that fills.** When it is full the
+  oldest entry goes, because dropping the newest would mean the edit just made is
+  the one that cannot be taken back.
+- **A line always owns at least one chunk**, even when it is blank, so a chain is
+  never empty and no reader has to special-case one.
+- **Chunk 0 is the null.** `next == 0` ends a chain, and no real chunk is 0.
+- **A deletion steps over a run of empty chunks and refuses one holding nothing.**
+  The merge normally keeps them off a chain, so both guards look redundant - and
+  are not: `used` goes to 255 on the decrement otherwise, and the line then
+  reports a chunk of whatever the heap holds next.
+
+### What it needs from the language
+
+**Nothing.** Every draft compiled and ran on the target unchanged - `group` (§18)
+for the records, `view` (§17) over `_heap`, `while` and the ordinary operators.
+This is the third design met by what was already there, after §37's routine
+indirection and §38's file handles. The library includes nothing at all, not even
+`std`.
+
+One friction is worth naming without being a request. `lineSeek` answers three
+things and a routine returns one, so the answers travel in file-private globals.
+It reads acceptably and nothing else in the repository has wanted multiple
+returns, so it is recorded here rather than proposed.
+
+### What it costs
+
+Per character of text, at full occupancy: one byte in a chunk, plus three bytes
+of chunk record and no address table, for about 1.19 bytes a character. After
+editing churn the floor puts it under 1.6. A fixed 80-byte slot per line costs
+about 2.8 bytes a character for typical source, and caps a line.
+
+The undo log is six bytes an entry. `DECISIONS.md` §54 has what the build itself
+cost and what the design missed.
+
+### What was left out
+
+Redo; undo coalescing, so that a run of typed characters is one step rather than
+thirty; a cursor and a viewport; and reading or writing a file, which is §38's
+and belongs to `momoed` (PLAN §55) rather than here.
+
+---
+
 ## Sections designed, but not built
 
-Fourteen sections carry numbers but no text here, because what they describe does
+Sixteen sections carry numbers but no text here, because what they describe does
 not exist yet. All are in `PLAN.md`. The heading names no range deliberately - the
 set stopped being contiguous the moment one of them was built.
 
@@ -4309,8 +4538,10 @@ set stopped being contiguous the moment one of them was built.
 | §42 | A test tier below DOSBox |
 | §46 | `alias` - a name for an indexed access, which §45's `of` is one case of |
 | §49 | Named and default arguments, which is what §48's `cfg` carrier needs |
+| §50 | A layout DSL: content, layout and paint as three documents |
 | §51 | `addr()` in an initialiser - the table of addresses that cannot be written down |
 | §53 | Nested arrays, and the spine they need |
+| §55 | `momoed` - the editor, whose buffer is §54 above |
 
 ---
 

@@ -1710,9 +1710,92 @@ The properties query, aspect ratio, the interleaved, planar and banked layouts,
 and windowing are all still designed and not built. They are not harder than what
 landed; they have **no consumer**. The query needs a program that does not know
 its mode, aspect needs one that draws circles, the layouts need one that touches
-EGA planes, and windowing needs `momode` - and every one of those is blocked on a
-mouse.
+EGA planes, and windowing needs `momode`. Three of those four are blocked on a
+mouse; the query stopped being so when `momoed` took a number, because an editor
+supporting text modes past 80x25 is a program that does not know its mode and
+needs no mouse at all. PLAN §55.
 
 Building them now would mean writing code nothing can run, and this repository has
 exactly one defence against that, which is that a program exercises a library. The
 half that landed had nine programs waiting for it. The half that did not has none.
+
+---
+
+## 54. `motext`
+
+### What it cost
+
+One file, no includes at all - not even `std` - and one test project. The
+capacity consts are `chunkSize = 16`, `maxChunks = 1024` and
+`textMaxLines = 512`, which is 16,384 bytes of text.
+
+| | |
+|---|---|
+| records, in the image | 5,504 bytes - 3,072 of chunk links, 2,048 of line heads, 384 of undo log |
+| text, in the heap | 16,384 bytes, and nothing in the `.COM` |
+
+**The image grows with capacity even though the text does not**, which is the
+half of the storage split that is easy to miss: the text is a view over `_heap`
+and free, and the records that address it are ordinary arrays and are not. Thirty
+four bytes of record per hundred bytes of capacity, at these sizes.
+
+### Three things the design did not settle, all found by building it
+
+**An ordinary array would have been in the image, and the design never priced
+it.** §54 said the text lives in a view over `_heap` and gave §17 as the reason,
+which is a good reason and not the load-bearing one. The load-bearing one is that
+a plain array is emitted as `times N db 0`, so the same 16 KB of capacity would
+have been 16 KB of `.COM`. Checked in the emitted assembly rather than assumed,
+because the alternative would have compiled and run.
+
+**`lineJoin` recorded no undo, and backspace at column 0 is a join.** The design
+paired split with join and stopped there, because it was reasoning about undo as
+the reversal of *undoable* operations. A join reached from a keystroke rather
+than from the log is the same edit and needs the same entry, so `opJoin` records
+the column before joining - which is the one thing nothing can recover
+afterwards. Found while designing the test, not while designing the buffer.
+
+**A library claiming the bottom of the heap was a decision nobody had made.** A
+`view` needs a constant offset and a library cannot be handed one, so `motext`
+takes `_heap[0]` and exports `textBytes` for a program to partition after. That
+is §17's static partitioning with the library going first, and it holds for
+exactly one library.
+
+### `local` on a group, a view and a const
+
+Probed rather than assumed, and all three work, mangling per file. That is what
+lets the library keep `chunk`, `line` and `text` as names without colliding with
+a program that wants any of them - which matters more here than for momolo's `el`
+or mopaint's `st`, because `line` and `text` are names an editor is very likely
+to want for itself.
+
+### The teeth check, and the guard that stopped it corrupting
+
+Both policies are visible in exactly one number each, and neutering either leaves
+every length and every character of text unchanged - which is the claim the test's
+own header makes, and it is checked rather than asserted:
+
+| neutered | chunk count |
+|---|---|
+| the append that fills rather than splits | 4 -> 7 for the same 64 characters |
+| the merge that folds an emptied chunk back | 3 -> 4 for the same 24 characters |
+
+Worth recording that the second of those **no longer corrupts anything**. In the
+draft, neutering the merge sent `used` to 255 on the next deletion and the line
+reported a chunk of whatever the heap held next. The guards that came out of that
+- step over a run of empty chunks, and refuse one holding nothing - are in the
+library, so the same neuter now produces a wrong count and correct text. A teeth
+check that used to fail loudly for the wrong reason now fails quietly for the
+right one.
+
+### A prediction that held
+
+Every number in the test - four chunk counts, nine lengths, two line counts, two
+slice returns and three lines of text - was written down before the first run and
+was right. The only correction was the trailing spaces the print helper emits,
+which were known and left out of the expected file anyway.
+
+That is worth one line here because most predictions recorded in these documents
+did not hold, and the reason this one did is not insight: the three shapes had
+already been drafted and run, so the arithmetic had been checked against a
+machine twice before it was written down a third time.
