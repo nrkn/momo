@@ -1882,6 +1882,35 @@ document is the cheapest possible way to preserve an idea across a gap you do no
 expect to be able to cross. It is not a plan for the next session. It is a message
 to a version of yourself who will have to start over.
 
+### It is entry cost, not only resume cost
+
+Resumption is the half that explains why stalled work stayed stalled. It does not
+explain why there are so many *starts*, or why so many of them are stubs, and the
+author's fuller account covers both.
+
+The barrier is per-session and it does not require anything to have stalled. A
+large project is inaccessible on a tired evening in the same way a stalled one is
+- it presents as one indivisible thing that is too big to hold - and the move that
+was always available was to do something easy instead. **Something easy is
+something new**, because a new project is small by definition. So the same
+mechanism that abandons a stalled project also spawns a folder on an evening when
+nothing was wrong with the old one.
+
+Which reframes the dated-folder convention. It is not primarily a way of filing
+work. It is the residue of choosing work sized to the session rather than to the
+ambition, over and over, for twenty years.
+
+That is the byte-budget finding one level up, and the parallel is exact. There the
+constraint selected what could be *finished*, because content small enough to sit
+in a source file needs no editor. Here it selects what can be *started*. Both
+times a constraint nobody chose is quietly picking the project.
+
+**What the tooling changed is the coupling between the two sizes.** A large thing
+can now be sliced on demand - the author's description is asking what the next
+useful piece small enough for a tired brain is, and parking everything big - so
+"small enough for tonight" no longer implies "new". That is the property that made
+a fresh folder attractive, available without the folder.
+
 ## What changed, and what it makes the archive into
 
 Agentic tooling collapsed the resume cost. The author's description of the move is
@@ -1911,3 +1940,19 @@ standing in for the next attempt at it.
 The prediction above still holds and this does not soften it - a superb compiler
 with no `momoed` is still the old shape. But the failure mode it is measured
 against was substantially a cost, and the cost has changed.
+
+## One dated note, so the prediction can be checked rather than remembered
+
+**7 September 2026: `momoed` stopped being blocked.** §47 landed that day, along
+with §43's stride question settled and the first part of §43 itself; the
+destination table's `wants` column for the editor went from naming the screen
+library to naming nothing. Two days later the planning for it started.
+
+That is recorded here for one reason. The prediction above is that this project
+could still end as a superb compiler with no editor, and until this point
+"the tool is blocked" was a true and complete explanation for the editor not
+existing. It is no longer available. Whatever happens next happens with nothing in
+the way, which is the condition the prediction was written to be tested against
+and the first time the archive has produced it.
+
+No claim is made here about the outcome. The date is the point.
