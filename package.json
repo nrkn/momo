@@ -19,6 +19,7 @@
     "editor:install": "tsc && node dist/tools/editor.js",
     "desugar": "tsc && node dist/tools/desugar.js",
     "image": "tsc && node dist/tools/image.js",
+    "image:read": "tsc && node dist/tools/image.js --read",
     "drift": "tsc && node dist/tools/drift.js",
     "drift:since": "tsc && node dist/tools/drift.js --since"
   },

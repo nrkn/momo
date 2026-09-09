@@ -19,7 +19,7 @@
 // the day it fires is the day this grows a directory per project. The image is a
 // build artefact regenerated from scratch, so there is no migration to pay for.
 
-import { existsSync, readdirSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
@@ -46,7 +46,16 @@ const imageBytes = totalSectors * bytesPerSector
 // Written by the build harness rather than by the project, so they are ours and
 // do not belong on the disk. Everything else a project brings is included, which
 // is what makes a future `MAP.DAT` work with no change here.
-const harnessFiles = new Set(['build.bat', 'build.ok', 'build.err', 'out.txt'])
+//
+// `stdout.txt` and `stderr.txt` are DOSBox's, and they are ours by the same test:
+// the harness asks for them by passing `-noconsole`, which redirects rather than
+// silences. Every project tier 2 has run carries a pair, so leaving them out of
+// this set made the *second* one collide - and the collision reported a
+// `MAP.DAT`-shaped problem that was not there. A file the harness causes to
+// exist belongs here however far away the thing that writes it is.
+const harnessFiles = new Set([
+  'build.bat', 'build.ok', 'build.err', 'out.txt', 'stdout.txt', 'stderr.txt',
+])
 
 type Entry = { name: string; ext: string; source: string; size: number; mtime: Date }
 
@@ -234,7 +243,131 @@ const buildImage = async (entries: Entry[], label: string): Promise<Buffer> => {
   return image
 }
 
+// ---- reading one back ----
+//
+// The inverse of everything above, and here rather than in a tool of its own
+// because it is the same format knowledge: `fatEntry` is `setFatEntry` read
+// backwards, and a second file would have to keep the nibble-packing right
+// twice.
+//
+// It exists because a program that WRITES a file is only useful on an emulator
+// you can get the file out of. 86Box has no mounted host directory the way
+// DOSBox does, so `keyprobe` writing KEYS.TXT to the floppy is the whole of the
+// story unless something here can read it back.
+//
+// The BPB is read rather than assumed. These are our images, but DOS may have
+// written to one since, and a geometry taken from the disk costs three lines
+// and makes this work on a floppy image we did not write.
+const fatEntry = (fat: Buffer, index: number): number => {
+  const at = Math.floor((index * 3) / 2)
+  return index % 2 === 0
+    ? ((fat[at + 1] & 0x0f) << 8) | fat[at]
+    : (fat[at + 1] << 4) | (fat[at] >> 4)
+}
+
+const extract = (image: Buffer, wanted: string): Buffer | null => {
+  const bytes = image.readUInt16LE(11)
+  const perCluster = image[13]
+  const reserved = image.readUInt16LE(14)
+  const fats = image[16]
+  const roots = image.readUInt16LE(17)
+  const fatSectors = image.readUInt16LE(22)
+
+  if (bytes === 0 || perCluster === 0 || fatSectors === 0) return null
+
+  const rootStart = reserved + fats * fatSectors
+  const rootSectors = Math.ceil((roots * 32) / bytes)
+  const dataStart = rootStart + rootSectors
+
+  const fat = image.subarray(reserved * bytes, (reserved + fatSectors) * bytes)
+  const root = image.subarray(rootStart * bytes, dataStart * bytes)
+
+  const target = wanted.toUpperCase()
+
+  for (let slot = 0; slot < roots; slot++) {
+    const at = slot * 32
+
+    if (root[at] === 0x00) break            // no entry past here has ever been used
+    if (root[at] === 0xe5) continue         // deleted
+    if ((root[at + 11] & 0x0f) === 0x0f) continue   // long-name fragment
+    if (root[at + 11] & 0x08) continue              // volume label
+
+    const name = root.subarray(at, at + 8).toString('latin1').trimEnd()
+    const ext = root.subarray(at + 8, at + 11).toString('latin1').trimEnd()
+    const full = ext ? `${name}.${ext}` : name
+
+    if (full !== target) continue
+
+    const size = root.readUInt32LE(at + 28)
+    const out = Buffer.alloc(size)
+
+    let cluster = root.readUInt16LE(at + 26)
+    let written = 0
+
+    // 0FF0h and above ends a chain; anything below 2 is not a data cluster, and
+    // a file of zero bytes has no chain at all.
+    while (cluster >= 2 && cluster < 0xff0 && written < size) {
+      const from = (dataStart + (cluster - 2) * perCluster) * bytes
+      written += image.copy(out, written, from, from + Math.min(perCluster * bytes, size - written))
+      cluster = fatEntry(fat, cluster)
+    }
+
+    if (written < size) fail(`"${full}" ends early - its chain gave ${written} of ${size} bytes`)
+    return out
+  }
+
+  return null
+}
+
+// Every image this tool could have written, in the order it writes them.
+const imageNames = (): string[] =>
+  readdirSync(buildRoot)
+    .filter((file) => /^momo(-\d+)?\.ima$/i.test(file))
+    .sort()
+
+// Every image is searched rather than the first hit taken, and two hits are an
+// error. A file found on more than one disk is a file whose version nobody can
+// state, which is the failure `build/` keeps producing: a stale artefact reads
+// exactly like a current one.
+const readBack = async (wanted: string) => {
+  const images = imageNames()
+  if (images.length === 0) fail(`no images in "${buildRoot}" - run: npm run image`)
+
+  const hits: { name: string; data: Buffer }[] = []
+
+  for (const name of images) {
+    const found = extract(await readFile(join(buildRoot, name)), wanted)
+    if (found) hits.push({ name, data: found })
+  }
+
+  if (hits.length === 0) fail(`"${wanted}" is on none of: ${images.join(', ')}`)
+
+  if (hits.length > 1) {
+    fail(
+      `"${wanted}" is on ${hits.map((hit) => hit.name).join(' and ')}\n` +
+        '       which of those is current cannot be told from here - run: npm run image',
+    )
+  }
+
+  const out = join(buildRoot, wanted.toUpperCase())
+  writeFileSync(out, hits[0].data)
+  console.log(`ok: ${out}  (${hits[0].data.length} bytes, from ${hits[0].name})`)
+}
+
 const main = async () => {
+  // The mode is a flag in the script definition rather than one a user passes,
+  // because npm drops user flags - which is why `lex:nl` and `momoc:all` exist.
+  const args = process.argv.slice(2)
+  if (args.includes('--read')) {
+    // `?? ''` rather than a check that narrows: `fail` is `never` on the arrow
+    // and not on the const, so it does not narrow here - the gotcha
+    // `CONTRIBUTING.md` records, and `momoc.ts` already spells it this way.
+    const wanted = args.find((arg) => !arg.startsWith('-')) ?? ''
+    if (!wanted) fail('usage: npm run image:read -- <FILE.EXT>')
+    await readBack(wanted)
+    return
+  }
+
   const byProject = collect()
   if (byProject.size === 0) {
     fail(`nothing to write - "${buildRoot}" has no built projects, so run: npm run build -- <project>`)
@@ -243,6 +376,12 @@ const main = async () => {
   checkCollisions(byProject)
 
   const disks = intoDisks(byProject)
+
+  // How many disks there are moves with the number of projects, so a previous
+  // run's images are not overwritten - they are left beside the new ones looking
+  // exactly as current. `momo.ima` from a single-disk run sat beside momo-0, -1
+  // and -2 for three weeks doing precisely that. Clear the set before writing it.
+  for (const stale of imageNames()) rmSync(join(buildRoot, stale))
 
   for (let n = 0; n < disks.length; n++) {
     const name = disks.length === 1 ? 'momo.ima' : `momo-${n}.ima`
