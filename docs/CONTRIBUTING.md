@@ -234,6 +234,15 @@ and the program built, ran and hung. **`npm run memory` is what catches it** - i
 a *negative* heap, which is the only place the overflow is visible. Worth running after
 any change to a static capacity, because nothing else will say a word.
 
+**A capacity in a view over `_heap` is the second shape of that**, and it was
+invisible to the same tool until 2026-09-09. A view into an array is an alias and
+costs nothing - the bytes were counted with the array - but §13 emits no storage
+for the heap at all, so a view over it is a claim on memory nothing counted.
+`view u8[60000] big = _heap[0]` compiled, built, ran, and reported as an alias
+with the whole heap still free. The report now names the claim and exits 1 when
+one reaches past the end, which matters because §17 recommends exactly this shape
+for partitioning the heap without an allocator.
+
 **To check what a program prints**, run the `.com` with `> out.txt` inside a
 generated batch and read the file afterwards - see `src/tools/e2e.ts`. Do not
 rely on watching the DOSBox window.

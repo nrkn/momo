@@ -143,14 +143,6 @@ at all, which makes one a floor rather than a measurement.
   Two things follow from it rather than blocking it: it is the consumer §43's
   properties query has been waiting for, and the explorer half is what wants the
   directory enumeration §38 refused.
-- **Teach `npm run memory` about views over `_heap`.** A `view` of a real array
-  is an alias and costs nothing, and the report is right to say so. A view over
-  `_heap` is a claim on the heap, and the report says the same thing about it -
-  so `view u8[60000] big = _heap[0]` compiles clean and is reported as an alias
-  with the whole heap still free. `CONTRIBUTING.md` leans on this tool as the
-  only thing that can see a static capacity overflow, and this is a hole in
-  exactly that claim. §54's buffer is such a view, and so is every other one that
-  partitions the heap the way §17 recommends.
 - **`addr()` in an initialiser.** §51 - `const u16[] t = [ addr( a ), addr( b ) ]`
   is rejected because an array's elements are folded to numbers and a label is
   not one until NASM says so. The target has never objected: `emitData` already
@@ -378,6 +370,17 @@ All are set out in DESIGN §20 unless noted.
 section that was itself a plan - see the note at the top for why, and where to
 look for the rest.
 
+- **`npm run memory` sees a view over `_heap`.** 2026-09-09. A view of a real
+  array is an alias and costs nothing, and the report was right to say so - but it
+  said the same of a view over `_heap`, where §13 emits no storage at all, so
+  there are no bytes above for one to be a share of. `view u8[60000] big =
+  _heap[0]` compiled clean, built, ran, and was reported as an alias with the
+  whole heap still free. The report now names the claim and what is left, and
+  exits 1 when a layout reaches past the end. It measures the furthest **extent**
+  rather than the sum, because §17's type punning puts two views over the same
+  bytes deliberately. The one line that made this worth doing before §54: with the
+  detection neutered, a 65,000-byte claim against a 64,780-byte heap printed
+  nothing and exited 0.
 - **The screen library, in part.** 2026-09-07. §43, now in `DESIGN.md`, and the
   record is DECISIONS §43. `std/mode.momo` carries the mode table, the current
   screen descriptor, save/set/restore and one palette spelling, and nine programs
@@ -2646,13 +2649,17 @@ Out: redo; undo coalescing, so that a run of typed characters is one step rather
 than thirty; a cursor and a viewport; and reading or writing a file, which is
 §38's and belongs to `momoed` rather than here.
 
-### One thing to fix before this is built, and it is not in this section
+### The capacity here is a heap view, and the tool can now see one
 
-**`npm run memory` cannot see the size of a view over `_heap`.** A
-`view u8[60000] big = _heap[0]` compiles clean and the report calls it an alias
-while still showing the whole heap as free. Every buffer here is such a view, so
-the one tool that exists to catch a static capacity overflowing cannot catch this
-one. It has its own Todo entry above.
+**Fixed before this is built, which is why it was found first.** Every buffer in
+this section is a `view` over `_heap`, and `npm run memory` used to report one as
+an alias with the whole heap still free - so the one tool that catches a static
+capacity overflowing was blind to the only kind this design uses. It now reports
+the claim, what is left, and exits 1 when a layout reaches past the end.
+
+That matters here beyond the arithmetic. `chunkSize * maxChunks` is the number
+that decides how much text fits, and it is meant to be tuned - so it wants a tool
+that answers when it is turned up too far.
 
 ---
 

@@ -43,6 +43,8 @@ const main = async () => {
     let arrays = 0
     let arrayCount = 0
     let viewCount = 0
+    let heapViews = 0
+    let heapClaim = 0
 
     for (const symbol of resolved.symbols) {
       // An alias has no bytes of its own - a register byte half, `_heapw`, or a
@@ -52,7 +54,32 @@ const main = async () => {
       // those the one builtin alias is named.
       if ((symbol.kind === 'var' || symbol.kind === 'array') && symbol.alias) {
         const builtin = symbol.kind === 'var' ? symbol.builtin : symbol.label === '_heapw'
-        if (!builtin) viewCount += 1
+        if (builtin) continue
+
+        // A view over `_heap` is a different thing from a view into an array, and
+        // the difference is §13: **the heap emits no storage**, so there are no
+        // bytes above for this one to be a share of. It is a claim on memory
+        // nothing else counted - a static capacity, and until this it was the one
+        // kind this tool could not see. `view u8[60000] big = _heap[0]` compiled
+        // clean and was reported as an alias with the whole heap still free.
+        //
+        // Views compose to a real parent, so `_heap` here also catches a view of
+        // `_heapw` and a view of a view.
+        if (symbol.alias.parent === '_heap') {
+          const bytes = symbol.kind === 'array'
+            ? symbol.length * widthOf(symbol.elementType)
+            : widthOf(symbol.type)
+
+          // The furthest extent rather than the sum. §17's type punning puts two
+          // views over the same bytes deliberately - `view u16[50] words =
+          // bytes[0]` beside the bytes - and adding those would report twice the
+          // memory anybody claimed. What a layout needs is where it reaches.
+          heapClaim = Math.max(heapClaim, symbol.alias.byteOffset + bytes)
+          heapViews += 1
+          continue
+        }
+
+        viewCount += 1
         continue
       }
       // A segment register has no bytes either, for the same reason an alias
@@ -158,6 +185,25 @@ const main = async () => {
         console.log('\n  error: the image leaves no room for the heap or stack')
         process.exit(1)
       }
+
+      if (heapViews) {
+        row(`claimed by views (${heapViews})`, `${heapClaim}`, 2)
+        row('unclaimed', `${heap - heapClaim}`, 2)
+      }
+
+      // The same class of failure as a negative heap, and it used to be silent.
+      // A program whose views reach past the heap compiles, builds, runs, and
+      // writes over whatever is there.
+      if (heapClaim > heap) {
+        console.log(
+          `\n  error: views reach ${heapClaim - heap} bytes past the end of the heap`,
+        )
+        process.exit(1)
+      }
+    } else if (heapViews) {
+      // The claim is known from the source; what it has to fit inside is not,
+      // because the heap is what the image leaves.
+      console.log(`\n  views claim ${heapClaim} bytes of heap - what is left needs a build`)
     }
 
     console.log()
