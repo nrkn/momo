@@ -1,0 +1,99 @@
+// moview.momo - a window onto a motext buffer (PLAN §55).
+//
+// It holds a top line, a left column and a size, keeps a cursor inside them, and
+// renders by handing one row at a time to a routine **the program defines**:
+//
+//   sub viewRow( u16 y, u16 at, u16 n )
+//
+// That is the seam `tiger` and `tigerpic` share over `plot`, and it is why this
+// can be tested at all. A program that prints rows is a tier-2 test with a
+// `.expected`; a program that writes cells is an editor; the library never
+// learns which it is talking to.
+//
+// **Nothing here reads a key.** Scrolling happens because the cursor moved, and
+// what moved it is the caller's business - so the whole of this is testable
+// before any input exists.
+
+include "lib/motext.momo"
+
+// A row is copied out of the buffer before it is handed over, because §54's read
+// interface is a slice rather than a character: the chain is walked once per
+// row, never once per column.
+const viewMaxWidth = 160
+
+local u8[viewMaxWidth] row
+
+local u16 top
+local u16 left
+local u16 height
+local u16 width
+
+local u16 curLine
+local u16 curCol
+
+// ---- shape ----
+
+sub viewSize( u16 h, u16 w ) {
+  height = h
+  width = w > viewMaxWidth ? viewMaxWidth : w
+}
+
+sub viewHome {
+  top = 0
+  left = 0
+  curLine = 0
+  curCol = 0
+}
+
+u16 viewTop() => top
+u16 viewLeft() => left
+u16 viewLine() => curLine
+u16 viewCol() => curCol
+
+// ---- following the cursor ----
+
+// Scroll the least that brings the cursor back inside the window. Both axes are
+// the same shape and neither is a special case, which is the whole reason a
+// window is a pair of offsets rather than a mode.
+local sub viewFollow {
+  if ( curLine < top ) top = curLine
+  if ( curLine >= top + height ) top = curLine - height + 1
+
+  if ( curCol < left ) left = curCol
+  if ( curCol >= left + width ) left = curCol - width + 1
+}
+
+// Put the cursor somewhere and scroll to suit. Clamped to the buffer, so a
+// caller that walks off the end lands on the last line rather than outside it.
+sub viewGoto( u16 ln, u16 col ) {
+  u16 lines
+  lines = textLines()
+
+  curLine = ln
+  if ( lines > 0 && curLine >= lines ) curLine = lines - 1
+
+  curCol = col
+  if ( curCol > lineLength( curLine ) ) curCol = lineLength( curLine )
+
+  viewFollow()
+}
+
+// ---- rendering ----
+
+// Every row of the window, in order, whether or not the buffer has a line for
+// it. A row past the end is handed over with a length of 0 rather than skipped,
+// because a window has a fixed shape and the caller is painting a rectangle -
+// leaving those rows out would leave the previous frame's text on screen.
+sub viewRender {
+  u16 ln
+  u16 n
+
+  for ( u16 y = 0; y < height; y++ ) {
+    ln = top + y
+    n = 0
+
+    if ( ln < textLines() ) n = lineSlice( ln, left, width, addr( row ) )
+
+    viewRow( y, addr( row ), n )
+  }
+}

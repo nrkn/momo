@@ -53,6 +53,7 @@ shared/lib/momovec/  a vector rasteriser, written in Momo
 shared/lib/mopaint.momo  colour, borders and wrapping over momolo (§36)
 shared/lib/moflow.momo   items packed into as many rows as they need, above momolo
 shared/lib/motext.momo   the text buffer an editor edits (§54)
+shared/lib/moview.momo   a window onto a motext buffer (§56)
 shared/scenes/       data read by more than one project
 projects/            programs, as <category>/<name>/<name>.momo
 tests/compile/       tier 1 tests
@@ -353,7 +354,8 @@ change reaches by the end of a session.
 
 **Check the suite has teeth.** After adding tests, deliberately break the thing
 they cover and confirm they fail. A suite that has never failed has not been
-tested.
+tested. **A neuter that changes nothing has found untested code**, not a failed
+neuter - ask what the test actually reaches before reaching for a different break.
 
 **The docs are load-bearing, and have drifted.** Treat a claim about generated
 output as a hypothesis until the compiler agrees with it.
@@ -513,7 +515,7 @@ The cost of waiting is that the first thing a visitor reads is the weakest
 document in the repo. That trade is made deliberately, and preferred to shipping a
 second draft in the same voice as the first.
 
-450 tier-1 assertions, 44 e2e programs, all green. `npm test` prints the tier 1
+452 tier-1 assertions, 45 e2e programs, all green. `npm test` prints the tier 1
 breakdown, and `npm run drift` holds both figures against the harness and the
 committed expectations. Both have drifted before, which is why a script reads
 them now.

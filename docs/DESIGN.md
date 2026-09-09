@@ -4518,6 +4518,86 @@ and belongs to `momoed` (PLAN §55) rather than here.
 
 ---
 
+## 56. `moview` - a window onto a buffer
+
+**Built.** `shared/lib/moview.momo`, and `moview` is the worked example for this
+section (§14) - a file written, read back, loaded into §54 and rendered through a
+window, with no keyboard anywhere in it.
+
+It holds a top line, a left column, a size and a cursor, and renders by handing
+one row at a time to a routine **the program defines**:
+
+```momo
+sub viewRow( u16 y, u16 at, u16 n )
+```
+
+### The routine being the program's is what makes an editor testable
+
+An editor blocks on a key, and tier 2 cannot run something that blocks. That
+reads as a ceiling on what can be tested and is not one, because nothing here
+calls anything that blocks: scrolling happens because the cursor moved, and what
+moved it is the caller's business.
+
+So the whole read path - a file, a buffer, a window, a row - is a program that
+prints and exits, with a `.expected`. `viewRow` is the only routine an editor
+would supply differently, and it writes cells where the test writes characters.
+That is the seam `tiger` and `tigerpic` already share over `plot` (§37), used for
+output a second time.
+
+### Scrolling is the least that brings the cursor back
+
+Both axes are the same four comparisons and neither is a special case:
+
+```momo
+if ( curLine < top ) top = curLine
+if ( curLine >= top + height ) top = curLine - height + 1
+```
+
+which is the whole of it, twice. A window being a pair of offsets rather than a
+mode is what keeps it that short - there is no "scrolled" state to be in or out
+of, and a cursor set anywhere lands in a window that contains it.
+
+`viewGoto` clamps to the buffer, so a caller walking off the end arrives at the
+last line rather than outside it, and clamps the column to the line's length.
+
+### A row past the end is painted, not skipped
+
+The caller is painting a rectangle, so every row of the window is handed over in
+order whether or not the buffer has a line for it - one past the end arrives with
+a length of 0. Skipping it would leave the previous frame's text on screen, which
+is invisible in a test that prints and obvious in an editor that does not clear.
+
+**It is also the case a window taller than its file produces**, which is what
+opening a short file full-screen looks like, and it is easy to leave untested:
+with a window shorter than the buffer, `viewGoto`'s clamp means the rows past the
+end are unreachable. `DECISIONS.md` §56 has how that was found.
+
+### A row is copied out before it is handed over
+
+§54's read interface is a slice rather than a character, so `lineSlice` walks the
+chain once per row and copies into a buffer here. The alternative - handing the
+caller something to index - would put the walk in whatever loop the caller wrote,
+which is the trap §54 names and refuses.
+
+**This is also the answer to whether a cursor needs to cache its chunk**, which
+§54 left open. It does not. A render walks each visible line's chain once, so the
+cost is bounded by the window's height rather than by the document, and a
+dirty-row redraw - which is what an edit produces - walks exactly one. The cache
+would be an optimisation on a path that is already bounded by what is on screen.
+
+### Rules
+
+- **`viewRow` is the program's**, and the library never learns whether it prints
+  or draws.
+- **Every row of the window is handed over**, including those past the end of the
+  buffer, with a length of 0.
+- **Scrolling follows the cursor and nothing else.** There is no scroll call: a
+  window moves because `viewGoto` put the cursor outside it.
+- **The width is clamped to `viewMaxWidth`.** A row is copied into an array here,
+  so it is the one static capacity this file has.
+
+---
+
 ## Sections designed, but not built
 
 Sixteen sections carry numbers but no text here, because what they describe does
@@ -4541,7 +4621,7 @@ set stopped being contiguous the moment one of them was built.
 | §50 | A layout DSL: content, layout and paint as three documents |
 | §51 | `addr()` in an initialiser - the table of addresses that cannot be written down |
 | §53 | Nested arrays, and the spine they need |
-| §55 | `momoed` - the editor, whose buffer is §54 above |
+| §55 | `momoed` - the editor, whose buffer is §54 and whose window is §56 |
 
 ---
 

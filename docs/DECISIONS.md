@@ -1799,3 +1799,62 @@ That is worth one line here because most predictions recorded in these documents
 did not hold, and the reason this one did is not insight: the three shapes had
 already been drafted and run, so the arithmetic had been checked against a
 machine twice before it was written down a third time.
+
+---
+
+## 56. `moview`
+
+### The teeth check found untested code rather than a weak test
+
+Both of the library's rules were neutered to check the test could see them.
+Scrolling failed loudly, as expected. **Painting rows past the end of the buffer
+changed nothing at all** - the neuter took, the output was identical, and the
+rule was covered by nothing.
+
+The reason is worth having, because it is not a mistake anybody would notice
+otherwise. The test's window was four rows over a nine-line buffer, and
+`viewGoto` clamps the cursor to the last line - so the furthest the window can
+scroll is to lines 5 through 8, all of which exist. **Rows past the end were
+unreachable through the only door the test had.** The case that produces them is
+a window *taller* than the file, which is what opening a short file full-screen
+looks like and is the ordinary case rather than an edge one.
+
+Adding that render covered it, and the same neuter then removed three rows from
+the output.
+
+So the rule this produced is a refinement of a checklist item rather than a new
+one: **a neuter that changes nothing has found untested code, not a failed
+neuter.** The instinct is to assume the break did not take and to reach for a
+different one; the thing to do is ask what the test actually reaches.
+`LESSONS.md` has it under Verifying.
+
+### What §54 left open, answered by building the thing that would have needed it
+
+§54 recorded that a cursor moving one character at a time re-walks its line's
+chain, and that a cache would fix it if measurement said so. Measurement says it
+does not arise: rendering walks each *visible* line once, so a redraw is bounded
+by the height of the window rather than by the document, and the redraw an edit
+produces is one row. There is no path here where the walk repeats often enough to
+be worth caching, and the cache would sit on the one that is already bounded by
+what is on screen.
+
+That question was the first item on §55's unsettled list. It was settled by
+building the thing that would have needed it, which is cheaper than deciding it
+would have been.
+
+### The partitioning rule has a second customer, and the tool sees both
+
+`motext` claims `_heap[0]` and exports `textBytes`; `moview` the test project
+declares its file-read buffer at `_heap[textBytes]`. `npm run memory` reports
+**two views claiming 16,448 bytes** - 16,384 and 64 - which is the first time
+that arrangement has existed and the first time the report has had two of them to
+add up. Both halves of §54's heap rule work, and neither is a paragraph nobody
+has run.
+
+### What it cost
+
+Small, and hard to state on its own: tree-shaking means the figures for a program
+using `moview` are not the library's size but the size of what it reached. The
+one number worth keeping is that the row buffer is the library's only static
+capacity, at `viewMaxWidth` bytes, and it is the reason `viewSize` clamps rather
+than trusting its caller.

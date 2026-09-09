@@ -2456,11 +2456,12 @@ paragraph of its own above, and none is needed in order to delete `nthStr`.
 
 ## 55. `momoed` - the editor
 
-**Partly designed, not built**, and which half is which matters more than the
-status. The input path is designed and measured against real hardware; the buffer
-under it is §54; the staging below is settled. **The explorer, the viewport and
-the screen are named here and not designed**, and saying so is the point - this
-section exists to hold what is decided, not to look complete.
+**Partly built**, and which half is which matters more than the status. The
+buffer is §54 and the window onto it is §56, both built and both with test
+projects; the input path is designed and measured against real hardware and is
+not written. **The explorer and the screen are named here and not designed**, and
+saying so is the point - this section exists to hold what is decided, not to look
+complete.
 
 An explorer beside a text pane, toggled away for width, and text modes `edit.com`
 never had.
@@ -2473,7 +2474,7 @@ reads as a hard ceiling on what can be tested, and it is not one:
 | | tests as |
 |---|---|
 | §54's buffer and its own project | numbers, no screen, no keys |
-| a file read into the buffer and a viewport rendered | a `.expected`, still no keys |
+| a file read into the buffer and a viewport rendered - **built**, §56 | a `.expected`, still no keys |
 | navigation and editing | **also a `.expected`** |
 
 The third row is the one worth having. **The editor never calls `readKey`.**
@@ -2693,8 +2694,8 @@ language feature.
 
 ### Scope of a first build
 
-In: one file named on the command line, read through §38 into §54's buffer; a
-viewport and a cursor; the binding table with CUA motion, insert, delete, Enter
+In: one file named on the command line, read through §38 into §54's buffer; §56's
+window, which is built; the binding table with CUA motion, insert, delete, Enter
 and undo; save; and the two testable stages above it.
 
 Out: the explorer and therefore directory enumeration; more than one file open;
@@ -2704,9 +2705,6 @@ needed for the thing to be an editor.
 
 ### What is not settled
 
-The viewport and the cursor, which is the seam most likely to prove §54's
-boundary wrong - a cursor that moves by one wants to cache its chunk, and whether
-that cache belongs to the buffer or to the editor is not decided. The explorer's
-shape. What the status bar says. Whether selection is a mark and a point or a
-range. And what *finished* means for a first version, which `simplerl` answered
-for a game by being deliberately the smallest thing that counts as one.
+The explorer's shape. What the status bar says. Whether selection is a mark and a
+point or a range. And what *finished* means for a first version, which `simplerl`
+answered for a game by being deliberately the smallest thing that counts as one.

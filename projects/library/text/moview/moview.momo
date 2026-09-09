@@ -1,0 +1,109 @@
+// moview.momo - a file, into a buffer, out through a window (PLAN §55, §14).
+//
+// The whole read path with no keyboard in it: §38 writes a file and reads it
+// back, §54 holds the text, and moview hands rows to `viewRow` below. That
+// routine is the seam - here it prints, and in an editor it writes cells, and
+// the library cannot tell which. So everything an editor does except drawing and
+// reacting to keys is inside the tier that can see it.
+//
+// It needs nothing on the disk: the file it reads is the file it just wrote, so
+// every number is one this run produced.
+//
+// The read buffer is a view over the heap **after** `textBytes`, which is the
+// partitioning motext's header asks callers to do. Putting it before, or
+// declaring it as an ordinary array, would work and would cost either motext's
+// text or 256 bytes of image.
+
+include "lib/std/io.momo"
+include "lib/std/file.momo"
+include "lib/moview.momo"
+
+const u8[] name = "MOVIEW.TMP\0"
+
+const u8[] source = "line one\n"
+                    "the second line is quite a lot longer than the view is wide\n"
+                    "three\n"
+                    "four\n"
+                    "five\n"
+                    "six\n"
+                    "seven\n"
+                    "eight\n"
+
+const pieceSize = 64
+
+view u8[pieceSize] piece = _heap[textBytes]
+
+u16 handle
+u16 wrote
+u16 got
+
+// The routine moview calls, and the only thing that would differ in an editor.
+// A trailing bar makes an empty row visible as a row rather than as a blank
+// line, which is what a window past the end of the buffer produces.
+sub viewRow( u16 y, u16 at, u16 n ) {
+  for ( u16 i = 0; i < n; i++ ) {
+    putChar( peek8( at + i ) )
+  }
+  putChar( '|' )
+  newline()
+}
+
+sub showWhere {
+  putNumber( viewTop() )
+  putChar( ' ' )
+  putNumber( viewLeft() )
+  newline()
+}
+
+// ---- entry ----
+
+handle = fileCreate( addr( name ) )
+wrote = fileWrite( handle, addr( source ), len( source ) )
+fileClose( handle )
+
+textInit()
+
+// Read in pieces, because §38's buffer has to live in this segment and a file
+// is not promised to fit in one.
+handle = fileOpen( addr( name ), fileReadOnly )
+got = fileRead( handle, addr( piece ), pieceSize )
+
+while ( got > 0 ) {
+  for ( u16 i = 0; i < got; i++ ) {
+    textLoad( piece[i] )
+  }
+  got = fileRead( handle, addr( piece ), pieceSize )
+}
+
+fileClose( handle )
+
+putNumber( wrote )
+putChar( ' ' )
+putNumber( textLines() )
+newline()
+
+viewSize( 4, 20 )
+viewHome()
+
+showWhere()
+viewRender()
+
+// Down past the bottom of the window: it scrolls by the least that brings the
+// cursor back, so the cursor lands on the last row rather than in the middle.
+viewGoto( 6, 0 )
+showWhere()
+viewRender()
+
+// Back up and far right in one move, so both axes move at once and the long
+// line is the only one with anything to show at that column.
+viewGoto( 1, 40 )
+showWhere()
+viewRender()
+
+// A window taller than the file, which is what opening a short one in a full
+// screen looks like. Rows past the last line are still painted, with nothing in
+// them - leaving them out would leave the previous frame there.
+viewSize( 12, 20 )
+viewHome()
+showWhere()
+viewRender()

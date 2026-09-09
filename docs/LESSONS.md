@@ -149,6 +149,21 @@ prediction was either confirmed, which is real evidence, or wrong in a way that
 found something. Adopting whatever the tool printed proves only that it printed
 it.
 
+**A neuter that changes nothing has found untested code.**
+
+§56 states that every row of a window is painted, including those past the end of
+the buffer, because the caller is painting a rectangle. Breaking that rule
+changed the output not at all. The instinct was that the break had not taken - it
+had, and the rule was reached by nothing: the test window was four rows over nine
+lines and the cursor clamps to the last, so the furthest it could scroll was to
+rows that all existed. The case that produces the others is a window taller than
+its file, which is what opening a short file full-screen looks like, and it was
+absent. Adding it made the same neuter remove three rows.
+
+The cost of reading it the other way is a rule that looks tested and is not, held
+by a suite that has been checked for teeth. So a break with no effect is a
+finding rather than a false start.
+
 **Check the suite has teeth.**
 
 After adding tests, deliberately break the thing they cover and confirm they
