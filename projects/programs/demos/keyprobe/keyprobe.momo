@@ -1,0 +1,243 @@
+// keyprobe.momo - what the keyboard actually reports, on this machine.
+//
+// It asks for one combination at a time, records what came back, and writes the
+// lot to KEYS.TXT beside the program. Run it, work down the list, then read the
+// file.
+//
+// It exists because no headless tier can answer the question it asks. Whether
+// Shift+Left is distinguishable from Left is a fact about a BIOS and a keyboard,
+// and the only way to find out is to press the keys.
+//
+// **Reads with int 16h AH=10h, not AH=00h.** `std/key.momo` uses the older call,
+// which filters out keys an enhanced keyboard reports and would hide exactly
+// what this is looking for. If the two disagree, this file is the one to
+// believe and `key.momo` is the one to change.
+//
+// The shift flags are read immediately after the key rather than before it, so
+// they are the state a moment after the press. Holding the modifier until the
+// prompt moves on is enough; releasing it instantly would report zero.
+//
+// **AH=10h reports an extended key as AL=0E0h, not AL=0.** The first run of this
+// found it, and it is the reason the last two prompts exist: 0E0h is how the
+// grey navigation keys are told apart from the numeric keypad, which reports the
+// same scancodes with AL=0. Anything deciding "is this a character" on AL alone
+// reads every grey key as the same one. Turn NumLock off for those two, or they
+// report digits and say nothing.
+
+include "lib/std/io.momo"
+include "lib/std/str.momo"
+include "lib/std/file.momo"
+
+const strTerm  = '$'
+const keyEsc16 = 0x011B
+
+// One prompt per line, in the order they are asked. The count is derived below
+// rather than written down, so adding one here cannot desynchronise anything.
+const u8[] prompts = "Left$"
+                     "Shift+Left$"
+                     "Ctrl+Left$"
+                     "Ctrl+Shift+Left$"
+                     "Up$"
+                     "Shift+Up$"
+                     "Home$"
+                     "Shift+Home$"
+                     "Ctrl+Home$"
+                     "End$"
+                     "Shift+End$"
+                     "Tab$"
+                     "Shift+Tab$"
+                     "Backspace$"
+                     "Ctrl+Backspace$"
+                     "Delete$"
+                     "Shift+Delete$"
+                     "Ctrl+S$"
+                     "Ctrl+Z$"
+                     "Ctrl+Y$"
+                     "Ctrl+K$"
+                     "Ctrl+/$"
+                     "Ctrl+Enter$"
+                     "F1$"
+                     "Alt+F$"
+                     "Enter$"
+                     "PgUp$"
+                     "PgDn$"
+                     "Insert$"
+                     "Ctrl+PgUp$"
+                     "Keypad Left, NumLock OFF$"
+                     "Keypad Home, NumLock OFF$"
+
+const u8[] hexDigit = "0123456789ABCDEF"
+const u8[] outName  = "KEYS.TXT\0"
+
+const u8[] sIntro1 = "keyprobe - press each combination as it is asked for.$"
+const u8[] sIntro2 = "If one is impossible or does nothing, press Esc to move on.$"
+const u8[] sIntro3 = "Results go to KEYS.TXT.$"
+const u8[] sHeader = "key                 AX   flags$"
+const u8[] sArrow  = "  -> $"
+const u8[] sPress  = "  press: $"
+const u8[] sWrote  = "written to KEYS.TXT: $"
+const u8[] sFailed = "could not create KEYS.TXT, DOS error $"
+
+// ---- the report ----
+//
+// Built in the heap and written once. `io.momo` formats numbers straight to the
+// console and there is no way to ask it for the text, so the two-digit-pair hex
+// below is written here - which is the same gap `momoed` will meet the first
+// time it wants a line number in a gutter.
+
+const reportMax = 2048
+
+view u8[reportMax] report = _heap[0]
+u16 reportAt
+
+sub addChar( u8 c ) {
+  if ( reportAt >= reportMax ) return
+
+  report[reportAt] = c
+  reportAt++
+}
+
+sub addStr( u16 at ) {
+  u16 i
+  i = 0
+
+  while ( peek8( at + i ) != strTerm ) {
+    addChar( peek8( at + i ) )
+    i++
+  }
+}
+
+// The label, then spaces out to `width`, so the file lines up in a column.
+sub addPadded( u16 at, u16 width ) {
+  u16 i
+  i = 0
+
+  while ( peek8( at + i ) != strTerm ) {
+    addChar( peek8( at + i ) )
+    i++
+  }
+
+  while ( i < width ) {
+    addChar( ' ' )
+    i++
+  }
+}
+
+sub addHex( u16 w ) {
+  addChar( hexDigit[ ( w >> 12 ) & 15 ] )
+  addChar( hexDigit[ ( w >> 8 ) & 15 ] )
+  addChar( hexDigit[ ( w >> 4 ) & 15 ] )
+  addChar( hexDigit[ w & 15 ] )
+}
+
+sub addLineEnd {
+  addChar( 13 )
+  addChar( 10 )
+}
+
+sub putHex( u16 w ) {
+  putChar( hexDigit[ ( w >> 12 ) & 15 ] )
+  putChar( hexDigit[ ( w >> 8 ) & 15 ] )
+  putChar( hexDigit[ ( w >> 4 ) & 15 ] )
+  putChar( hexDigit[ w & 15 ] )
+}
+
+// ---- the keyboard ----
+
+// int 16h AH=10h. The enhanced read: same AX as AH=00h for ordinary keys, and
+// reports the ones AH=00h discards.
+u16 readKeyEx() {
+  _ah = 0x10
+  int 0x16
+  return _ax
+}
+
+// int 16h AH=12h. AL is the shift state - bit 0 right shift, 1 left shift,
+// 2 ctrl, 3 alt - and AH carries the extended flags.
+u16 shiftFlags() {
+  _ah = 0x12
+  int 0x16
+  return _ax
+}
+
+// ---- counting the prompts ----
+
+u16 countStrings( u16 at, u16 bytes ) {
+  u16 n
+  n = 0
+
+  for ( u16 i = 0; i < bytes; i++ ) {
+    if ( peek8( at + i ) == strTerm ) n++
+  }
+  return n
+}
+
+// ---- entry ----
+
+u16 total
+u16 label
+u16 code
+u16 flags
+u16 handle
+u16 written
+
+putStr( addr( sIntro1 ) )
+newline()
+putStr( addr( sIntro2 ) )
+newline()
+putStr( addr( sIntro3 ) )
+newline()
+newline()
+
+addStr( addr( sHeader ) )
+addLineEnd()
+
+total = countStrings( addr( prompts ), len( prompts ) )
+
+for ( u16 i = 0; i < total; i++ ) {
+  label = nthStr( addr( prompts ), i )
+
+  putNumber( i + 1 )
+  putChar( '/' )
+  putNumber( total )
+  putStr( addr( sPress ) )
+  putStr( label )
+  newline()
+
+  code  = readKeyEx()
+  flags = shiftFlags()
+
+  putStr( addr( sArrow ) )
+  putHex( code )
+  putChar( ' ' )
+  putHex( flags )
+  newline()
+
+  addPadded( label, 26 )
+  addHex( code )
+  addChar( ' ' )
+  addHex( flags )
+
+  // A press that came back as Esc is one the machine would not give us, and
+  // saying so in the file is better than leaving a row that looks measured.
+  if ( code == keyEsc16 ) addStr( addr( sArrow ) )
+
+  addLineEnd()
+}
+
+newline()
+
+handle = fileCreate( addr( outName ) )
+
+if ( fileFailed() ) {
+  putStr( addr( sFailed ) )
+  putNumber( fileError() )
+  newline()
+} else {
+  written = fileWrite( handle, addr( report ), reportAt )
+  fileClose( handle )
+
+  putStr( addr( sWrote ) )
+  putNumber( written )
+  newline()
+}

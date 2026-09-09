@@ -416,7 +416,17 @@ fills the text buffer with random characters, `rndpix` fills a mode 13h frame wi
 random pixels, `tilefill` checkerboards two 8x8 tiles over one, and `tigerpic`,
 `mvpic`, `mlodemo`, `pmdemo` and `s6demo` draw what the harnesses beside them digest. Every
 one waits for a key and puts the display back, so none can have a `.expected` -
-tier 2 cannot run something that blocks. The golden tier still covers them, which
+tier 2 cannot run something that blocks.
+
+**`keyprobe` is there for a different reason and is the one that is not a demo.**
+It asks for a combination at a time, records what `int 16h` reported, and writes
+the lot to `KEYS.TXT` - so what a keyboard does with Shift and Ctrl is a file
+rather than a memory. It sits here because it blocks on input like the rest and
+so cannot be tier-2 tested either, not because it draws anything. Everything in
+it that is not the keyboard was tested by a throwaway before it was written, and
+the reason to keep a probe rather than record its answer once is that the answer
+is a property of the machine: most of `PITFALLS.md` was found on 86Box rather
+than under DOSBox, and the keyboard is where that difference bit hardest. The golden tier still covers them, which
 is the regression coverage that matters for a compiler.
 
 `tennis` is the other game and the largest program here - six files,
@@ -492,7 +502,7 @@ The cost of waiting is that the first thing a visitor reads is the weakest
 document in the repo. That trade is made deliberately, and preferred to shipping a
 second draft in the same voice as the first.
 
-446 tier-1 assertions, 43 e2e programs, all green. `npm test` prints the tier 1
+448 tier-1 assertions, 43 e2e programs, all green. `npm test` prints the tier 1
 breakdown, and `npm run drift` holds both figures against the harness and the
 committed expectations. Both have drifted before, which is why a script reads
 them now.
