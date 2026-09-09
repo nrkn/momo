@@ -4264,7 +4264,7 @@ where the pixels came from.
 `mopaint` decides that a layout unit is a character cell, and the same scenes have
 been run against a pixel target where a unit was 11 or 20. The seam a screen library
 would feed already exists and has been exercised both ways, which is most of what
-`momoed` needs in order to support text modes larger than 80x25.
+`momoed` (PLAN §55) needs in order to support text modes larger than 80x25.
 
 ### What the rest needs that does not exist
 
@@ -4273,9 +4273,18 @@ data, and they are built; the query and the window handshake need nothing either
 
 What the unbuilt half waits on is a **consumer**, not a feature. The query needs a
 program that does not know its mode, aspect needs one that draws circles, the
-layouts need one that touches EGA planes, and windowing needs `momode` - and all
-four of those are blocked on a mouse. Building any of them now would mean writing
-code nothing could run, which is the one thing the tiers here cannot check.
+layouts need one that touches EGA planes, and windowing needs `momode`. Building
+one with no consumer would mean writing code nothing could run, which is the one
+thing the tiers here cannot check.
+
+**Three of those four are blocked on a mouse. The query is not, and stopped being
+so when `momoed` got a number.** This paragraph used to say all four were, which
+was true when it was written and is the kind of claim worth re-reading once
+something has happened to it. An editor supporting text modes past 80x25 is
+exactly *a program that does not know its mode* - 80x43 on EGA and 80x50 on VGA
+are the same pair of calls, which is why the descriptor above reads geometry back
+rather than stating it - and it needs no mouse at all. PLAN §55 has what that
+commits the editor to.
 
 
 ---
