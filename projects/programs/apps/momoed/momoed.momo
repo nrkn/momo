@@ -1,14 +1,15 @@
 // momoed.momo - the editor (PLAN §55).
 //
 // A file named on the command line, §54's buffer under it, §56's window onto it,
-// §57's keys driving it, and cells written straight to the text frame. The first
-// version: one file, no explorer, no search, no selection.
+// §59 searching it, §60 holding the term, §57's keys driving all of them, and
+// cells written straight to the text frame. The first version: one file, no
+// explorer, no selection.
 //
-// **Almost nothing here is new.** The buffer, the window and the keyboard are
-// libraries with test projects of their own, and `edloop` already drives this
-// exact command layer from a script. What this file adds is the three things no
-// headless tier can run: a real keyboard, a real screen, and a real file named
-// by a person.
+// **Almost nothing here is new.** The buffer, the window, the search, the field
+// and the keyboard are libraries with test projects of their own, and `edloop`
+// and `edfind` already drive this exact command layer from a script. What this
+// file adds is the three things no headless tier can run: a real keyboard, a
+// real screen, and a real file named by a person.
 //
 // It has a `.expected` covering less than it looks: run with no filename it
 // prints a usage line and stops, so tier 2 reaches the command tail and the exit
@@ -19,6 +20,8 @@ include "lib/std/key.momo"
 include "lib/std/screen.momo"
 include "lib/std/mode.momo"
 include "lib/moview.momo"
+include "lib/mofind.momo"
+include "lib/mofield.momo"
 
 // The frame is declared for the largest text mode this supports, because a `far`
 // region takes a constant size (§16) while the geometry is read back from the
@@ -32,6 +35,7 @@ far u16[edMaxCols * edMaxRows] vram = 0xB800
 
 const attrText   = color( lightGray, black )
 const attrStatus = color( black, lightGray )
+const attrMatch  = color( black, cyan )
 
 u16 cols
 u16 rows
@@ -39,6 +43,18 @@ u16 rows
 u8[80] fileName
 bool haveName
 bool dirty
+
+// The prompt takes the status line and every keystroke while it is open, which
+// is the first mode this editor has had. `message` is an address of a `$` string
+// or 0, shown beside whichever status line is up and cleared by the next key -
+// so a "not found" is visible until the person does something and then is not.
+bool prompting
+u16  message
+
+// Whether the last search in this prompt landed on something, which is the one
+// thing the renderer needs that §59 cannot answer on its own - `findLine` and
+// `findCol` still hold the previous match after a failed one.
+bool onMatch
 
 const pieceSize = 128
 view u8[pieceSize] piece = _heap[textBytes]
@@ -50,6 +66,14 @@ const u8[] sFailed  = " WRITE FAILED$"
 const u8[] sTooBig  = "file does not fit in the buffer - not opened$"
 const u8[] sNoRoom  = " FULL$"
 const u8[] sStar    = "*$"
+const u8[] sFind    = "find: $"
+const u8[] sNoMatch = "not found$"
+const u8[] sWrapped = "wrapped$"
+
+// Where the field starts on the status line - the width of `sFind` without its
+// terminator. Named rather than written twice, because the caret and the text
+// have to agree about it or the cursor sits beside what it is editing.
+const promptAt = 6
 
 // ---- the command tail ----
 
@@ -140,6 +164,8 @@ sub cellAt( u16 x, u16 y, u8 ch, u8 attr ) {
 // until something writes over them.
 sub viewRow( u16 y, u16 at, u16 n ) {
   u16 base
+  u16 hx
+
   base = y * cols
 
   for ( u16 x = 0; x < n; x++ ) {
@@ -148,6 +174,25 @@ sub viewRow( u16 y, u16 at, u16 n ) {
 
   for ( u16 x = n; x < cols; x++ ) {
     vram[ base + x ] = 32 | ( u16( attrText ) << 8 )
+  }
+
+  // The match is marked while the prompt is open, and only then. The caret is
+  // down in the status line for as long as a person is typing a term, so
+  // without this a search says which *line* it found and leaves them to work
+  // out which word - which is most of the answer missing on a line with two.
+  if ( !prompting || !onMatch ) return
+  if ( viewTop() + y != findLine() ) return
+
+  for ( u16 x = 0; x < findLength(); x++ ) {
+    if ( findCol() + x < viewLeft() ) continue
+
+    // `at` is the row as the window sees it, so a document column is only in it
+    // once the left edge is taken off - and past the end of the row there is
+    // nothing of the match left on screen.
+    hx = findCol() + x - viewLeft()
+    if ( hx >= n ) return
+
+    cellAt( hx, y, peek8( at + hx ), attrMatch )
   }
 }
 
@@ -184,11 +229,31 @@ sub statusNumber( u16 x, u16 n ) {
   }
 }
 
+// §60's buffer straight onto the status line. It is read through `fieldAddr`
+// rather than copied, which is the same reason `textSave` hands DOS each chunk
+// where it lies: nothing here needs a second copy of anything.
+sub statusField( u16 x ) {
+  u16 at
+  at = fieldAddr()
+
+  for ( u16 i = 0; i < fieldLength() && x + i < cols; i++ ) {
+    cellAt( x + i, rows - 1, peek8( at + i ), attrStatus )
+  }
+}
+
 sub drawStatus {
   u16 x
 
   for ( x = 0; x < cols; x++ ) {
     cellAt( x, rows - 1, ' ', attrStatus )
+  }
+
+  if ( prompting ) {
+    statusText( 0, addr( sFind ) )
+    statusField( promptAt )
+
+    if ( message != 0 ) statusText( promptAt + fieldLength() + 2, message )
+    return
   }
 
   statusText( 0, addr( fileName ) )
@@ -200,14 +265,24 @@ sub drawStatus {
 
   if ( dirty ) statusText( x + 1, addr( sStar ) )
 
+  // Left of the line and column, which are the right-hand twelve columns.
+  if ( message != 0 && cols > 40 ) statusText( cols - 26, message )
+
   statusNumber( cols - 12, viewLine() + 1 )
   cellAt( cols - 8, rows - 1, ':', attrStatus )
   statusNumber( cols - 7, viewCol() + 1 )
 }
 
 // The hardware cursor follows the logical one, so the caret is where the next
-// character lands rather than wherever the last BIOS write left it.
+// character lands rather than wherever the last BIOS write left it. While the
+// prompt is open the next character lands in the prompt, so that is where it
+// goes - a caret left in the document would be pointing at the wrong thing.
 sub placeCursor {
+  if ( prompting ) {
+    moveTo( u8( promptAt + fieldCursor() ), u8( rows - 1 ) )
+    return
+  }
+
   moveTo( u8( viewCol() - viewLeft() ), u8( viewLine() - viewTop() ) )
 }
 
@@ -237,13 +312,15 @@ const actBottom = 14
 const actPgUp   = 15
 const actPgDn   = 16
 const actRedo   = 17
+const actFind   = 18
+const actAgain  = 19
 
 // No chord in this table yet, and the machinery is kept rather than removed:
 // `^K ^C` for a comment toggle is the obvious first one, and `edloop` holds
-// the mechanism against a script meanwhile. Every prefix here being 0 costs a
-// scan of fifteen comparisons per keystroke, which at this rate is nothing.
+// the mechanism against a script meanwhile. Every prefix here being 0 costs one
+// comparison per entry per keystroke, which at this rate is nothing.
 const u16[] bindPrefix = [
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 ]
 
 const u16[] bindKey = [
@@ -261,6 +338,8 @@ const u16[] bindKey = [
   26,                    // ^Z
   19,                    // ^S
   25,                    // ^Y
+  6,                     // ^F
+  12,                    // ^L
   keyExt + keyCtrlHome,
   keyExt + keyCtrlEnd
 ]
@@ -268,6 +347,7 @@ const u16[] bindKey = [
 const u8[] bindAction = [
   actLeft, actRight, actUp, actDown, actHome, actEnd, actDelete,
   actPgUp, actPgDn, actBack, actEnter, actUndo, actSave, actRedo,
+  actFind, actAgain,
   actTop, actBottom
 ]
 
@@ -338,7 +418,82 @@ sub doSave {
     return
   }
 
-  statusText( 0, addr( sFailed ) )
+  // Through `message` rather than written onto the status line here, which is
+  // what it used to do: the next redraw painted over it, so the one thing the
+  // editor most needs to say was the one thing it said for a single frame.
+  message = addr( sFailed )
+}
+
+// ---- finding ----
+
+// **The wrap lives here and not in §59.** The library reports that it ran out of
+// document; whether that means failure or starting again at the top is a policy,
+// and it is the same line `undoBreak` draws - the library knows what was asked,
+// the program knows what the person meant.
+//
+// Forward starts one past the cursor and backward stops one short of it, so a
+// repeat leaves the match the cursor is already sitting on rather than finding
+// it again for ever.
+sub doFind( bool forward ) {
+  bool got
+
+  message = 0
+  onMatch = false
+  undoBreak()
+
+  if ( findLength() == 0 ) return
+
+  if ( forward ) {
+    got = findNext( viewLine(), viewCol() + 1 )
+    if ( !got ) {
+      got = findNext( 0, 0 )
+      if ( got ) message = addr( sWrapped )
+    }
+  } else {
+    got = findPrev( viewLine(), viewCol() )
+    if ( !got ) {
+      got = findPrev( textLines() - 1, 0xFFFF )
+      if ( got ) message = addr( sWrapped )
+    }
+  }
+
+  if ( !got ) {
+    message = addr( sNoMatch )
+    return
+  }
+
+  onMatch = true
+  viewGoto( findLine(), findCol() )
+}
+
+// Every key while the prompt is open, which is what makes it a mode. Up and
+// down are taken before §60 sees them: a one-line field has no use for them,
+// and searching backwards has no key of its own otherwise - `F3` and `Shift+F3`
+// are what a person would reach for and `keyprobe` has not measured either, so
+// they are not written down here on the strength of a table somebody else read.
+sub promptKey( u16 k ) {
+  u8 r
+
+  // Editing the term clears what the last search said about it, the same way
+  // any keystroke outside the prompt does. A "not found" left standing over a
+  // term that has since been corrected is worse than no message at all.
+  message = 0
+
+  if ( k == keyExt + keyUp || k == keyExt + keyDown ) {
+    findSet( fieldAddr(), fieldLength() )
+    doFind( k == keyExt + keyDown )
+    return
+  }
+
+  r = fieldKey( k )
+
+  if ( r == fieldAccept ) {
+    findSet( fieldAddr(), fieldLength() )
+    doFind( true )
+  } else if ( r == fieldCancel ) {
+    prompting = false
+    message = 0
+  }
 }
 
 sub apply( u8 a, u16 k ) {
@@ -346,7 +501,7 @@ sub apply( u8 a, u16 k ) {
   // them are two actions, and §54 cannot tell - only this knows one happened.
   if ( a == actLeft || a == actRight || a == actUp || a == actDown ||
        a == actHome || a == actEnd || a == actTop || a == actBottom ||
-       a == actPgUp || a == actPgDn ) {
+       a == actPgUp || a == actPgDn || a == actFind || a == actAgain ) {
     undoBreak()
   }
 
@@ -413,6 +568,25 @@ sub apply( u8 a, u16 k ) {
     viewGoto( textLines() - 1, 0 )
   } else if ( a == actSave ) {
     doSave()
+  } else if ( a == actFind ) {
+    // The field is emptied rather than left holding the last term. VS Code
+    // pre-fills and *selects*, so typing replaces it; with no selection here a
+    // pre-filled field would quietly append to the last search instead. `^L` is
+    // the key that repeats one, so both behaviours exist and neither is a
+    // surprise.
+    fieldClear()
+    prompting = true
+    message = 0
+    onMatch = false
+  } else if ( a == actAgain ) {
+    if ( findLength() == 0 ) {
+      fieldClear()
+      prompting = true
+      message = 0
+      onMatch = false
+    } else {
+      doFind( true )
+    }
   }
 }
 
@@ -420,6 +594,15 @@ sub step( u16 k ) {
   u16 had
   u8  a
 
+  // The prompt takes everything, including `^Q` - a door out of a mode is `Esc`
+  // and putting a second one in would mean a keystroke meant for the field
+  // could close the program instead.
+  if ( prompting ) {
+    promptKey( k )
+    return
+  }
+
+  message = 0
   had = pending
   a = keyAction( k )
 

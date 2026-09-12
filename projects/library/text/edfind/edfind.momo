@@ -1,0 +1,218 @@
+// edfind.momo - the find wiring an editor puts above §59 (DESIGN §55, §14).
+//
+// §59 reports that it ran out of document and has no opinion about what that
+// means. **The wrap is the editor's**, and so is the message, and so is the
+// decision to start one past the cursor so a repeat leaves the match it is
+// sitting on - which is three off-by-ones in ten lines, none of which the
+// library could have got wrong for us.
+//
+// So this is those ten lines and nothing else. `edloop` has the binding table
+// and the chords; here a key is `^F`, `^L`, or something the prompt eats, and
+// what is printed after each one is where the cursor ended up and what the
+// editor would have said.
+//
+// It is a mirror of `momoed`'s routines rather than the same code, which is the
+// arrangement §55 already runs on and is worth saying out loud: what this holds
+// is the design, and the editor is compared against it by eye.
+
+include "lib/std/io.momo"
+include "lib/moview.momo"
+include "lib/mofind.momo"
+include "lib/mofield.momo"
+
+// **No trailing newline, and that is load-bearing.** One would make a fourth,
+// empty line, and a backward wrap onto it would skip it and land on line 2 -
+// which is where it lands anyway, so the column the wrap starts at would stop
+// mattering and this would pass with it set to anything at all.
+const u8[] source = "alpha\n"
+                    "beta\n"
+                    "alpha and alpha"
+
+const u8[] sNoMatch = "not found$"
+const u8[] sWrapped = "wrapped$"
+
+bool prompting
+u16  message
+
+// ---- the ten lines under test ----
+
+sub doFind( bool forward ) {
+  bool got
+
+  message = 0
+  undoBreak()
+
+  if ( findLength() == 0 ) return
+
+  if ( forward ) {
+    got = findNext( viewLine(), viewCol() + 1 )
+    if ( !got ) {
+      got = findNext( 0, 0 )
+      if ( got ) message = addr( sWrapped )
+    }
+  } else {
+    got = findPrev( viewLine(), viewCol() )
+    if ( !got ) {
+      got = findPrev( textLines() - 1, 0xFFFF )
+      if ( got ) message = addr( sWrapped )
+    }
+  }
+
+  if ( !got ) {
+    message = addr( sNoMatch )
+    return
+  }
+
+  viewGoto( findLine(), findCol() )
+}
+
+sub promptKey( u16 k ) {
+  u8 r
+
+  message = 0
+
+  if ( k == keyExt + keyUp || k == keyExt + keyDown ) {
+    findSet( fieldAddr(), fieldLength() )
+    doFind( k == keyExt + keyDown )
+    return
+  }
+
+  r = fieldKey( k )
+
+  if ( r == fieldAccept ) {
+    findSet( fieldAddr(), fieldLength() )
+    doFind( true )
+  } else if ( r == fieldCancel ) {
+    prompting = false
+    message = 0
+  }
+}
+
+sub step( u16 k ) {
+  if ( prompting ) {
+    promptKey( k )
+    return
+  }
+
+  message = 0
+
+  if ( k == 6 ) {
+    fieldClear()
+    prompting = true
+  } else if ( k == 12 ) {
+    if ( findLength() == 0 ) {
+      fieldClear()
+      prompting = true
+    } else {
+      doFind( true )
+    }
+  }
+}
+
+// §56 asks the program for this and nothing here draws, so it is the seam's
+// cost of admission rather than a routine - `viewRender` is never reached from
+// this program. What a window paints has `moview` for it.
+sub viewRow( u16 y, u16 at, u16 n ) {
+}
+
+// ---- showing it ----
+
+sub frame {
+  u16 at
+
+  putNumber( viewLine() )
+  putChar( ':' )
+  putNumber( viewCol() )
+
+  if ( prompting ) {
+    putChar( ' ' )
+    putChar( '/' )
+
+    at = fieldAddr()
+    for ( u16 i = 0; i < fieldLength(); i++ ) {
+      putChar( peek8( at + i ) )
+    }
+  }
+
+  if ( message != 0 ) {
+    putChar( ' ' )
+    putStr( message )
+  }
+
+  newline()
+}
+
+sub type( u16 at, u16 n ) {
+  for ( u16 i = 0; i < n; i++ ) {
+    step( peek8( at + i ) )
+  }
+}
+
+const u8[] tAlpha = "alpha"
+const u8[] tZzz   = "zzz"
+
+// ---- entry ----
+
+textInit()
+
+for ( u16 i = 0; i < len( source ); i++ ) {
+  textLoad( source[i] )
+}
+
+viewSize( 4, 20 )
+viewHome()
+
+frame()
+
+// The prompt opens empty. The last term is kept in §59 rather than in the field
+// so that `^L` can repeat it, and typing into a pre-filled field with no
+// selection would append to the last search instead of replacing it.
+step( 6 )
+frame()
+
+type( addr( tAlpha ), len( tAlpha ) )
+frame()
+
+// Three forwards. The first skips the match under the cursor, the second finds
+// the later one on the same line, and the third runs out and starts again.
+step( 13 )
+frame()
+step( 13 )
+frame()
+step( 13 )
+frame()
+
+// Four backwards, which is the same walk in reverse and ends where it started.
+// The first wraps, because there is nothing before column 0 of line 0.
+step( keyExt + keyUp )
+frame()
+step( keyExt + keyUp )
+frame()
+step( keyExt + keyUp )
+frame()
+step( keyExt + keyUp )
+frame()
+
+// Editing the term clears what the last search said about it.
+step( 8 )
+step( 8 )
+step( 8 )
+step( 8 )
+step( 8 )
+frame()
+
+// A term that is not there leaves the cursor alone and says so, having searched
+// the whole document to find that out.
+type( addr( tZzz ), len( tZzz ) )
+frame()
+step( 13 )
+frame()
+
+// Escape closes the prompt and takes the message with it.
+step( 27 )
+frame()
+
+// `^L` repeats the last search with no prompt, which is why the term lives in
+// §59 and not in the field.
+step( 12 )
+frame()

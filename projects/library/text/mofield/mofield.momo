@@ -1,0 +1,112 @@
+// mofield.momo - shared/lib/mofield.momo held against numbers (DESIGN §60, §14).
+//
+// The keys go in already normalised rather than as the AX and flag pairs
+// `keyprobe` measured. `edloop` feeds raw pairs because what it is testing is
+// the whole chain from a keystroke to an edit; this is testing the field, and
+// §57 has its own project for the half above it.
+//
+// What is worth checking is the four edges: an insert in the middle, a delete
+// at each end where there is nothing to take, and a field that is full.
+
+include "lib/std/io.momo"
+include "lib/mofield.momo"
+
+const u8[] pAbc = "abc"
+
+u8 res
+
+sub press( u16 k ) {
+  res = fieldKey( k )
+}
+
+sub show {
+  u16 at
+  at = fieldAddr()
+
+  for ( u16 i = 0; i < fieldLength(); i++ ) {
+    putChar( peek8( at + i ) )
+  }
+
+  putChar( ' ' )
+  putNumber( fieldCursor() )
+  newline()
+}
+
+// ---- typing and moving ----
+
+fieldClear()
+
+press( 'h' )
+press( 'e' )
+press( 'l' )
+press( 'l' )
+press( 'o' )
+show()
+
+press( keyExt + keyLeft )
+press( keyExt + keyLeft )
+show()
+
+// An insert in the middle, which is the only one that shifts anything.
+press( 'X' )
+show()
+
+press( 8 )
+show()
+
+press( keyExt + keyDelete )
+show()
+
+// Home, then a Delete that takes the first character - the one a Backspace
+// cannot reach.
+press( keyExt + keyHome )
+press( keyExt + keyDelete )
+show()
+
+// Backspace at column 0 and Right at the end both have nothing to do, and doing
+// nothing is the whole test.
+press( 8 )
+show()
+
+press( keyExt + keyEnd )
+press( keyExt + keyRight )
+show()
+
+// ---- what a keystroke meant ----
+
+press( 13 )
+putNumber( res )
+press( 27 )
+putNumber( res )
+press( 7 )
+putNumber( res )
+newline()
+show()
+
+// ---- preloading ----
+
+fieldSet( addr( pAbc ), len( pAbc ) )
+show()
+
+// ---- full ----
+//
+// Ten more than it holds, then one more in the middle of a full field, which is
+// the insert that would have shifted a byte off the end.
+
+fieldClear()
+
+for ( u16 i = 0; i < fieldMax + 10; i++ ) {
+  press( 'z' )
+}
+
+putNumber( fieldLength() )
+putChar( ' ' )
+putNumber( fieldCursor() )
+newline()
+
+press( keyExt + keyHome )
+press( 'A' )
+putNumber( fieldLength() )
+putChar( ' ' )
+putNumber( fieldCursor() )
+newline()

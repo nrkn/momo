@@ -1,0 +1,131 @@
+// mofind.momo - shared/lib/mofind.momo held against numbers (DESIGN §59, §14).
+//
+// Two halves, and the second is the one worth having. The first is the ordinary
+// behaviour a person would check by eye: forwards, backwards, case folded, and
+// a pattern that is not there. The second is the window boundary - a line read
+// in fixed-size pieces has exactly one way to be wrong, which is a match lying
+// across the seam between two of them, and it is wrong silently.
+//
+// The long line is built by `textLoad` rather than written out, because the
+// column a match has to sit at is a consequence of two consts in the library and
+// the fixture would have to be counted by hand to hit it.
+
+include "lib/std/io.momo"
+include "lib/mofind.momo"
+
+const u8[] source = "the quick brown fox\n"
+                    "jumps over the lazy dog\n"
+                    "THE END\n"
+
+const u8[] pThe   = "the"
+const u8[] pEndUp = "END"
+const u8[] pEndLo = "end"
+const u8[] pAbsent = "zebra"
+const u8[] pO     = "o"
+const u8[] pCat   = "cat"
+
+sub showNext( u16 ln, u16 col ) {
+  if ( findNext( ln, col ) ) {
+    putNumber( findLine() )
+    putChar( ':' )
+    putNumber( findCol() )
+  } else {
+    putChar( '-' )
+  }
+  newline()
+}
+
+sub showPrev( u16 ln, u16 col ) {
+  if ( findPrev( ln, col ) ) {
+    putNumber( findLine() )
+    putChar( ':' )
+    putNumber( findCol() )
+  } else {
+    putChar( '-' )
+  }
+  newline()
+}
+
+// ---- three short lines ----
+
+textInit()
+
+for ( u16 i = 0; i < len( source ); i++ ) {
+  textLoad( source[i] )
+}
+
+findSet( addr( pThe ), len( pThe ) )
+
+// Forwards across the document, then off the end of it. The third finds "THE"
+// on the last line, which is the fold rather than the search.
+showNext( 0, 0 )
+showNext( 0, 1 )
+showNext( 1, 12 )
+showNext( 2, 1 )
+
+// Backwards, and strictly before the column given - a "find previous" that
+// started at the cursor would keep finding the match the cursor is sitting on.
+showPrev( 2, 0 )
+showPrev( 1, 11 )
+showPrev( 0, 0 )
+
+// The pattern is folded once when it is set, so both of these are the same
+// search and neither is the one written in the file.
+findSet( addr( pEndUp ), len( pEndUp ) )
+showNext( 0, 0 )
+findSet( addr( pEndLo ), len( pEndLo ) )
+showNext( 0, 0 )
+
+// Not there at all, and nothing set at all.
+findSet( addr( pAbsent ), len( pAbsent ) )
+showNext( 0, 0 )
+findSet( addr( pO ), 0 )
+showNext( 0, 0 )
+
+// Several on one line, in both directions.
+findSet( addr( pO ), len( pO ) )
+showNext( 0, 0 )
+showNext( 0, 13 )
+showNext( 0, 18 )
+showPrev( 1, 23 )
+showPrev( 1, 21 )
+
+// ---- one long line, across the window seam ----
+//
+// The first match starts at the first column the opening window cannot reach:
+// a window holds 128 bytes and a three-byte pattern can start at 125 at the
+// latest, so a match at 126 is found only by the window after it. A scan that
+// stepped by the window rather than by the overlap would miss this and report
+// no match at all.
+
+textInit()
+
+for ( u16 i = 0; i < 126; i++ ) {
+  textLoad( 'x' )
+}
+textLoad( 'c' )
+textLoad( 'a' )
+textLoad( 't' )
+textLoad( 'x' )
+textLoad( 'c' )
+textLoad( 'a' )
+textLoad( 't' )
+for ( u16 i = 0; i < 55; i++ ) {
+  textLoad( 'x' )
+}
+
+putNumber( lineLength( 0 ) )
+newline()
+
+findSet( addr( pCat ), len( pCat ) )
+
+// Forwards from the start, which is the seam.
+showNext( 0, 0 )
+
+// The second match, which is in the same window as the first and proves the
+// windows overlap rather than merely step.
+showNext( 0, 127 )
+
+// Backwards over the whole line takes the last match, which means the scan kept
+// looking after it had one.
+showPrev( 0, 188 )

@@ -1,0 +1,120 @@
+// mofield.momo - one line of text a person is typing into (DESIGN §60).
+//
+// A buffer, a length and a cursor, and one routine that takes a normalised
+// keystroke and says what it meant. Not a widget: it draws nothing and owns no
+// screen, because the two things that want it draw in different places.
+//
+// **It is a library because it could not otherwise be tested.** §55's whole
+// shape is that everything a headless tier can run lives below `momoed`, and a
+// prompt written inside the editor would be the first piece of behaviour with no
+// way to hold it against an answer. Reuse is the second reason rather than the
+// first: `momoed` wants this for find, for save-as and for go-to-line, and the
+// explorer wants it for a filename.
+//
+// **It is not `motext`.** §54 is one document with `local` state and there is no
+// second instance of it; a prompt is a different object with none of its
+// problems - one line, a few dozen characters, no chunks, no undo.
+
+include "lib/std/key.momo"
+
+// Long enough for a search term or a filename with a path, and short enough that
+// an insert shifting the tail is free at any length.
+const fieldMax = 64
+
+local u8[fieldMax] fieldBuf
+local u16 fieldLen
+local u16 fieldCur
+
+// What a keystroke meant. The caller decides what each one does, because Enter
+// in a find prompt and Enter in a filename prompt are not the same thing.
+const fieldGoing  = 0
+const fieldAccept = 1
+const fieldCancel = 2
+
+// ---- state ----
+
+sub fieldClear {
+  fieldLen = 0
+  fieldCur = 0
+}
+
+// `n` bytes at `at`, with the cursor left at the end - which is where a person
+// wants it when a prompt opens with the last thing they typed still in it.
+sub fieldSet( u16 at, u16 n ) {
+  if ( n > fieldMax ) n = fieldMax
+
+  for ( u16 i = 0; i < n; i++ ) {
+    fieldBuf[i] = peek8( at + i )
+  }
+
+  fieldLen = n
+  fieldCur = n
+}
+
+// The buffer's address rather than its bytes, so the caller can hand it straight
+// to `findSet` or a DOS call without copying it a second time.
+u16 fieldAddr()   => addr( fieldBuf )
+u16 fieldLength() => fieldLen
+u16 fieldCursor() => fieldCur
+
+// ---- editing ----
+
+// A full field drops the character rather than refusing the keystroke. There is
+// nothing useful to say about it and nothing the caller would do differently.
+local sub fieldInsert( u8 ch ) {
+  u16 i
+
+  if ( fieldLen >= fieldMax ) return
+
+  i = fieldLen
+  while ( i > fieldCur ) {
+    fieldBuf[i] = fieldBuf[i - 1]
+    i--
+  }
+
+  fieldBuf[fieldCur] = ch
+  fieldLen++
+  fieldCur++
+}
+
+local sub fieldRemove( u16 at ) {
+  if ( at >= fieldLen ) return
+
+  for ( u16 i = at; i + 1 < fieldLen; i++ ) {
+    fieldBuf[i] = fieldBuf[i + 1]
+  }
+
+  fieldLen--
+}
+
+// ---- one keystroke ----
+//
+// The same normalised `u16` §57 hands the editor, so a prompt and a document
+// read from one keyboard and neither knows about scancodes. Anything unbound is
+// ignored rather than typed: a prompt is where a stray function key would
+// otherwise put a control character into a filename.
+u8 fieldKey( u16 k ) {
+  if ( k == 13 ) return fieldAccept
+  if ( k == 27 ) return fieldCancel
+
+  if ( k == 8 ) {
+    if ( fieldCur > 0 ) {
+      fieldCur--
+      fieldRemove( fieldCur )
+    }
+  } else if ( k == keyExt + keyDelete ) {
+    fieldRemove( fieldCur )
+  } else if ( k == keyExt + keyLeft ) {
+    if ( fieldCur > 0 ) fieldCur--
+  } else if ( k == keyExt + keyRight ) {
+    if ( fieldCur < fieldLen ) fieldCur++
+  } else if ( k == keyExt + keyHome ) {
+    fieldCur = 0
+  } else if ( k == keyExt + keyEnd ) {
+    fieldCur = fieldLen
+  } else if ( k >= 32 && k < 127 ) {
+    fieldInsert( u8( k ) )
+  }
+
+  return fieldGoing
+}

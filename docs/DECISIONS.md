@@ -2033,3 +2033,101 @@ The whole screen is repainted on every keystroke. At 80x25 that is two thousand
 cells, comfortably inside the time between two keys, and dirty-row redraw - which
 §54 and §56 are both shaped for - was not needed and so was not written. The
 first version that is too slow is the one that should have it.
+
+---
+
+## 59. `mofind`
+
+### The measurement decides what happens to this next, and it is not the scan
+
+Counted from the emitted assembly on 2026-09-13, for the path that runs on
+almost every byte of a search - a start column rejected on its first byte:
+
+| | cycles |
+|---|---|
+| scanning one column | ~200, or ~245 when the byte is a letter |
+| `lineSlice` copying that same byte in | ~227 |
+
+So a search that finds nothing in the 38 KB the buffer holds is roughly
+seventeen million cycles - about three and a half seconds at 4.77 MHz, and
+nothing at all on anything later. A search that *finds* something costs what the
+distance to the match costs, which is why none of this has been felt yet.
+
+**The copy being half of it is the finding.** The obvious lever is a cleverer
+scan: Boyer-Moore-Horspool skips the pattern's length on each miss and would cut
+the scan by that factor, at 256 bytes and a table rebuilt per term. With the copy
+setting the floor it would buy less than half, so it is the wrong thing to reach
+for first. The right one is scanning in place - and that means the search moving
+inside §54 and giving up the seam this file exists to demonstrate.
+
+That is worth writing down precisely because it is a trade and not an
+optimisation. §54's read interface is deliberately a slice and not a character,
+and a search built entirely on it is the evidence that the interface is enough;
+the price of that evidence is one copy of every byte searched. Nobody should pay
+it twice by accident.
+
+### The loop was tightened first, and by how much says where the cost is
+
+Three changes, each obvious once the assembly was read rather than guessed at:
+the highest start column is worked out once per window instead of rebuilt as two
+comparisons per column; the first pattern byte is hoisted out; and `fold` is
+written out rather than called, because a call and a return per byte *compared*
+were most of the work rather than beside it.
+
+**Folding the window in place was drafted and thrown away.** It looks like the
+same trick - do it once rather than per comparison - and it is not, because each
+byte is compared about once anyway. It added a whole pass over the window at
+roughly the cost of the scan itself. What made it obvious was counting it.
+
+§55 measured its binding scan and concluded that the flexible option is
+affordable in a way it never is in an inner loop. **This is that inner loop**,
+and it is the first routine here where every variable being a memory operand is
+the cost rather than a curiosity. §46 is where that goes.
+
+### A teeth check that changed nothing, for the second time, and the rule held
+
+Neutering the column a backward wrap starts at left every expected line
+identical. The rule from §56 says that is untested code rather than a weak
+neuter, and it was: the fixture ended in a newline, so the last line was empty, so
+a backward wrap onto it skipped it and landed on the line before - which is where
+it was going to land anyway. The column could have been set to anything.
+
+Dropping the trailing newline from the fixture changed nothing in the expected
+output and turned the same neuter into five wrong lines. **A fixture can be the
+reason an assertion does not hold**, and the check that finds it is the one that
+comes back clean.
+
+### The seams were already there
+
+Neither library needed anything from the language, and neither needed a change to
+what was below it. §54 was read through `lineSlice` and `lineLength` exactly as
+written; §56 was moved by `viewGoto` exactly as written; §57 handed over the
+same normalised `u16` a document gets. The only new thing in the editor is a
+mode, and the only new thing under it is two files.
+
+### What it cost
+
+2,458 bytes of `momoed` for the search, the field, the prompt and the mark on
+the match together - 192 bytes of it the pattern and the window, 64 the field.
+The editor is 22,066 bytes with 4,404 of heap unclaimed.
+
+---
+
+## 60. `mofield`
+
+### It is a library for testability, and the reuse is the second reason
+
+The rule this repository keeps is PROVENANCE's: do not build a toolkit before its
+second consumer. A one-line text field has exactly one today, so on that rule
+alone it belongs inside `momoed`.
+
+It is a library anyway, and for the other rule - §55's, that everything a
+headless tier can run lives below the editor. A prompt written inside `momoed`
+would have been the first behaviour in the program with nothing able to run it,
+and the four things worth checking are the ones nobody checks by hand twice: an
+insert in the middle, a delete at each end with nothing to take, and a field that
+is full.
+
+**Which is worth recording because the two rules disagreed and the second won.**
+The tie-break is that testability is a property of where the code lives and reuse
+is a guess about the future; one of those is checkable today.

@@ -4733,14 +4733,154 @@ and VS Code's own alternative for the same command.
 
 ---
 
+## 59. `mofind` - finding a string in a buffer
+
+**Built.** `shared/lib/mofind.momo`, with `mofind` as the project that holds it
+against numbers and `edfind` holding the half above it.
+
+### It is a separate file because it needs nothing private
+
+§54 argues carefully for `textSave` being *inside* the buffer: writing out
+efficiently means handing DOS each chunk where it already lies, which needs
+`text`, `chunk` and `line`, all of them `local`. The same argument run the other
+way puts this outside. A search needs `lineSlice` and `lineLength` and nothing
+else - so it is a consumer of §54's read interface rather than a part of it, and
+it holds that interface to the claim §54 opens with: **the chain is walked once
+per line and never once per character.**
+
+That is a cost as well as a principle, and the measurement below is where it
+shows up.
+
+### A line at a time, and a window inside the line
+
+A match does not span lines, which is what a plain find does everywhere and is
+what makes the scan a line rather than a walk of the document carrying state
+across the ends.
+
+Inside a line the bytes are read into a fixed window, because `lineSlice` needs
+somewhere to put them and a line has no length limit. **The windows overlap by
+the length of the pattern, and that is the whole of the correctness argument.** A
+128-byte window can hold a three-byte match starting at column 125 at the latest,
+so the next window starts at 126 and not at 128.
+
+Stepping by the window rather than by the overlap is the one way this can be
+wrong, and it is wrong *silently*: the test's long line puts a match at exactly
+the first column the opening window cannot reach, and with the step wrong the
+search does not fail - it reports the next match along.
+
+The relationship is between two consts, and it is stated beside them rather than
+checked: a pattern longer than the window makes the step underflow, so the
+pattern's maximum is what keeps the window honest.
+
+### Nothing wraps
+
+Running off the end of the document is a failure here. Whether a search then
+starts again at the top, and what it says about having done so, is the editor's
+policy - **the same division `undoBreak` draws**, where the library knows what
+was asked and the program knows what the person meant. That is now the fourth
+time that line has decided where a routine goes.
+
+### Case-insensitive, and there is no toggle
+
+VS Code's default and the answer a person wants the first time. The pattern is
+folded once when it is set and each text byte is folded as it is compared, so a
+case-sensitive mode would be a branch per byte or a second copy of the pattern.
+Neither is worth paying for before somebody misses it.
+
+### What a scan costs, and where the cost actually is
+
+Measured from the emitted assembly on 2026-09-13, for the path that runs almost
+every time - a start column rejected on its first byte:
+
+| | cycles |
+|---|---|
+| the loop guard, the increment and the jumps | 83 |
+| the byte loaded, and folded | 68, or 114 when it is a letter |
+| the comparison and the branch out | 48 |
+| **scanning one column** | **~200, or ~245 for a letter** |
+| `lineSlice` copying that same byte in | ~227 |
+
+So a failed search over the 38 KB the buffer holds is roughly 17 million cycles,
+which is about three and a half seconds at 4.77 MHz and nothing at all on
+anything later. A *successful* search costs what the distance to the match costs,
+which is why this has not been felt.
+
+**The copy is half of it, and that is the number that decides what to do next.**
+A cleverer scan is the obvious lever - Boyer-Moore-Horspool skips the length of
+the pattern on each miss and would cut the scan by that factor - but with the
+copy setting the floor it would buy less than half. The thing worth doing first,
+if anybody minds, is scanning in place, and that means this routine moving inside
+§54 and giving up the seam the file was built on. **That is the trade, and it is
+worth knowing it is a trade rather than an optimisation.**
+
+The loop itself is already the tight version: the highest start column is worked
+out once per window instead of rebuilt as two comparisons per column, the first
+pattern byte is hoisted, and the fold is written out because a call and a return
+per byte compared were most of the work. What is left is that every variable is a
+memory operand, which is §46's territory and not this file's.
+
+### Rules
+
+- **Windows overlap by the pattern length.** Stepping by the window loses a match
+  at the seam and reports the next one, which is a wrong answer rather than a
+  failure.
+- **The window is longer than the longest pattern**, and both are consts here so
+  that relationship is one a reader can check.
+- **Wrapping is the caller's.** This reports that the document ran out.
+
+---
+
+## 60. `mofield` - one line of text a person is typing into
+
+**Built.** `shared/lib/mofield.momo`. A buffer, a length, a cursor, and one
+routine that takes §57's normalised keystroke and says what it meant: still
+going, accepted, or cancelled.
+
+It draws nothing and owns no screen. The two things that want it draw in
+different places, and a widget that painted itself would have to be told where -
+at which point it is a routine taking a position, which is what `momoed` already
+has.
+
+### It is a library because it could not otherwise be tested
+
+§55's whole shape is that everything a headless tier can run lives in a library
+below the editor, and `edloop` drives the command layer from a script. A prompt
+written inside `momoed` would have been the first piece of behaviour in the
+program with no way to hold it against an answer, and the four things worth
+checking - an insert in the middle, a delete at each end with nothing to take,
+and a field that is full - are exactly the ones nobody checks by hand twice.
+
+Reuse is the second reason and not the first. `momoed` wants this for find, and
+then for save-as and go-to-line; the explorer wants it for a filename;
+`momopnt`'s editors want text fields and are named in the destination list as
+deliberately unbuilt. **Naming the consumers is not the same as building for
+them**, which is the discipline PROVENANCE diagnoses at length, and the one that
+matters here is the one that exists.
+
+### It is not §54
+
+One document with `local` state and no second instance of it. A prompt is a
+different object with none of its problems: one line, a few dozen characters, no
+chunks, no undo, and an insert that shifts the tail is free at any length it can
+reach.
+
+### Rules
+
+- **An unbound key is ignored, not typed.** A prompt is where a stray function
+  key would otherwise put a control character into a filename.
+- **A full field drops the character** rather than refusing the keystroke. There
+  is nothing useful to say about it and nothing a caller would do differently.
+
+---
+
 ## 55. `momoed` - the editor
 
 **Partly built**, and which half is which matters more than the status. It
 opens a file named on the command line, edits it and writes it back, over §54's
 buffer, §56's window and §57's keys, drawing cells into the text frame. **The
-explorer does not exist**, and neither does search, selection, more than one
-file open at a time, or text in a graphics mode - each is named below and none
-is designed.
+explorer does not exist**, and neither does selection, more than one file open
+at a time, or text in a graphics mode - each is named below and none is
+designed.
 
 Almost nothing in the program is new. Every part of it that a headless tier can
 run is tested in a library below it, and `edloop` drives this exact command
@@ -4836,6 +4976,51 @@ place the muscle memory already has a second answer.
 is what every editor does and what the `256 + scancode` form gives for free. It
 also means they cannot be bound apart, which is the cost of the alias and is
 worth knowing before somebody wants it.
+
+### The find prompt is the first mode, and the first thing that is not a key
+
+`^F` opens a prompt on the status line, which takes every keystroke until `Esc`
+closes it - including `^Q`, because a door out of a mode is `Esc` and a second
+one would mean a keystroke meant for the field could close the program instead.
+
+**Enter finds the next match and leaves the prompt open**, which is VS Code's
+find box rather than a dialogue, and it is what makes `^F`, a term, and then
+Enter as many times as it takes into one gesture. §60 holds the field, §59 does
+the searching, and what is left here is three off-by-ones the libraries could not
+have got wrong on our behalf: the wrap, the message, and starting one past the
+cursor so a repeat leaves the match it is sitting on. `edfind` is the project
+that holds those ten lines, and its fixture deliberately has no trailing newline
+- one would make an empty last line, and a backward wrap would skip it and land
+where it was going to land anyway, so the column the wrap starts at would stop
+mattering and the test would pass with it set to anything.
+
+**Up and down search backwards and forwards from inside the prompt**, and they
+are taken before §60 sees them because a one-line field has no use for them.
+That is not where a person would look: `F3` and `Shift+F3` are, and neither has
+been *measured*. §57's rule is that a scancode is what `keyprobe` reported and
+not what a table somewhere says, so the keys that exist here are the ones that
+have been asked for, and F3 is a line in `keyprobe`'s next run rather than a
+constant written down on faith.
+
+**`^L` repeats the last search with no prompt**, which is Borland's and is why
+the term lives in §59 rather than in the field. `^F` clears the field rather
+than pre-filling it: VS Code pre-fills and *selects*, so typing replaces the old
+term, and with no selection here a pre-filled field would quietly append to it
+instead. So both behaviours exist, each has a key, and neither is a surprise.
+
+**The match is marked while the prompt is open, and only then.** The caret is
+in the status line for as long as a person is typing a term, so a search
+without this says which *line* it found and leaves them to work out which word
+- which is most of the answer missing on a line with two. It is the one thing
+the renderer needs that §59 cannot answer on its own: `findLine` and `findCol`
+still hold the previous match after a failed search, so whether there is a
+current one is the editor's to remember.
+
+**The status line grew a message**, which is an address of a string or zero,
+shown beside whichever status line is up and cleared by the next keystroke. Save
+failure used to write itself straight onto the status line and the next redraw
+painted over it - so the one thing the editor most needs to say was the one thing
+it said for a single frame.
 
 ### momoed is the consumer §43 has been waiting for
 
@@ -4959,9 +5144,9 @@ language feature.
 
 One file named on the command line, read through §38 into §54's buffer; §56's
 window over it; §57's keys through a binding table with CUA motion, insert,
-delete, Enter, page up and down, `Ctrl+Home` and `Ctrl+End`, `^Z`, `^Y` and save;
-cells
-written straight to the text frame; and `videoMode` (§48) over §43's save and
+delete, Enter, page up and down, `Ctrl+Home` and `Ctrl+End`, `^Z`, `^Y`, `^F`,
+`^L` and save; §59 under the find and §60 under its prompt; cells written
+straight to the text frame; and `videoMode` (§48) over §43's save and
 restore, so the display cannot be left in whatever this set it to.
 
 **Three motions are the ones a first version gets wrong**, and all three came
@@ -4993,9 +5178,9 @@ thousand cells and comfortably inside the time between two keys; dirty-row
 redraw is what §54 and §56 are shaped for and is not needed yet.
 
 Not in it: the explorer and therefore directory enumeration; more than one file
-open; search; selection; redo and undo coalescing; syntax colour; and text in a
-graphics mode. Each is a paragraph of its own or a line in §54's, and none was
-needed for the thing to be an editor.
+open; selection; replace; syntax colour; and text in a graphics mode. Each is a
+paragraph of its own or a line in §54's, and none was needed for the thing to
+be an editor.
 
 ### What is not settled
 

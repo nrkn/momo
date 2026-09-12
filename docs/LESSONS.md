@@ -164,6 +164,14 @@ The cost of reading it the other way is a rule that looks tested and is not, hel
 by a suite that has been checked for teeth. So a break with no effect is a
 finding rather than a false start.
 
+It happened again in §59, the same shape and a different fixture. Neutering the
+column a backward wrap starts at changed nothing, because the fixture ended in a
+newline: the last line was empty, a wrap onto it skipped it, and it landed where
+it was going to land anyway. Dropping the newline changed no expected output and
+turned the same neuter into five wrong lines. **A fixture can be the reason an
+assertion does not hold**, and the check that finds that out is the one that
+comes back clean.
+
 **Check the suite has teeth.**
 
 After adding tests, deliberately break the thing they cover and confirm they

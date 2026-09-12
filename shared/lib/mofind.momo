@@ -1,0 +1,203 @@
+// mofind.momo - finding a string in a motext buffer (DESIGN §59).
+//
+// **It uses nothing private to §54**, and that is the reason it is a separate
+// file rather than another section of one. `textSave` lives inside the buffer
+// because it hands DOS each chunk where it already lies and could not be written
+// any other way; this needs `lineSlice` and `lineLength` and no more, so it is a
+// consumer of §54's read interface rather than part of it - and holds that
+// interface to the claim §54 opens with, that the chain is walked once per line
+// and never once per character.
+//
+// A match does not span lines. That is what every editor does with a plain find,
+// and it is what makes the scan a line at a time rather than a walk of the whole
+// document with state carried across the ends.
+//
+// **Nothing here wraps.** Running off the end of the document is a failure, and
+// whether a search then starts again at the top is the editor's policy - the
+// same division `undoBreak` draws, where the buffer knows what was asked and the
+// program knows what the person meant.
+
+include "lib/motext.momo"
+
+// ---- what is being looked for ----
+
+// The pattern is short because a person types it. The window is what a line is
+// read in, and it has to be longer than the pattern or the scan would step over
+// start columns it never looked at - which is a silent wrong answer rather than
+// a failure, so the relationship is stated here and enforced by both being
+// consts rather than checked at runtime.
+local const findMax    = 64
+local const findWindow = 128
+
+local u8[findMax]    pattern
+local u8[findWindow] window
+local u16 patLen
+
+local u16 findAtLine
+local u16 findAtCol
+
+// **The search is case-insensitive and has no toggle**, which is VS Code's
+// default and the answer a person wants the first time. The pattern is folded
+// once here and each text byte is folded as it is compared, which is why a
+// toggle is not free: a case-sensitive mode would branch per byte or keep a
+// second copy, and neither is worth it before somebody misses it.
+//
+// **This is the only place the routine is called.** The scan writes the same
+// three lines out by hand, and the reason is beside them.
+local u8 fold( u8 ch ) => ( ch >= 'a' && ch <= 'z' ) ? ch - 32 : ch
+
+// `n` bytes at `at`, which is a raw address so the caller can pass a field, a
+// const string or a slice without any of them being the one shape this expects.
+// A pattern longer than the maximum is cut rather than refused: it is a person's
+// typing, not a file.
+sub findSet( u16 at, u16 n ) {
+  if ( n > findMax ) n = findMax
+
+  patLen = n
+  for ( u16 i = 0; i < n; i++ ) {
+    pattern[i] = fold( peek8( at + i ) )
+  }
+}
+
+u16 findLength() => patLen
+u16 findLine()   => findAtLine
+u16 findCol()    => findAtCol
+
+// ---- scanning one line ----
+
+local u16 hitCol
+local bool hitAny
+
+// The pattern in line `ln`, considering only start columns from `from` to `to`
+// inclusive. `wantLast` keeps looking and takes the last one, which is what a
+// backwards search needs and what a forward chain cannot give any other way.
+//
+// The line is read in windows with the overlap a match needs, so a line of any
+// length is scanned with a fixed buffer and one chain walk per window. A slice
+// per start column would be a walk per character, which is the thing §54's read
+// interface exists to stop.
+local bool scanLine( u16 ln, u16 from, u16 to, bool wantLast ) {
+  u16 length
+  u16 last
+  u16 base
+  u16 got
+  u16 lim
+  u16 i
+  u16 j
+  u8  c
+  u8  first
+
+  hitAny = false
+
+  if ( patLen == 0 ) return false
+
+  length = lineLength( ln )
+  if ( length < patLen ) return false
+
+  // The last column a match could start at, which is the line's own limit or
+  // the caller's, whichever comes first.
+  last = length - patLen
+  if ( last > to ) last = to
+  if ( from > last ) return false
+
+  first = pattern[0]
+  base  = from
+
+  while ( base <= last ) {
+    got = lineSlice( ln, base, findWindow, addr( window ) )
+    if ( got < patLen ) break
+
+    // The highest start column this window covers, worked out once instead of
+    // rebuilt as two comparisons every column. This is the loop the routine
+    // spends all of its time in, and the only place in this file where the
+    // shape of the emitted code is worth thinking about at all.
+    lim = got - patLen
+    if ( base + lim > last ) lim = last - base
+
+    i = 0
+    while ( i <= lim ) {
+      // **Almost every column is rejected on its first byte**, so that is what
+      // the loop is built around: one byte loaded, one fold, one comparison,
+      // and everything else is the rare path. `fold` is written out rather than
+      // called because a call and a return here are most of the work.
+      c = window[i]
+      if ( c >= 'a' && c <= 'z' ) c -= 32
+
+      if ( c == first ) {
+        j = 1
+        while ( j < patLen ) {
+          c = window[i + j]
+          if ( c >= 'a' && c <= 'z' ) c -= 32
+          if ( c != pattern[j] ) break
+          j++
+        }
+
+        if ( j == patLen ) {
+          hitCol = base + i
+          hitAny = true
+          if ( !wantLast ) return true
+        }
+      }
+
+      i++
+    }
+
+    // Short of the window is the end of the line, whatever `last` said.
+    if ( got < findWindow ) break
+
+    // The next window starts one past the last start column this one covered,
+    // so a match straddling the boundary is found by the window after it.
+    base += findWindow - patLen + 1
+  }
+
+  return hitAny
+}
+
+// ---- the two directions ----
+
+// The first match at or after (ln, col).
+bool findNext( u16 ln, u16 col ) {
+  u16 from
+
+  for ( u16 i = ln; i < textLines(); i++ ) {
+    from = 0
+    if ( i == ln ) from = col
+
+    if ( scanLine( i, from, 0xFFFF, false ) ) {
+      findAtLine = i
+      findAtCol  = hitCol
+      return true
+    }
+  }
+
+  return false
+}
+
+// The last match strictly before (ln, col). Strictly, because "find previous"
+// from where the cursor is sitting on a match has to leave it.
+bool findPrev( u16 ln, u16 col ) {
+  u16 i
+  u16 to
+
+  i = ln + 1
+
+  while ( i > 0 ) {
+    i--
+
+    if ( i >= textLines() ) continue
+
+    to = 0xFFFF
+    if ( i == ln ) {
+      if ( col == 0 ) continue
+      to = col - 1
+    }
+
+    if ( scanLine( i, 0, to, true ) ) {
+      findAtLine = i
+      findAtCol  = hitCol
+      return true
+    }
+  }
+
+  return false
+}
