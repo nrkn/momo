@@ -9,9 +9,9 @@ ioZeroChar:     equ     48
 fileReadOnly:   equ     0
 motext__chunkSize: equ     16
 motext__halfChunk: equ     8
-motext__maxChunks: equ     1024
+motext__maxChunks: equ     2400
 motext__maxUndo: equ     64
-textMaxLines:   equ     512
+textMaxLines:   equ     900
 motext__opInsert: equ     1
 motext__opSplit: equ     3
 pieceSize:      equ     64
@@ -814,7 +814,7 @@ lineSplit:
         cmp     ax, bx
         jae     .L88                        ; unsigned >=
         mov     ax, [motext__lineCount]
-        cmp     ax, 512
+        cmp     ax, 900
         jb      .L86                        ; unsigned >=
 .L88:
         ret
@@ -1157,7 +1157,7 @@ lineSlice:
 motext__lineNew:
 ; ---- if ( lineCount >= textMaxLines ) {
         mov     ax, [motext__lineCount]
-        cmp     ax, 512
+        cmp     ax, 900
         jb      .L123                       ; unsigned >=
 ; ---- noRoom = true
         mov     byte [motext__noRoom], 1
@@ -1186,7 +1186,7 @@ textInit:
         mov     word [textInit__i], 1
 .L126:
         mov     ax, [textInit__i]
-        cmp     ax, 1023
+        cmp     ax, 2399
         jae     .L128                       ; unsigned <
 ; ---- chunk[i].next = i + 1
         mov     ax, [textInit__i]
@@ -1199,7 +1199,7 @@ textInit:
         jmp     .L126
 .L128:
 ; ---- chunk[maxChunks - 1].next = 0
-        mov     word [motext__chunk__next + 2046], 0
+        mov     word [motext__chunk__next + 4798], 0
 ; ---- chunkFree = 1
         mov     word [motext__chunkFree], 1
 ; ---- lineCount = 0
@@ -1611,10 +1611,10 @@ showAll__i:     dw      0        ; u16
 showAll__n:     dw      0        ; u16
 
 ; ---- arrays ----
-motext__chunk__next: times 1024 dw 0        ; u16[1024]
-motext__chunk__used: times 1024 db 0        ; u8[1024]
-motext__line__head: times 512 dw 0        ; u16[512]
-motext__line__length: times 512 dw 0        ; u16[512]
+motext__chunk__next: times 2400 dw 0        ; u16[2400]
+motext__chunk__used: times 2400 db 0        ; u8[2400]
+motext__line__head: times 900 dw 0        ; u16[900]
+motext__line__length: times 900 dw 0        ; u16[900]
 motext__undo__op: times 64 db 0        ; u8[64]
 motext__undo__line: times 64 dw 0        ; u16[64]
 motext__undo__col: times 64 dw 0        ; u16[64]
@@ -1641,5 +1641,5 @@ _heapw:         equ     _heap        ; same bytes, u16 view
 ; =========================================================== views ====
 ; No storage: each is a name for an offset into something else.
 
-motext__text:   equ     _heap        ; u8[16384]
-piece:          equ     _heap + 16384        ; u8[64]
+motext__text:   equ     _heap        ; u8[38400]
+piece:          equ     _heap + 38400        ; u8[64]

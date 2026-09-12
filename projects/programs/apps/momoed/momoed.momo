@@ -237,9 +237,12 @@ const actBottom = 14
 const actPgUp   = 15
 const actPgDn   = 16
 
+// No chord in this table yet, and the machinery is kept rather than removed:
+// `^K ^C` for a comment toggle is the obvious first one, and `edloop` holds
+// the mechanism against a script meanwhile. Every prefix here being 0 costs a
+// scan of fifteen comparisons per keystroke, which at this rate is nothing.
 const u16[] bindPrefix = [
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  11, 11
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 ]
 
 const u16[] bindKey = [
@@ -256,8 +259,8 @@ const u16[] bindKey = [
   13,                    // Enter
   26,                    // ^Z
   19,                    // ^S
-  20,                    // ^K ^T
-  5                      // ^K ^E
+  keyExt + keyCtrlHome,
+  keyExt + keyCtrlEnd
 ]
 
 const u8[] bindAction = [
@@ -340,30 +343,50 @@ sub apply( u8 a, u16 k ) {
   if ( a == actInsert ) {
     doInsert( u8( k ) )
   } else if ( a == actLeft ) {
-    if ( viewCol() > 0 ) viewGoto( viewLine(), viewCol() - 1 )
+    // At column 0 the left arrow goes to the end of the line above rather
+    // than stopping. A key that does nothing reads as a key that is broken.
+    if ( viewCol() > 0 ) {
+      viewGoto( viewLine(), viewCol() - 1 )
+    } else if ( viewLine() > 0 ) {
+      viewGoto( viewLine() - 1, lineLength( viewLine() - 1 ) )
+    }
   } else if ( a == actRight ) {
-    viewGoto( viewLine(), viewCol() + 1 )
+    if ( viewCol() < lineLength( viewLine() ) ) {
+      viewGoto( viewLine(), viewCol() + 1 )
+    } else if ( viewLine() + 1 < textLines() ) {
+      viewGoto( viewLine() + 1, 0 )
+    }
   } else if ( a == actUp ) {
-    if ( viewLine() > 0 ) viewGoto( viewLine() - 1, viewCol() )
+    // `viewGotoLine` keeps the column the cursor is aiming at, so a run of
+    // Down across a short line comes out where it went in.
+    if ( viewLine() > 0 ) viewGotoLine( viewLine() - 1 )
   } else if ( a == actDown ) {
-    viewGoto( viewLine() + 1, viewCol() )
+    viewGotoLine( viewLine() + 1 )
   } else if ( a == actHome ) {
     viewGoto( viewLine(), 0 )
   } else if ( a == actEnd ) {
     viewGoto( viewLine(), lineLength( viewLine() ) )
   } else if ( a == actPgUp ) {
     if ( viewLine() > rows - 1 ) {
-      viewGoto( viewLine() - ( rows - 1 ), viewCol() )
+      viewGotoLine( viewLine() - ( rows - 1 ) )
     } else {
-      viewGoto( 0, viewCol() )
+      viewGotoLine( 0 )
     }
   } else if ( a == actPgDn ) {
-    viewGoto( viewLine() + ( rows - 1 ), viewCol() )
+    viewGotoLine( viewLine() + ( rows - 1 ) )
   } else if ( a == actBack ) {
     doBack()
   } else if ( a == actDelete ) {
-    lineDelete( viewLine(), viewCol() )
-    dirty = true
+    // At the end of a line Delete pulls the next one up. That is Backspace
+    // from the other side and the same join, and it is what makes Delete on a
+    // blank line remove the line rather than do nothing.
+    if ( viewCol() < lineLength( viewLine() ) ) {
+      lineDelete( viewLine(), viewCol() )
+      dirty = true
+    } else if ( viewLine() + 1 < textLines() ) {
+      lineJoin( viewLine() )
+      dirty = true
+    }
   } else if ( a == actEnter ) {
     lineSplit( viewLine(), viewCol() )
     viewGoto( viewLine() + 1, 0 )

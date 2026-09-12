@@ -116,7 +116,7 @@ newline()
 textInit()
 show( u16( textNoRoom() ) )
 
-for ( u16 i = 0; i < 600; i++ ) {
+for ( u16 i = 0; i < textMaxLines + 10; i++ ) {
   textLoad( '\n' )
 
   for ( u16 j = 0; j < 17; j++ ) {
@@ -125,5 +125,5 @@ for ( u16 i = 0; i < 600; i++ ) {
 }
 
 show( u16( textNoRoom() ) )
-show( textLines() )
+show( u16( textLines() == textMaxLines ) )
 newline()

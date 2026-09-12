@@ -31,6 +31,13 @@ local u16 width
 local u16 curLine
 local u16 curCol
 
+// The column the cursor is *aiming* at, which is not always the one it is in.
+// Moving down a long line onto a short one has to put the cursor somewhere the
+// short line has, and moving off it again should go back to where it was - so
+// the clamp is a display decision and this is the intent behind it. Horizontal
+// motion and every edit set it; vertical motion keeps it.
+local u16 goalCol
+
 // ---- shape ----
 
 sub viewSize( u16 h, u16 w ) {
@@ -65,7 +72,22 @@ local sub viewFollow {
 
 // Put the cursor somewhere and scroll to suit. Clamped to the buffer, so a
 // caller that walks off the end lands on the last line rather than outside it.
+//
+// **This sets the goal column**, because a caller naming one means it: typing,
+// Home, End and the left and right arrows all know which column they want.
 sub viewGoto( u16 ln, u16 col ) {
+  goalCol = col
+  viewPlace( ln, col )
+}
+
+// The same, keeping the goal. Vertical motion goes through here, so a run of
+// Down over a short line comes out at the column it went in at rather than at
+// wherever the shortest line on the way happened to end.
+sub viewGotoLine( u16 ln ) {
+  viewPlace( ln, goalCol )
+}
+
+local sub viewPlace( u16 ln, u16 col ) {
   u16 lines
   lines = textLines()
 

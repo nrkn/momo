@@ -131,6 +131,13 @@ at all, which makes one a floor rather than a measurement.
   since a README that shows off wants something to show.
 - **Fixed-point division.** DESIGN §25 is half built and says which half: `*` on
   8.8 lands, division does not, and §25 sets out why it is the awkward one.
+- **Text past the segment.** §58 - the editor holds about 38 KB and the ceiling
+  is near 40, because a chunk costs nineteen bytes of one 64 KB segment to hold
+  sixteen. Tuning the const has just bought 2.3x and is most of what tuning can
+  buy. §54 refused a `far` buffer and **the reason it gave stopped being true**:
+  it priced a buffer where an edit could touch the whole document, and the chunk
+  design bounds every touch to one chunk or the rows on screen. `block.momo` and
+  `dosblk` already reach past the segment with no compiler change.
 - **Finish `momoed`.** DESIGN §55 is partly built and says which half: it opens a
   file, edits it and writes it back, and there is no explorer, no search and no
   selection. The explorer is the next piece and the only one that wants something
@@ -2460,3 +2467,87 @@ over the outer array with the address slot, and `len` on a constant index.
 
 Out: the length spine, mutable leaves, three levels, and `u16[][]`. Each is a
 paragraph of its own above, and none is needed in order to delete `nthStr`.
+---
+
+## 58. Text past the segment
+
+**Not built, and not previously written down** - which is the first thing to say,
+because §54 left capacity as a const to tune and said nothing about what happens
+when tuning runs out. It runs out at about 40 KB.
+
+### Where the ceiling actually is, measured
+
+`momoed` on 2026-09-12, after `maxChunks` went from 1,024 to 2,400:
+
+| | |
+|---|---|
+| text, in a view over `_heap` | 38,400 bytes |
+| image | 18,780 bytes |
+| heap left unclaimed | 7,692 bytes |
+
+**Each chunk costs nineteen bytes to hold sixteen.** Sixteen of heap for the text
+and three of image for the link and the fill level - and the image comes out of
+the same 64 KB, so both halves are the same pocket. With the code at about 13 KB
+that puts the ceiling near 40 KB, and the figures above are within a few thousand
+bytes of it.
+
+So the 2.3x that tuning just bought is most of what tuning can buy. The next one
+is not a const.
+
+### §54 refused far memory, and the reason it gave stopped being true
+
+That section rejected a `far` buffer in three bullets, and the load-bearing one
+was:
+
+> §16 reloads ES on every access and refuses to hoist a runtime segment... A text
+> buffer is touched per keystroke and per character drawn.
+
+**That was a true statement about a text buffer and a false one about this text
+buffer**, and the difference is that the buffer had not been designed yet when
+the argument was made. The chunk design bounds every touch: an edit reaches one
+chunk of sixteen bytes, a redraw reaches the rows on screen, and `lineSlice`
+walks a chain rather than a document. Nothing touches the whole buffer.
+
+So the cost of putting the *text* in a far block is about eighteen cycles for
+each byte actually touched. A full 80x25 redraw is two thousand bytes, which is
+roughly 36,000 cycles - about 7.5 ms on the target, once per redraw rather than
+once per keystroke of typing. That is affordable, and the argument that said
+otherwise was pricing a buffer nobody built.
+
+**The records stay in the image either way**, because a `group` is arrays and
+arrays are storage. So far chunks move the 16-byte half out and leave the 3-byte
+half behind: the line limit still comes from the segment, and 900 lines at four
+bytes is 3.6 KB of it.
+
+### What it would take, and what is already in place
+
+`block.momo` (§47) hands out segments past our own and says whether a region
+fits; `dosblk` reaches 634 KB past its own segment in tier 2 with no compiler
+change. A `far` region takes a constant size and a `u16` segment (§16), which is
+exactly the shape a chunk array wants.
+
+§38's constraint is already satisfied by accident: DOS reads have to land in our
+own segment, and `momoed` already reads a file in pieces into a heap buffer and
+feeds it through `textLoad` a byte at a time. The bytes reach the chunks through
+code rather than through DOS, so nothing changes.
+
+What is genuinely new is that `text` stops being a `view` and becomes a `far`
+region, and every `text[...]` in §54 becomes a far access. That is a change to
+one file with no change to its interface.
+
+### What this is not
+
+**Not a bigger `chunkSize`.** Waste is bounded by half a chunk per chain, so
+doubling the chunk doubles the waste and buys nothing the const above does not.
+
+**Not streaming, yet.** Keeping the file on disk and paging chunks is the piece
+table's original virtue and would reach any file size at all. It is also
+considerably more machinery, and far memory is hundreds of KB away from being
+exhausted - so this is what to reach for when a far block is not enough, and not
+before.
+
+### What wants it
+
+Editing `momoed.asm`, which is the obvious thing to open the editor with and is
+about 150 KB. More generally §32: a compiler that runs on the target has to read
+its own source, and this is the same ceiling seen from the other side.

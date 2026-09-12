@@ -4785,6 +4785,14 @@ CUA throughout - the arrows, Home and End, Shift with any of them for selection,
 Ctrl with them for word and document motion, `^S`, `^Z`, `^Y`, `^X`, `^C`, `^V` -
 with `^K` as the one chord prefix.
 
+**The first version binds no chord**, and that is worth saying because it briefly
+did. `^K ^T` and `^K ^E` stood in for top and bottom of the document until
+`keyprobe` was read again: `Ctrl+Home` and `Ctrl+End` report `77E0` and `75E0` on
+both emulators, so the keys a person already knows were there the whole time and
+a chord was standing in for nothing. The mechanism stays, unexercised here and
+held against a script by `edloop`, because `^K ^C` for a comment toggle is the
+first binding with no plain key to take.
+
 **`Ctrl+/` is the single refusal, and it is the hardware's.** A PC BIOS has no
 translation for Ctrl with most non-alphabetic keys and generates nothing at all.
 The comment binding is `^K ^C`, which is a Borland chord and also VS Code's own
@@ -4918,9 +4926,22 @@ language feature.
 
 One file named on the command line, read through §38 into §54's buffer; §56's
 window over it; §57's keys through a binding table with CUA motion, insert,
-delete, Enter, page up and down, undo and save; cells written straight to the
-text frame; and `videoMode` (§48) over §43's save and restore, so the display
-cannot be left in whatever this set it to.
+delete, Enter, page up and down, `Ctrl+Home` and `Ctrl+End`, undo and save; cells
+written straight to the text frame; and `videoMode` (§48) over §43's save and
+restore, so the display cannot be left in whatever this set it to.
+
+**Three motions are the ones a first version gets wrong**, and all three came
+back from using it rather than from writing it:
+
+- **The arrows wrap.** Right at the end of a line goes to the start of the next
+  and Left at column 0 to the end of the previous, because a key that does
+  nothing reads as a key that is broken.
+- **Delete at the end of a line joins the next one up.** That is Backspace from
+  the other side and the same operation, and it is what makes Delete on a blank
+  line remove the line rather than sit there.
+- **Vertical motion keeps the column it is aiming at** (§56's `viewGotoLine`). A
+  run of Down across one short line should not drag the cursor to that line's
+  width for the rest of the file.
 
 **A file too big for the buffer is refused rather than truncated.** Every
 refusal inside §54 leaves the buffer unchanged rather than half changed, which
@@ -4947,7 +4968,7 @@ answered for a game by being deliberately the smallest thing that counts as one.
 
 ## Sections designed, but not built
 
-Fifteen sections carry numbers but no text here, because what they describe does
+Sixteen sections carry numbers but no text here, because what they describe does
 not exist yet. All are in `PLAN.md`. The heading names no range deliberately - the
 set stopped being contiguous the moment one of them was built.
 
@@ -4968,6 +4989,7 @@ set stopped being contiguous the moment one of them was built.
 | §50 | A layout DSL: content, layout and paint as three documents |
 | §51 | `addr()` in an initialiser - the table of addresses that cannot be written down |
 | §53 | Nested arrays, and the spine they need |
+| §58 | Text past the segment - where §54 runs out, and why far memory is back |
 
 ---
 

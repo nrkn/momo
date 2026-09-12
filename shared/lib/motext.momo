@@ -51,10 +51,10 @@ include "lib/std/file.momo"
 
 local const chunkSize = 16
 local const halfChunk = chunkSize / 2
-local const maxChunks = 1024
+local const maxChunks = 2400
 local const maxUndo   = 64
 
-const textMaxLines = 512
+const textMaxLines = 900
 const textBytes    = maxChunks * chunkSize
 
 // ---- storage ----

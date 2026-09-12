@@ -9,9 +9,9 @@ ioZeroChar:     equ     48
 fileReadOnly:   equ     0
 motext__chunkSize: equ     16
 motext__halfChunk: equ     8
-motext__maxChunks: equ     1024
+motext__maxChunks: equ     2400
 motext__maxUndo: equ     64
-textMaxLines:   equ     512
+textMaxLines:   equ     900
 motext__opInsert: equ     1
 viewMaxWidth:   equ     160
 pieceSize:      equ     64
@@ -142,6 +142,26 @@ __entry:
         call    showWhere
 ; ---- viewRender()
         call    viewRender
+; ---- viewSize( 4, 20 )
+        mov     word [viewSize__h], 4
+        mov     word [viewSize__w], 20
+        call    viewSize
+; ---- viewGoto( 1, 40 )
+        mov     word [viewGoto__ln], 1
+        mov     word [viewGoto__col], 40
+        call    viewGoto
+; ---- showAt()
+        call    showAt
+; ---- viewGotoLine( 2 )
+        mov     word [viewGotoLine__ln], 2
+        call    viewGotoLine
+; ---- showAt()
+        call    showAt
+; ---- viewGotoLine( 1 )
+        mov     word [viewGotoLine__ln], 1
+        call    viewGotoLine
+; ---- showAt()
+        call    showAt
 
 ; ---- implicit exit ----
         mov     word [_ax], 0x4C00          ; DOS terminate, exit code 0
@@ -963,7 +983,7 @@ lineSlice:
 motext__lineNew:
 ; ---- if ( lineCount >= textMaxLines ) {
         mov     ax, [motext__lineCount]
-        cmp     ax, 512
+        cmp     ax, 900
         jb      .L103                       ; unsigned >=
 ; ---- noRoom = true
         mov     byte [motext__noRoom], 1
@@ -992,7 +1012,7 @@ textInit:
         mov     word [textInit__i], 1
 .L106:
         mov     ax, [textInit__i]
-        cmp     ax, 1023
+        cmp     ax, 2399
         jae     .L108                       ; unsigned <
 ; ---- chunk[i].next = i + 1
         mov     ax, [textInit__i]
@@ -1005,7 +1025,7 @@ textInit:
         jmp     .L106
 .L108:
 ; ---- chunk[maxChunks - 1].next = 0
-        mov     word [motext__chunk__next + 2046], 0
+        mov     word [motext__chunk__next + 4798], 0
 ; ---- chunkFree = 1
         mov     word [motext__chunkFree], 1
 ; ---- lineCount = 0
@@ -1099,6 +1119,22 @@ viewLeft:
         mov     [viewLeft__ret], ax
         ret
 
+; ============================================== u16 viewLine ====
+
+viewLine:
+; ---- u16 viewLine() => curLine
+        mov     ax, [moview__curLine]
+        mov     [viewLine__ret], ax
+        ret
+
+; ============================================== u16 viewCol ====
+
+viewCol:
+; ---- u16 viewCol() => curCol
+        mov     ax, [moview__curCol]
+        mov     [viewCol__ret], ax
+        ret
+
 ; ============================================== sub moview__viewFollow ====
 
 moview__viewFollow:
@@ -1155,27 +1191,52 @@ moview__viewFollow:
 ; ============================================== sub viewGoto ====
 
 viewGoto:
+; ---- goalCol = col
+        mov     ax, [viewGoto__col]
+        mov     [moview__goalCol], ax
+; ---- viewPlace( ln, col )
+        mov     ax, [viewGoto__ln]
+        mov     [moview__viewPlace__ln], ax
+        mov     ax, [viewGoto__col]
+        mov     [moview__viewPlace__col], ax
+        call    moview__viewPlace
+        ret
+
+; ============================================== sub viewGotoLine ====
+
+viewGotoLine:
+; ---- viewPlace( ln, goalCol )
+        mov     ax, [viewGotoLine__ln]
+        mov     [moview__viewPlace__ln], ax
+        mov     ax, [moview__goalCol]
+        mov     [moview__viewPlace__col], ax
+        call    moview__viewPlace
+        ret
+
+; ============================================== sub moview__viewPlace ====
+
+moview__viewPlace:
 ; ---- lines = textLines()
         call    textLines
         mov     ax, [textLines__ret]
-        mov     [viewGoto__lines], ax
+        mov     [moview__viewPlace__lines], ax
 ; ---- curLine = ln
-        mov     ax, [viewGoto__ln]
+        mov     ax, [moview__viewPlace__ln]
         mov     [moview__curLine], ax
 ; ---- if ( lines > 0 && curLine >= lines ) curLine = lines - 1
-        mov     ax, [viewGoto__lines]
+        mov     ax, [moview__viewPlace__lines]
         test    ax, ax
         jbe     .L131                       ; unsigned >
         mov     ax, [moview__curLine]
-        mov     bx, [viewGoto__lines]
+        mov     bx, [moview__viewPlace__lines]
         cmp     ax, bx
         jb      .L131                       ; unsigned >=
-        mov     ax, [viewGoto__lines]
+        mov     ax, [moview__viewPlace__lines]
         dec     ax
         mov     [moview__curLine], ax
 .L131:
 ; ---- curCol = col
-        mov     ax, [viewGoto__col]
+        mov     ax, [moview__viewPlace__col]
         mov     [moview__curCol], ax
 ; ---- if ( curCol > lineLength( curLine ) ) curCol = lineLength( curLine )
         push    ax                          ; save lhs: rhs is not a leaf
@@ -1300,6 +1361,26 @@ showWhere:
         call    newline
         ret
 
+; ============================================== sub showAt ====
+
+showAt:
+; ---- putNumber( viewLine() )
+        call    viewLine
+        mov     ax, [viewLine__ret]
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- putChar( ' ' )
+        mov     byte [putChar__c], 32
+        call    putChar
+; ---- putNumber( viewCol() )
+        call    viewCol
+        mov     ax, [viewCol__ret]
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- newline()
+        call    newline
+        ret
+
 ; ==================================================== int helpers ====
 ; One per distinct interrupt: the literal is baked in, so the register
 ; sync is emitted once rather than at every call site.
@@ -1400,12 +1481,18 @@ moview__height: dw      0        ; u16
 moview__width:  dw      0        ; u16
 moview__curLine: dw      0        ; u16
 moview__curCol: dw      0        ; u16
+moview__goalCol: dw      0        ; u16
 viewSize__h:    dw      0        ; u16
 viewSize__w:    dw      0        ; u16
 viewTop__ret:   dw      0        ; u16
 viewLeft__ret:  dw      0        ; u16
+viewLine__ret:  dw      0        ; u16
+viewCol__ret:   dw      0        ; u16
 viewGoto__ln:   dw      0        ; u16
 viewGoto__col:  dw      0        ; u16
+viewGotoLine__ln: dw      0        ; u16
+moview__viewPlace__ln: dw      0        ; u16
+moview__viewPlace__col: dw      0        ; u16
 handle:         dw      0        ; u16
 wrote:          dw      0        ; u16
 got:            dw      0        ; u16
@@ -1434,17 +1521,17 @@ lineSlice__done: dw      0        ; u16
 lineSlice__base: dw      0        ; u16
 lineSlice__n:   dw      0        ; u16
 textInit__i:    dw      0        ; u16
-viewGoto__lines: dw      0        ; u16
+moview__viewPlace__lines: dw      0        ; u16
 viewRender__y:  dw      0        ; u16
 viewRender__ln: dw      0        ; u16
 viewRender__n:  dw      0        ; u16
 viewRow__i:     dw      0        ; u16
 
 ; ---- arrays ----
-motext__chunk__next: times 1024 dw 0        ; u16[1024]
-motext__chunk__used: times 1024 db 0        ; u8[1024]
-motext__line__head: times 512 dw 0        ; u16[512]
-motext__line__length: times 512 dw 0        ; u16[512]
+motext__chunk__next: times 2400 dw 0        ; u16[2400]
+motext__chunk__used: times 2400 db 0        ; u8[2400]
+motext__line__head: times 900 dw 0        ; u16[900]
+motext__line__length: times 900 dw 0        ; u16[900]
 motext__undo__op: times 64 db 0        ; u8[64]
 motext__undo__line: times 64 dw 0        ; u16[64]
 motext__undo__col: times 64 dw 0        ; u16[64]
@@ -1471,5 +1558,5 @@ _heapw:         equ     _heap        ; same bytes, u16 view
 ; =========================================================== views ====
 ; No storage: each is a name for an offset into something else.
 
-motext__text:   equ     _heap        ; u8[16384]
-piece:          equ     _heap + 16384        ; u8[64]
+motext__text:   equ     _heap        ; u8[38400]
+piece:          equ     _heap + 38400        ; u8[64]

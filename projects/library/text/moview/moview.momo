@@ -107,3 +107,23 @@ viewSize( 12, 20 )
 viewHome()
 showWhere()
 viewRender()
+
+// The goal column. Moving down onto a short line has to put the cursor somewhere
+// that line has; moving off it again should return to the column the cursor was
+// aiming at, rather than to the shortest line it happened to cross.
+sub showAt {
+  putNumber( viewLine() )
+  putChar( ' ' )
+  putNumber( viewCol() )
+  newline()
+}
+
+viewSize( 4, 20 )
+viewGoto( 1, 40 )
+showAt()
+
+viewGotoLine( 2 )
+showAt()
+
+viewGotoLine( 1 )
+showAt()

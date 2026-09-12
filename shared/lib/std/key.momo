@@ -18,6 +18,16 @@ const keyPgDn   = 81
 const keyDelete = 83
 const keyInsert = 82
 
+// Ctrl with a navigation key gets its own scancode rather than needing the shift
+// flags, which is why there is no modifier column anywhere above. Every one of
+// these was reported by `keyprobe` under DOSBox and 86Box; `Ctrl+Right` and
+// `Ctrl+PgDn` are conventionally 0x74 and 0x76 and are **not** here, because
+// nothing has asked the hardware for them yet.
+const keyCtrlLeft = 115
+const keyCtrlEnd  = 117
+const keyCtrlHome = 119
+const keyCtrlPgUp = 132
+
 // ASCII values, reported in the low byte.
 const keyEsc    = 27
 const keyEnter  = 13
