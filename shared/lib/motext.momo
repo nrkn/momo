@@ -86,18 +86,38 @@ local const opDelete = 2
 local const opSplit  = 3
 local const opJoin   = 4
 
+// `joinPrev` says this entry is part of the same *user* action as the one
+// before it. Typing thirty characters is thirty entries and one step back,
+// because an editor where undo means "one character" is one nobody uses.
+//
+// The run is kept as marked entries rather than as a count on one entry
+// because redo has to put the characters back, and a single entry with a
+// count has nowhere to keep them.
 local group undo[maxUndo] {
-  u8  op
-  u16 line
-  u16 col
-  u8  ch
+  u8   op
+  u16  line
+  u16  col
+  u8   ch
+  bool joinPrev
 }
 
 // A window rather than a stack that fills: when the log is full the oldest entry
 // goes, because dropping the newest would mean the edit just made is the one
 // that cannot be taken back.
+//
+// `undoCount` is how many entries the log holds and `undoDone` is how many of
+// them are currently applied - so the entries above the cursor are the future,
+// which is the whole of redo. A fresh edit throws that future away, because
+// there is no longer one history to be at a point in.
 local u16 undoHead
 local u16 undoCount
+local u16 undoDone
+
+// Set by `undoBreak` and cleared by the next push. Only the caller knows that
+// the cursor moved, or that a file was opened, or that anything else happened
+// between two keystrokes that should stop them being one action - so the run is
+// broken from outside rather than guessed at from in here.
+local bool breakRun
 
 // Suspended while an undo runs, or the reversal would push its own entry and the
 // log would never drain. `textLoad` suspends it too.
@@ -178,25 +198,66 @@ local sub lineSeek( u16 ln, u16 col ) {
 
 // ---- the undo log ----
 
+// Whether this edit continues the one before it as a single user action.
+//
+// Typing runs forward a column at a time. Backspace runs backward a column at
+// a time. Forward Delete stays put and eats what follows, so it repeats at the
+// same column. Those three are the runs worth joining and nothing else is:
+// splitting a line is deliberate, and so is joining one.
+local bool continuesRun( u8 op, u16 ln, u16 col ) {
+  u16 at
+
+  if ( breakRun || undoDone == 0 ) return false
+
+  at = ( undoHead + undoDone - 1 ) % maxUndo
+  if ( undo[at].line != ln || undo[at].op != op ) return false
+
+  if ( op == opInsert ) return undo[at].col + 1 == col
+  if ( op == opDelete ) return undo[at].col == col || undo[at].col == col + 1
+
+  return false
+}
+
 local sub undoPush( u8 op, u16 ln, u16 col, u8 ch ) {
   u16 at
+  bool joins
 
   if ( undoing ) return
 
-  at = ( undoHead + undoCount ) % maxUndo
-  undo[at].op   = op
-  undo[at].line = ln
-  undo[at].col  = col
-  undo[at].ch   = ch
+  joins = continuesRun( op, ln, col )
+  breakRun = false
 
-  if ( undoCount < maxUndo ) {
-    undoCount++
-  } else {
+  // Anything undone and not redone is gone the moment a new edit lands: there
+  // is no longer one history for the cursor to be part way along.
+  undoCount = undoDone
+
+  if ( undoCount == maxUndo ) {
     undoHead = ( undoHead + 1 ) % maxUndo
+    undoCount--
+    undoDone--
   }
+
+  at = ( undoHead + undoCount ) % maxUndo
+  undo[at].op       = op
+  undo[at].line     = ln
+  undo[at].col      = col
+  undo[at].ch       = ch
+  undo[at].joinPrev = joins
+
+  undoCount++
+  undoDone++
 }
 
-u16 textUndos() => undoCount
+// Stop the next edit joining the last one. The caller says when: a cursor that
+// moved, a file that opened, a command that ran.
+sub undoBreak {
+  breakRun = true
+}
+
+// Steps back and steps forward available, counted in entries rather than in
+// user actions - a run reports as its length and takes one keystroke to undo.
+u16 textUndos() => undoDone
+u16 textRedos() => undoCount - undoDone
 
 // Whether anything has been refused for want of space since `textInit`. A
 // caller that never asks is the bug this exists to make findable.
@@ -282,7 +343,7 @@ sub lineInsert( u16 ln, u16 col, u8 ch ) {
   chunk[c].used++
   line[ln].length++
 
-  undoPush( opInsert, ln, col, 0 )
+  undoPush( opInsert, ln, col, ch )
 }
 
 sub lineAppend( u16 ln, u8 ch ) => lineInsert( ln, line[ln].length, ch )
@@ -462,20 +523,12 @@ sub lineJoin( u16 ln ) {
   lineCount--
 }
 
-// Step one edit back. Every arm is an ordinary operation, which is what keeps
-// this short.
-sub undoOnce {
-  u16 at
-
-  if ( undoCount == 0 ) return
-
-  undoCount--
-  at = ( undoHead + undoCount ) % maxUndo
-
+// One entry backwards. Every arm is an ordinary operation, which is what keeps
+// this short: there is no inverse of anything here, only the other one of a
+// pair.
+local sub undoEntry( u16 at ) {
   undoAtLine = undo[at].line
   undoAtCol  = undo[at].col
-
-  undoing = true
 
   if ( undo[at].op == opInsert ) {
     lineDelete( undo[at].line, undo[at].col )
@@ -486,7 +539,71 @@ sub undoOnce {
   } else if ( undo[at].op == opJoin ) {
     lineSplit( undo[at].line, undo[at].col )
   }
+}
 
+// One entry forwards - the same four operations the other way round, which is
+// why redo needed no new machinery beyond remembering what was inserted.
+local sub redoEntry( u16 at ) {
+  undoAtLine = undo[at].line
+  undoAtCol  = undo[at].col
+
+  if ( undo[at].op == opInsert ) {
+    lineInsert( undo[at].line, undo[at].col, undo[at].ch )
+  } else if ( undo[at].op == opDelete ) {
+    lineDelete( undo[at].line, undo[at].col )
+  } else if ( undo[at].op == opSplit ) {
+    lineSplit( undo[at].line, undo[at].col )
+  } else if ( undo[at].op == opJoin ) {
+    lineJoin( undo[at].line )
+  }
+}
+
+// One user action back: the entry the cursor is on, and every entry before it
+// marked as continuing the same run. A `joinPrev` that is false ends it, which
+// is why the first entry of a run never carries one.
+sub undoOnce {
+  u16 at
+  bool more
+
+  if ( undoDone == 0 ) return
+
+  undoing = true
+  more = true
+
+  while ( more ) {
+    undoDone--
+    at = ( undoHead + undoDone ) % maxUndo
+    undoEntry( at )
+    more = undo[at].joinPrev && undoDone > 0
+  }
+
+  breakRun = true
+  undoing = false
+}
+
+// One user action forward, which is the same run read the other way: the entry
+// at the cursor, and every following one marked as continuing it.
+sub redoOnce {
+  u16 at
+  bool more
+
+  if ( undoDone >= undoCount ) return
+
+  undoing = true
+  more = true
+
+  while ( more ) {
+    at = ( undoHead + undoDone ) % maxUndo
+    redoEntry( at )
+    undoDone++
+
+    more = false
+    if ( undoDone < undoCount ) {
+      more = undo[ ( undoHead + undoDone ) % maxUndo ].joinPrev
+    }
+  }
+
+  breakRun = true
   undoing = false
 }
 
@@ -576,7 +693,9 @@ sub textInit {
   lineCount = 0
   undoHead  = 0
   undoCount = 0
+  undoDone  = 0
   undoing   = false
+  breakRun  = true
   noRoom    = false
 
   lineNew()

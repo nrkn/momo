@@ -1819,6 +1819,43 @@ So the boundary that mattered turned out to be a different one from the boundary
 that had been drawn. This file opens no files and knows no filenames; it takes a
 handle. That is the line worth holding, and it is intact.
 
+### Coalescing had to be a mark, not a count, and redo is why
+
+The obvious shape for "thirty characters are one step" is one entry with a
+count, and it is wrong for a reason that only appears once redo is on the
+table: **redo has to put the characters back, and a count has nowhere to keep
+them.** So the entries stay one per character and a `joinPrev` mark says which
+of them are one action. The log grows a byte an entry and nothing else changes.
+
+Which is worth recording because the two features were planned as one piece of
+work and would have been built in the wrong order otherwise. Coalescing alone
+would have taken the count, and redo would then have had to undo it.
+
+### Redo found one thing the log had been quietly getting away with
+
+`lineInsert` recorded a zero where the inserted character goes, because undo of
+an insert is a delete and a delete does not need to know what it is deleting.
+Redo of an insert does. It had been wrong since the log was written and cost
+nothing until the day something read it, which is the shape of most of what
+these documents record.
+
+### The run can only be ended from outside
+
+§54 can see that two inserts are at consecutive columns on one line. It cannot
+see that the cursor moved away and came back, and a buffer that guessed would
+merge two separate pieces of typing that happened to line up. So `undoBreak` is
+the caller saying an action ended, and `momoed` calls it on every motion.
+
+That is the same division the whole editor is built on - the buffer knows what
+was done to it and the program knows what the person meant - and it is the
+third time it has decided where a routine goes, after the cursor position on an
+undo and the refusal to open a file that does not fit.
+
+### What it cost
+
+About 830 bytes of `momoed` for redo and the run marks together, and one byte
+per undo entry. The editor is 19,608 bytes with 6,862 of heap still unclaimed.
+
 ### A prediction that held
 
 Every number in the test - four chunk counts, nine lengths, two line counts, two

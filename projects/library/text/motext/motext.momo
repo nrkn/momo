@@ -127,3 +127,60 @@ for ( u16 i = 0; i < textMaxLines + 10; i++ ) {
 show( u16( textNoRoom() ) )
 show( u16( textLines() == textMaxLines ) )
 newline()
+
+// ---- a run of typing, and the future ----
+//
+// The entries stay one per character, because redo has to put each of them back;
+// what changes is how many a step covers. An editor where undo means one
+// character is one nobody uses, and the length of the run is the only place that
+// is visible.
+
+const u8[] runSrc = "ab\n"
+
+textInit()
+
+for ( u16 i = 0; i < len( runSrc ); i++ ) {
+  textLoad( runSrc[i] )
+}
+
+lineInsert( 0, 2, 'c' )
+lineInsert( 0, 3, 'd' )
+lineInsert( 0, 4, 'e' )
+show( textUndos() )
+show( textRedos() )
+newline()
+showLine( 0, 0, 20 )
+
+// One step back takes the whole run.
+undoOnce()
+show( textUndos() )
+show( textRedos() )
+newline()
+showLine( 0, 0, 20 )
+
+// And one forward puts all of it back, which is what the per-character entries
+// are for.
+redoOnce()
+show( textUndos() )
+show( textRedos() )
+newline()
+showLine( 0, 0, 20 )
+
+// A break stops the next character joining the run - what a caller does when the
+// cursor moved between two keystrokes.
+undoBreak()
+lineInsert( 0, 5, 'f' )
+show( textUndos() )
+undoOnce()
+show( textUndos() )
+newline()
+showLine( 0, 0, 20 )
+
+// A fresh edit after an undo throws the future away: there is no longer one
+// history for the cursor to be part way along.
+undoOnce()
+show( textRedos() )
+lineInsert( 0, 2, 'Z' )
+show( textRedos() )
+newline()
+showLine( 0, 0, 20 )

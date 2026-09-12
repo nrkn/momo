@@ -236,13 +236,14 @@ const actTop    = 13
 const actBottom = 14
 const actPgUp   = 15
 const actPgDn   = 16
+const actRedo   = 17
 
 // No chord in this table yet, and the machinery is kept rather than removed:
 // `^K ^C` for a comment toggle is the obvious first one, and `edloop` holds
 // the mechanism against a script meanwhile. Every prefix here being 0 costs a
 // scan of fifteen comparisons per keystroke, which at this rate is nothing.
 const u16[] bindPrefix = [
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 ]
 
 const u16[] bindKey = [
@@ -259,13 +260,14 @@ const u16[] bindKey = [
   13,                    // Enter
   26,                    // ^Z
   19,                    // ^S
+  25,                    // ^Y
   keyExt + keyCtrlHome,
   keyExt + keyCtrlEnd
 ]
 
 const u8[] bindAction = [
   actLeft, actRight, actUp, actDown, actHome, actEnd, actDelete,
-  actPgUp, actPgDn, actBack, actEnter, actUndo, actSave,
+  actPgUp, actPgDn, actBack, actEnter, actUndo, actSave, actRedo,
   actTop, actBottom
 ]
 
@@ -340,6 +342,14 @@ sub doSave {
 }
 
 sub apply( u8 a, u16 k ) {
+  // Any motion ends a run of typing. Two keystrokes with a cursor move between
+  // them are two actions, and §54 cannot tell - only this knows one happened.
+  if ( a == actLeft || a == actRight || a == actUp || a == actDown ||
+       a == actHome || a == actEnd || a == actTop || a == actBottom ||
+       a == actPgUp || a == actPgDn ) {
+    undoBreak()
+  }
+
   if ( a == actInsert ) {
     doInsert( u8( k ) )
   } else if ( a == actLeft ) {
@@ -393,6 +403,10 @@ sub apply( u8 a, u16 k ) {
     dirty = true
   } else if ( a == actUndo ) {
     doUndo()
+  } else if ( a == actRedo ) {
+    redoOnce()
+    viewGoto( undoLine(), undoCol() )
+    dirty = true
   } else if ( a == actTop ) {
     viewGoto( 0, 0 )
   } else if ( a == actBottom ) {

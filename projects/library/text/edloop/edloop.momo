@@ -192,6 +192,13 @@ sub doUndo {
 }
 
 sub apply( u8 a, u16 k ) {
+  // Any motion ends a run of typing. Two keystrokes with a cursor move between
+  // them are two actions, and §54 cannot tell - only this knows one happened.
+  if ( a == actLeft || a == actRight || a == actUp || a == actDown ||
+       a == actHome || a == actEnd || a == actTop || a == actBottom ) {
+    undoBreak()
+  }
+
   if ( a == actInsert ) {
     doInsert( u8( k ) )
   } else if ( a == actLeft ) {

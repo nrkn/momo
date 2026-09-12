@@ -4451,9 +4451,10 @@ Both policies are visible in exactly one number each, and `motext` reads both.
 
 ### Undo records edits, not storage
 
-An entry is an operation, a line, a column and a character - six bytes - and
-nothing in it knows what a chunk is. So the same log would work over any of the
-three shapes above, and reversal goes back through the ordinary operations:
+An entry is an operation, a line, a column, a character and a group mark - seven
+bytes - and nothing in it knows what a chunk is. So the same log would work over
+any of the three shapes above, and reversal goes back through the ordinary
+operations:
 insert against delete, split against join.
 
 **That is why undo is not an argument for any buffer shape.** The piece table was
@@ -4463,6 +4464,35 @@ all of them.
 **`lineJoin` was owed anyway.** Backspace at column 0 is the same operation, so
 the half of undo that looked like new code is a routine the editor wanted
 regardless.
+
+### A run of typing is one step back, and redo is the same log read forwards
+
+**Entries stay one per character and a `joinPrev` mark says which of them are one
+user action.** The alternative - one entry with a count - cannot work, because
+redo has to put the characters back and a count has nowhere to keep them. So the
+run is marked rather than merged, and `undoOnce` walks back over the entry it is
+on plus every earlier one still marked.
+
+Three runs join and nothing else does: typing runs forward a column at a time,
+Backspace runs backward a column at a time, and forward Delete stays put and eats
+what follows. Splitting a line is deliberate and so is joining one, so neither
+ever continues anything.
+
+**Only the caller can end a run**, and `undoBreak` is how. A cursor that moved
+between two keystrokes makes them two actions, and nothing in here can see that -
+so guessing is not an option and the signal comes from outside. `momoed` calls it
+on every motion.
+
+**Redo is a cursor into the log rather than a second log.** `undoCount` is how
+many entries there are and `undoDone` how many are applied, so the entries above
+the cursor are the future. `redoOnce` walks forward over the same run marks, and
+every arm is the operation the undo arm undoes - which is why redo needed no new
+machinery beyond `lineInsert` recording what it inserted. It had been passing a
+zero there, because nothing had yet needed to put the character back.
+
+**A fresh edit throws the future away**, because there is no longer one history
+for the cursor to be part way along. That is one line in the push and the only
+rule in this that can be got quietly wrong.
 
 ### Rules
 
@@ -4479,6 +4509,10 @@ regardless.
 - **The undo log is a window, not a stack that fills.** When it is full the
   oldest entry goes, because dropping the newest would mean the edit just made is
   the one that cannot be taken back.
+- **A run of edits is one step and stays many entries.** The mark is per entry
+  because redo has to put each character back; merging them would lose the text.
+- **Only the caller ends a run.** `undoBreak` exists because a cursor that moved
+  between two keystrokes is invisible from in here.
 - **A line always owns at least one chunk**, even when it is blank, so a chain is
   never empty and no reader has to special-case one.
 - **Chunk 0 is the null.** `next == 0` ends a chain, and no real chunk is 0.
@@ -4532,8 +4566,7 @@ It cost this file the property of including nothing at all, which `DECISIONS.md`
 
 ### What was left out
 
-Redo; undo coalescing, so that a run of typed characters is one step rather than
-thirty; and the cursor, which is §56's.
+The cursor, which is §56's.
 
 ---
 
@@ -4926,7 +4959,8 @@ language feature.
 
 One file named on the command line, read through §38 into §54's buffer; §56's
 window over it; §57's keys through a binding table with CUA motion, insert,
-delete, Enter, page up and down, `Ctrl+Home` and `Ctrl+End`, undo and save; cells
+delete, Enter, page up and down, `Ctrl+Home` and `Ctrl+End`, `^Z`, `^Y` and save;
+cells
 written straight to the text frame; and `videoMode` (§48) over §43's save and
 restore, so the display cannot be left in whatever this set it to.
 
@@ -4942,6 +4976,11 @@ back from using it rather than from writing it:
 - **Vertical motion keeps the column it is aiming at** (§56's `viewGotoLine`). A
   run of Down across one short line should not drag the cursor to that line's
   width for the rest of the file.
+
+**Every motion calls `undoBreak`**, which is the other half of §54's coalescing
+and cannot live anywhere else. A run of typing is one step back, and two
+keystrokes with a cursor move between them are two actions - which the buffer
+cannot see and this can.
 
 **A file too big for the buffer is refused rather than truncated.** Every
 refusal inside §54 leaves the buffer unchanged rather than half changed, which
