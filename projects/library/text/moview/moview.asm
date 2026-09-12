@@ -546,9 +546,12 @@ motext__chunkSplit:
         call    motext__chunkTake
         mov     ax, [motext__chunkTake__ret]
         mov     [motext__chunkSplit__d], ax
-; ---- if ( d == 0 ) return
+; ---- if ( d == 0 ) {
         test    ax, ax
         jne     .L52                        ; unsigned ==
+; ---- noRoom = true
+        mov     byte [motext__noRoom], 1
+; ---- return
         ret
 .L52:
 ; ---- from = c * chunkSize
@@ -652,9 +655,12 @@ lineInsert:
         call    motext__chunkTake
         mov     ax, [motext__chunkTake__ret]
         mov     [lineInsert__d], ax
-; ---- if ( d == 0 ) return
+; ---- if ( d == 0 ) {
         test    ax, ax
         jne     .L69                        ; unsigned ==
+; ---- noRoom = true
+        mov     byte [motext__noRoom], 1
+; ---- return
         ret
 .L69:
 ; ---- chunk[c].next = d
@@ -673,7 +679,7 @@ lineInsert:
         mov     ax, [lineInsert__c]
         mov     [motext__chunkSplit__c], ax
         call    motext__chunkSplit
-; ---- if ( chunk[c].used == chunkSize ) return    // no chunk to split into
+; ---- if ( chunk[c].used == chunkSize ) return    // chunkSplit set noRoom
         mov     ax, [lineInsert__c]
         mov     bx, ax
         mov     al, [motext__chunk__used + bx]
@@ -955,10 +961,13 @@ lineSlice:
 ; ============================================== sub motext__lineNew ====
 
 motext__lineNew:
-; ---- if ( lineCount >= textMaxLines ) return
+; ---- if ( lineCount >= textMaxLines ) {
         mov     ax, [motext__lineCount]
         cmp     ax, 512
         jb      .L103                       ; unsigned >=
+; ---- noRoom = true
+        mov     byte [motext__noRoom], 1
+; ---- return
         ret
 .L103:
 ; ---- line[lineCount].head   = chunkTake()
@@ -1007,6 +1016,8 @@ textInit:
         mov     word [motext__undoCount], 0
 ; ---- undoing   = false
         mov     byte [motext__undoing], 0
+; ---- noRoom    = false
+        mov     byte [motext__noRoom], 0
 ; ---- lineNew()
         call    motext__lineNew
         ret
@@ -1357,6 +1368,7 @@ motext__lineCount: dw      0        ; u16
 motext__undoHead: dw      0        ; u16
 motext__undoCount: dw      0        ; u16
 motext__undoing: db      0        ; bool
+motext__noRoom: db      0        ; bool
 motext__seekChunk: dw      0        ; u16
 motext__seekOff: dw      0        ; u16
 motext__seekPrev: dw      0        ; u16

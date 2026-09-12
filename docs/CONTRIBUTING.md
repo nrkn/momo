@@ -82,6 +82,7 @@ library/std         exercises a library in shared/lib/std
 library/vector      holds shared/lib/momovec against the study it was ported from
 library/layout      the same for shared/lib/momolo
 library/text        the same for shared/lib/motext.momo
+programs/apps       the tools - momoed, and the rest of the destination list
 programs/games      the games
 programs/demos      draws, waits for a key, and cannot have a .expected
 toolchain/          hand-written .asm, checked before the compiler is involved
@@ -183,7 +184,7 @@ error: no toolchain.json - copy toolchain.example.json to toolchain.json and set
 npm run momoc -- <project>    # .momo -> .asm
 npm run momoc:all             # every project; drives the VS Code build task
 npm run build -- <project>    # assemble in DOSBox
-npm start <project>           # assemble and run
+npm start <project> [args]    # assemble and run, with a DOS command tail
 npm run image                 # build/*.COM -> build/momo.ima, for 86Box
 
 npm run lex -- <project>      # token dump
@@ -515,7 +516,7 @@ The cost of waiting is that the first thing a visitor reads is the weakest
 document in the repo. That trade is made deliberately, and preferred to shipping a
 second draft in the same voice as the first.
 
-456 tier-1 assertions, 47 e2e programs, all green. `npm test` prints the tier 1
+458 tier-1 assertions, 48 e2e programs, all green. `npm test` prints the tier 1
 breakdown, and `npm run drift` holds both figures against the harness and the
 committed expectations. Both have drifted before, which is why a script reads
 them now.

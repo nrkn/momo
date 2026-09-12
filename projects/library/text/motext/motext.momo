@@ -107,3 +107,23 @@ showLine( 1, 0, 80 )
 show( lineSlice( 1, 3, 40, addr( buf ) ) )
 show( lineSlice( 1, 99, 8, addr( buf ) ) )
 newline()
+
+// Past capacity. Every refusal inside leaves the buffer unchanged rather than
+// half changed, which is right and is also silent - so the flag is the only way
+// a caller can tell a file that fitted from one that stopped part way. An editor
+// that missed it would show part of a file and write that part back over all of
+// it.
+textInit()
+show( u16( textNoRoom() ) )
+
+for ( u16 i = 0; i < 600; i++ ) {
+  textLoad( '\n' )
+
+  for ( u16 j = 0; j < 17; j++ ) {
+    textLoad( 'x' )
+  }
+}
+
+show( u16( textNoRoom() ) )
+show( textLines() )
+newline()

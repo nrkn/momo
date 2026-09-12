@@ -1946,3 +1946,53 @@ two keystrokes, so the key map can be data and the flavour of the editor stops
 being a decision that has to be right the first time. The emitted scan is not
 tight code, which is exactly the point: **the flexible option is affordable here
 in a way it never is in an inner loop.**
+
+---
+
+## 55. `momoed`
+
+### The defect that mattered was found by asking how somebody would run it
+
+Everything in the editor is libraries with test projects under them, so the
+program itself was expected to be assembly of tested parts. The one thing it
+added that nothing below had was a **file chosen by a person**, and that is where
+the defect was.
+
+`momoed.asm` is the obvious first thing to open with it, and it is about 150 KB
+against a 16 KB buffer. §54 refuses an edit it has no room for and leaves the
+buffer unchanged rather than half changed, which is the right behaviour - and it
+is silent. So a file that stopped part way through loading looks exactly like one
+that fitted, and `^S` would have written the truncation over the original.
+
+That is a data-losing bug reachable on the first use of the program, and no test
+below it could have found it: each library was doing exactly what it says.
+
+**The fix is that refusal is now reportable.** Four places in §54 could decline
+for want of space - two chunk takes, a chunk split that could not, and the line
+limit - and all four set a flag that `textInit` clears and `textNoRoom` reports.
+`momoed` asks before opening and refuses the file rather than showing part of it.
+`motext` fills the buffer past capacity and checks the flag flips, which is a
+test that could have been written at any point and was not written until a
+program needed the answer.
+
+### Two smaller things the program was the first to want
+
+**`run.ts` could not pass a command tail.** `momoed` is the first project that
+takes an argument, so `npm start momoed FILE.TXT` had nowhere to put the name.
+Extra positionals now become the DOS command tail, with the old guard narrowed
+rather than dropped: a second argument that is *also* a project name is still an
+error, so `npm start tennis tiger` reports a typo where `npm start momoed
+notes.txt` opens a file.
+
+**`momoed` has a `.expected` after all**, which its own header denied in the
+commit that created it. Run with no filename it prints a usage line and stops, so
+tier 2 reaches the command tail parse and the exit. That covers less than it
+sounds - nothing past the argument check - but it is not nothing, and the claim
+that an editor cannot be tested at all was wrong three times over by then.
+
+### What it cost, and the redraw that did not need to be clever
+
+The whole screen is repainted on every keystroke. At 80x25 that is two thousand
+cells, comfortably inside the time between two keys, and dirty-row redraw - which
+§54 and §56 are both shaped for - was not needed and so was not written. The
+first version that is too slow is the one that should have it.

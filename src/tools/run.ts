@@ -13,7 +13,9 @@ import { existsSync } from 'node:fs'
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { asmFor, buildRoot, confPath, fail, nasmDir, projectDir, root } from './cli.js'
+import {
+  allProjects, asmFor, buildRoot, confPath, fail, nasmDir, projectDir, root,
+} from './cli.js'
 import { loadToolchain } from './toolchain.js'
 
 type Mode = 'run' | 'build'
@@ -22,10 +24,13 @@ type Options = {
   project: string
   mode: Mode
   winpos: string | null
+  // Passed to the program as its DOS command tail. `momoed` is the first
+  // project that takes one, and it will not be the last.
+  tail: string[]
 }
 
 const usage = [
-  'usage: npm start <project> [--winpos X,Y]',
+  'usage: npm start <project> [args...] [--winpos X,Y]',
   '       npm run build -- <project> [--winpos X,Y]',
 ].join('\n')
 
@@ -33,6 +38,7 @@ const parseArgs = (argv: string[]): Options => {
   let project = ''
   let mode: Mode = 'run'
   let winpos: string | null = null
+  const tail: string[] = []
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]
@@ -51,13 +57,25 @@ const parseArgs = (argv: string[]): Options => {
     }
 
     if (arg.startsWith('-')) fail(`unknown option "${arg}"\n${usage}`)
-    if (project) fail(`unexpected second project "${arg}"\n${usage}`)
+
+    // Everything after the project is the program's command tail - except a
+    // second project name, which is a typo rather than an argument. That guard
+    // is why this is not simply "the rest": `npm start tennis tiger` was an
+    // error before there were arguments and should stay one.
+    if (project) {
+      if (allProjects().includes(arg)) {
+        fail(`unexpected second project "${arg}"\n${usage}`)
+      }
+      tail.push(arg)
+      continue
+    }
+
     project = arg
   }
 
   if (!project) fail(`no project given\n${usage}`)
 
-  return { project, mode, winpos }
+  return { project, mode, winpos, tail }
 }
 
 // DOS is 8.3. A longer name gets mangled to TEXTAD~1 and the build breaks in a
@@ -73,7 +91,7 @@ const validateProjectName = (name: string) => {
 
 // C: is the staged project, D: is the bundled assembler. Mounting rather than
 // copying nasm keeps the build dir to just the project's own files.
-const buildBat = (project: string, mode: Mode): string => {
+const buildBat = (project: string, mode: Mode, tail: string[]): string => {
   const lines = [
     '@echo off',
     'd:',
@@ -83,7 +101,11 @@ const buildBat = (project: string, mode: Mode): string => {
     'echo ok > c:\\build.ok',
   ]
 
-  if (mode === 'run') lines.push(`${project}.com`)
+  // DOS hands a .COM its tail at PSP:0080h, which is where a program that
+  // takes a filename reads it from.
+  if (mode === 'run') {
+    lines.push(tail.length ? `${project}.com ${tail.join(' ')}` : `${project}.com`)
+  }
 
   lines.push('goto end', ':failed', 'c:', 'exit', ':end')
 
@@ -132,7 +154,7 @@ const main = async () => {
   await rm(buildDir, { recursive: true, force: true })
   await mkdir(buildDir, { recursive: true })
   await cp(sourceDir, buildDir, { recursive: true })
-  await writeFile(join(buildDir, 'build.bat'), buildBat(options.project, options.mode), 'ascii')
+  await writeFile(join(buildDir, 'build.bat'), buildBat(options.project, options.mode, options.tail), 'ascii')
 
   const args = [
     '-conf', confPath,

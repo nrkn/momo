@@ -1,0 +1,443 @@
+// momoed.momo - the editor (PLAN §55).
+//
+// A file named on the command line, §54's buffer under it, §56's window onto it,
+// §57's keys driving it, and cells written straight to the text frame. The first
+// version: one file, no explorer, no search, no selection.
+//
+// **Almost nothing here is new.** The buffer, the window and the keyboard are
+// libraries with test projects of their own, and `edloop` already drives this
+// exact command layer from a script. What this file adds is the three things no
+// headless tier can run: a real keyboard, a real screen, and a real file named
+// by a person.
+//
+// It has a `.expected` covering less than it looks: run with no filename it
+// prints a usage line and stops, so tier 2 reaches the command tail and the exit
+// and nothing past them. Everything else here is tested in the libraries below,
+// which is why it was built in that order.
+
+include "lib/std/key.momo"
+include "lib/std/screen.momo"
+include "lib/std/mode.momo"
+include "lib/moview.momo"
+
+// The frame is declared for the largest text mode this supports, because a `far`
+// region takes a constant size (§16) while the geometry is read back from the
+// BIOS (§43) - 80x43 on EGA and 80x50 on VGA are the same pair of calls, and
+// only the hardware knows which happened. So the declaration is the ceiling and
+// `screenWidth` and `screenHeight` are the truth, clamped to it.
+const edMaxCols = 80
+const edMaxRows = 50
+
+far u16[edMaxCols * edMaxRows] vram = 0xB800
+
+const attrText   = color( lightGray, black )
+const attrStatus = color( black, lightGray )
+
+u16 cols
+u16 rows
+
+u8[80] fileName
+bool haveName
+bool dirty
+
+const pieceSize = 128
+view u8[pieceSize] piece = _heap[textBytes]
+
+const u8[] sUsage   = "usage: momoed FILE$"
+const u8[] sNoFile  = " (new)$"
+const u8[] sSaved   = " saved$"
+const u8[] sFailed  = " WRITE FAILED$"
+const u8[] sTooBig  = "file does not fit in the buffer - not opened$"
+const u8[] sNoRoom  = " FULL$"
+const u8[] sStar    = "*$"
+
+// ---- the command tail ----
+
+// DOS leaves it at PSP:0080h - a length byte, the text, then a carriage return -
+// and `DS = CS` with the PSP as the first 256 bytes of our own segment, so this
+// is an ordinary `peek` (§10) and needs nothing at all.
+//
+// §38 notes the collision this sits beside: `FindFirst` writes to the DTA, which
+// defaults to these same bytes. Nothing here enumerates a directory, and the
+// explorer that will is what has to move the DTA first.
+bool takeName() {
+  u16 n
+  u16 at
+  u16 out
+
+  n = peek8( 0x80 )
+  at = 0x81
+  out = 0
+
+  while ( n > 0 && peek8( at ) == ' ' ) {
+    at++
+    n--
+  }
+
+  while ( n > 0 && peek8( at ) != ' ' && peek8( at ) != 13 && out < len( fileName ) - 1 ) {
+    fileName[out] = peek8( at )
+    out++
+    at++
+    n--
+  }
+
+  fileName[out] = 0
+  return out > 0
+}
+
+// ---- the file ----
+
+// A file that is not there is not an error: it is a new file, which is what an
+// editor is for. Only a file that is there and will not open is worth refusing.
+bool loadFile() {
+  u16 handle
+  u16 got
+
+  textInit()
+
+  handle = fileOpen( addr( fileName ), fileReadOnly )
+  if ( fileFailed() ) return true
+
+  got = fileRead( handle, addr( piece ), pieceSize )
+
+  while ( got > 0 ) {
+    for ( u16 i = 0; i < got; i++ ) {
+      textLoad( piece[i] )
+    }
+    got = fileRead( handle, addr( piece ), pieceSize )
+  }
+
+  fileClose( handle )
+
+  // A file too big for the buffer loads part way and stops, and every refusal
+  // inside §54 leaves the buffer unchanged rather than half changed - which is
+  // right, and is also silent. Saving that back would write the truncation over
+  // the original, so this is the one failure the editor must not paper over.
+  return !textNoRoom()
+}
+
+bool saveFile() {
+  u16 handle
+
+  handle = fileCreate( addr( fileName ) )
+  if ( fileFailed() ) return false
+
+  textSave( handle )
+  fileClose( handle )
+
+  return true
+}
+
+// ---- the screen ----
+
+sub cellAt( u16 x, u16 y, u8 ch, u8 attr ) {
+  vram[ y * cols + x ] = u16( ch ) | ( u16( attr ) << 8 )
+}
+
+// The routine §56 calls, and the only thing that differs between this and the
+// test projects that drive the same library. The row is padded to the full width
+// rather than left short, because what is past the text is last frame's pixels
+// until something writes over them.
+sub viewRow( u16 y, u16 at, u16 n ) {
+  u16 base
+  base = y * cols
+
+  for ( u16 x = 0; x < n; x++ ) {
+    vram[ base + x ] = u16( peek8( at + x ) ) | ( u16( attrText ) << 8 )
+  }
+
+  for ( u16 x = n; x < cols; x++ ) {
+    vram[ base + x ] = 32 | ( u16( attrText ) << 8 )
+  }
+}
+
+sub statusText( u16 x, u16 at ) {
+  u16 i
+  i = 0
+
+  while ( peek8( at + i ) != '$' && x + i < cols ) {
+    cellAt( x + i, rows - 1, peek8( at + i ), attrStatus )
+    i++
+  }
+}
+
+sub statusNumber( u16 x, u16 n ) {
+  u8[6] digits
+  u16 i
+
+  if ( n == 0 ) {
+    cellAt( x, rows - 1, '0', attrStatus )
+    return
+  }
+
+  i = 0
+  while ( n > 0 && i < len( digits ) ) {
+    digits[i] = u8( n % 10 ) + '0'
+    n /= 10
+    i++
+  }
+
+  while ( i > 0 ) {
+    i--
+    cellAt( x, rows - 1, digits[i], attrStatus )
+    x++
+  }
+}
+
+sub drawStatus {
+  u16 x
+
+  for ( x = 0; x < cols; x++ ) {
+    cellAt( x, rows - 1, ' ', attrStatus )
+  }
+
+  statusText( 0, addr( fileName ) )
+
+  x = 0
+  while ( fileName[x] != 0 ) {
+    x++
+  }
+
+  if ( dirty ) statusText( x + 1, addr( sStar ) )
+
+  statusNumber( cols - 12, viewLine() + 1 )
+  cellAt( cols - 8, rows - 1, ':', attrStatus )
+  statusNumber( cols - 7, viewCol() + 1 )
+}
+
+// The hardware cursor follows the logical one, so the caret is where the next
+// character lands rather than wherever the last BIOS write left it.
+sub placeCursor {
+  moveTo( u8( viewCol() - viewLeft() ), u8( viewLine() - viewTop() ) )
+}
+
+sub redraw {
+  viewRender()
+  drawStatus()
+  placeCursor()
+}
+
+// ---- what a key does ----
+
+const actNone   = 0
+const actInsert = 1
+const actLeft   = 2
+const actRight  = 3
+const actUp     = 4
+const actDown   = 5
+const actHome   = 6
+const actEnd    = 7
+const actBack   = 8
+const actDelete = 9
+const actEnter  = 10
+const actUndo   = 11
+const actSave   = 12
+const actTop    = 13
+const actBottom = 14
+const actPgUp   = 15
+const actPgDn   = 16
+
+const u16[] bindPrefix = [
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  11, 11
+]
+
+const u16[] bindKey = [
+  keyExt + keyLeft,
+  keyExt + keyRight,
+  keyExt + keyUp,
+  keyExt + keyDown,
+  keyExt + keyHome,
+  keyExt + keyEnd,
+  keyExt + keyDelete,
+  keyExt + keyPgUp,
+  keyExt + keyPgDn,
+  8,                     // Backspace
+  13,                    // Enter
+  26,                    // ^Z
+  19,                    // ^S
+  20,                    // ^K ^T
+  5                      // ^K ^E
+]
+
+const u8[] bindAction = [
+  actLeft, actRight, actUp, actDown, actHome, actEnd, actDelete,
+  actPgUp, actPgDn, actBack, actEnter, actUndo, actSave,
+  actTop, actBottom
+]
+
+// Quitting is not in the table, because a loop has to be able to stop whatever
+// the table says and a rebindable quit is a rebindable way to lose the door.
+const keyQuit = 17
+
+u16 pending
+bool running
+
+u8 keyAction( u16 k ) {
+  for ( u16 i = 0; i < len( bindKey ); i++ ) {
+    if ( bindKey[i] == k && bindPrefix[i] == pending ) return bindAction[i]
+  }
+  return actNone
+}
+
+bool keyIsPrefix( u16 k ) {
+  for ( u16 i = 0; i < len( bindPrefix ); i++ ) {
+    if ( bindPrefix[i] == k ) return true
+  }
+  return false
+}
+
+sub doInsert( u8 ch ) {
+  lineInsert( viewLine(), viewCol(), ch )
+  viewGoto( viewLine(), viewCol() + 1 )
+  dirty = true
+}
+
+// Backspace at column 0 is a join, which is why §54 records one as an undoable
+// edit. The previous line's length has to be read before the join, because
+// afterwards it is the length of both.
+sub doBack {
+  u16 ln
+  u16 col
+  u16 prevLen
+
+  ln = viewLine()
+  col = viewCol()
+
+  if ( col > 0 ) {
+    lineDelete( ln, col - 1 )
+    viewGoto( ln, col - 1 )
+    dirty = true
+    return
+  }
+
+  if ( ln == 0 ) return
+
+  prevLen = lineLength( ln - 1 )
+  lineJoin( ln - 1 )
+  viewGoto( ln - 1, prevLen )
+  dirty = true
+}
+
+// An undo that left the cursor where it was would put it somewhere the document
+// no longer has, so §54 reports where the entry acted and the cursor follows.
+sub doUndo {
+  undoOnce()
+  viewGoto( undoLine(), undoCol() )
+  dirty = true
+}
+
+sub doSave {
+  if ( saveFile() ) {
+    dirty = false
+    return
+  }
+
+  statusText( 0, addr( sFailed ) )
+}
+
+sub apply( u8 a, u16 k ) {
+  if ( a == actInsert ) {
+    doInsert( u8( k ) )
+  } else if ( a == actLeft ) {
+    if ( viewCol() > 0 ) viewGoto( viewLine(), viewCol() - 1 )
+  } else if ( a == actRight ) {
+    viewGoto( viewLine(), viewCol() + 1 )
+  } else if ( a == actUp ) {
+    if ( viewLine() > 0 ) viewGoto( viewLine() - 1, viewCol() )
+  } else if ( a == actDown ) {
+    viewGoto( viewLine() + 1, viewCol() )
+  } else if ( a == actHome ) {
+    viewGoto( viewLine(), 0 )
+  } else if ( a == actEnd ) {
+    viewGoto( viewLine(), lineLength( viewLine() ) )
+  } else if ( a == actPgUp ) {
+    if ( viewLine() > rows - 1 ) {
+      viewGoto( viewLine() - ( rows - 1 ), viewCol() )
+    } else {
+      viewGoto( 0, viewCol() )
+    }
+  } else if ( a == actPgDn ) {
+    viewGoto( viewLine() + ( rows - 1 ), viewCol() )
+  } else if ( a == actBack ) {
+    doBack()
+  } else if ( a == actDelete ) {
+    lineDelete( viewLine(), viewCol() )
+    dirty = true
+  } else if ( a == actEnter ) {
+    lineSplit( viewLine(), viewCol() )
+    viewGoto( viewLine() + 1, 0 )
+    dirty = true
+  } else if ( a == actUndo ) {
+    doUndo()
+  } else if ( a == actTop ) {
+    viewGoto( 0, 0 )
+  } else if ( a == actBottom ) {
+    viewGoto( textLines() - 1, 0 )
+  } else if ( a == actSave ) {
+    doSave()
+  }
+}
+
+sub step( u16 k ) {
+  u16 had
+  u8  a
+
+  had = pending
+  a = keyAction( k )
+
+  if ( a == actNone && had == 0 && keyIsPrefix( k ) ) {
+    pending = k
+    return
+  }
+
+  pending = 0
+
+  if ( k == keyQuit ) {
+    running = false
+    return
+  }
+
+  if ( a == actNone && had == 0 && k >= 32 && k < 127 ) a = actInsert
+
+  apply( a, k )
+}
+
+// ---- entry ----
+
+haveName = takeName()
+
+if ( !haveName ) {
+  putStr( addr( sUsage ) )
+  newline()
+} else if ( !loadFile() ) {
+  // Refusing to open is the whole point: an editor that shows you part of a file
+  // and then writes that part back over the whole is worse than one that will
+  // not open it.
+  putStr( addr( sTooBig ) )
+  newline()
+} else {
+  // `videoMode` is §48's bracket over §43's save and restore, so the display
+  // cannot be left in whatever this program set it to - which `simplerl` got
+  // wrong for the whole of its life and paid eighty bytes to fix.
+  videoMode {
+    setMode( modeText )
+
+    cols = screenWidth()
+    rows = screenHeight()
+
+    if ( cols > edMaxCols ) cols = edMaxCols
+    if ( rows > edMaxRows ) rows = edMaxRows
+
+    // One row goes to the status line, and the window gets the rest.
+    viewSize( rows - 1, cols )
+    viewHome()
+
+    running = true
+
+    while ( running ) {
+      redraw()
+      step( readKeyNorm() )
+    }
+  }
+}

@@ -27,7 +27,7 @@ happen.
 | | | wants |
 |---|---|---|
 | `momowad` (§41) | assets in bulk, with Doom-style PWAD overrides. Compatible with WAD at the container level, carrying our own lump types | nothing - §38 landed |
-| `momoed` (§55) | the editor - an explorer beside a text pane, toggled away for width, and text modes `edit.com` never had | §54's buffer, and directory enumeration for the explorer half - §38 put that out of scope and names the DTA collision behind it |
+| `momoed` (§55) | the editor - **a first version opens, edits and saves one file**; an explorer beside a text pane and text modes `edit.com` never had are what is left | directory enumeration, for the explorer half only - §38 put that out of scope and names the DTA collision behind it |
 | `momode` | a graphical shell and launcher. Single-tasking, and windowed by screen offsets an aware program is handed (§43) | a mouse, and §40's ES gap |
 | `momove` | a small vector editor, for icons and the like | a mouse, §37's geometric booleans |
 | `momopnt` | the library three image editors share - sprite, bitmap font, paint | a mouse, a palette library, §43 |
@@ -131,12 +131,14 @@ at all, which makes one a floor rather than a measurement.
   since a README that shows off wants something to show.
 - **Fixed-point division.** DESIGN §25 is half built and says which half: `*` on
   8.8 lands, division does not, and §25 sets out why it is the awkward one.
-- **`momoed`.** §55 - the editor, and the first entry from the destination list
-  to reach Todo. The input path is designed and measured on two emulators, and
-  the section is honest that the explorer, the viewport and the screen are not.
-  Two things follow from it rather than blocking it: it is the consumer §43's
-  properties query has been waiting for, and the explorer half is what wants the
-  directory enumeration §38 refused.
+- **Finish `momoed`.** DESIGN §55 is partly built and says which half: it opens a
+  file, edits it and writes it back, and there is no explorer, no search and no
+  selection. The explorer is the next piece and the only one that wants something
+  that does not exist - the directory enumeration §38 refused, with the DTA
+  collision as the reason. Two things follow from the editor rather than block
+  it: it is the consumer §43's properties query has been waiting for, and text in
+  a graphics mode is the first consumer of what DECISIONS §22 gives as the reason
+  for `in` and `out`.
 - **`addr()` in an initialiser.** §51 - `const u16[] t = [ addr( a ), addr( b ) ]`
   is rejected because an array's elements are folded to numbers and a label is
   not one until NASM says so. The target has never objected: `emitData` already
@@ -364,6 +366,13 @@ All are set out in DESIGN §20 unless noted.
 section that was itself a plan - see the note at the top for why, and where to
 look for the rest.
 
+- **`momoed`, a first version.** 2026-09-12. §55, now in `DESIGN.md`, along with
+  §56's window over the buffer and §57's keyboard. It opens a file named on the
+  command line, edits it and writes it back; there is no explorer, no search and
+  no selection. It was built in the order its pieces could be tested - buffer,
+  then window, then command layer, each with a project of its own - so the only
+  part with no tier under it is the part no tier can run: a real keyboard, a real
+  screen, and a file named by a person.
 - **A text buffer.** 2026-09-09. §54, now in `DESIGN.md`, and the record is
   DECISIONS §54. `shared/lib/motext.momo` - a line as a chain of chunks, so an
   edit is bounded by a chunk rather than by the document and a line has no length
@@ -2451,232 +2460,3 @@ over the outer array with the address slot, and `len` on a constant index.
 
 Out: the length spine, mutable leaves, three levels, and `u16[][]`. Each is a
 paragraph of its own above, and none is needed in order to delete `nthStr`.
-
----
-
-## 55. `momoed` - the editor
-
-**Partly built**, and which half is which matters more than the status. The
-buffer is §54, the window onto it §56 and the keyboard §57, all built and all
-with test projects - and `edloop` drives an editor through the lot from a script
-of keystrokes, so the command layer is exercised as well. **The explorer, the
-screen and the program itself are named here and not designed**, and saying so is
-the point - this section exists to hold what is decided, not to look complete.
-
-An explorer beside a text pane, toggled away for width, and text modes `edit.com`
-never had.
-
-### Three stages, and the tier line is not where it looks
-
-An editor blocks on a key, and tier 2 cannot run something that blocks. That
-reads as a hard ceiling on what can be tested, and it is not one:
-
-| | tests as |
-|---|---|
-| §54's buffer and its own project | numbers, no screen, no keys |
-| a file read into the buffer and a viewport rendered - **built**, §56 | a `.expected`, still no keys |
-| navigation and editing - **built**, `edloop` | **also a `.expected`** |
-
-The third row is the one worth having. **The editor never calls `readKey`.**
-`nextKey` is a routine the *program* defines, so a test feeds it a script of
-keystrokes and `momoed` feeds it the keyboard, and nothing between the two can
-tell which. That is the seam `tiger` and `tigerpic` already share over `plot`,
-and it puts the whole command layer - bindings, chords, cursor motion, every
-editing command, undo - inside the tier that can see it.
-
-What is left outside is the drawing, and only the drawing. Stage two is not where
-testing stops; it is where the *screen* stops being testable.
-
-The same seam does the same job one level down: rendering goes through a routine
-the program supplies, so the stage that prints and the stage that writes cells
-share everything but that one routine, and **the printing stage stays as the
-permanent test** rather than being scaffolding.
-
-### A keystroke is one `u16`, and it is §57 now
-
-Built, in `std/key.momo`, and moved out of here with it - the normalisation, the
-`0E0h` rule, the masking, and what `keyprobe` measured on two emulators. What
-stays below is the half that is this editor's policy rather than the keyboard's
-behaviour: which key means what, and what that costs.
-
-### Keys are data, and a person is slow enough to pay for it
-
-A binding table scanned linearly, with the action dispatched through an if-chain
-because there are no function pointers. Measured from the emitted assembly on
-2026-09-09, worst case - nothing matches, so both scans run to the end:
-
-| | cycles |
-|---|---|
-| the binding scan, 126 per entry | ~1,260 |
-| the prefix scan | ~1,000 |
-| the dispatch chain | ~220 |
-| **per keystroke** | **~2,500, or 0.5 ms at 4.77 MHz** |
-
-Against roughly 100 ms between keystrokes. **Half a percent of the budget**, with
-room for ten times the bindings. The emitted scan is not tight code - it reloads
-the index three times an iteration - and that is exactly the point: **the
-flexible option is affordable here in a way it never is in an inner loop.**
-
-So the key map is data, and the flavour of the editor stops being a decision that
-has to be right the first time.
-
-**The table is three `const` arrays and not a `group`.** That is a boundary on
-§18 rather than a preference: a group's fields are storage and take no
-initialiser, so a table known at compile time cannot be written as one. `group`
-is for a pool filled at runtime; this is data, and data goes in the image.
-
-A chord costs one `u16` of state and a `prefix` column, so `^K ^C` and a plain
-`^S` live in the same table with no second mechanism.
-
-### The bindings are VS Code's wherever the machine allows
-
-CUA throughout - the arrows, Home and End, Shift with any of them for selection,
-Ctrl with them for word and document motion, `^S`, `^Z`, `^Y`, `^X`, `^C`, `^V` -
-with `^K` as the one chord prefix.
-
-**`Ctrl+/` is the single refusal, and it is the hardware's.** A PC BIOS has no
-translation for Ctrl with most non-alphabetic keys and generates nothing at all.
-The comment binding is `^K ^C`, which is a Borland chord and also VS Code's own
-alternative for the same command - so the one place the machine refuses is a
-place the muscle memory already has a second answer.
-
-**The keypad aliases the grey keys.** Keypad Home and Home are one binding, which
-is what every editor does and what the `256 + scancode` form gives for free. It
-also means they cannot be bound apart, which is the cost of the alias and is
-worth knowing before somebody wants it.
-
-### momoed is the consumer §43 has been waiting for
-
-§43's unbuilt half - the properties query with its fallback chain - is not
-blocked on a feature. It says so itself: what it waits on is *a program that does
-not know its mode*, and that building it sooner would mean writing code nothing
-could run.
-
-**An editor supporting text modes past 80x25 is that program.** 80x43 on EGA and
-80x50 on VGA are the same pair of calls and only the hardware knows which
-happened, which is why §43's descriptor reads geometry back from the BIOS data
-area rather than from its table. And momolo is already resolution-independent -
-§43 records the same scenes run at a unit of one cell and at 11 and 20 pixels -
-so the seam a screen library feeds has been exercised both ways already.
-
-This is the first thing in the destination list to unblock a designed section
-rather than wait on one, and it should be taken deliberately rather than drifted
-into: **the properties query gets built when `momoed` asks for a text mode by
-what it wants rather than by number.**
-
-### Text in a graphics mode, which is wanted and is not a change to any of this
-
-**Wanted, not designed.** The reason is width rather than decoration: the text
-stays text, and a bitmap font in a graphics mode buys a grid no text mode offers.
-640x480 with a 6x8 cell is **106 x 60** - which is an explorer beside eighty
-columns of editing, with nothing toggled away to afford it. A plain 8x8 gives
-80x60 and already clears the 80x50 ceiling.
-
-**Nothing above the renderer changes.** §54 knows characters, the key layer knows
-keys, momolo is resolution-independent, and this section already routes drawing
-through a routine the program supplies - so a graphics renderer is a second
-`plot` rather than an edit to anything.
-
-**What is text-shaped is narrower than it looks, and it is not the layout.**
-`mopaint` already carries its unit as `cellW` and `lineHeight`, and the study it
-came from ran the same scenes at 11 and 20 with proportional text. What is
-text-shaped is the *drawing*: `far u16[screenCols * screenRows] vram = 0xB800`,
-cells at a constant segment and a compile-time size. That constant is right for
-text - §16 reloads ES per access and §43 prices what a runtime segment costs - so
-the pixel half is a second output rather than a change to this one. `mopaint` is
-expected to grow one regardless of this section; text in a graphics mode is a
-customer for it rather than the reason for it.
-
-**Two things are cheaper decided than discovered.** A `far` or a `view` takes a
-constant size, so a backing store is sized once for the largest grid intended -
-6,360 cells at 106x60 against 2,000 at 80x25 - rather than for the mode in front
-of us. And a glyph is eight or more byte writes where a cell is one word, so
-**dirty-line redraw stops being an optimisation and becomes the design**;
-`simplerl` already has that pattern.
-
-**Scrolling is the part to probe rather than to plan.** Moving a 640x480 frame is
-not affordable and the answer is the CRTC's start address rather than memory,
-which is port I/O again. The register numbers are exactly what `keyprobe` exists
-to settle for the keyboard: measure them, do not quote them.
-
-**It would be the first consumer of port I/O's own justification.** DECISIONS §22
-records `in` and `out` as built for *"EGA/VGA planar modes, the PIT and the
-speaker"*, and §43 notes nothing in the repository touches those ports. A planar
-text renderer is precisely that - so this is the second thing the editor unblocks
-rather than waits on, after §43's query.
-
-### The explorer wants the one thing §38 refused
-
-Directory enumeration, and §38 is precise about why it is out of scope rather
-than merely absent: `FindFirst` writes to the Disk Transfer Area, which defaults
-to **PSP:0080h - the command tail**. A program that enumerates a directory
-destroys its own arguments unless it reads them first or moves the DTA with
-`AH=1Ah`.
-
-Neither is hard and both are invisible until they bite, which is the whole reason
-that paragraph exists. It is the only library gap the editor has, it is small,
-and it is what the destination table was wrong about when it said `momoed` wants
-nothing.
-
-**It is also removable from a first version.** An editor that opens a file named
-on the command line needs none of it, and the explorer is the half that can wait.
-
-### Number formatting into a buffer is missing, and three things want it
-
-`io.momo` formats a number straight to the console and offers no way to ask for
-the text. `keyprobe` carries its own hex formatter for exactly that reason, and a
-gutter of line numbers, a cursor position in a status bar and a byte count in a
-prompt all want the same thing. One small addition to `std/str.momo` rather than
-a fourth copy.
-
-### What is shared with the other editors, and when it leaves
-
-`momode` is a launcher and wants file listing; `momopnt`'s three editors want
-text fields; `momowad` wants an asset browser. So the key layer, the buffer, the
-explorer and a scrollable list are all plausibly shared, and **naming them is
-worth doing now while extracting them is not.**
-
-The discipline is the one the repository already follows and PROVENANCE diagnoses
-at length: momolo and momovec were ported from studies that already worked, not
-designed speculatively, and `momopnt` is named in the destination list and
-deliberately unbuilt because its three consumers do not exist. Building a toolkit
-before its second consumer is the failure mode this project is a deliberate
-attack on.
-
-**Keeping the seam clean costs nothing, because it is the `plot` mechanism
-again.** Shared code calls routines the program defines and compiles to a direct
-`call`, so a piece written inside `momoed` comes out of it without being
-rewritten. That is what `mopaint` and `moflow` did above momolo, and it needs no
-language feature.
-
-### Rules
-
-- **The editor never calls `readKey`.** `nextKey` is the program's, so the
-  command layer is testable. The same holds for output: rendering goes through a
-  routine the program supplies.
-- **A keystroke is normalised before anything looks at it**, to the one `u16`
-  above. Nothing downstream sees `AL`, `AH` or a flags byte.
-- **The flags are masked to the modifier bits.** They carry state as well, and
-  the state differs between machines for the same keypress.
-- **A binding table is `const` arrays, not a `group`.**
-- **The program owns the mode; it does not set one by number.** §43's query, once
-  built, and `saveMode`/`restoreMode` are a `bracket` (§48) so the close cannot
-  be forgotten.
-
-### Scope of a first build
-
-In: one file named on the command line, read through §38 into §54's buffer; §56's
-window and §57's keys, both built; the binding table with CUA motion, insert,
-delete, Enter and undo, which `edloop` has; save; and drawing to a real screen,
-which is the one thing none of the three stages above covers.
-
-Out: the explorer and therefore directory enumeration; more than one file open;
-search; redo and undo coalescing; the status bar; syntax colour; and text in a
-graphics mode. Each is a paragraph of its own or a line in §54's, and none is
-needed for the thing to be an editor.
-
-### What is not settled
-
-The explorer's shape. What the status bar says. Whether selection is a mark and a
-point or a range. And what *finished* means for a first version, which `simplerl`
-answered for a game by being deliberately the smallest thing that counts as one.

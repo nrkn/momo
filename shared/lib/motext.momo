@@ -103,6 +103,13 @@ local u16 undoCount
 // log would never drain. `textLoad` suspends it too.
 local bool undoing
 
+// Set the moment an edit could not get the chunk or the line it needed, and
+// cleared only by `textInit`. Every refusal below leaves the buffer unchanged
+// rather than half changed, which is the right behaviour and is also silent -
+// so a program that reads a file in has no way to tell a file that fitted from
+// one that stopped part way, and would save the truncation back over it.
+local bool noRoom
+
 // Where the last undo acted. An editor has to put the cursor back, and the entry
 // is the only thing that knows: the caller cannot work it out afterwards,
 // because the edit it is looking at has already been reversed.
@@ -191,6 +198,10 @@ local sub undoPush( u8 op, u16 ln, u16 col, u8 ch ) {
 
 u16 textUndos() => undoCount
 
+// Whether anything has been refused for want of space since `textInit`. A
+// caller that never asks is the bug this exists to make findable.
+bool textNoRoom() => noRoom
+
 u16 undoLine() => undoAtLine
 u16 undoCol() => undoAtCol
 
@@ -205,7 +216,10 @@ local sub chunkSplit( u16 c ) {
   u16 to
 
   d = chunkTake()
-  if ( d == 0 ) return
+  if ( d == 0 ) {
+    noRoom = true
+    return
+  }
 
   from = c * chunkSize
   to   = d * chunkSize
@@ -239,14 +253,17 @@ sub lineInsert( u16 ln, u16 col, u8 ch ) {
       // read in character by character would occupy twice the buffer it needs.
       // Link a fresh chunk instead and fill it.
       d = chunkTake()
-      if ( d == 0 ) return
+      if ( d == 0 ) {
+        noRoom = true
+        return
+      }
 
       chunk[c].next = d
       c = d
       off = 0
     } else {
       chunkSplit( c )
-      if ( chunk[c].used == chunkSize ) return    // no chunk to split into
+      if ( chunk[c].used == chunkSize ) return    // chunkSplit set noRoom
 
       // The split moved the upper half away, so the position may have gone too.
       if ( off > chunk[c].used ) {
@@ -385,7 +402,10 @@ sub lineSplit( u16 ln, u16 col ) {
   off = seekOff
 
   d = chunkTake()
-  if ( d == 0 ) return
+  if ( d == 0 ) {
+    noRoom = true
+    return
+  }
 
   from = c * chunkSize
   to   = d * chunkSize
@@ -534,7 +554,10 @@ u16 lineChunks( u16 ln ) {
 // ---- setting up ----
 
 local sub lineNew {
-  if ( lineCount >= textMaxLines ) return
+  if ( lineCount >= textMaxLines ) {
+    noRoom = true
+    return
+  }
 
   line[lineCount].head   = chunkTake()
   line[lineCount].length = 0
@@ -554,6 +577,7 @@ sub textInit {
   undoHead  = 0
   undoCount = 0
   undoing   = false
+  noRoom    = false
 
   lineNew()
 }
