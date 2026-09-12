@@ -1801,6 +1801,24 @@ Neutering the follow in `edloop` leaves the cursor on line 2 where it belongs on
 line 1 - a wrong number rather than wrong text, which is the kind of defect that
 survives a suite that only compares content.
 
+### The property of including nothing was given up, and the argument went the other way
+
+This file included nothing at all, not even std, and that was recorded as worth
+having. `textSave` ended it, and the reasoning is worth keeping because the
+first instinct was the wrong one.
+
+The obvious move was a library above this one holding load and save, keeping the
+buffer pure. It cannot be done: writing efficiently means handing DOS each chunk
+where it already lies, and `text`, `chunk` and `line` are all `local`. A
+library above could only have gone through `lineSlice` into a buffer it had to
+own - a copy of every byte, and a second static capacity, to preserve a property
+that buys nothing at runtime because §11 prunes the include for a program that
+never saves.
+
+So the boundary that mattered turned out to be a different one from the boundary
+that had been drawn. This file opens no files and knows no filenames; it takes a
+handle. That is the line worth holding, and it is intact.
+
 ### A prediction that held
 
 Every number in the test - four chunk counts, nine lengths, two line counts, two

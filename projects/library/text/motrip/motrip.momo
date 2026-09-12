@@ -1,0 +1,116 @@
+// motrip.momo - a buffer, edited, written out and read back (DESIGN §54, §14).
+//
+// The round trip is the assertion. Loading and saving are separate routines that
+// could each be wrong in a way the other hides, so this records what the buffer
+// held before writing it, throws the buffer away, reads the file back and
+// compares - rather than printing what came out and trusting a reader to notice.
+//
+// It needs nothing on the disk: the file it reads is the file it just wrote.
+
+include "lib/std/io.momo"
+include "lib/moview.momo"
+
+const u8[] name = "MOTRIP.TMP\0"
+
+const u8[] source = "alpha\nbeta\ngamma\n"
+
+const pieceSize = 64
+
+view u8[pieceSize] piece = _heap[textBytes]
+
+// What the buffer held before it was written. A length per line is enough to
+// catch a lost separator, a doubled one or a dropped trailing line, and the text
+// printed below catches anything that keeps the shape and loses the content.
+u16[32] before
+u16 beforeCount
+
+u8[40] rowBuf
+
+u16 handle
+u16 wrote
+u16 got
+
+sub record {
+  beforeCount = textLines()
+
+  for ( u16 i = 0; i < beforeCount; i++ ) {
+    before[i] = lineLength( i )
+  }
+}
+
+bool matches() {
+  if ( textLines() != beforeCount ) return false
+
+  for ( u16 i = 0; i < beforeCount; i++ ) {
+    if ( lineLength( i ) != before[i] ) return false
+  }
+  return true
+}
+
+// Every line, bar-separated, so an empty line is visible as a gap rather than as
+// nothing at all - which is exactly the case a trailing newline produces.
+sub showAll {
+  u16 n
+
+  for ( u16 ln = 0; ln < textLines(); ln++ ) {
+    n = lineSlice( ln, 0, len( rowBuf ), addr( rowBuf ) )
+
+    for ( u16 i = 0; i < n; i++ ) {
+      putChar( rowBuf[i] )
+    }
+    putChar( '|' )
+  }
+  newline()
+}
+
+// moview is included for `textBytes` and the buffer it brings; nothing here
+// renders, so this is the seam being declared and not used.
+sub viewRow( u16 y, u16 at, u16 n ) {
+}
+
+// ---- entry ----
+
+textInit()
+
+for ( u16 i = 0; i < len( source ); i++ ) {
+  textLoad( source[i] )
+}
+
+// Two edits of different kinds, so what is written is not just what was read.
+lineInsert( 0, 5, '!' )
+lineSplit( 1, 2 )
+
+record()
+
+handle = fileCreate( addr( name ) )
+wrote = textSave( handle )
+fileClose( handle )
+
+putNumber( beforeCount )
+putChar( ' ' )
+putNumber( wrote )
+newline()
+
+showAll()
+
+// Throw the buffer away entirely, so what comes back came from the file.
+textInit()
+
+handle = fileOpen( addr( name ), fileReadOnly )
+got = fileRead( handle, addr( piece ), pieceSize )
+
+while ( got > 0 ) {
+  for ( u16 i = 0; i < got; i++ ) {
+    textLoad( piece[i] )
+  }
+  got = fileRead( handle, addr( piece ), pieceSize )
+}
+
+fileClose( handle )
+
+putNumber( textLines() )
+putChar( ' ' )
+putNumber( u16( matches() ) )
+newline()
+
+showAll()

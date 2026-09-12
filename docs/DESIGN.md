@@ -4510,11 +4510,30 @@ about 2.8 bytes a character for typical source, and caps a line.
 The undo log is six bytes an entry. `DECISIONS.md` §54 has what the build itself
 cost and what the design missed.
 
+### Writing the buffer out is here, and the reasoning that said otherwise was wrong
+
+This section used to leave file I/O to `momoed`, on the grounds that §38 owns
+files. `textSave` takes an already-open handle and writes the buffer to it, so
+the boundary that mattered - this file opens nothing - is intact, and the one
+that was drawn instead would have cost a copy of every byte. Writing efficiently
+means handing DOS each chunk where it already lies, which needs `text`, `chunk`
+and `line`, all `local`; a library above this one could only have gone through
+`lineSlice` into a buffer it had to own.
+
+**A newline goes between lines and not after the last**, which is what makes the
+trip exact rather than nearly so. A file ending in one loads as a final empty
+line, so writing separators reproduces the trailing newline without a rule about
+it - where writing one after every line grows the file by an empty line each time
+it is saved. `motrip` records the buffer, writes it, throws it away, reads it
+back and compares.
+
+It cost this file the property of including nothing at all, which `DECISIONS.md`
+§54 records.
+
 ### What was left out
 
 Redo; undo coalescing, so that a run of typed characters is one step rather than
-thirty; a cursor and a viewport; and reading or writing a file, which is §38's
-and belongs to `momoed` (PLAN §55) rather than here.
+thirty; and the cursor, which is §56's.
 
 ---
 
