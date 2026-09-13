@@ -1,0 +1,169 @@
+// morange.momo - a span of text as one edit (DESIGN §61).
+//
+// Copy a span out, delete a span, insert a span. Three routines, and what makes
+// them a file rather than three lines in an editor is that each one is several
+// of §54's edits and **all of them have to be one step back**.
+//
+// **It needs nothing private to §54**, which is the same reason §59 is its own
+// file. The span walk is `lineSlice`, `lineDelete`, `lineSplit` and `lineJoin`,
+// all public; the grouping is `undoStep`, which §54 exposes as a bracket
+// precisely so a command outside it can say that several edits are one action.
+// `textSave` is inside the buffer because it could not be written anywhere else.
+// This could, so it is.
+//
+// **A newline here is one byte.** §54's `textSave` owns the DOS convention and
+// puts a carriage return back on the way out; a span going to a clipboard is
+// text this program is holding for itself, so it holds it the way the buffer
+// does rather than the way a file does.
+
+include "lib/motext.momo"
+
+local u16 endLine
+local u16 endCol
+
+// Whether the last `rangeCopy` got all of the span it was asked for. **The count
+// alone cannot say**: a span that exactly filled the buffer returns the same
+// number as one that was cut off, and the difference matters to a caller about
+// to delete what it just copied.
+local bool copyFit
+
+// Where an insert finished, so a caller can put the cursor after what it pasted.
+// The same call §54 makes with `undoLine` - the walk is the only thing that
+// knows, and working it out afterwards means counting the newlines again.
+u16 rangeEndLine() => endLine
+u16 rangeEndCol()  => endCol
+bool rangeCopied() => copyFit
+
+// ---- reading a span out ----
+
+// The span (fromLn, fromCol) to (toLn, toCol), exclusive of the end, copied to
+// `at`. At most `max` bytes, and the count written is returned - so a caller
+// with a fixed clipboard finds out that it did not all fit rather than being
+// told about it later by a corrupted heap.
+u16 rangeCopy( u16 fromLn, u16 fromCol, u16 toLn, u16 toCol, u16 at, u16 max ) {
+  u16 done
+  u16 last
+  u16 c0
+  u16 c1
+  u16 want
+
+  done = 0
+  copyFit = true
+
+  if ( textLines() == 0 ) return 0
+
+  last = toLn
+  if ( last >= textLines() ) last = textLines() - 1
+
+  for ( u16 ln = fromLn; ln <= last; ln++ ) {
+    c0 = 0
+    if ( ln == fromLn ) c0 = fromCol
+
+    c1 = lineLength( ln )
+    if ( ln == last && toCol < c1 ) c1 = toCol
+
+    if ( c1 > c0 ) {
+      want = c1 - c0
+      if ( want > max - done ) {
+        want = max - done
+        copyFit = false
+      }
+
+      if ( want > 0 ) done += lineSlice( ln, c0, want, at + done )
+    }
+
+    if ( ln < last ) {
+      if ( done < max ) {
+        poke8( at + done, '\n' )
+        done++
+      } else {
+        copyFit = false
+      }
+    }
+  }
+
+  return done
+}
+
+// ---- taking a span out ----
+
+// **The joins come before the deletes**, which is the whole shape of this. The
+// obvious order is to empty every line in the span and then join what is left,
+// and it means walking a different line each time; joining first pulls the rest
+// of the span onto the first line, so the walk stays on one line and the count
+// of what to remove is known before any of it moves.
+sub rangeDelete( u16 fromLn, u16 fromCol, u16 toLn, u16 toCol ) {
+  u16 last
+  u16 tail
+  u16 n
+
+  if ( textLines() == 0 ) return
+
+  last = toLn
+  if ( last >= textLines() ) last = textLines() - 1
+  if ( fromLn > last ) return
+
+  undoStep {
+    if ( fromLn == last ) {
+      n = toCol
+      if ( n > lineLength( fromLn ) ) n = lineLength( fromLn )
+
+      while ( n > fromCol ) {
+        lineDelete( fromLn, fromCol )
+        n--
+      }
+    } else {
+      // How much of what the joins are about to bring in belongs to the span:
+      // all of every line between, and the head of the last one. Counted first,
+      // because after the joins there is nothing left to count it from.
+      tail = toCol
+      if ( tail > lineLength( last ) ) tail = lineLength( last )
+
+      n = tail
+      for ( u16 ln = fromLn + 1; ln < last; ln++ ) {
+        n += lineLength( ln )
+      }
+
+      while ( lineLength( fromLn ) > fromCol ) {
+        lineDelete( fromLn, fromCol )
+      }
+
+      for ( u16 j = fromLn; j < last; j++ ) {
+        lineJoin( fromLn )
+      }
+
+      while ( n > 0 ) {
+        lineDelete( fromLn, fromCol )
+        n--
+      }
+    }
+  }
+}
+
+// ---- putting a span in ----
+
+// `n` bytes at `at`, inserted at (ln, col). A newline splits the line, which is
+// what makes a pasted span of three lines three lines rather than one with two
+// control characters in it. A carriage return is dropped, the same way
+// `textLoad` drops one, so a span that came from a file pastes clean.
+sub rangeInsert( u16 ln, u16 col, u16 at, u16 n ) {
+  u8 ch
+
+  undoStep {
+    for ( u16 i = 0; i < n; i++ ) {
+      ch = peek8( at + i )
+
+      if ( ch == '\n' ) {
+        lineSplit( ln, col )
+        ln++
+        col = 0
+      } else if ( ch != '\r' ) {
+        lineInsert( ln, col, ch )
+        col++
+      }
+    }
+  }
+
+  endLine = ln
+  endCol  = col
+}

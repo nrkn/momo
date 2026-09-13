@@ -1,0 +1,161 @@
+// morange.momo - shared/lib/morange.momo held against numbers (DESIGN §61, §14).
+//
+// The span walk is arithmetic that is easy to get nearly right: a selection that
+// starts part way along one line and ends part way along another has four
+// boundaries and three of them are off by one if the count is taken after the
+// joins rather than before. So the fixture is three short lines chosen so every
+// boundary lands somewhere different, and the delete is checked by putting it
+// back rather than only by what it left.
+//
+// **The undo is half of what is under test.** Thirteen edits and one step back
+// is the claim, and the count is printed so that a change which quietly turned
+// them into thirteen steps would show up as a number rather than as a feeling.
+
+include "lib/std/io.momo"
+include "lib/morange.momo"
+
+const u8[] source = "abcdef\n"
+                    "ghij\n"
+                    "klmno\n"
+
+const u8[] ins = "XY\nZ"
+
+u8[120] buf
+u16 got
+
+sub show( u16 n ) {
+  putNumber( n )
+  putChar( ' ' )
+}
+
+// Every line, separated, inside brackets - so an empty document reads as `[]`
+// rather than as nothing at all.
+sub dump {
+  u16 n
+
+  putChar( '[' )
+
+  for ( u16 ln = 0; ln < textLines(); ln++ ) {
+    n = lineSlice( ln, 0, len( buf ), addr( buf ) )
+
+    for ( u16 i = 0; i < n; i++ ) {
+      putChar( buf[i] )
+    }
+
+    if ( ln + 1 < textLines() ) putChar( '/' )
+  }
+
+  putChar( ']' )
+  putChar( ' ' )
+  putNumber( textLines() )
+  newline()
+}
+
+// A copied span with its newlines shown, because a separator that went missing
+// would otherwise read as two words run together.
+sub showCopy( u16 fromLn, u16 fromCol, u16 toLn, u16 toCol ) {
+  u16 n
+  n = rangeCopy( fromLn, fromCol, toLn, toCol, addr( buf ), len( buf ) )
+
+  for ( u16 i = 0; i < n; i++ ) {
+    if ( buf[i] == '\n' ) {
+      putChar( '|' )
+    } else {
+      putChar( buf[i] )
+    }
+  }
+
+  putChar( ' ' )
+  putNumber( n )
+  newline()
+}
+
+// ---- a span across three lines ----
+
+textInit()
+
+for ( u16 i = 0; i < len( source ); i++ ) {
+  textLoad( source[i] )
+}
+
+dump()
+
+// Part of the first line, all of the middle one, part of the last.
+showCopy( 0, 2, 2, 3 )
+
+rangeDelete( 0, 2, 2, 3 )
+dump()
+show( textUndos() )
+newline()
+
+// One step back, whatever the edits were - which is the group, and is the whole
+// reason §54 grew a bracket.
+undoOnce()
+dump()
+show( textUndos() )
+newline()
+
+redoOnce()
+dump()
+show( textUndos() )
+newline()
+
+// ---- a span put in ----
+//
+// A newline in the span splits the line, so pasting three lines makes three
+// lines rather than one with two control characters in it.
+
+rangeInsert( 0, 2, addr( ins ), len( ins ) )
+dump()
+show( textUndos() )
+show( rangeEndLine() )
+show( rangeEndCol() )
+newline()
+
+undoOnce()
+dump()
+show( textUndos() )
+newline()
+
+// ---- a group longer than the log can hold ----
+//
+// Two hundred and twenty edits into a log of sixty-four. The edits happen; the
+// log is emptied rather than left holding the tail of the group, because half a
+// group restored is a document nobody asked for.
+
+textInit()
+
+for ( u16 i = 0; i < 20; i++ ) {
+  for ( u16 j = 0; j < 10; j++ ) {
+    textLoad( u8( j ) + '0' )
+  }
+  textLoad( '\n' )
+}
+
+rangeDelete( 0, 0, 20, 0 )
+dump()
+show( u16( textUndoLost() ) )
+show( textUndos() )
+newline()
+
+// ---- a span bigger than the buffer it is going into ----
+//
+// **The count alone cannot say whether it all fitted.** A span that exactly
+// filled the buffer returns the same number as one that was cut off, and the
+// difference is the whole of it to a caller about to delete what it copied.
+
+textInit()
+
+for ( u16 i = 0; i < len( source ); i++ ) {
+  textLoad( source[i] )
+}
+
+got = rangeCopy( 0, 0, 2, 5, addr( buf ), 4 )
+show( got )
+show( u16( rangeCopied() ) )
+newline()
+
+got = rangeCopy( 0, 0, 0, 4, addr( buf ), 4 )
+show( got )
+show( u16( rangeCopied() ) )
+newline()

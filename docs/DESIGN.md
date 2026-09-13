@@ -4494,10 +4494,57 @@ zero there, because nothing had yet needed to put the character back.
 for the cursor to be part way along. That is one line in the push and the only
 rule in this that can be got quietly wrong.
 
+### A group is the caller saying that several edits are one action
+
+`joinPrev` marks a *run*, and a run is a shape this file can recognise: typing
+goes forward a column at a time, Backspace backward, forward Delete stays put.
+A selection deleted across three lines is none of those - it is deletes and joins
+and more deletes, and only the command knows they are one thing.
+
+So there is a bracket (§48), because the close must not be forgettable:
+
+```momo
+undoStep {
+  rangeDelete( ... )
+  rangeInsert( ... )
+}
+```
+
+Everything after the first entry inside one joins, whatever the edits look like.
+It counts rather than nests, so a paste that deletes a selection first is one
+action and not two.
+
+**Opening a group breaks the run before it**, which is correct and is also a
+trap: wrapping a bracket round a single keystroke turns a run of typing into one
+action per character, which is this file's coalescing undone by three lines that
+looked harmless. A command is a new action; a character is not. `momoed` opens a
+group only when there is a selection to replace, and the two-line duplication
+that costs is cheaper than the alternative.
+
+### A group longer than the log is not recorded at all
+
+The log is a window and drops its oldest entry when it fills, which is right for
+a run of typing - what goes is an older action. Inside a group it would break the
+group the new entry belongs to, and **half a group restored is a document nobody
+asked for**.
+
+So a group the log cannot hold empties the log instead, and `textUndoLost` is
+what a caller asks afterwards. That is the same call `textNoRoom` makes: the
+refusal is total rather than partial, and it is reportable rather than silent.
+
+It is also, at sixty-four entries, reachable. One line of sixty characters cut is
+sixty-one entries. **The measurement and what it costs to fix are in
+`DECISIONS.md` §61**, along with the reason the fix is not a bigger number.
+
 ### Rules
 
 - **The chain is walked once per line, never once per character.** `lineSlice` is
   the read interface, and it copies out rather than answering per byte.
+- **A group is for a command, not for a keystroke.** Opening one breaks the run
+  before it, so a bracket round a single character turns a run of typing into one
+  action per character.
+- **A group the log cannot hold is not recorded at all.** Half a group restored is
+  worse than none, and `textUndoLost` is what makes the refusal askable.
 - **`chunkSize` is a power of two.** It is what removes the address table, and
   §26 does the rest.
 - **Recording is suspended while an undo runs, and while a file loads.** A
@@ -4637,10 +4684,39 @@ cost is bounded by the window's height rather than by the document, and a
 dirty-row redraw - which is what an edit produces - walks exactly one. The cache
 would be an optimisation on a path that is already bounded by what is on screen.
 
+### A selection is a mark and a point, and it lives here
+
+The anchor is where a selection started and the cursor is the other end. That is
+what VS Code holds, and it is what a caller extending a selection with Shift
+already has half of - a range would be a second coordinate system to keep in step
+with the cursor that exists either way.
+
+It is here because the other end of it is here, and because **the ordering is an
+off-by-one with one customer per caller**. A selection made upwards or leftwards
+has its anchor *after* its cursor, so `viewFromLine` and the three beside it
+answer which end comes first once, with a test under them. Every caller that
+worked it out for itself would work perfectly until somebody selected backwards.
+
+**Nothing here decides when a selection starts or ends.** That is the same call
+`viewRow` makes about drawing and `undoBreak` makes about a run of typing:
+whether a keystroke extends a selection or collapses one is a fact about the
+person's hand. A caller holding Shift calls `viewMark` before the motion and one
+that is not calls `viewUnmark`, so every motion routine here is untouched by
+either and there is no shifted twin of any of them.
+
+**It is also the shape multiple cursors want**, being an array of exactly this
+with one of them primary - which is the one §56 would keep. §55 records why that
+changes nothing here.
+
 ### Rules
 
 - **`viewRow` is the program's**, and the library never learns whether it prints
   or draws.
+- **A selection is a mark and a point**, and which end comes first is asked here
+  rather than by every caller - a selection made upwards has its anchor after its
+  cursor, and nothing else notices.
+- **Nothing here decides when a selection starts or ends.** Shift is a fact about
+  the person's hand, so the caller marks or unmarks before the motion.
 - **Every row of the window is handed over**, including those past the end of the
   buffer, with a length of 0.
 - **Scrolling follows the cursor and nothing else.** There is no scroll call: a
@@ -4873,14 +4949,64 @@ reach.
 
 ---
 
+## 61. `morange` - a span of text as one edit
+
+**Built.** `shared/lib/morange.momo`, with `morange` as the project that holds it
+against numbers and `edsel` holding the half above it. Copy a span out, delete a
+span, insert a span - and what makes those a file rather than three lines inside
+an editor is that each is several of §54's edits and **all of them have to be one
+step back**.
+
+**It needs nothing private to §54**, which is the same reason §59 is its own
+file. The walk is `lineSlice`, `lineDelete`, `lineSplit` and `lineJoin`, all
+public; the grouping is `undoStep`, which §54 exposes as a bracket precisely so
+that a command outside it can say several edits are one action. `textSave` is
+inside the buffer because it could not be written anywhere else. This could, so
+it is.
+
+### The joins come before the deletes
+
+The obvious order for deleting a span across three lines is to empty each line in
+it and then join what is left. That means walking a different line each time, and
+the count of what to remove changes underneath as it goes.
+
+Joining first pulls the whole rest of the span onto the *first* line, so the walk
+stays on one line for the rest of the operation and the line count comes down as
+it goes. **The price is that the count has to be taken before anything moves** -
+how much of what the joins are about to bring in belongs to the span - because
+afterwards there is nothing left to count it from.
+
+That is the one thing here worth a test of its own, and it is the one that is
+wrong quietly: getting it wrong leaves the middle of the selection sitting in the
+document with both ends correctly removed.
+
+### A newline in a span is one byte
+
+§54's `textSave` owns the DOS convention and puts a carriage return back on the
+way out. A span going to a clipboard is text the program is holding for itself,
+so it holds it the way the buffer does. `rangeInsert` drops a carriage return the
+same way `textLoad` does, so a span that came from somewhere else still pastes
+clean.
+
+### Rules
+
+- **Count the span before the joins.** Afterwards there is nothing to count it
+  from, and what is left over is invisible at both ends.
+- **A span is one `undoStep`.** Anything that composes two of them - a paste over
+  a selection - opens a group of its own, and groups count rather than nest.
+- **A newline in a span is `\n` alone.** The file convention belongs to §54.
+- **A copy that did not fit says so**, because the count cannot: a span that
+  exactly filled the buffer comes back the same length as one that was cut off.
+
+---
+
 ## 55. `momoed` - the editor
 
 **Partly built**, and which half is which matters more than the status. It
 opens a file named on the command line, edits it and writes it back, over §54's
 buffer, §56's window and §57's keys, drawing cells into the text frame. **The
-explorer does not exist**, and neither does selection, more than one file open
-at a time, or text in a graphics mode - each is named below and none is
-designed.
+explorer does not exist**, and neither does more than one file open at a time,
+or text in a graphics mode - each is named below and none is designed.
 
 Almost nothing in the program is new. Every part of it that a headless tier can
 run is tested in a library below it, and `edloop` drives this exact command
@@ -5022,6 +5148,96 @@ failure used to write itself straight onto the status line and the next redraw
 painted over it - so the one thing the editor most needs to say was the one thing
 it said for a single frame.
 
+### Selection is Shift folded back out of the key space
+
+§57 folds Shift *into* the key space, because `Shift+Left` is byte for byte what
+`Left` reports and only the flags separate them. `momoed` folds it back out in
+one place: a key at or above `keyShift` becomes the extended key it shadows, with
+a flag set beside it.
+
+**So the binding table stays one row per command.** A shifted twin of every
+motion would be a second row for each that has to agree with the first for
+ever, and a binding added later would need two of them. This way anything bound
+is reachable with Shift the moment it exists.
+
+What the flag then means is one rule in one place: **a shifted motion extends the
+selection and a bare one collapses it.** §56 holds the anchor and has no opinion
+about when it should move, so every motion arm below is untouched by selection
+entirely.
+
+### One answer to what replacing a selection means
+
+A character typed, a Backspace, a Delete, an Enter and a paste all remove the
+selection first, and all five go through one routine. Four routines that agreed
+would agree until one of them was changed.
+
+**The group is opened only when there is a selection to kill**, and that is worth
+saying because the tidy version is wrong. `undoStep` breaks the run before it, so
+wrapping every keystroke in one turns a run of typing into one action per
+character - §54's coalescing undone by a bracket that looked harmless. A command
+is a new action; a character is not.
+
+### `^C` and `^X` with nothing selected take the line
+
+Which is VS Code, and is most of what either is used for. It needs no selection
+at all, so it is the half of this that works before a person has learned
+Shift+arrows - and the span is the line *and the newline after it*, so pasting
+puts a line back rather than joining two.
+
+On the last line there is no newline to take, so the span is the text alone. That
+is also what stops a document being cut down to no lines at all.
+
+Both commands ask for the span through the same routine, because a cut that
+copied one thing and removed another is a class of bug that only shows up later,
+on the paste.
+
+**And a cut whose span did not fit the clipboard does not happen.** The copy
+comes back short rather than refused, so cutting anyway would take out of the
+document exactly what the clipboard failed to keep - with no sign of it until a
+paste came back short, by which time the text is gone. That is §55's own rule
+about a file too big for the buffer, one level up: refuse rather than truncate,
+and say so on the status line.
+
+### The selection is painted, and one cell past the end of a line
+
+The span is in document columns and the row §56 hands over is in the window's, so
+the highlight is painted over the row rather than into it. §56 answers which end
+comes first, so nothing in the renderer has to know that a selection made upwards
+has its anchor after its cursor.
+
+A line fully inside the selection is marked one column wider than its text, and
+that cell stands for the newline. Without it a blank line in the middle of a
+selection is the one row that looks unselected.
+
+### Multiple cursors, which is wanted and needs nothing here
+
+**Wanted, not designed**, and recorded because the reasoning is the thing that
+gets lost rather than the feature. `Ctrl+D` for *add selection to next find
+match* is the shape a person asks for, and every piece it needs now exists: §59
+finds, §56 holds a selection, §61 edits a span.
+
+**A mark and a point is already the multi-cursor shape.** VS Code's model is an
+array of exactly that, an anchor and an active end, so the decision this section
+takes is the one that model wants anyway.
+
+Three things that look like they would have to change do not:
+
+- **§56 keeps owning the cursor.** VS Code has a *primary* cursor - the one the
+  view scrolls to follow and the one that survives Escape - and that is the one
+  here. Secondary cursors would live in the program, which is where the intent
+  lives.
+- **Undo grouping is already built.** N edits from one keystroke have to be one
+  step back, which is exactly what `undoStep` does.
+- **The caret becomes painted rather than the hardware's**, because there is one
+  hardware cursor. That is a change to this file's renderer and to no library.
+
+What would genuinely hurt is coordinate shifting - an insert at one cursor moves
+the ones after it. **The scattering is the problem rather than the data
+structure**, and §61 is the fix already: with edits going through routines that
+take positions, N cursors is a loop over them, applied *back to front* so that
+the earlier positions have not moved. No coordinate mapping is needed for
+anything a person would actually do.
+
 ### momoed is the consumer §43 has been waiting for
 
 §43's unbuilt half - the properties query with its fallback chain - is not
@@ -5128,6 +5344,14 @@ language feature.
 
 ### Rules
 
+- **Shift is folded back out once, at the top.** A shifted key becomes the key it
+  shadows with a flag beside it, so the binding table is one row per command.
+- **A group is opened only for a command.** Wrapping one round a keystroke turns
+  a run of typing into one action per character.
+- **`^C` and `^X` ask for their span through the same routine**, or a cut copies
+  one thing and removes another.
+- **A cut that did not fit the clipboard is refused**, not truncated. §61 is
+  asked rather than the count compared.
 - **The editor never calls `readKey`.** `nextKey` is the program's, so the
   command layer is testable. The same holds for output: rendering goes through a
   routine the program supplies.
@@ -5145,8 +5369,9 @@ language feature.
 One file named on the command line, read through §38 into §54's buffer; §56's
 window over it; §57's keys through a binding table with CUA motion, insert,
 delete, Enter, page up and down, `Ctrl+Home` and `Ctrl+End`, `^Z`, `^Y`, `^F`,
-`^L` and save; §59 under the find and §60 under its prompt; cells written
-straight to the text frame; and `videoMode` (§48) over §43's save and
+`^L`, Shift with any motion, `^A`, `^C`, `^X`, `^V` and save; §59 under the
+find, §60 under its prompt and §61 under the clipboard; cells written straight
+to the text frame; and `videoMode` (§48) over §43's save and
 restore, so the display cannot be left in whatever this set it to.
 
 **Three motions are the ones a first version gets wrong**, and all three came
@@ -5178,9 +5403,20 @@ thousand cells and comfortably inside the time between two keys; dirty-row
 redraw is what §54 and §56 are shaped for and is not needed yet.
 
 Not in it: the explorer and therefore directory enumeration; more than one file
-open; selection; replace; syntax colour; and text in a graphics mode. Each is a
-paragraph of its own or a line in §54's, and none was needed for the thing to
-be an editor.
+open; replace; multiple cursors; syntax colour; and text in a graphics mode.
+Each is a paragraph of its own or a line in §54's, and none was needed for the
+thing to be an editor.
+
+### The 64 KB is the live constraint now, and selection is what spent it
+
+The clipboard is the third claim on the heap after §54's buffer and the file read
+buffer, and after it there are **three figures' worth of bytes left** rather than
+four - `DECISIONS.md` §61 has the numbers and the date they were taken.
+
+That is not a problem to solve here. It is the point at which PLAN §58 stops
+being a good idea and becomes the next one, and it is also why the undo log is
+still sixty-four entries: every byte that log grows by comes out of the same
+budget the text does.
 
 ### What is not settled
 

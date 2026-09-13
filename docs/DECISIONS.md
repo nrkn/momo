@@ -2131,3 +2131,116 @@ is full.
 **Which is worth recording because the two rules disagreed and the second won.**
 The tie-break is that testability is a property of where the code lives and reuse
 is a guess about the future; one of those is checkable today.
+
+---
+
+## 61. `morange` and selection
+
+### The 64 KB ran out, and selection is the thing that spent it
+
+Measured with `npm run memory` on 2026-09-13, after the clipboard landed:
+
+| | bytes |
+|---|---|
+| image | 24,490 |
+| heap | 40,494 |
+| claimed - §54's buffer, the file read buffer, the clipboard | 39,552 |
+| **unclaimed** | **942** |
+
+Selection cost about 2,400 bytes of image and took a 1 KB clipboard out of the
+heap, and image and heap come out of the same 64 KB, so it was paid for twice.
+What is left is under a kilobyte, and **PLAN §58 stops being a good idea and
+becomes the next one.**
+
+### Which is why the undo log is still sixty-four entries, and that is not enough
+
+An entry is seven bytes and there is one per character. Cutting a single line of
+sixty characters is sixty-one entries; two lines is past the end of the log.
+Raising the number is the obvious fix and there is no room to raise it into - 942
+bytes buys about 130 more entries, which is still less than two lines, and leaves
+nothing for anything else.
+
+**The fix is one byte per character rather than seven**, and it is a different
+shape: a span deleted goes into a text arena and the log holds one entry saying
+where it came from. That is a seven-fold difference on the text plus one entry
+instead of hundreds, and it is what should happen before the number is touched.
+
+It is not a small change, and the reason is worth writing down: undoing such an
+entry means *inserting a span*, which is §61 - which is above §54. So either the
+span operations move inside the buffer, or the log learns to call upwards.
+**Deciding that is the work**, not the arena.
+
+Meanwhile the behaviour is the honest one. A group the log cannot hold empties
+the log rather than keeping the tail of it, because half a group restored is a
+document nobody asked for, and `textUndoLost` makes it reportable - `momoed` says
+*too big to undo* in the status line. Same call §54 already made with
+`textNoRoom`: total rather than partial, and never silent.
+
+### A bracket that looked harmless would have undone §54's coalescing
+
+The tidy way to write "typing replaces the selection" is to wrap every insert in
+`undoStep`. It is wrong, and not subtly: **opening a group breaks the run before
+it**, so a bracket around each keystroke makes every character its own action and
+undo goes back to meaning one character - the exact thing §54's coalescing exists
+to prevent, removed by three lines that read as tidying.
+
+So the group is opened only when there is a selection to replace, and the two
+duplicated lines that costs are cheaper than the alternative. The general form:
+**a command is a new action and a character is not**, which is the same boundary
+`undoBreak` draws from the other side.
+
+### Counting the span before the joins, and what the teeth showed
+
+Deleting across three lines can empty each line and then join, or join first and
+then delete once. Joining first keeps the walk on one line, and the price is that
+the count has to be taken before anything moves.
+
+Neutering that - dropping the middle lines from the count - does not produce a
+short delete or a crash. It leaves `[abjklmno/]` where `[abno/]` was expected:
+**both ends of the selection correctly removed and the middle of it still sitting
+in the document.** That is the failure worth having a test for, and it is the one
+that would read as a rendering bug for an hour first.
+
+### The one case nothing above §56 would have noticed
+
+Every span in the editor is asked for in document order, so a selection made
+*upwards* - anchor after cursor - is the only thing that can tell whether anybody
+put the two ends the right way round. With `markFirst` neutered the whole suite
+still passed except the three lines that select backwards, and those failed
+completely: the copy returned nothing and the highlight vanished.
+
+It is one line of code in §56 and it earns its place by being asked once rather
+than by every caller. The alternative is four callers that agree until one of
+them is changed.
+
+### What the tests are shaped like
+
+`morange` checks the span arithmetic and the undo count; `edsel` checks the three
+things that live in the editor and nowhere below it - Shift folded back out of
+§57's key space, the rule that a shifted motion extends and a bare one collapses,
+and the span turned into screen columns.
+
+The last of those is why `edsel` renders at all. `momoed` writes cells and no
+tier can read those, so the same arithmetic is written against characters: a row
+of text and a row of marks under it. That is what makes the cell past the end of
+a line - the one standing for the newline - a thing a test can see, and neutering
+it turns `######......` into `#####.......` rather than into nothing at all.
+
+### The cut that would have taken what the clipboard did not keep
+
+Found by reading the finished code rather than by a test, which is worth saying
+because it is the same defect shape as §55's first one and was introduced in the
+same way - two routines that are each correct, composed.
+
+`rangeCopy` comes back *short* when the span is bigger than the buffer, because
+refusing would be worse for a caller that only wants what it can hold. `doCut`
+copied and then deleted the span it had asked for. So a cut of more than a
+kilobyte would have removed from the document precisely the part the clipboard
+did not keep, with **no sign of it until a paste came back short**, by which time
+the text was gone and the undo log had probably rolled past it.
+
+The fix is the rule §55 already had one level down - refuse rather than truncate,
+and say so - and it needed one thing from §61 first: **the count cannot answer
+the question.** A span that exactly filled the buffer returns the same number as
+one that was cut off, so `rangeCopied` is a separate answer and the test that
+holds it is two calls that both return four.

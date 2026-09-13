@@ -31,6 +31,20 @@ local u16 width
 local u16 curLine
 local u16 curCol
 
+// The other end of a selection - **a mark and a point**, where the point is the
+// cursor above. That is what VS Code holds and what a caller extending with
+// Shift already has half of; a range would be a second coordinate system to keep
+// in step with the cursor that exists either way.
+//
+// It lives here because the other end of it does, and because the ordering - the
+// question of which end comes first in the document - is an off-by-one that
+// every caller who renders or deletes a selection would otherwise answer for
+// itself. **It is also the shape multiple cursors want**, being an array of
+// exactly this; §55 records why that changes nothing here.
+local u16 markLine
+local u16 markCol
+local bool marked
+
 // The column the cursor is *aiming* at, which is not always the one it is in.
 // Moving down a long line onto a short one has to put the cursor somewhere the
 // short line has, and moving off it again should go back to where it was - so
@@ -50,12 +64,52 @@ sub viewHome {
   left = 0
   curLine = 0
   curCol = 0
+  marked = false
 }
 
 u16 viewTop() => top
 u16 viewLeft() => left
 u16 viewLine() => curLine
 u16 viewCol() => curCol
+
+// ---- the selection ----
+//
+// **Nothing here decides when a selection starts or ends**, which is the same
+// call `viewRow` makes about drawing and `undoBreak` makes about a run of
+// typing: whether a keystroke extends a selection or collapses one is a fact
+// about the person's hand, not about the window. So a caller holding Shift calls
+// `viewMark` before the motion and one that is not calls `viewUnmark`, and every
+// motion routine below is untouched by either.
+
+sub viewMark {
+  if ( marked ) return
+
+  markLine = curLine
+  markCol  = curCol
+  marked   = true
+}
+
+sub viewUnmark {
+  marked = false
+}
+
+// Marked *and* not empty. An anchor sitting on the cursor selects nothing, and
+// without this every caller would special-case it - a copy of no bytes, a
+// delete of no characters, a highlight of no cells.
+bool viewSelected() => marked && ( markLine != curLine || markCol != curCol )
+
+u16 viewMarkLine() => markLine
+u16 viewMarkCol()  => markCol
+
+// Which end is the earlier one, asked once and answered here. A selection made
+// upwards or leftwards has its anchor after its cursor, and every caller that
+// forgot would work perfectly until somebody selected backwards.
+local bool markFirst() => markLine < curLine || ( markLine == curLine && markCol < curCol )
+
+u16 viewFromLine() => markFirst() ? markLine : curLine
+u16 viewFromCol()  => markFirst() ? markCol  : curCol
+u16 viewToLine()   => markFirst() ? curLine  : markLine
+u16 viewToCol()    => markFirst() ? curCol   : markCol
 
 // ---- following the cursor ----
 

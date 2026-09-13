@@ -1,0 +1,407 @@
+// edsel.momo - the selection wiring an editor puts above §56 and §61
+// (DESIGN §55, §14).
+//
+// Three things live in the editor and nowhere below it, and all three are the
+// kind that work until somebody selects backwards:
+//
+//   - Shift folded back out of §57's key space, so a shifted arrow is the same
+//     command as the arrow with one more fact attached
+//   - the rule that a shifted motion extends and a bare one collapses
+//   - the span a selection covers turned into screen columns, including the
+//     cell past the end of a line that stands for the newline
+//
+// The third is why this renders at all. `momoed` writes cells and no tier can
+// read those, so the same arithmetic is written here against characters - a row
+// of text and a row of marks under it. It is a mirror of the editor rather than
+// the same code, which is the arrangement §55 already runs on.
+
+include "lib/std/io.momo"
+include "lib/std/key.momo"
+include "lib/moview.momo"
+include "lib/morange.momo"
+
+const u8[] source = "alpha\n"
+                    "beta\n"
+                    "gamma\n"
+
+const viewW = 12
+
+u8[80] buf
+u8[viewW] marks
+
+u16 clipLen
+u8[64] clip
+
+bool selecting
+
+u16 spanFromLine
+u16 spanFromCol
+u16 spanToLine
+u16 spanToCol
+
+// ---- the three things under test ----
+
+bool isMotion( u8 a ) => a == 1 || a == 2 || a == 3 || a == 4 || a == 5 || a == 6
+
+const actLeft   = 1
+const actRight  = 2
+const actUp     = 3
+const actDown   = 4
+const actHome   = 5
+const actEnd    = 6
+
+bool killSelection() {
+  u16 ln
+  u16 col
+
+  if ( !viewSelected() ) return false
+
+  ln  = viewFromLine()
+  col = viewFromCol()
+
+  rangeDelete( ln, col, viewToLine(), viewToCol() )
+  viewUnmark()
+  viewGoto( ln, col )
+  return true
+}
+
+sub lineSpan {
+  spanFromLine = viewLine()
+  spanFromCol  = 0
+
+  if ( viewLine() + 1 < textLines() ) {
+    spanToLine = viewLine() + 1
+    spanToCol  = 0
+  } else {
+    spanToLine = viewLine()
+    spanToCol  = lineLength( viewLine() )
+  }
+}
+
+sub actSpan {
+  if ( viewSelected() ) {
+    spanFromLine = viewFromLine()
+    spanFromCol  = viewFromCol()
+    spanToLine   = viewToLine()
+    spanToCol    = viewToCol()
+    return
+  }
+
+  lineSpan()
+}
+
+sub doCopy {
+  actSpan()
+  clipLen = rangeCopy( spanFromLine, spanFromCol, spanToLine, spanToCol,
+                       addr( clip ), len( clip ) )
+}
+
+sub doCut {
+  doCopy()
+
+  undoStep {
+    rangeDelete( spanFromLine, spanFromCol, spanToLine, spanToCol )
+    viewUnmark()
+    viewGoto( spanFromLine, spanFromCol )
+  }
+}
+
+sub doPaste {
+  if ( clipLen == 0 ) return
+
+  undoStep {
+    killSelection()
+    rangeInsert( viewLine(), viewCol(), addr( clip ), clipLen )
+    viewGoto( rangeEndLine(), rangeEndCol() )
+  }
+}
+
+sub doSelectAll {
+  viewUnmark()
+  viewGoto( 0, 0 )
+  viewMark()
+  viewGoto( textLines() - 1, lineLength( textLines() - 1 ) )
+}
+
+sub apply( u8 a ) {
+  if ( isMotion( a ) ) {
+    undoBreak()
+
+    if ( selecting ) {
+      viewMark()
+    } else {
+      viewUnmark()
+    }
+  }
+
+  if ( a == actLeft ) {
+    if ( viewCol() > 0 ) viewGoto( viewLine(), viewCol() - 1 )
+  } else if ( a == actRight ) {
+    if ( viewCol() < lineLength( viewLine() ) ) viewGoto( viewLine(), viewCol() + 1 )
+  } else if ( a == actUp ) {
+    if ( viewLine() > 0 ) viewGotoLine( viewLine() - 1 )
+  } else if ( a == actDown ) {
+    viewGotoLine( viewLine() + 1 )
+  } else if ( a == actHome ) {
+    viewGoto( viewLine(), 0 )
+  } else if ( a == actEnd ) {
+    viewGoto( viewLine(), lineLength( viewLine() ) )
+  }
+}
+
+// One keystroke, already normalised. The binding table is `edloop`'s job; what
+// this has to get right is the Shift fold and what it means.
+sub step( u16 k ) {
+  selecting = false
+
+  if ( k >= keyShift ) {
+    selecting = true
+    k = keyExt + ( k - keyShift )
+  }
+
+  if ( k == keyEsc ) {
+    viewUnmark()
+    return
+  }
+
+  if ( k == keyExt + keyLeft ) {
+    apply( actLeft )
+  } else if ( k == keyExt + keyRight ) {
+    apply( actRight )
+  } else if ( k == keyExt + keyUp ) {
+    apply( actUp )
+  } else if ( k == keyExt + keyDown ) {
+    apply( actDown )
+  } else if ( k == keyExt + keyHome ) {
+    apply( actHome )
+  } else if ( k == keyExt + keyEnd ) {
+    apply( actEnd )
+  } else if ( k == 3 ) {
+    doCopy()
+  } else if ( k == 24 ) {
+    doCut()
+  } else if ( k == 22 ) {
+    doPaste()
+  } else if ( k == 1 ) {
+    doSelectAll()
+  } else if ( k == 26 ) {
+    undoOnce()
+    viewGoto( undoLine(), undoCol() )
+  }
+}
+
+// ---- showing it ----
+
+sub dump {
+  u16 n
+
+  putChar( '[' )
+
+  for ( u16 ln = 0; ln < textLines(); ln++ ) {
+    n = lineSlice( ln, 0, len( buf ), addr( buf ) )
+
+    for ( u16 i = 0; i < n; i++ ) {
+      putChar( buf[i] )
+    }
+
+    if ( ln + 1 < textLines() ) putChar( '/' )
+  }
+
+  putChar( ']' )
+  putChar( ' ' )
+  putNumber( textLines() )
+  newline()
+}
+
+sub where {
+  putNumber( viewLine() )
+  putChar( ':' )
+  putNumber( viewCol() )
+  putChar( ' ' )
+
+  if ( !viewSelected() ) {
+    putChar( '-' )
+    newline()
+    return
+  }
+
+  putStr( addr( sSel ) )
+  putNumber( viewFromLine() )
+  putChar( ':' )
+  putNumber( viewFromCol() )
+  putChar( '-' )
+  putNumber( viewToLine() )
+  putChar( ':' )
+  putNumber( viewToCol() )
+  newline()
+}
+
+const u8[] sSel = "sel $"
+
+sub clipShow {
+  putChar( '[' )
+
+  for ( u16 i = 0; i < clipLen; i++ ) {
+    if ( clip[i] == '\n' ) {
+      putChar( '|' )
+    } else {
+      putChar( clip[i] )
+    }
+  }
+
+  putChar( ']' )
+  putChar( ' ' )
+  putNumber( clipLen )
+  newline()
+}
+
+// The span in screen columns, which is the arithmetic `momoed` does against
+// cells. A row of text, then a row of marks under it.
+sub viewRow( u16 y, u16 at, u16 n ) {
+  u16 ln
+  u16 c0
+  u16 c1
+  u16 sx
+
+  for ( u16 i = 0; i < viewW; i++ ) {
+    marks[i] = '.'
+  }
+
+  if ( viewSelected() ) {
+    ln = viewTop() + y
+
+    if ( ln >= viewFromLine() && ln <= viewToLine() ) {
+      c0 = 0
+      if ( ln == viewFromLine() ) c0 = viewFromCol()
+
+      c1 = lineLength( ln )
+      if ( ln == viewToLine() ) {
+        c1 = viewToCol()
+      } else {
+        c1++
+      }
+
+      for ( u16 c = c0; c < c1; c++ ) {
+        if ( c >= viewLeft() ) {
+          sx = c - viewLeft()
+          if ( sx >= viewW ) break
+          marks[sx] = '#'
+        }
+      }
+    }
+  }
+
+  for ( u16 x = 0; x < n; x++ ) {
+    putChar( peek8( at + x ) )
+  }
+  for ( u16 x = n; x < viewW; x++ ) {
+    putChar( ' ' )
+  }
+
+  putChar( '|' )
+
+  for ( u16 i = 0; i < viewW; i++ ) {
+    putChar( marks[i] )
+  }
+  newline()
+}
+
+// ---- entry ----
+
+textInit()
+
+for ( u16 i = 0; i < len( source ); i++ ) {
+  textLoad( source[i] )
+}
+
+viewSize( 4, viewW )
+viewHome()
+
+dump()
+
+// Two columns in, then three with Shift held.
+step( keyExt + keyRight )
+step( keyExt + keyRight )
+where()
+
+step( keyShift + keyRight )
+step( keyShift + keyRight )
+step( keyShift + keyRight )
+where()
+
+step( 3 )
+clipShow()
+
+// A bare motion collapses what a shifted one built.
+step( keyExt + keyHome )
+where()
+
+step( 22 )
+dump()
+where()
+
+step( 26 )
+dump()
+where()
+
+// Across lines, which is where the span arithmetic has four boundaries and
+// three of them are easy to get wrong.
+step( keyShift + keyDown )
+step( keyShift + keyRight )
+step( keyShift + keyRight )
+where()
+
+// The cell past the end of a line stands for the newline, so a fully selected
+// line is marked one wider than its text.
+viewRender()
+
+step( 24 )
+clipShow()
+dump()
+where()
+
+step( 26 )
+dump()
+where()
+
+// Everything, then nothing.
+step( 1 )
+where()
+step( keyEsc )
+where()
+
+// With no selection, a copy takes the line and the newline after it.
+step( keyExt + keyUp )
+step( 3 )
+clipShow()
+
+step( 22 )
+dump()
+where()
+
+// Backwards, with the anchor after the cursor. That is the one case `markFirst`
+// exists for, and the one nothing above §56 would notice getting wrong: every
+// span here is asked for in document order, so a selection made upwards is the
+// only thing that can tell whether anybody put them the right way round.
+step( keyExt + keyEnd )
+step( keyShift + keyLeft )
+step( keyShift + keyLeft )
+where()
+
+step( 3 )
+clipShow()
+
+step( keyShift + keyUp )
+where()
+viewRender()
+
+// A paste over a live selection, which is the one place a group is nested: the
+// delete opens one and the insert is inside it. §54 counts rather than nests, so
+// what a person did is one thing and one step back takes all ten edits.
+step( 22 )
+dump()
+where()
+
+step( 26 )
+dump()
+where()

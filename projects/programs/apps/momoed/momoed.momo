@@ -1,15 +1,15 @@
 // momoed.momo - the editor (PLAN §55).
 //
 // A file named on the command line, §54's buffer under it, §56's window onto it,
-// §59 searching it, §60 holding the term, §57's keys driving all of them, and
-// cells written straight to the text frame. The first version: one file, no
-// explorer, no selection.
+// §59 searching it, §60 holding the term, §61 moving spans of it about, §57's
+// keys driving all of them, and cells written straight to the text frame. The
+// first version: one file, and no explorer.
 //
-// **Almost nothing here is new.** The buffer, the window, the search, the field
-// and the keyboard are libraries with test projects of their own, and `edloop`
-// and `edfind` already drive this exact command layer from a script. What this
-// file adds is the three things no headless tier can run: a real keyboard, a
-// real screen, and a real file named by a person.
+// **Almost nothing here is new.** The buffer, the window, the search, the field,
+// the spans and the keyboard are libraries with test projects of their own, and
+// `edloop`, `edfind` and `edsel` drive this exact command layer from a script.
+// What this file adds is the three things no headless tier can run: a real
+// keyboard, a real screen, and a real file named by a person.
 //
 // It has a `.expected` covering less than it looks: run with no filename it
 // prints a usage line and stops, so tier 2 reaches the command tail and the exit
@@ -22,6 +22,7 @@ include "lib/std/mode.momo"
 include "lib/moview.momo"
 include "lib/mofind.momo"
 include "lib/mofield.momo"
+include "lib/morange.momo"
 
 // The frame is declared for the largest text mode this supports, because a `far`
 // region takes a constant size (§16) while the geometry is read back from the
@@ -36,6 +37,7 @@ far u16[edMaxCols * edMaxRows] vram = 0xB800
 const attrText   = color( lightGray, black )
 const attrStatus = color( black, lightGray )
 const attrMatch  = color( black, cyan )
+const attrSel    = color( white, blue )
 
 u16 cols
 u16 rows
@@ -59,6 +61,26 @@ bool onMatch
 const pieceSize = 128
 view u8[pieceSize] piece = _heap[textBytes]
 
+// The clipboard, after §54's claim and after the read buffer - §17 static
+// partitioning, with this program's two pieces going after the library's one.
+// **It is where the 64 KB starts to bite**: `npm run memory` is what says how
+// much is left, and PLAN §58 is where the ceiling goes up.
+const clipBytes = 1024
+view u8[clipBytes] clip = _heap[textBytes + pieceSize]
+u16 clipLen
+
+// Whether the keystroke being handled had Shift on it. §57 folds Shift into the
+// key space and `step` folds it back out, so this is what is left of it by the
+// time a motion runs.
+bool selecting
+
+// The span `^C` and `^X` are about to act on, worked out once by `actSpan` so
+// that the copy and the delete cannot disagree about it.
+u16 spanFromLine
+u16 spanFromCol
+u16 spanToLine
+u16 spanToCol
+
 const u8[] sUsage   = "usage: momoed FILE$"
 const u8[] sNoFile  = " (new)$"
 const u8[] sSaved   = " saved$"
@@ -69,6 +91,8 @@ const u8[] sStar    = "*$"
 const u8[] sFind    = "find: $"
 const u8[] sNoMatch = "not found$"
 const u8[] sWrapped = "wrapped$"
+const u8[] sNoUndo  = "too big to undo$"
+const u8[] sClipFull = "clipboard full$"
 
 // Where the field starts on the status line - the width of `sFind` without its
 // terminator. Named rather than written twice, because the caret and the text
@@ -165,6 +189,11 @@ sub cellAt( u16 x, u16 y, u8 ch, u8 attr ) {
 sub viewRow( u16 y, u16 at, u16 n ) {
   u16 base
   u16 hx
+  u16 ln
+  u16 c0
+  u16 c1
+  u16 sx
+  u8  ch
 
   base = y * cols
 
@@ -174,6 +203,40 @@ sub viewRow( u16 y, u16 at, u16 n ) {
 
   for ( u16 x = n; x < cols; x++ ) {
     vram[ base + x ] = 32 | ( u16( attrText ) << 8 )
+  }
+
+  // The selection, painted over the row that was just written rather than into
+  // it, because the span is in *document* columns and the row is in the window's.
+  // §56 answers which end comes first, so nothing here has to know that a
+  // selection made upwards has its anchor after its cursor.
+  if ( viewSelected() ) {
+    ln = viewTop() + y
+
+    if ( ln >= viewFromLine() && ln <= viewToLine() ) {
+      c0 = 0
+      if ( ln == viewFromLine() ) c0 = viewFromCol()
+
+      c1 = lineLength( ln )
+      if ( ln == viewToLine() ) {
+        c1 = viewToCol()
+      } else {
+        // One past the text, which is the newline. Without it a blank line in
+        // the middle of a selection is the one row that looks unselected.
+        c1++
+      }
+
+      for ( u16 c = c0; c < c1; c++ ) {
+        if ( c >= viewLeft() ) {
+          sx = c - viewLeft()
+          if ( sx >= cols ) break
+
+          ch = 32
+          if ( sx < n ) ch = peek8( at + sx )
+
+          cellAt( sx, y, ch, attrSel )
+        }
+      }
+    }
   }
 
   // The match is marked while the prompt is open, and only then. The caret is
@@ -314,13 +377,17 @@ const actPgDn   = 16
 const actRedo   = 17
 const actFind   = 18
 const actAgain  = 19
+const actCopy   = 20
+const actCut    = 21
+const actPaste  = 22
+const actAll    = 23
 
 // No chord in this table yet, and the machinery is kept rather than removed:
 // `^K ^C` for a comment toggle is the obvious first one, and `edloop` holds
 // the mechanism against a script meanwhile. Every prefix here being 0 costs one
 // comparison per entry per keystroke, which at this rate is nothing.
 const u16[] bindPrefix = [
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 ]
 
 const u16[] bindKey = [
@@ -340,6 +407,10 @@ const u16[] bindKey = [
   25,                    // ^Y
   6,                     // ^F
   12,                    // ^L
+  3,                     // ^C
+  24,                    // ^X
+  22,                    // ^V
+  1,                     // ^A
   keyExt + keyCtrlHome,
   keyExt + keyCtrlEnd
 ]
@@ -347,7 +418,7 @@ const u16[] bindKey = [
 const u8[] bindAction = [
   actLeft, actRight, actUp, actDown, actHome, actEnd, actDelete,
   actPgUp, actPgDn, actBack, actEnter, actUndo, actSave, actRedo,
-  actFind, actAgain,
+  actFind, actAgain, actCopy, actCut, actPaste, actAll,
   actTop, actBottom
 ]
 
@@ -372,9 +443,43 @@ bool keyIsPrefix( u16 k ) {
   return false
 }
 
-sub doInsert( u8 ch ) {
+sub insertOne( u8 ch ) {
   lineInsert( viewLine(), viewCol(), ch )
   viewGoto( viewLine(), viewCol() + 1 )
+}
+
+// **The group is opened only when there is a selection to kill.** Opening one
+// breaks the run before it, so wrapping every keystroke would turn a run of
+// typing into one action per character - §54's coalescing undone by a bracket
+// that looked harmless. A command is a new action; a character is not.
+sub doInsert( u8 ch ) {
+  if ( viewSelected() ) {
+    undoStep {
+      killSelection()
+      insertOne( ch )
+    }
+  } else {
+    insertOne( ch )
+  }
+
+  dirty = true
+}
+
+sub splitOne {
+  lineSplit( viewLine(), viewCol() )
+  viewGoto( viewLine() + 1, 0 )
+}
+
+sub doEnter {
+  if ( viewSelected() ) {
+    undoStep {
+      killSelection()
+      splitOne()
+    }
+  } else {
+    splitOne()
+  }
+
   dirty = true
 }
 
@@ -385,6 +490,10 @@ sub doBack {
   u16 ln
   u16 col
   u16 prevLen
+
+  // A selection makes Backspace and forward Delete the same command, which is
+  // what every editor does and is why neither needs a case of its own below.
+  if ( killSelection() ) return
 
   ln = viewLine()
   col = viewCol()
@@ -422,6 +531,113 @@ sub doSave {
   // what it used to do: the next redraw painted over it, so the one thing the
   // editor most needs to say was the one thing it said for a single frame.
   message = addr( sFailed )
+}
+
+// ---- the selection ----
+
+// Whatever is selected, gone, with the cursor left where the selection started.
+// **Everything that types over a selection goes through here** - a character, a
+// Backspace, an Enter, a paste - so there is one answer to what "replace the
+// selection" means rather than four that agree until one of them is changed.
+bool killSelection() {
+  u16 ln
+  u16 col
+
+  if ( !viewSelected() ) return false
+
+  ln  = viewFromLine()
+  col = viewFromCol()
+
+  rangeDelete( ln, col, viewToLine(), viewToCol() )
+  viewUnmark()
+  viewGoto( ln, col )
+  dirty = true
+  return true
+}
+
+// The span `^C` and `^X` act on with nothing selected: the whole line and the
+// newline after it, which is VS Code and is most of what either is used for. On
+// the last line there is no newline to take, so it is the text alone - and that
+// is also what stops a document being cut down to no lines at all.
+sub lineSpan {
+  spanFromLine = viewLine()
+  spanFromCol  = 0
+
+  if ( viewLine() + 1 < textLines() ) {
+    spanToLine = viewLine() + 1
+    spanToCol  = 0
+  } else {
+    spanToLine = viewLine()
+    spanToCol  = lineLength( viewLine() )
+  }
+}
+
+// The span the selection covers, or the line if there is none. Both `^C` and
+// `^X` want exactly this, and they must agree or a cut would copy one thing and
+// remove another.
+sub actSpan {
+  if ( viewSelected() ) {
+    spanFromLine = viewFromLine()
+    spanFromCol  = viewFromCol()
+    spanToLine   = viewToLine()
+    spanToCol    = viewToCol()
+    return
+  }
+
+  lineSpan()
+}
+
+sub doCopy {
+  actSpan()
+  clipLen = rangeCopy( spanFromLine, spanFromCol, spanToLine, spanToCol,
+                       addr( clip ), clipBytes )
+
+  // A span that did not fit comes back short rather than refused, and §61 is
+  // asked rather than the count compared - a span that exactly filled the
+  // clipboard returns the same number as one that was cut off.
+  if ( !rangeCopied() ) message = addr( sClipFull )
+}
+
+sub doCut {
+  doCopy()
+
+  // **A cut whose span did not fit the clipboard does not happen.** Cutting it
+  // anyway would take out of the document what the clipboard did not keep, and
+  // the only sign would be a paste that came back short later. It is §55's rule
+  // about a file too big for the buffer, one level up: refuse rather than
+  // truncate, and say so.
+  if ( !rangeCopied() ) return
+
+  undoStep {
+    rangeDelete( spanFromLine, spanFromCol, spanToLine, spanToCol )
+    viewUnmark()
+    viewGoto( spanFromLine, spanFromCol )
+  }
+
+  if ( textUndoLost() ) message = addr( sNoUndo )
+  dirty = true
+}
+
+sub doPaste {
+  if ( clipLen == 0 ) return
+
+  undoStep {
+    killSelection()
+    rangeInsert( viewLine(), viewCol(), addr( clip ), clipLen )
+    viewGoto( rangeEndLine(), rangeEndCol() )
+  }
+
+  if ( textUndoLost() ) message = addr( sNoUndo )
+  dirty = true
+}
+
+// The anchor goes at the top and the cursor at the end, because `viewMark`
+// anchors wherever the cursor is standing.
+sub doSelectAll {
+  viewUnmark()
+  viewGoto( 0, 0 )
+  viewMark()
+  viewGoto( textLines() - 1, lineLength( textLines() - 1 ) )
 }
 
 // ---- finding ----
@@ -496,13 +712,27 @@ sub promptKey( u16 k ) {
   }
 }
 
+bool isMotion( u8 a ) => a == actLeft || a == actRight || a == actUp ||
+                        a == actDown || a == actHome || a == actEnd ||
+                        a == actTop  || a == actBottom ||
+                        a == actPgUp || a == actPgDn
+
 sub apply( u8 a, u16 k ) {
   // Any motion ends a run of typing. Two keystrokes with a cursor move between
   // them are two actions, and §54 cannot tell - only this knows one happened.
-  if ( a == actLeft || a == actRight || a == actUp || a == actDown ||
-       a == actHome || a == actEnd || a == actTop || a == actBottom ||
-       a == actPgUp || a == actPgDn || a == actFind || a == actAgain ) {
-    undoBreak()
+  if ( isMotion( a ) || a == actFind || a == actAgain ) undoBreak()
+
+  // **Shift with a motion extends a selection and the same motion without it
+  // collapses one**, which is one rule in one place rather than a shifted twin
+  // of every arm below. §56 holds the anchor and has no opinion about when it
+  // should move - that is a fact about the person's hand, and this is where it
+  // is known.
+  if ( isMotion( a ) ) {
+    if ( selecting ) {
+      viewMark()
+    } else {
+      viewUnmark()
+    }
   }
 
   if ( a == actInsert ) {
@@ -545,7 +775,9 @@ sub apply( u8 a, u16 k ) {
     // At the end of a line Delete pulls the next one up. That is Backspace
     // from the other side and the same join, and it is what makes Delete on a
     // blank line remove the line rather than do nothing.
-    if ( viewCol() < lineLength( viewLine() ) ) {
+    if ( killSelection() ) {
+      dirty = true
+    } else if ( viewCol() < lineLength( viewLine() ) ) {
       lineDelete( viewLine(), viewCol() )
       dirty = true
     } else if ( viewLine() + 1 < textLines() ) {
@@ -553,9 +785,7 @@ sub apply( u8 a, u16 k ) {
       dirty = true
     }
   } else if ( a == actEnter ) {
-    lineSplit( viewLine(), viewCol() )
-    viewGoto( viewLine() + 1, 0 )
-    dirty = true
+    doEnter()
   } else if ( a == actUndo ) {
     doUndo()
   } else if ( a == actRedo ) {
@@ -578,6 +808,14 @@ sub apply( u8 a, u16 k ) {
     prompting = true
     message = 0
     onMatch = false
+  } else if ( a == actCopy ) {
+    doCopy()
+  } else if ( a == actCut ) {
+    doCut()
+  } else if ( a == actPaste ) {
+    doPaste()
+  } else if ( a == actAll ) {
+    doSelectAll()
   } else if ( a == actAgain ) {
     if ( findLength() == 0 ) {
       fieldClear()
@@ -603,6 +841,24 @@ sub step( u16 k ) {
   }
 
   message = 0
+
+  // §57 folds Shift into the key space; this folds it back out, so a shifted
+  // arrow is the same command as the arrow with one more fact attached. That
+  // keeps the binding table one row per command rather than two, and it means
+  // a binding added later is reachable with Shift without being written twice.
+  selecting = false
+  if ( k >= keyShift ) {
+    selecting = true
+    k = keyExt + ( k - keyShift )
+  }
+
+  // Escape with nothing to close drops the selection, which is where a hand
+  // goes when it wants the highlight to stop being there.
+  if ( k == keyEsc ) {
+    viewUnmark()
+    return
+  }
+
   had = pending
   a = keyAction( k )
 

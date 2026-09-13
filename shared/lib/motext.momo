@@ -119,6 +119,22 @@ local u16 undoDone
 // broken from outside rather than guessed at from in here.
 local bool breakRun
 
+// A **group** is the caller going further than that and saying several edits
+// are one action: a selection deleted across three lines, a paste that replaces
+// what was there. `continuesRun` can see the shapes typing makes and cannot see
+// a command, so the command says so - and it says so through §48's bracket, so
+// the close cannot be forgotten.
+//
+// It counts rather than nests. A group inside a group is part of the outer one,
+// because a paste that deletes a selection first is one thing a person did.
+local u16 stepDepth
+
+// A group longer than the log can hold is not recorded at all. `stepLost` stops
+// the rest of it going in on top of a log that has already been emptied, and
+// `undoLost` is what a caller asks afterwards.
+local bool stepLost
+local bool undoLost
+
 // Suspended while an undo runs, or the reversal would push its own entry and the
 // log would never drain. `textLoad` suspends it too.
 local bool undoing
@@ -223,8 +239,15 @@ local sub undoPush( u8 op, u16 ln, u16 col, u8 ch ) {
   bool joins
 
   if ( undoing ) return
+  if ( stepLost ) return
 
   joins = continuesRun( op, ln, col )
+
+  // Inside a group everything after the first entry joins, whatever the edits
+  // look like. The first one does not, because a group starts an action rather
+  // than continuing one - `undoOpen` breaks the run and that is what this reads.
+  if ( stepDepth > 0 && !breakRun ) joins = true
+
   breakRun = false
 
   // Anything undone and not redone is gone the moment a new edit lands: there
@@ -232,6 +255,19 @@ local sub undoPush( u8 op, u16 ln, u16 col, u8 ch ) {
   undoCount = undoDone
 
   if ( undoCount == maxUndo ) {
+    // Dropping the oldest entry is right for a run of typing, where what goes
+    // is an older action. **Inside a group it would break the group this entry
+    // belongs to**, and half a group restored is a document nobody asked for -
+    // so a group the log cannot hold is not recorded at all, and says so.
+    if ( stepDepth > 0 ) {
+      stepLost  = true
+      undoLost  = true
+      undoHead  = 0
+      undoCount = 0
+      undoDone  = 0
+      return
+    }
+
     undoHead = ( undoHead + 1 ) % maxUndo
     undoCount--
     undoDone--
@@ -253,6 +289,49 @@ local sub undoPush( u8 op, u16 ln, u16 col, u8 ch ) {
 sub undoBreak {
   breakRun = true
 }
+
+// ---- a group of edits that are one action ----
+//
+//   undoStep {
+//     rangeDelete( ... )
+//     rangeInsert( ... )
+//   }
+//
+// §48's bracket, declared here because this file owns both halves. A command
+// that opened one and forgot to close it would put every edit after it into the
+// same action for the rest of the session, which is exactly the shape §48 is
+// for - the compiler emits the close.
+
+sub undoOpen {
+  if ( stepDepth == 0 ) {
+    breakRun = true
+    stepLost = false
+    undoLost = false
+  }
+
+  stepDepth++
+}
+
+sub undoClose {
+  if ( stepDepth > 0 ) stepDepth--
+
+  if ( stepDepth == 0 ) {
+    breakRun = true
+    stepLost = false
+  }
+}
+
+// The two halves are public because the bracket expands to calls on them at the
+// use site, which is in another file. **The bracket is the way to use them** -
+// an open without a close would put every edit for the rest of the session into
+// one action, which is the failure §48 exists to remove.
+bracket undoStep = undoOpen / undoClose
+
+// Whether the group that just closed was longer than the log can hold, which is
+// the one way an edit here happens and cannot be taken back. A caller that never
+// asks is the bug this exists to make findable - the same call `textNoRoom`
+// makes about a buffer that would not fit a file.
+bool textUndoLost() => undoLost
 
 // Steps back and steps forward available, counted in entries rather than in
 // user actions - a run reports as its length and takes one keystroke to undo.
@@ -697,6 +776,9 @@ sub textInit {
   undoing   = false
   breakRun  = true
   noRoom    = false
+  stepDepth = 0
+  stepLost  = false
+  undoLost  = false
 
   lineNew()
 }
