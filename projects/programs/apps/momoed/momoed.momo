@@ -65,7 +65,7 @@ view u8[pieceSize] piece = _heap[textHeap]
 // partitioning, with this program's two pieces going after the library's one.
 // **It is where the 64 KB starts to bite**: `npm run memory` is what says how
 // much is left, and PLAN §58 is where the ceiling goes up.
-const clipBytes = 1024
+const clipBytes = 8192
 view u8[clipBytes] clip = _heap[textHeap + pieceSize]
 u16 clipLen
 

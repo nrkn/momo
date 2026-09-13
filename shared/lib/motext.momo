@@ -50,20 +50,29 @@ include "lib/std/block.momo"
 
 // ---- capacity ----
 //
-// Sized by consts here, the way momolo sizes `maxElements`. Turning `maxChunks`
-// up is how a bigger file fits, and `npm run memory` is what says when it no
-// longer does - it reports a view over `_heap` as a claim rather than an alias
-// precisely so this number can be tuned against an answer.
+// Sized by consts here, the way momolo sizes `maxElements`. **These are the
+// ceiling rather than the demand**: a far region emits no storage, so a size
+// here costs nothing until a chunk is actually handed out, and `textInit` caps
+// what it hands out at whatever the machine turned out to have. A smaller
+// machine gets a smaller buffer rather than no editor.
+//
+// **`maxChunks` may not pass 32,767.** The link array is `u16` per chunk and a
+// far region is reached at a `u16` offset, so twice this has to fit one - which
+// is the one relationship here that is arithmetic rather than judgement.
 
 local const chunkSize = 16
 local const halfChunk = chunkSize / 2
-local const maxChunks = 8192
-local const maxUndo   = 512
+local const maxChunks = 24000
+local const maxUndo   = 2048
 
 // **Chunks rather than bytes**, because the byte count no longer fits a `u16` -
 // which is the whole of what moving past the segment bought. A program that
 // wants to know the capacity in bytes multiplies, in whatever width it likes.
-const textMaxLines = 4000
+// **Public because a test has had to chase it twice.** A group longer than the
+// log is a case worth covering and the fixture that covers it has to be sized
+// against this number, so the number is readable rather than copied.
+const textUndoMax  = maxUndo
+const textMaxLines = 8000
 const textChunks   = maxChunks
 const textChunkSize = chunkSize
 
@@ -87,6 +96,26 @@ const textChunkSize = chunkSize
 local u16 textBase
 local u16 srcSeg
 local u16 dstSeg
+
+// **The records followed the text out.** They were views over the heap, which
+// cost the image nothing and cost the *segment* three bytes a chunk and four a
+// line - so the ceiling stopped being the text and became a table describing
+// it. Past the segment there is no table to run out of.
+//
+// Four regions rather than one, because each is reached at a `u16` offset and
+// together they are more than 64 KB. They are laid out in order from the base
+// and the text starts after them, which is the whole of the arithmetic.
+local const nextParas = ( maxChunks * 2 ) / chunkSize
+local const usedParas = maxChunks / chunkSize
+local const headParas = ( textMaxLines * 2 ) / chunkSize
+local const lenParas  = ( textMaxLines * 2 ) / chunkSize
+local const recParas  = nextParas + usedParas + headParas + lenParas
+
+local u16 recBase
+local u16 nextSeg
+local u16 usedSeg
+local u16 headSeg
+local u16 lenSeg
 
 local far u8[chunkSize] src = srcSeg
 local far u8[chunkSize] dst = dstSeg
@@ -117,12 +146,28 @@ local sub atSrc( u16 c ) {
 // So the records went where the text used to be. **The heap did not get smaller
 // when the text moved past the segment - it got vacated**, and this is what moved
 // into it.
-local view u16[maxChunks] chunkNext = _heap[0]
-local view u8[maxChunks]  chunkUsed = _heap[maxChunks * 2]
+local far u16[maxChunks] chunkNext = nextSeg
+local far u8[maxChunks]  chunkUsed = usedSeg
+
+// **A high-water mark and a list of what came back**, which is what removes the
+// walk that used to thread every chunk onto a free list at startup. At this
+// capacity that walk is twenty-four thousand far writes, and a far write is not
+// a near one - it is about a second on a 4.77 MHz machine, spent building a
+// list that a counter describes for nothing.
+//
+// `chunkHigh` is the lowest chunk never handed out; `chunkFree` is the head of
+// the returned ones. Taking prefers the returned list, so a long session reuses
+// rather than climbing.
+local u16 chunkHigh
 local u16 chunkFree
 
-local view u16[textMaxLines] lineHead = _heap[maxChunks * 3]
-local view u16[textMaxLines] lineLen  = _heap[maxChunks * 3 + textMaxLines * 2]
+// What the machine actually had room for, which is not what the consts above
+// declare. Set by `textInit` from the block DOS gave us.
+local u16 chunkLimit
+local u16 lineLimit
+
+local far u16[textMaxLines] lineHead = headSeg
+local far u16[textMaxLines] lineLen  = lenSeg
 local u16 lineCount
 
 // What this library claims at the bottom of the heap, so a program can say
@@ -134,7 +179,7 @@ local u16 lineCount
 //
 // `npm run memory` reports a view over `_heap` as a claim rather than an alias
 // precisely so this addition can be checked rather than asserted.
-const textHeap = maxChunks * 3 + textMaxLines * 4 + maxUndo * 7
+const textHeap = maxUndo * 7
 
 // The undo log records edits rather than storage: what was done and where, never
 // which chunk it landed in. Reversal goes back through the ordinary operations,
@@ -155,7 +200,7 @@ local const opJoin   = 4
 // storage, and at this size that is kilobytes of zeros in the `.COM` for capacity
 // nobody has used yet. **The principle the move settled: capacity lives in the
 // heap and code lives in the image.**
-local const logAt = maxChunks * 3 + textMaxLines * 4
+local const logAt = 0
 
 local view u8[maxUndo]  logOp   = _heap[logAt]
 local view u16[maxUndo] logLine = _heap[logAt + maxUndo]
@@ -225,10 +270,17 @@ local u16 seekPrev
 
 local u16 chunkTake() {
   u16 c
-  c = chunkFree
-  if ( c == 0 ) return 0
 
-  chunkFree = chunkNext[c]
+  if ( chunkFree != 0 ) {
+    c = chunkFree
+    chunkFree = chunkNext[c]
+  } else if ( chunkHigh < chunkLimit ) {
+    c = chunkHigh
+    chunkHigh++
+  } else {
+    return 0
+  }
+
   chunkNext[c] = 0
   chunkUsed[c] = 0
   return c
@@ -243,7 +295,7 @@ local sub chunkGive( u16 c ) {
 // Whether the last operation had a chunk to work with. An edit that could not
 // take one leaves the buffer unchanged rather than half changed, so a caller
 // that never asks is wrong rather than unlucky.
-bool textFull() => chunkFree == 0
+bool textFull() => chunkFree == 0 && chunkHigh >= chunkLimit
 
 // ---- seeking ----
 
@@ -594,7 +646,7 @@ sub lineSplit( u16 ln, u16 col ) {
   u16 d
   u16 tail
 
-  if ( ln >= lineCount || lineCount >= textMaxLines ) return
+  if ( ln >= lineCount || lineCount >= lineLimit ) return
 
   lineSeek( ln, col )
   c = seekChunk
@@ -808,7 +860,7 @@ u16 lineChunks( u16 ln ) {
 // ---- setting up ----
 
 local sub lineNew {
-  if ( lineCount >= textMaxLines ) {
+  if ( lineCount >= lineLimit ) {
     noRoom = true
     return
   }
@@ -821,38 +873,66 @@ local sub lineNew {
 // A library has no top-level statements to run, so this is explicit - the same
 // reason §43's row table is filled by a call rather than by setting a mode.
 sub textInit {
-  lineCount = 0
-  chunkFree = 0
-  undoHead  = 0
-  undoCount = 0
-  undoDone  = 0
-  undoing   = false
-  breakRun  = true
-  noRoom    = false
-  stepDepth = 0
-  stepLost  = false
-  undoLost  = false
+  u16 room
 
-  // The block past our own segment, and whether the last chunk is still
-  // inside it. **The question is asked about the last paragraph rather than
-  // about the size**, because the size no longer fits the `u16` `blockFits`
-  // takes - which is the same fact that made this change worth making.
-  textBase = blockBase()
+  lineCount  = 0
+  chunkFree  = 0
+  chunkHigh  = 1
+  chunkLimit = 0
+  lineLimit  = 0
+  undoHead   = 0
+  undoCount  = 0
+  undoDone   = 0
+  undoing    = false
+  breakRun   = true
+  noRoom     = false
+  stepDepth  = 0
+  stepLost   = false
+  undoLost   = false
 
-  if ( textBase == 0 || !blockFits( textBase + maxChunks - 1, chunkSize ) ) {
-    // No block means no buffer, and an empty free list is the whole of the
-    // handling: every allocation below already goes through `chunkTake`, so
-    // nothing can be written to a segment we were not given. At `textBase` 0
-    // that segment would be the interrupt table.
+  // The four record regions in order from the base, then the text after them.
+  // Nothing is allocated here - a far region is an address - so this is where
+  // the layout is decided and the only place it exists.
+  recBase = blockBase()
+  textBase = 0
+
+  if ( recBase == 0 ) {
     noRoom = true
     return
   }
 
-  for ( u16 i = 1; i < maxChunks - 1; i++ ) {
-    chunkNext[i] = i + 1
+  nextSeg  = recBase
+  usedSeg  = nextSeg + nextParas
+  headSeg  = usedSeg + usedParas
+  lenSeg   = headSeg + headParas
+  textBase = lenSeg + lenParas
+
+  // **The capacity is what is left rather than what was asked for.** A smaller
+  // machine gets a smaller buffer, which is the whole reason the consts above
+  // are a ceiling: sizing the regions to the block would mean sizing them at
+  // runtime, and a far region takes a constant.
+  //
+  // Compared rather than added, so a high base cannot wrap past the end and
+  // come back looking like room - the same care `blockFits` takes.
+  if ( blockEnd() <= textBase ) {
+    noRoom = true
+    return
   }
-  chunkNext[maxChunks - 1] = 0
-  chunkFree = 1
+
+  room = blockEnd() - textBase
+
+  chunkLimit = maxChunks
+  if ( room < chunkLimit ) chunkLimit = room
+
+  // Chunk 0 is the null and a line needs one of its own, so two is the floor
+  // below which there is no buffer rather than a small one.
+  if ( chunkLimit < 2 ) {
+    chunkLimit = 0
+    noRoom = true
+    return
+  }
+
+  lineLimit = textMaxLines
 
   lineNew()
 }
@@ -861,6 +941,11 @@ sub textInit {
 // so this exists only for a program that wants to tell a machine with no room
 // past the segment from a file that was too big for one that had it.
 bool textHasBuffer() => textBase != 0
+
+// How many chunks this machine actually had room for, which is `textChunks`
+// on anything with a normal amount of conventional memory and less on the
+// rest. A program showing a capacity should show this one.
+u16 textRoom() => chunkLimit
 
 // One character of a file being read in. A newline starts a line, anything else
 // appends. **Records no undo**: reading a file in is not an edit anybody wants

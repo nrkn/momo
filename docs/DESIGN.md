@@ -4724,21 +4724,75 @@ made the change worth making.
   it is why `chunkSize` may not change without this section changing.
 - **The window is set immediately before it is used**, and nothing between the
   two calls out to anything that could move it.
-- **Capacity lives in the heap or past the segment.** An array is storage in the
-  image, and capacity in the image is zeros on disk.
+- **Capacity lives past the segment.** An array is storage in the image and a
+  heap view is storage in the 64 KB; both are a table that runs out before the
+  memory does.
+- **The capacity consts are a ceiling, not a demand.** A far region emits no
+  storage, so the real limit is what `textInit` found and a smaller machine gets
+  a smaller buffer.
+- **`maxChunks` may not pass 32,767**, because twice it has to fit the `u16`
+  offset the link array is reached at.
 - **No block means an empty free list**, not a check at every write.
+
+### The records followed, because the ceiling had become the table
+
+Moving the text out left the records - the chunk links, the line heads - as views
+over the heap. That cost the image nothing and cost the *segment* three bytes a
+chunk and four a line, so the limit stopped being the text and became a table
+describing it. `momoed` could open its own source and not its own assembly, and
+not `DESIGN.md` either.
+
+So they went out too. **Four regions rather than one**, because each is reached
+at a `u16` offset and together they are more than 64 KB; they are laid out in
+order from the base and the text starts after them, which is all of the
+arithmetic. What is left in the heap is the undo log.
+
+**`maxChunks` may not pass 32,767**, which is the one relationship here that is
+arithmetic rather than judgement: the link array is a `u16` per chunk and twice
+the count has to fit a `u16` offset.
+
+### The capacity consts are a ceiling, not a demand
+
+A far region emits no storage, so a size here costs nothing until a chunk is
+handed out. That makes the declared numbers an *addressing envelope* and lets the
+real limit be decided at runtime: `textInit` asks the block how much is left
+after the records and caps what it will hand out at that.
+
+**So a smaller machine gets a smaller buffer rather than no editor**, which
+matters because the alternative was a program that simply refuses to start below
+some amount of memory nobody chose deliberately. It is also the one path here no
+tier exercises - every machine the tests run on has the whole 640 KB - and that
+is worth knowing rather than papering over.
+
+### The free list stopped being built
+
+Threading every chunk onto a free list at startup was a loop over `maxChunks`,
+and past the segment each iteration is a far store. Counted from the emitted
+assembly on 2026-09-13: about 153 cycles an iteration, 24,000 iterations,
+**roughly three quarters of a second on a 4.77 MHz machine - on every file
+opened.**
+
+A high-water mark describes the same list for nothing: `chunkHigh` is the lowest
+chunk never handed out, `chunkFree` is the head of the ones given back, and
+taking prefers the returned list so a long session reuses rather than climbing.
+One extra branch in `chunkTake`, and the loop is gone.
+
+That the cost was affordable is not the point. It was affordable and it was also
+unnecessary, and the version without it is shorter.
 
 ### What is still capped, and by what
 
-The records. Each chunk costs three bytes of heap and each line four, so the
-ceiling is now a heap one rather than a byte one - and it is high enough that
-`momoed` opens its own source and not its own assembly. `DECISIONS.md` §58 has
-the figures.
+Conventional memory, which is a better answer than the previous three. The text
+and its records together want about 477 KB of the 634 KB `dosblk` measured past
+its own segment, and pushing `maxChunks` to its own 32,767 ceiling would want
+666 KB - so **the `u16` on the link array and the 640 KB of real mode run out at
+about the same place**, which is a coincidence worth knowing before somebody
+tries to raise one of them.
 
-**Streaming is still what to reach for when this is not enough**, and it is still
-considerably more machinery: keeping the file on disk and paging chunks is the
-piece table's original virtue and would reach any file size at all. Far memory is
-hundreds of kilobytes from being exhausted, so it is not that yet.
+Past that is EMS or XMS, or streaming. **Streaming is still what to reach for
+when this is not enough** and is still considerably more machinery: keeping the
+file on disk and paging chunks is the piece table's original virtue and would
+reach any file size at all.
 
 ---
 

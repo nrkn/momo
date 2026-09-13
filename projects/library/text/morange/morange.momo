@@ -119,24 +119,26 @@ newline()
 
 // ---- a group longer than the log can hold ----
 //
-// Five hundred and fifty edits into a log of five hundred and twelve. The edits
-// happen; the log is emptied rather than left holding the tail of the group,
-// because half a group restored is a document nobody asked for.
+// More edits than the log can hold. The edits happen; the log is emptied rather
+// than left holding the tail of the group, because half a group restored is a
+// document nobody asked for.
 //
-// The numbers moved with §58 and the shape did not: the log is eight times
-// longer, so the fixture is proportionally bigger and the case it covers is the
-// same one.
+// **The fixture is sized from `textUndoMax` rather than written down**, because
+// it had to be chased twice - once when the log went from 64 to 512 and again
+// when it went to 2048, each time passing for the wrong reason in between. A
+// line of ten characters costs eleven entries to delete, so ten lines per entry
+// plus a margin is comfortably over whatever the log holds.
 
 textInit()
 
-for ( u16 i = 0; i < 50; i++ ) {
+for ( u16 i = 0; i < textUndoMax / 10 + 5; i++ ) {
   for ( u16 j = 0; j < 10; j++ ) {
     textLoad( u8( j ) + '0' )
   }
   textLoad( '\n' )
 }
 
-rangeDelete( 0, 0, 50, 0 )
+rangeDelete( 0, 0, textUndoMax / 10 + 5, 0 )
 dump()
 show( u16( textUndoLost() ) )
 show( textUndos() )
@@ -236,7 +238,7 @@ for ( u16 i = 0; i < 200; i++ ) {
   textLoad( 'x' )
 }
 textLoad( ' ' )
-for ( u16 i = 0; i < 50; i++ ) {
+for ( u16 i = 0; i < textUndoMax / 10 + 5; i++ ) {
   textLoad( 'y' )
 }
 

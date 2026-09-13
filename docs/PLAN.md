@@ -366,6 +366,19 @@ All are set out in DESIGN §20 unless noted.
 section that was itself a plan - see the note at the top for why, and where to
 look for the rest.
 
+- **The records past the segment too.** 2026-09-13. §58 again, and the record is
+  DECISIONS §58. Moving the text out had left the chunk links and line heads as
+  heap views at three bytes a chunk and four a line, so the ceiling stopped being
+  the text and became a table describing it. Now **every file in the repository
+  opens**, `momoed.asm` and `DESIGN.md` included - 24,000 chunks and 8,000 lines
+  against 8,192 and 4,000, with the undo log at 2,048 entries and the clipboard
+  at 8 KB out of the heap that emptied.
+
+  The capacity consts became a ceiling rather than a demand: a far region emits
+  no storage, so `textInit` caps what it hands out at what the machine turned out
+  to have and a smaller one gets a smaller buffer. And the free list stopped
+  being *built* - a high-water mark describes it for nothing, which removed about
+  three quarters of a second from every file opened.
 - **Text past the segment.** 2026-09-13. §58, now in `DESIGN.md`, and the record
   is DECISIONS §58. §54's text lives in the block DOS gave us and its records in
   the heap the text vacated, so none of the buffer's capacity is in the image.

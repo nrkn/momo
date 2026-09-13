@@ -2427,3 +2427,56 @@ an ordering.
 
 `keyprobe` now writes the toggles it started with, so the next run states what
 this one left to be reconstructed.
+
+### The records followed the text out, and the ceiling became a better one
+
+Moving the text past the segment left the records behind as heap views, at three
+bytes a chunk and four a line. So the limit stopped being the text and became a
+table describing it, and the table was in the 64 KB.
+
+What that cost, measured on 2026-09-13:
+
+| | before | after |
+|---|---|---|
+| chunks | 8,192 | 24,000 |
+| lines | 4,000 | 8,000 |
+| undo entries | 512 | 2,048 |
+| clipboard | 1 KB | 8 KB |
+| heap claimed | 41,728 | 22,656 |
+| heap unclaimed | 4,626 | 26,856 |
+
+Every file in the repository opens now, including `momoed.asm` at 7,534 lines -
+which §58 had recorded as the thing that would not fit. `DESIGN.md` is 5,849
+lines and 21,000 chunks against 8,000 and 24,000.
+
+The undo log and the clipboard went up because the heap emptied out and they were
+the two things with a limit somebody had already noticed.
+
+### The startup walk was affordable and also unnecessary
+
+Threading every chunk onto a free list at `textInit` is a loop over `maxChunks`,
+and past the segment each iteration is a far store. From the emitted assembly:
+about 153 cycles an iteration and 24,000 iterations, so **roughly three quarters
+of a second on a 4.77 MHz machine, on every file opened.**
+
+That was budgeted for and accepted before the change. It did not need to be: a
+high-water mark - the lowest chunk never handed out, beside the list of ones
+given back - describes the same free list for nothing, and `chunkTake` prefers
+the returned list so a long session reuses rather than climbing. One extra
+branch, and the loop is gone.
+
+**Worth recording because the permission to spend it was already given.** The
+measurement was taken anyway, and what it showed was not that the cost was too
+high but that the structure paying it was the wrong one. A budget is not a
+reason to stop looking.
+
+### A fixture had chased a const twice, so it reads it now
+
+`morange` covers a group of edits longer than the undo log can hold, and its
+fixture was sized by hand. The log went 64 to 512 and the test passed for the
+wrong reason; it went 512 to 2,048 and passed for the wrong reason again. Both
+times the case it existed for had silently stopped happening.
+
+`textUndoMax` is public now and the fixture is a function of it. The general
+shape: **a test whose fixture has to exceed a library's constant should read the
+constant**, because the failure mode is not a red test, it is a green one.
