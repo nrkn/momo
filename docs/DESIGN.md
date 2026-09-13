@@ -4037,7 +4037,10 @@ Both halves together cost the editor a little over two hundred bytes; DECISIONS
   than an immediate every time - `tigerpic` would pay it 92,949 times - and §16
   refuses to hoist a runtime segment, so the constant is the only form §34 can
   ever improve. `screenSegment()` is for a program that does not know its mode at
-  compile time, which is the properties query and is not built.
+  compile time - which now has a consumer, and not the one this sentence expected:
+  `momoed` reads it to find out whether it can address the mode at all. **A
+  constant frame makes describable wider than usable**, and mode 7 is where the
+  two come apart. A program that pins its `far` to one segment has to ask.
 - **`saveMode` and `restoreMode` are a `bracket`**, `videoMode` (§48), declared
   here because this file owns the routines. A program that forgets the restore
   leaves the display in mode 13h at the DOS prompt, and the compiler emitting the
@@ -5922,9 +5925,13 @@ language feature.
 - **The flags are masked to the modifier bits.** They carry state as well, and
   the state differs between machines for the same keypress.
 - **A binding table is `const` arrays, not a `group`.**
+- **A mode that can be described is not necessarily one that can be used.** The
+  frame's segment is a constant here for §43's reason, so the segment is asked
+  about before the geometry is trusted. A mode 7 screen drawn into 0xB800 looks
+  exactly like a hang, which is how this was found.
 - **The program owns the mode; it does not set one by number.** It takes the one
   it was launched into through §43's `adoptMode`, and imposes `modeText` only when
-  that comes back `false`. `saveMode`/`restoreMode` are a `bracket` (§48) so the
+  that comes back `false` or names a frame it cannot address. `saveMode`/`restoreMode` are a `bracket` (§48) so the
   close cannot be forgotten - and the close has to put back a *mode* rather than a
   mode number, which §43 records it did not originally do.
 

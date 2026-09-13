@@ -112,6 +112,27 @@ setMode( modeGfx256 )
 putNumber( u16( adoptMode() ) )
 newline()
 
+// ---- mode 7, which is describable and not necessarily usable
+//
+// Set through the BIOS rather than through the table, because the table is the
+// modes a program here can *use* and nothing draws to 0xB000 - a row for it
+// would be capacity with no consumer. This is a fixture, not a capability.
+//
+// The claim is that the descriptor tells the truth about a text mode the caller
+// will have to turn down, which is what makes turning it down possible: `momoed`
+// nails `vram` to 0xB800 for §43's own reason and asks the segment before it
+// trusts the geometry. Without this, `mode mono` gave it a screen it wrote 2,000
+// cells into and nobody could see.
+
+_ah = 0x00
+_al = 0x07
+int 0x10
+
+putNumber( u16( adoptMode() ) )
+putChar( ' ' )
+putNumber( screenSegment() )
+newline()
+
 // Leave the display the way this program found it.
 setMode( modeText )
 

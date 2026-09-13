@@ -1778,6 +1778,39 @@ now, for the same kind of property both times: no program here leaves a mode it
 did not find. The first eighty bought putting the mode back. These eighty bought
 putting the *right* mode back.
 
+### Describable turned out to be wider than usable, and mode 7 is the gap
+
+Reported from the same round of testing: 40x25, 80x25, 80x43 and 80x50 all good,
+`mode mono` dead. Not a hang - mode 7's frame is at 0xB000, `momoed` pins `vram`
+to 0xB800 for §43's own ten-cycles-a-cell reason, and the program was writing two
+thousand cells a keystroke into a segment nothing was displaying. **It was
+running perfectly and invisibly**, which is the failure mode a constant frame
+buys along with the cycles.
+
+The interesting part is that this was *created* by the fix above. Before
+`adoptMode` the editor imposed mode 3 and mode 7 was unreachable; teaching it to
+take the mode it was launched into made a describable-but-unusable mode reachable
+for the first time. **A capability widened the set of screens the program would
+accept without widening the set it could draw to**, and the two sets had been the
+same set for so long that nothing named them separately.
+
+So the segment is asked about before the geometry is trusted, which is twenty
+bytes. §43's rule about `screenSegment()` said it was "for a program that does
+not know its mode, which is the properties query and is not built" - true when
+written, and the consumer that arrived is not the one it had in mind. It reads
+the segment to find out what it must refuse.
+
+### A fixture through the BIOS, because a table row would be capacity with no consumer
+
+`modetest` sets mode 7 with `int 0x10` directly rather than through the mode
+table. Adding a row for it would mean the library advertising a mode nothing here
+can draw to, which is the failure this repository is a deliberate attack on -
+and the claim under test is the descriptor's honesty about a mode the caller will
+turn down, not the library's ability to set one.
+
+That is the distinction worth keeping: a test may reach past a library to arrange
+a condition. It may not reach past it to get a capability.
+
 ### The e2e claim is a round trip, because 43 and 50 are both right
 
 `modetest` already asserts the tall mode as an inequality, for the reason the

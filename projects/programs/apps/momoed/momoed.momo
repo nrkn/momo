@@ -33,7 +33,19 @@ include "lib/morange.momo"
 const edMaxCols = 80
 const edMaxRows = 50
 
-far u16[edMaxCols * edMaxRows] vram = 0xB800
+// §43's rule: the frame's segment stays a **constant** in the program, because
+// §16 reloads ES per access and a `u16` variable costs ten cycles more than an
+// immediate on every cell - which here is every cell of every redraw.
+//
+// The price is that the modes this can *adopt* are narrower than the modes §43
+// can describe. Mode 7 is a text mode and its frame is at 0xB000, so a screen
+// set by `mode mono` is one the descriptor answers about correctly and this
+// program cannot address at all. It is checked rather than assumed to be
+// 0xB800: writing 2,000 cells into a segment nothing is displaying looks
+// exactly like a hang.
+const edSegment = 0xB800
+
+far u16[edMaxCols * edMaxRows] vram = edSegment
 
 const attrText   = color( lightGray, black )
 const attrStatus = color( black, lightGray )
@@ -1198,7 +1210,14 @@ if ( haveName && !loadFile() ) {
     // Asking for `modeText` unconditionally is what this used to do, and it
     // meant a tall screen was flattened on the way in. The mode number could not
     // say which mode 3 it was, so neither could the program.
-    if ( !adoptMode() ) setMode( modeText )
+    //
+    // **Describable is not the same as usable**, and the segment is where the
+    // two come apart: mode 7 is a text mode at 0xB000 and `vram` is nailed to
+    // 0xB800 above. A mode this cannot address is refused the same way a
+    // graphics mode is, and the machine gets mode 3 instead - which on a VGA
+    // running `mode mono` is a working screen, and on a real MDA is nothing,
+    // but a real MDA was never going to run this.
+    if ( !adoptMode() || screenSegment() != edSegment ) setMode( modeText )
 
     cols = screenWidth()
     rows = screenHeight()

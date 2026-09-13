@@ -261,6 +261,28 @@ __entry:
         call    putNumber
 ; ---- newline()
         call    newline
+; ---- _ah = 0x00
+        mov     byte [_ah], 0
+; ---- _al = 0x07
+        mov     byte [_al], 7
+; ---- int 0x10
+        call    int10
+; ---- putNumber( u16( adoptMode() ) )
+        call    adoptMode
+        mov     al, [adoptMode__ret]
+        xor     ah, ah                      ; bool -> u16
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- putChar( ' ' )
+        mov     byte [putChar__c], 32
+        call    putChar
+; ---- putNumber( screenSegment() )
+        call    screenSegment
+        mov     ax, [screenSegment__ret]
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- newline()
+        call    newline
 ; ---- setMode( modeText )
         mov     byte [setMode__id], 0
         call    setMode
