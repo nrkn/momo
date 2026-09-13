@@ -2701,12 +2701,49 @@ anywhere. All of it is waste for a load, which always lands exactly where the
 last one did.
 
 `textBulk` keeps the position in ordinary variables for the length of a load and
-writes it back at the close. Measured by `loadrate` under DOSBox: **235 ticks to
-53, a factor of 4.4**, 612 lines a second to 2,716.
+writes it back at the close. `loadrate` measures both paths and prints the
+ratio, on the 286 that raised the question:
 
-Which predicts, for the 286: 241 lines a second becomes about 1,060, so 287 KB of
-loop goes from 42 seconds to about 9. With the 3 seconds the hard disk costs that
-is a 45-second open becoming about 12 - against `edit.com`'s 19.
+| | lines/s | 287 KB of loop |
+|---|---|---|
+| ordinary | 234 | 43.3 s |
+| `textBulk` | 917 | 11.1 s |
+
+**3.9 times.** And the ordinary figure lands within two seconds of the 45 that
+machine took to open `momoed.asm` from its hard disk, which is the disk - so the
+model that said the open was loop-bound reproduces the measurement it came from.
+
+Predicted 13 seconds from `c:` where it was 45, and 31 from the floppy where it
+was 65. **Measured 12 and 26**, both better than the prediction.
+
+`momoed.asm`, one 286, both devices, start to text on screen:
+
+| | floppy | hard disk |
+|---|---|---|
+| `edit.com` | 130 s | 19 s |
+| `momoed`, two days ago | 65 s | 45 s |
+| **`momoed` now** | **26 s** | **12 s** |
+
+Five times `edit.com` on the floppy and one and a half on the hard disk, from a
+program that was half its speed at ingest when the week started. **Neither half
+of that came from making anything cleverer** - one was asking DOS for four
+kilobytes instead of 128, and the other was not doing ten things per character
+that only an edit needs.
+
+The floppy column also settles the last unknown: 26 against 12 is fourteen
+seconds of floppy for 286 KB in four-kilobyte reads, where `edit.com`'s small
+ones cost 111.
+
+### DOSBox gave the direction and overstated the size
+
+The same program reports 4.5 times under DOSBox and 3.9 on the 286 - the
+prediction made from the emulator was 13% high, and a prediction made from it
+about *absolute* speed would have been worthless.
+
+Which is worth a line because every number in this file that was not taken on
+real hardware is one of these. DOSBox is where a change is shown to work and
+the 286 is where it is shown to be worth it, and the two questions have been
+run together in here before.
 
 ### The test is equivalence, because a wrong fill still looks like text
 

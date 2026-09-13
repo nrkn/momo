@@ -373,9 +373,11 @@ look for the rest.
   being a line length, a line head, a chunk fill read three times, and a walk to
   the end of a line that had been walked for the previous character.
 
-  `loadrate` measures both paths and reports the ratio: **4.5x** under DOSBox.
-  Which predicts a 45-second open of `momoed.asm` on the 286 becoming about 12,
-  against `edit.com`'s 19. The unwrapped path stays, and not only for
+  `loadrate` measures both paths and reports the ratio: **3.9x** on the 286, and
+  4.5 under DOSBox - which is its own small lesson about where a ratio may be
+  taken. End to end, `momoed.asm` from the hard disk went **45 seconds to 12**,
+  against `edit.com`'s 19 on the same machine, and from the floppy 65 to 26
+  against `edit.com`'s 130. The unwrapped path stays, and not only for
   compatibility: the test loads the same fixture both ways and compares, so the
   slow path is the oracle.
 - **What a 286 said about loading.** 2026-09-13. Timed off a floppy,

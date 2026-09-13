@@ -4573,6 +4573,13 @@ kept working without a change, and the test loads its fixture *both ways and
 compares* - the claim being equivalence rather than behaviour, because a fill
 that lost track of where it was would still produce plausible text.
 
+Measured by `loadrate` on a 286: 234 lines a second to 917, **3.9 times**. The
+same program says 4.5 under DOSBox, which is the reminder that an emulator is
+where a change is shown to work rather than where it is shown to be worth it.
+
+End to end on that machine, `momoed.asm`: **45 seconds to 12** from the hard
+disk and **65 to 26** from the floppy, against `edit.com`'s 19 and 130.
+
 ### A group longer than the log is not recorded at all
 
 The log is a window and drops its oldest entry when it fills, which is right for
