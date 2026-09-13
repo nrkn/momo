@@ -366,6 +366,18 @@ All are set out in DESIGN §20 unless noted.
 section that was itself a plan - see the note at the top for why, and where to
 look for the rest.
 
+- **Bulk loading.** 2026-09-14. §54 grew `textBulk`, a bracket that keeps the
+  append position in ordinary variables for the length of a load; the record is
+  DECISIONS under bulk loading. One loaded character had cost **eleven far
+  accesses and four calls**, of which one far access was the byte - the rest
+  being a line length, a line head, a chunk fill read three times, and a walk to
+  the end of a line that had been walked for the previous character.
+
+  `loadrate` measures both paths and reports the ratio: **4.5x** under DOSBox.
+  Which predicts a 45-second open of `momoed.asm` on the 286 becoming about 12,
+  against `edit.com`'s 19. The unwrapped path stays, and not only for
+  compatibility: the test loads the same fixture both ways and compares, so the
+  slow path is the oracle.
 - **What a 286 said about loading.** 2026-09-13. Timed off a floppy,
   `edit.com` opens a 100 KB file in 48 seconds and `momoed` in 45 - and
   `edit.com` does a 280 KB one at the same rate, so the floppy is the whole cost

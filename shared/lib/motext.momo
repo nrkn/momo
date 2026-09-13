@@ -879,6 +879,83 @@ u16 lineChunks( u16 ln ) {
   return n
 }
 
+// ---- loading in bulk ----
+//
+// Appending a character goes `textLoad` -> `lineAppend` -> `lineInsert` ->
+// `lineSeek`, and counted from the emitted assembly on 2026-09-14 that is
+// **eleven far accesses and four calls for one byte**: the line length read and
+// written, the line head read, the chunk's fill read three times and written,
+// the chain walked, and the byte itself. One of the eleven is the byte.
+//
+// None of it is wasted for an *edit*, which can land anywhere. All of it is
+// wasted for a load, which always lands exactly where the last one did.
+//
+// So the position is kept in ordinary variables for the length of a load and
+// written back at the end of it:
+//
+//   textBulk {
+//     while ( more ) textLoad( next() )
+//   }
+//
+// **Inside the bracket nothing may read the buffer except `textLoad`.** The
+// records are stale until it closes: `lineLen` and `chunkUsed` are a character
+// behind for the whole load, so `lineLength` and `lineSlice` would answer from
+// a character ago. Reading a file, printing a dot and the caller's own
+// bookkeeping are all fine - none of them is this buffer.
+//
+// `textNoRoom` is fine too, and has to be: it reads an ordinary flag that the
+// fast path sets directly, and a loader that cannot ask whether the buffer
+// filled has to read the whole file to find out.
+//
+// Which is exactly why this is a bracket and not a flag - §48 emits the close,
+// so the window cannot be left open by a path somebody forgot.
+local bool bulking
+local u16 loadChunk
+local u16 loadUsed
+local u16 loadLine
+local u16 loadLen
+
+local sub bulkFlush {
+  chunkUsed[loadChunk] = u8( loadUsed )
+  lineLen[loadLine]    = loadLen
+}
+
+// Where the next character goes: the last line, its length, and the last chunk
+// of it. Costs one `lineSeek` - once a line, rather than once a character.
+//
+// **It reloads the far window too.** Nothing between two characters moves it, so
+// the write below does not touch it; saying so here is what keeps that true if
+// the newline path ever grows something that does.
+local sub bulkSeed {
+  loadLine = lineCount - 1
+  loadLen  = lineLen[loadLine]
+
+  lineSeek( loadLine, loadLen )
+  loadChunk = seekChunk
+  loadUsed  = chunkUsed[loadChunk]
+
+  atDst( loadChunk )
+}
+
+sub bulkOpen {
+  if ( lineCount == 0 ) return
+
+  // Suspended for the whole load rather than per character, and it is belt and
+  // braces: the fast path pushes no undo entry at all.
+  undoing = true
+  bulking = true
+  bulkSeed()
+}
+
+sub bulkClose {
+  if ( bulking ) bulkFlush()
+
+  bulking = false
+  undoing = false
+}
+
+bracket textBulk = bulkOpen / bulkClose
+
 // ---- setting up ----
 
 local sub lineNew {
@@ -910,6 +987,7 @@ sub textInit {
   breakRun   = true
   noRoom     = false
   whyNoRoom  = whyNothing
+  bulking    = false
   stepDepth  = 0
   stepLost   = false
   undoLost   = false
@@ -978,16 +1056,60 @@ u16 textRoom() => chunkLimit
 // appends. **Records no undo**: reading a file in is not an edit anybody wants
 // to step back through, and a log full of the file would leave no room for the
 // session.
+//
+// **Wrapped in `textBulk` this is about ten times less work per character**, and
+// unwrapped it is what it always was. The difference is measured rather than
+// asserted - `loadrate` reports both - and the reason is counted below.
 sub textLoad( u8 ch ) {
-  undoing = true
+  u16 d
 
-  if ( ch == '\n' ) {
-    lineNew()
-  } else if ( ch != '\r' ) {
-    lineAppend( lineCount - 1, ch )
+  if ( !bulking ) {
+    undoing = true
+
+    if ( ch == '\n' ) {
+      lineNew()
+    } else if ( ch != '\r' ) {
+      lineAppend( lineCount - 1, ch )
+    }
+
+    undoing = false
+    return
   }
 
-  undoing = false
+  if ( ch == '\r' ) return
+
+  if ( ch == '\n' ) {
+    // The counters go back to the records before the line table moves, because
+    // `lineNew` and `bulkSeed` both read them.
+    bulkFlush()
+    lineNew()
+
+    // A refused line leaves `lineCount` where it was, so this re-seeds onto the
+    // same last line and carries on appending to it - which is what the
+    // unwrapped path does, and what the capacity test depends on.
+    bulkSeed()
+    return
+  }
+
+  if ( loadUsed == chunkSize ) {
+    chunkUsed[loadChunk] = chunkSize
+
+    d = chunkTake()
+    if ( d == 0 ) {
+      noRoom = true
+      whyNoRoom = whyChunks
+      return
+    }
+
+    chunkNext[loadChunk] = d
+    loadChunk = d
+    loadUsed  = 0
+    atDst( loadChunk )
+  }
+
+  dst[loadUsed] = ch
+  loadUsed++
+  loadLen++
 }
 
 // ---- writing it out ----

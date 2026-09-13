@@ -1,17 +1,14 @@
-// loadrate.momo - how much of a file open is the machine and how much is the
-// disk (DESIGN §54, §58).
+// loadrate.momo - what a file open costs when the disk is taken out of it
+// (DESIGN §54, §58).
 //
-// A 286 read `momoed.asm` off a floppy in 65 seconds. 280 KB in 65 seconds is
-// 4.3 KB/s, which is nearly twice what the same machine managed before the read
-// buffer went from 128 bytes to four kilobytes - and that killed the reading
-// that said the floppy was the whole cost. It left the obvious question:
-// **what is the 65 seconds now?**
+// A 286 read `momoed.asm` off a hard disk in 45 seconds and `edit.com` did it in
+// 19. Four timings across two devices had already shown the floppy was not the
+// difference, which left the loop - and a loop is measurable without a disk at
+// all. That is this: the same shape of text through §54 from memory, timed.
 //
-// Timing another file open cannot answer it, because that measures both halves
-// again. So this does the half that is not the disk: bytes through `textLoad`
-// from memory, nothing on the disk at all. Subtract, and the rest is the floppy.
-//
-// A number nobody has to estimate, measured on whatever machine runs it.
+// It now times it **both ways**, because §54 grew a bulk path and the whole
+// claim of that path is a ratio. A program that prints the ratio is harder to be
+// wrong about than a pair of numbers written down on different days.
 
 include "lib/std/io.momo"
 include "lib/std/time.momo"
@@ -27,17 +24,43 @@ const u8[] sample = "        mov     ax, [bx + 4]\n"
 // enough to time and clear of the ceiling.
 const rounds = 8000
 
-const u8[] sIntro  = "loadrate - textLoad with no disk in the way.$"
-const u8[] sPer    = " bytes a line$"
-const u8[] sLines  = " lines$"
-const u8[] sTicks  = " ticks at 18.2 a second$"
-const u8[] sRate   = "lines a second: $"
-const u8[] sFull   = "buffer filled early - the figures are what fitted$"
-const u8[] sQuick  = "under one tick - use a slower machine or more rounds$"
+const u8[] sIntro = "loadrate - textLoad with no disk in the way.$"
+const u8[] sPer   = " bytes a line$"
+const u8[] sPlain = "ordinary: $"
+const u8[] sBulk  = "bulk:     $"
+const u8[] sLines = " lines, $"
+const u8[] sTicks = " ticks, $"
+const u8[] sRate  = " lines a second$"
+const u8[] sTimes = "bulk is faster by tenths of: $"
+const u8[] sQuick = "under one tick - use a slower machine or more rounds$"
 
 u16 start
-u16 spent
-u16 done
+u16 plainTicks
+u16 bulkTicks
+u16 plainDone
+u16 bulkDone
+
+// Lines a second, with the remainder carried. **`done / spent` first is an
+// integer divide that loses most of the answer** at these sizes - eight thousand
+// lines in six hundred ticks is thirteen, and thirteen times eighteen is 234
+// where the answer is 241. The other order overflows a `u16`, so the quotient
+// and the remainder are scaled separately and added.
+u16 perSecond( u16 done, u16 spent ) {
+  if ( spent == 0 ) return 0
+
+  return done / spent * ticksPerSecond + ( done % spent ) * ticksPerSecond / spent
+}
+
+sub report( u16 label, u16 done, u16 spent ) {
+  putStr( label )
+  putNumber( done )
+  putStr( addr( sLines ) )
+  putNumber( spent )
+  putStr( addr( sTicks ) )
+  putNumber( perSecond( done, spent ) )
+  putStr( addr( sRate ) )
+  newline()
+}
 
 // ---- entry ----
 
@@ -48,9 +71,11 @@ putNumber( len( sample ) )
 putStr( addr( sPer ) )
 newline()
 
+// ---- the path every caller has always had ----
+
 textInit()
 
-done = 0
+plainDone = 0
 start = ticks()
 
 for ( u16 i = 0; i < rounds; i++ ) {
@@ -58,42 +83,50 @@ for ( u16 i = 0; i < rounds; i++ ) {
     textLoad( sample[j] )
   }
 
-  done++
+  plainDone++
 
-  // The buffer is finite and this is deliberately sized near it, so stopping
-  // when it fills is an ordinary outcome rather than a failure - what is timed
-  // is whatever went in.
-  if ( textNoRoom() ) {
-    putStr( addr( sFull ) )
-    newline()
-    break
+  // The buffer is finite and this is sized near it, so stopping when it fills
+  // is an ordinary outcome rather than a failure - what is timed is whatever
+  // went in.
+  if ( textNoRoom() ) break
+}
+
+plainTicks = ticksSince( start )
+
+// ---- the same bytes inside the bracket ----
+
+textInit()
+
+bulkDone = 0
+start = ticks()
+
+textBulk {
+  for ( u16 i = 0; i < rounds; i++ ) {
+    for ( u16 j = 0; j < len( sample ); j++ ) {
+      textLoad( sample[j] )
+    }
+
+    bulkDone++
+
+    if ( textNoRoom() ) break
   }
 }
 
-spent = ticksSince( start )
+bulkTicks = ticksSince( start )
 
-putNumber( done )
-putStr( addr( sLines ) )
-newline()
+// ---- what they cost ----
 
-putNumber( spent )
-putStr( addr( sTicks ) )
-newline()
+report( addr( sPlain ), plainDone, plainTicks )
+report( addr( sBulk ), bulkDone, bulkTicks )
 
-// **Lines a second rather than bytes**, because the byte count of a run this
-// size does not fit a `u16` and a wrapped figure would look like an answer.
-// Multiply by the line length above for bytes.
-if ( spent == 0 ) {
+// The ratio, in tenths, and it is the tick counts rather than the rates because
+// both runs put the same number of lines in - so the division is exact where a
+// ratio of two rounded rates would not be.
+if ( bulkTicks == 0 ) {
   putStr( addr( sQuick ) )
   newline()
 } else {
-  // **The remainder is carried rather than thrown away.** `done / spent` first
-  // is an integer divide that loses most of the answer at these sizes - eight
-  // thousand lines in six hundred ticks is thirteen, and thirteen times eighteen
-  // is 234 where the answer is 241. The other order overflows a `u16`, so the
-  // quotient and the remainder are scaled separately and added.
-  putStr( addr( sRate ) )
-  putNumber( done / spent * ticksPerSecond
-             + ( done % spent ) * ticksPerSecond / spent )
+  putStr( addr( sTimes ) )
+  putNumber( plainTicks * 10 / bulkTicks )
   newline()
 }

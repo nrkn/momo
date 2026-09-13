@@ -4539,6 +4539,40 @@ looked harmless. A command is a new action; a character is not. `momoed` opens a
 group only when there is a selection to replace, and the two-line duplication
 that costs is cheaper than the alternative.
 
+### Loading in bulk, because an append always lands where the last one did
+
+Appending a character goes `textLoad` to `lineAppend` to `lineInsert` to
+`lineSeek`, and counted from the emitted assembly that is **eleven far accesses
+and four calls to put one byte down**: the line length read and written, the line
+head read, the chunk's fill read three times and written, the chain walked, and
+the byte itself. One of the eleven is the byte.
+
+None of it is waste for an *edit*, which can land anywhere in the document. All
+of it is waste for a load, which always lands exactly where the last one did.
+
+So the position lives in ordinary variables for the length of a load:
+
+```momo
+textBulk {
+  while ( more ) textLoad( next() )
+}
+```
+
+**Inside the bracket nothing may read the buffer except `textLoad`.** The records
+are a character behind for the whole load, so `lineLength` and `lineSlice` would
+answer from a character ago. Reading a file, printing a dot and the caller's own
+bookkeeping are fine - none of them is this buffer. `textNoRoom` is fine too and
+has to be: it reads a flag the fast path sets directly, and a loader that cannot
+ask whether the buffer filled has to read the whole file to find out.
+
+Which is why it is a bracket and not a flag: §48 emits the close, so the window
+cannot be left open by a path somebody forgot.
+
+**Unwrapped, `textLoad` is exactly what it always was.** Every existing caller
+kept working without a change, and the test loads its fixture *both ways and
+compares* - the claim being equivalence rather than behaviour, because a fill
+that lost track of where it was would still produce plausible text.
+
 ### A group longer than the log is not recorded at all
 
 The log is a window and drops its oldest entry when it fills, which is right for
@@ -4563,6 +4597,8 @@ sixty-one entries. **The measurement and what it costs to fix are in
   action per character.
 - **A group the log cannot hold is not recorded at all.** Half a group restored is
   worse than none, and `textUndoLost` is what makes the refusal askable.
+- **Inside `textBulk`, nothing reads the buffer but `textLoad`.** The records
+  are a character behind until the bracket closes.
 - **`chunkSize` is a power of two.** It is what removes the address table, and
   §26 does the rest.
 - **Recording is suspended while an undo runs, and while a file loads.** A

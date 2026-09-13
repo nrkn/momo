@@ -1156,6 +1156,60 @@ lineSlice:
         mov     [lineSlice__ret], ax
         ret
 
+; ============================================== sub motext__bulkFlush ====
+
+motext__bulkFlush:
+; ---- chunkUsed[loadChunk] = u8( loadUsed )
+        mov     ax, [motext__loadUsed]
+        mov     bx, [motext__loadChunk]
+        mov     dx, [motext__usedSeg]       ; segment of motext__chunkUsed
+        mov     es, dx
+        mov     [es:bx], al
+; ---- lineLen[loadLine]    = loadLen
+        mov     ax, [motext__loadLen]
+        mov     bx, [motext__loadLine]
+        shl     bx, 1                       ; word elements
+        mov     dx, [motext__lenSeg]        ; segment of motext__lineLen
+        mov     es, dx
+        mov     [es:bx], ax
+        ret
+
+; ============================================== sub motext__bulkSeed ====
+
+motext__bulkSeed:
+; ---- loadLine = lineCount - 1
+        mov     ax, [motext__lineCount]
+        dec     ax
+        mov     [motext__loadLine], ax
+; ---- loadLen  = lineLen[loadLine]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     dx, [motext__lenSeg]        ; segment of motext__lineLen
+        mov     es, dx
+        mov     ax, [es:bx]
+        mov     [motext__loadLen], ax
+; ---- lineSeek( loadLine, loadLen )
+        mov     ax, [motext__loadLine]
+        mov     [motext__lineSeek__ln], ax
+        mov     ax, [motext__loadLen]
+        mov     [motext__lineSeek__col], ax
+        call    motext__lineSeek
+; ---- loadChunk = seekChunk
+        mov     ax, [motext__seekChunk]
+        mov     [motext__loadChunk], ax
+; ---- loadUsed  = chunkUsed[loadChunk]
+        mov     bx, ax
+        mov     dx, [motext__usedSeg]       ; segment of motext__chunkUsed
+        mov     es, dx
+        mov     al, [es:bx]
+        xor     ah, ah                      ; u8 -> u16
+        mov     [motext__loadUsed], ax
+; ---- atDst( loadChunk )
+        mov     ax, [motext__loadChunk]
+        mov     [motext__atDst__c], ax
+        call    motext__atDst
+        ret
+
 ; ============================================== sub motext__lineNew ====
 
 motext__lineNew:
@@ -1217,6 +1271,8 @@ textInit:
         mov     byte [motext__noRoom], 0
 ; ---- whyNoRoom  = whyNothing
         mov     byte [motext__whyNoRoom], 0
+; ---- bulking    = false
+        mov     byte [motext__bulking], 0
 ; ---- stepDepth  = 0
         mov     word [motext__stepDepth], 0
 ; ---- stepLost   = false
@@ -1306,20 +1362,24 @@ textInit:
 ; ============================================== sub textLoad ====
 
 textLoad:
+; ---- if ( !bulking ) {
+        mov     al, [motext__bulking]
+        test    al, al
+        jnz     .L147
 ; ---- undoing = true
         mov     byte [motext__undoing], 1
 ; ---- if ( ch == '\n' ) {
         mov     al, [textLoad__ch]
         cmp     al, 10                      ; byte operands, no widening
-        jne     .L147                       ; unsigned ==
+        jne     .L150                       ; unsigned ==
 ; ---- lineNew()
         call    motext__lineNew
-        jmp     .L148
-.L147:
+        jmp     .L151
+.L150:
 ; ---- } else if ( ch != '\r' ) {
         mov     al, [textLoad__ch]
         cmp     al, 13                      ; byte operands, no widening
-        je      .L150                       ; unsigned !=
+        je      .L153                       ; unsigned !=
 ; ---- lineAppend( lineCount - 1, ch )
         mov     ax, [motext__lineCount]
         dec     ax
@@ -1327,10 +1387,85 @@ textLoad:
         mov     al, [textLoad__ch]
         mov     [lineAppend__ch], al        ; u8 -> u8, no widening
         call    lineAppend
-.L150:
-.L148:
+.L153:
+.L151:
 ; ---- undoing = false
         mov     byte [motext__undoing], 0
+; ---- return
+        ret
+.L147:
+; ---- if ( ch == '\r' ) return
+        mov     al, [textLoad__ch]
+        cmp     al, 13                      ; byte operands, no widening
+        jne     .L156                       ; unsigned ==
+        ret
+.L156:
+; ---- if ( ch == '\n' ) {
+        mov     al, [textLoad__ch]
+        cmp     al, 10                      ; byte operands, no widening
+        jne     .L159                       ; unsigned ==
+; ---- bulkFlush()
+        call    motext__bulkFlush
+; ---- lineNew()
+        call    motext__lineNew
+; ---- bulkSeed()
+        call    motext__bulkSeed
+; ---- return
+        ret
+.L159:
+; ---- if ( loadUsed == chunkSize ) {
+        mov     ax, [motext__loadUsed]
+        cmp     ax, 16
+        je      .L164                       ; unsigned ==
+        jmp     .L162
+.L164:
+; ---- chunkUsed[loadChunk] = chunkSize
+        mov     ax, [motext__loadChunk]
+        mov     bx, ax
+        mov     dx, [motext__usedSeg]       ; segment of motext__chunkUsed
+        mov     es, dx
+        mov     byte [es:bx], 16
+; ---- d = chunkTake()
+        call    motext__chunkTake
+        mov     ax, [motext__chunkTake__ret]
+        mov     [textLoad__d], ax
+; ---- if ( d == 0 ) {
+        test    ax, ax
+        jne     .L165                       ; unsigned ==
+; ---- noRoom = true
+        mov     byte [motext__noRoom], 1
+; ---- whyNoRoom = whyChunks
+        mov     byte [motext__whyNoRoom], 1
+; ---- return
+        ret
+.L165:
+; ---- chunkNext[loadChunk] = d
+        mov     ax, [textLoad__d]
+        mov     bx, [motext__loadChunk]
+        shl     bx, 1                       ; word elements
+        mov     dx, [motext__nextSeg]       ; segment of motext__chunkNext
+        mov     es, dx
+        mov     [es:bx], ax
+; ---- loadChunk = d
+        mov     ax, [textLoad__d]
+        mov     [motext__loadChunk], ax
+; ---- loadUsed  = 0
+        mov     word [motext__loadUsed], 0
+; ---- atDst( loadChunk )
+        mov     ax, [motext__loadChunk]
+        mov     [motext__atDst__c], ax
+        call    motext__atDst
+.L162:
+; ---- dst[loadUsed] = ch
+        mov     al, [textLoad__ch]
+        mov     bx, [motext__loadUsed]
+        mov     dx, [motext__dstSeg]        ; segment of motext__dst
+        mov     es, dx
+        mov     [es:bx], al
+; ---- loadUsed++
+        inc     word [motext__loadUsed]
+; ---- loadLen++
+        inc     word [motext__loadLen]
         ret
 
 ; ============================================== u8 mofind__fold ====
@@ -1339,18 +1474,18 @@ mofind__fold:
 ; ---- local u8 fold( u8 ch ) => ( ch >= 'a' && ch <= 'z' ) ? ch - 32 : ch
         mov     al, [mofind__fold__ch]
         cmp     al, 97                      ; byte operands, no widening
-        jb      .L153                       ; unsigned >=
+        jb      .L168                       ; unsigned >=
         mov     al, [mofind__fold__ch]
         cmp     al, 122                     ; byte operands, no widening
-        ja      .L153                       ; unsigned <=
+        ja      .L168                       ; unsigned <=
         mov     al, [mofind__fold__ch]
         xor     ah, ah                      ; u8 -> u16
         sub     ax, 32
-        jmp     .L154
-.L153:
+        jmp     .L169
+.L168:
         mov     al, [mofind__fold__ch]
         xor     ah, ah                      ; u8 -> u16
-.L154:
+.L169:
         mov     [mofind__fold__ret], al     ; narrowed to u8
         ret
 
@@ -1360,19 +1495,19 @@ findSet:
 ; ---- if ( n > findMax ) n = findMax
         mov     ax, [findSet__n]
         cmp     ax, 64
-        jbe     .L157                       ; unsigned >
+        jbe     .L172                       ; unsigned >
         mov     word [findSet__n], 64
-.L157:
+.L172:
 ; ---- patLen = n
         mov     ax, [findSet__n]
         mov     [mofind__patLen], ax
 ; ---- for ( u16 i = 0; i < n; i++ ) {
         mov     word [findSet__i], 0
-.L160:
+.L175:
         mov     ax, [findSet__i]
         mov     bx, [findSet__n]
         cmp     ax, bx
-        jae     .L162                       ; unsigned <
+        jae     .L177                       ; unsigned <
 ; ---- pattern[i] = fold( peek8( at + i ) )
         mov     ax, [findSet__at]
         mov     bx, [findSet__i]
@@ -1385,10 +1520,10 @@ findSet:
         xor     ah, ah                      ; u8 -> u16
         mov     bx, [findSet__i]
         mov     [mofind__pattern + bx], al
-.L161:
+.L176:
         inc     word [findSet__i]
-        jmp     .L160
-.L162:
+        jmp     .L175
+.L177:
         ret
 
 ; ============================================== u16 findLine ====
@@ -1415,10 +1550,10 @@ mofind__scanLine:
 ; ---- if ( patLen == 0 ) return false
         mov     ax, [mofind__patLen]
         test    ax, ax
-        jne     .L164                       ; unsigned ==
+        jne     .L179                       ; unsigned ==
         mov     byte [mofind__scanLine__ret], 0
         ret
-.L164:
+.L179:
 ; ---- length = lineLength( ln )
         mov     ax, [mofind__scanLine__ln]
         mov     [lineLength__ln], ax
@@ -1428,10 +1563,10 @@ mofind__scanLine:
 ; ---- if ( length < patLen ) return false
         mov     bx, [mofind__patLen]
         cmp     ax, bx
-        jae     .L167                       ; unsigned <
+        jae     .L182                       ; unsigned <
         mov     byte [mofind__scanLine__ret], 0
         ret
-.L167:
+.L182:
 ; ---- last = length - patLen
         mov     ax, [mofind__scanLine__length]
         mov     bx, [mofind__patLen]
@@ -1440,18 +1575,18 @@ mofind__scanLine:
 ; ---- if ( last > to ) last = to
         mov     bx, [mofind__scanLine__to]
         cmp     ax, bx
-        jbe     .L170                       ; unsigned >
+        jbe     .L185                       ; unsigned >
         mov     ax, [mofind__scanLine__to]
         mov     [mofind__scanLine__last], ax
-.L170:
+.L185:
 ; ---- if ( from > last ) return false
         mov     ax, [mofind__scanLine__from]
         mov     bx, [mofind__scanLine__last]
         cmp     ax, bx
-        jbe     .L173                       ; unsigned >
+        jbe     .L188                       ; unsigned >
         mov     byte [mofind__scanLine__ret], 0
         ret
-.L173:
+.L188:
 ; ---- first = pattern[0]
         mov     al, [mofind__pattern]
         mov     [mofind__scanLine__first], al; u8 -> u8, no widening
@@ -1459,13 +1594,13 @@ mofind__scanLine:
         mov     ax, [mofind__scanLine__from]
         mov     [mofind__scanLine__base], ax
 ; ---- while ( base <= last ) {
-.L176:
+.L191:
         mov     ax, [mofind__scanLine__base]
         mov     bx, [mofind__scanLine__last]
         cmp     ax, bx
-        jbe     .L179                       ; unsigned <=
-        jmp     .L178
-.L179:
+        jbe     .L194                       ; unsigned <=
+        jmp     .L193
+.L194:
 ; ---- got = lineSlice( ln, base, findWindow, addr( window ) )
         mov     ax, [mofind__scanLine__ln]
         mov     [lineSlice__ln], ax
@@ -1480,9 +1615,9 @@ mofind__scanLine:
 ; ---- if ( got < patLen ) break
         mov     bx, [mofind__patLen]
         cmp     ax, bx
-        jae     .L180                       ; unsigned <
-        jmp     .L178
-.L180:
+        jae     .L195                       ; unsigned <
+        jmp     .L193
+.L195:
 ; ---- lim = got - patLen
         mov     ax, [mofind__scanLine__got]
         mov     bx, [mofind__patLen]
@@ -1494,22 +1629,22 @@ mofind__scanLine:
         add     ax, bx
         mov     bx, [mofind__scanLine__last]
         cmp     ax, bx
-        jbe     .L183                       ; unsigned >
+        jbe     .L198                       ; unsigned >
         mov     ax, [mofind__scanLine__last]
         mov     bx, [mofind__scanLine__base]
         sub     ax, bx
         mov     [mofind__scanLine__lim], ax
-.L183:
+.L198:
 ; ---- i = 0
         mov     word [mofind__scanLine__i], 0
 ; ---- while ( i <= lim ) {
-.L186:
+.L201:
         mov     ax, [mofind__scanLine__i]
         mov     bx, [mofind__scanLine__lim]
         cmp     ax, bx
-        jbe     .L189                       ; unsigned <=
-        jmp     .L188
-.L189:
+        jbe     .L204                       ; unsigned <=
+        jmp     .L203
+.L204:
 ; ---- c = window[i]
         mov     ax, [mofind__scanLine__i]
         mov     bx, ax
@@ -1517,31 +1652,31 @@ mofind__scanLine:
         mov     [mofind__scanLine__c], al   ; u8 -> u8, no widening
 ; ---- if ( c >= 'a' && c <= 'z' ) c -= 32
         cmp     al, 97                      ; byte operands, no widening
-        jb      .L190                       ; unsigned >=
+        jb      .L205                       ; unsigned >=
         mov     al, [mofind__scanLine__c]
         cmp     al, 122                     ; byte operands, no widening
-        ja      .L190                       ; unsigned <=
+        ja      .L205                       ; unsigned <=
         mov     al, [mofind__scanLine__c]
         xor     ah, ah                      ; u8 -> u16
         sub     ax, 32
         mov     [mofind__scanLine__c], al   ; narrowed to u8
-.L190:
+.L205:
 ; ---- if ( c == first ) {
         mov     al, [mofind__scanLine__c]
         cmp     al, [mofind__scanLine__first]; byte operands, no widening
-        je      .L196                       ; unsigned ==
-        jmp     .L194
-.L196:
+        je      .L211                       ; unsigned ==
+        jmp     .L209
+.L211:
 ; ---- j = 1
         mov     word [mofind__scanLine__j], 1
 ; ---- while ( j < patLen ) {
-.L197:
+.L212:
         mov     ax, [mofind__scanLine__j]
         mov     bx, [mofind__patLen]
         cmp     ax, bx
-        jb      .L200                       ; unsigned <
-        jmp     .L199
-.L200:
+        jb      .L215                       ; unsigned <
+        jmp     .L214
+.L215:
 ; ---- c = window[i + j]
         mov     ax, [mofind__scanLine__i]
         mov     bx, [mofind__scanLine__j]
@@ -1551,15 +1686,15 @@ mofind__scanLine:
         mov     [mofind__scanLine__c], al   ; u8 -> u8, no widening
 ; ---- if ( c >= 'a' && c <= 'z' ) c -= 32
         cmp     al, 97                      ; byte operands, no widening
-        jb      .L201                       ; unsigned >=
+        jb      .L216                       ; unsigned >=
         mov     al, [mofind__scanLine__c]
         cmp     al, 122                     ; byte operands, no widening
-        ja      .L201                       ; unsigned <=
+        ja      .L216                       ; unsigned <=
         mov     al, [mofind__scanLine__c]
         xor     ah, ah                      ; u8 -> u16
         sub     ax, 32
         mov     [mofind__scanLine__c], al   ; narrowed to u8
-.L201:
+.L216:
 ; ---- if ( c != pattern[j] ) break
         mov     al, [mofind__scanLine__c]
         xor     ah, ah                      ; u8 -> u16
@@ -1571,19 +1706,19 @@ mofind__scanLine:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        je      .L205                       ; unsigned !=
-        jmp     .L199
-.L205:
+        je      .L220                       ; unsigned !=
+        jmp     .L214
+.L220:
 ; ---- j++
         inc     word [mofind__scanLine__j]
-.L198:
-        jmp     .L197
-.L199:
+.L213:
+        jmp     .L212
+.L214:
 ; ---- if ( j == patLen ) {
         mov     ax, [mofind__scanLine__j]
         mov     bx, [mofind__patLen]
         cmp     ax, bx
-        jne     .L208                       ; unsigned ==
+        jne     .L223                       ; unsigned ==
 ; ---- hitCol = base + i
         mov     ax, [mofind__scanLine__base]
         mov     bx, [mofind__scanLine__i]
@@ -1594,23 +1729,23 @@ mofind__scanLine:
 ; ---- if ( !wantLast ) return true
         mov     al, [mofind__scanLine__wantLast]
         test    al, al
-        jnz     .L211
+        jnz     .L226
         mov     byte [mofind__scanLine__ret], 1
         ret
-.L211:
-.L208:
-.L194:
+.L226:
+.L223:
+.L209:
 ; ---- i++
         inc     word [mofind__scanLine__i]
-.L187:
-        jmp     .L186
-.L188:
+.L202:
+        jmp     .L201
+.L203:
 ; ---- if ( got < findWindow ) break
         mov     ax, [mofind__scanLine__got]
         cmp     ax, 128
-        jae     .L214                       ; unsigned <
-        jmp     .L178
-.L214:
+        jae     .L229                       ; unsigned <
+        jmp     .L193
+.L229:
 ; ---- base += findWindow - patLen + 1
         mov     ax, [mofind__scanLine__base]
         push    ax                          ; save lhs: rhs is not a leaf
@@ -1622,9 +1757,9 @@ mofind__scanLine:
         pop     ax
         add     ax, bx
         mov     [mofind__scanLine__base], ax
-.L177:
-        jmp     .L176
-.L178:
+.L192:
+        jmp     .L191
+.L193:
 ; ---- return hitAny
         mov     al, [mofind__hitAny]
         mov     [mofind__scanLine__ret], al ; bool -> bool, no widening
@@ -1636,7 +1771,7 @@ findNext:
 ; ---- for ( u16 i = ln; i < textLines(); i++ ) {
         mov     ax, [findNext__ln]
         mov     [findNext__i], ax
-.L217:
+.L232:
         mov     ax, [findNext__i]
         push    ax                          ; save lhs: rhs is not a leaf
         call    textLines
@@ -1644,19 +1779,19 @@ findNext:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L220                       ; unsigned <
-        jmp     .L219
-.L220:
+        jb      .L235                       ; unsigned <
+        jmp     .L234
+.L235:
 ; ---- from = 0
         mov     word [findNext__from], 0
 ; ---- if ( i == ln ) from = col
         mov     ax, [findNext__i]
         mov     bx, [findNext__ln]
         cmp     ax, bx
-        jne     .L221                       ; unsigned ==
+        jne     .L236                       ; unsigned ==
         mov     ax, [findNext__col]
         mov     [findNext__from], ax
-.L221:
+.L236:
 ; ---- if ( scanLine( i, from, 0xFFFF, false ) ) {
         mov     ax, [findNext__i]
         mov     [mofind__scanLine__ln], ax
@@ -1668,7 +1803,7 @@ findNext:
         mov     al, [mofind__scanLine__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L224
+        jz      .L239
 ; ---- findAtLine = i
         mov     ax, [findNext__i]
         mov     [mofind__findAtLine], ax
@@ -1678,11 +1813,11 @@ findNext:
 ; ---- return true
         mov     byte [findNext__ret], 1
         ret
-.L224:
-.L218:
+.L239:
+.L233:
         inc     word [findNext__i]
-        jmp     .L217
-.L219:
+        jmp     .L232
+.L234:
 ; ---- return false
         mov     byte [findNext__ret], 0
         ret
@@ -1695,12 +1830,12 @@ findPrev:
         inc     ax
         mov     [findPrev__i], ax
 ; ---- while ( i > 0 ) {
-.L227:
+.L242:
         mov     ax, [findPrev__i]
         test    ax, ax
-        ja      .L230                       ; unsigned >
-        jmp     .L229
-.L230:
+        ja      .L245                       ; unsigned >
+        jmp     .L244
+.L245:
 ; ---- i--
         dec     word [findPrev__i]
 ; ---- if ( i >= textLines() ) continue
@@ -1711,27 +1846,27 @@ findPrev:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L231                       ; unsigned >=
-        jmp     .L228
-.L231:
+        jb      .L246                       ; unsigned >=
+        jmp     .L243
+.L246:
 ; ---- to = 0xFFFF
         mov     word [findPrev__to], 65535
 ; ---- if ( i == ln ) {
         mov     ax, [findPrev__i]
         mov     bx, [findPrev__ln]
         cmp     ax, bx
-        jne     .L234                       ; unsigned ==
+        jne     .L249                       ; unsigned ==
 ; ---- if ( col == 0 ) continue
         mov     ax, [findPrev__col]
         test    ax, ax
-        jne     .L237                       ; unsigned ==
-        jmp     .L228
-.L237:
+        jne     .L252                       ; unsigned ==
+        jmp     .L243
+.L252:
 ; ---- to = col - 1
         mov     ax, [findPrev__col]
         dec     ax
         mov     [findPrev__to], ax
-.L234:
+.L249:
 ; ---- if ( scanLine( i, 0, to, true ) ) {
         mov     ax, [findPrev__i]
         mov     [mofind__scanLine__ln], ax
@@ -1743,7 +1878,7 @@ findPrev:
         mov     al, [mofind__scanLine__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L240
+        jz      .L255
 ; ---- findAtLine = i
         mov     ax, [findPrev__i]
         mov     [mofind__findAtLine], ax
@@ -1753,10 +1888,10 @@ findPrev:
 ; ---- return true
         mov     byte [findPrev__ret], 1
         ret
-.L240:
-.L228:
-        jmp     .L227
-.L229:
+.L255:
+.L243:
+        jmp     .L242
+.L244:
 ; ---- return false
         mov     byte [findPrev__ret], 0
         ret
@@ -1773,7 +1908,7 @@ showNext:
         mov     al, [findNext__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L243
+        jz      .L258
 ; ---- putNumber( findLine() )
         call    findLine
         mov     ax, [findLine__ret]
@@ -1787,12 +1922,12 @@ showNext:
         mov     ax, [findCol__ret]
         mov     [putNumber__n], ax
         call    putNumber
-        jmp     .L244
-.L243:
+        jmp     .L259
+.L258:
 ; ---- putChar( '-' )
         mov     byte [putChar__c], 45
         call    putChar
-.L244:
+.L259:
 ; ---- newline()
         call    newline
         ret
@@ -1809,7 +1944,7 @@ showPrev:
         mov     al, [findPrev__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L246
+        jz      .L261
 ; ---- putNumber( findLine() )
         call    findLine
         mov     ax, [findLine__ret]
@@ -1823,12 +1958,12 @@ showPrev:
         mov     ax, [findCol__ret]
         mov     [putNumber__n], ax
         call    putNumber
-        jmp     .L247
-.L246:
+        jmp     .L262
+.L261:
 ; ---- putChar( '-' )
         mov     byte [putChar__c], 45
         call    putChar
-.L247:
+.L262:
 ; ---- newline()
         call    newline
         ret
@@ -1932,6 +2067,11 @@ lineSlice__col: dw      0        ; u16
 lineSlice__count: dw      0        ; u16
 lineSlice__at:  dw      0        ; u16
 lineSlice__ret: dw      0        ; u16
+motext__bulking: db      0        ; bool
+motext__loadChunk: dw      0        ; u16
+motext__loadUsed: dw      0        ; u16
+motext__loadLine: dw      0        ; u16
+motext__loadLen: dw      0        ; u16
 textLoad__ch:   db      0        ; u8
 mofind__patLen: dw      0        ; u16
 mofind__findAtLine: dw      0        ; u16
@@ -1979,6 +2119,7 @@ lineSlice__left: dw      0        ; u16
 lineSlice__done: dw      0        ; u16
 lineSlice__n:   dw      0        ; u16
 textInit__room: dw      0        ; u16
+textLoad__d:    dw      0        ; u16
 findSet__i:     dw      0        ; u16
 mofind__scanLine__length: dw      0        ; u16
 mofind__scanLine__last: dw      0        ; u16

@@ -2685,3 +2685,51 @@ Which points somewhere specific. `textLoad` appends a character by way of
 the end is - **every character, for a line it has already walked**. Bulk loading
 is the one caller that always appends to the same place it appended last, and
 is the one that could be told so.
+
+### Bulk loading: the waste was per character and the fix was per load
+
+Yesterday's four timings left the file open loop-bound, at 241 lines a second on
+a 286 against `edit.com`'s equivalent of about 570. Counted from the emitted
+assembly on 2026-09-14, one loaded character costs **eleven far accesses and four
+calls** - and exactly one of the eleven is the byte being stored.
+
+The other ten are all the same mistake in different clothes: the line length is
+read and written, the line head is read, the chunk's fill is read three times and
+written, and `lineSeek` walks the chain to find the end of a line it walked for
+the previous character. None of that is waste for an edit, which can land
+anywhere. All of it is waste for a load, which always lands exactly where the
+last one did.
+
+`textBulk` keeps the position in ordinary variables for the length of a load and
+writes it back at the close. Measured by `loadrate` under DOSBox: **235 ticks to
+53, a factor of 4.4**, 612 lines a second to 2,716.
+
+Which predicts, for the 286: 241 lines a second becomes about 1,060, so 287 KB of
+loop goes from 42 seconds to about 9. With the 3 seconds the hard disk costs that
+is a 45-second open becoming about 12 - against `edit.com`'s 19.
+
+### The test is equivalence, because a wrong fill still looks like text
+
+A load that lost track of where it was would not crash or produce nonsense; it
+would produce *plausible* text with a length or a chunk count slightly wrong.
+So the test loads the same fixture through both paths and compares the lines,
+the lengths and the chunk counts - the counts being where the difference would
+surface first.
+
+Keeping the unwrapped path is what makes that possible, and it is the reason to
+keep it beyond compatibility: **the slow path is the oracle.**
+
+### A teeth check that changed nothing, and the fixture that was the reason
+
+Removing the flush from `bulkClose` entirely - the write-back the whole bracket
+exists for - changed no expected line.
+
+The fixture ended in a newline. A load ending on `\n` flushes on the newline and
+then seeds a fresh empty line, so what the close writes back is a zero over a
+zero. The one case that reaches the close is a file that ends *mid-line*, and
+there wasn't one.
+
+With `"alpha\nbeta"` in the test, the same neuter turns `2 5 1 4 1` into
+`2 5 1 0 1` and loses `beta` completely. Third time this session that a check
+came back clean and the fixture was the reason - and the third time it was found
+by asking why rather than by moving on.

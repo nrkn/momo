@@ -203,26 +203,33 @@ bool loadFile() {
 
   got = fileRead( handle, addr( piece ), pieceSize )
 
-  while ( got > 0 ) {
-    // A dot a read, which is the only thing on screen for the length of a
-    // floppy. Three quarters of a minute of nothing reads as a machine that has
-    // stopped, and `edit.com` spends the same time saying how far along it is.
-    if ( loud ) putChar( '.' )
+  // **The whole read is one `textBulk`**, which is where §54 keeps the append
+  // position in ordinary variables instead of walking to it a character at a
+  // time. Measured at four times on the same bytes, and it is the difference
+  // between a file open that is loop-bound and one that is not.
+  //
+  // Reading the file and printing a dot are both fine in here: the rule is that
+  // nothing may read the *buffer*, and neither of these is the buffer.
+  textBulk {
+    while ( got > 0 ) {
+      // A dot a read, which is the only thing on screen for the length of a
+      // floppy. Three quarters of a minute of nothing reads as a machine that
+      // has stopped, and `edit.com` spends the same time saying how far along
+      // it is.
+      if ( loud ) putChar( '.' )
 
-    for ( u16 i = 0; i < got; i++ ) {
-      textLoad( piece[i] )
+      for ( u16 i = 0; i < got; i++ ) {
+        textLoad( piece[i] )
+      }
+
+      // **Stop at the first refusal rather than reading to the end.** §54
+      // declines every byte after the buffer is full, so carrying on is a
+      // quarter of a megabyte of floppy read to arrive at an answer that was
+      // known three minutes earlier.
+      if ( textNoRoom() ) break
+
+      got = fileRead( handle, addr( piece ), pieceSize )
     }
-
-    // **Stop at the first refusal rather than reading to the end.** §54 declines
-    // every byte after the buffer is full, so carrying on is a quarter of a
-    // megabyte of floppy read to arrive at an answer that was known three
-    // minutes earlier.
-    if ( textNoRoom() ) {
-      fileClose( handle )
-      return false
-    }
-
-    got = fileRead( handle, addr( piece ), pieceSize )
   }
 
   fileClose( handle )

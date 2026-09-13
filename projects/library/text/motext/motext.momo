@@ -205,3 +205,77 @@ lineInsert( 0, 2, 'Z' )
 show( textRedos() )
 newline()
 showLine( 0, 0, 20 )
+
+// ---- the bulk path against the ordinary one ----
+//
+// `textBulk` keeps the position in ordinary variables and writes it back at the
+// close, which is ten fewer far accesses a character and one more way to be
+// subtly wrong. **So the check is equivalence rather than behaviour**: the same
+// bytes through both paths have to produce the same lines, the same lengths and
+// the same chunk counts - and chunk counts are where a fill that lost track of
+// where it was would show up first.
+//
+// The fixture is the one at the top of this file, which has a line shorter than
+// a chunk, one longer, and a trailing newline.
+
+sub shape {
+  show( textLines() )
+
+  for ( u16 ln = 0; ln < textLines(); ln++ ) {
+    show( lineLength( ln ) )
+    show( lineChunks( ln ) )
+  }
+
+  newline()
+
+  for ( u16 ln = 0; ln < textLines(); ln++ ) {
+    showLine( ln, 0, 70 )
+  }
+}
+
+textInit()
+
+for ( u16 i = 0; i < len( source ); i++ ) {
+  textLoad( source[i] )
+}
+
+shape()
+
+textInit()
+
+textBulk {
+  for ( u16 i = 0; i < len( source ); i++ ) {
+    textLoad( source[i] )
+  }
+}
+
+shape()
+
+// **A fixture that does not end in a newline**, which is the one that reaches
+// the close. A load ending on `\n` flushes on the newline and then seeds a fresh
+// empty line, so what `bulkClose` writes back is a zero over a zero - and
+// removing the flush entirely changed nothing at all until this was here.
+//
+// Ending mid-line, the last line's length exists only in the counter until the
+// bracket closes.
+
+const u8[] tail = "alpha\n"
+                  "beta"
+
+textInit()
+
+for ( u16 i = 0; i < len( tail ); i++ ) {
+  textLoad( tail[i] )
+}
+
+shape()
+
+textInit()
+
+textBulk {
+  for ( u16 i = 0; i < len( tail ); i++ ) {
+    textLoad( tail[i] )
+  }
+}
+
+shape()
