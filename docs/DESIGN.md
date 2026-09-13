@@ -4318,6 +4318,31 @@ been run against a pixel target where a unit was 11 or 20. The seam a screen lib
 would feed already exists and has been exercised both ways, which is most of what
 `momoed` (PLAN §55) needs in order to support text modes larger than 80x25.
 
+### VESA's 132-column text modes, noted and not taken
+
+**Not built and not next**, recorded because the fix above says where it will
+bite. VBE defines text modes past anything the BIOS table reaches - 132x25, 132x43
+and 132x50 among them - set with `AX=4F02h` and a mode number in `BX`.
+
+**The rule that just cost eighty bytes is the one that applies.** *What is saved
+is what has to be restored, not what can be read*: `AH=0Fh` answers in `AL`, a
+byte, and a VBE mode number is a word. So `savedMode` is the wrong width for a
+mode this could set, and `videoMode` would round-trip a 132-column screen back to
+whatever the low byte happened to mean. It is the same failure one level up, and
+it is already written down rather than waiting to be found - VBE has `AX=4F03h`
+for exactly this reason, which is itself the evidence.
+
+**What to probe rather than assume** is whether `adoptMode` already describes one.
+It reads geometry from the BIOS data area, and if a VBE text mode updates
+`0x044A` and `0x0484` then a program *launched into* 132 columns works today with
+nothing added. If it does not, the descriptor needs `AX=4F01h` and this stops
+being a note. That is a `keyprobe`-shaped question and should be answered the same
+way: measured on the hardware, not quoted from a document.
+
+It also belongs to a different machine. The 286 here is VGA, and 132 columns wants
+the 486 and a VESA card - so this is the first thing in this file whose consumer
+exists but whose *hardware* is the thing being waited on.
+
 ### What the rest needs that does not exist
 
 Nothing, in the language. The table and the descriptor were `int 10h`, `far` and
