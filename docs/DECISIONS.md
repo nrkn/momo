@@ -2406,10 +2406,24 @@ in advance from the times it is right.
 ### The flags in the record earned their place on the second run
 
 `keyprobe` records AX *and* the shift flags. The second run's keypad rows
-disagree with the first - `4B34` against `4B00` - and the flags say why: `0020`
-is set, NumLock was on, and the prompt asking for it off was answered with it on.
+disagree with the first - `4B34` against `4B00` - and the flags do more than say
+that NumLock was on. **They say on which row it changed.**
 
-A record of AX alone would have had two runs contradicting each other about a key
-with no way to tell which was the anomaly, or that either was. The aliasing claim
-in §57 rests on the first run, and it is only checkable because the second one
-carries the reason it differs.
+`0020` is clear on every row up to and including `Ctrl+PgDn` and set on both
+keypad rows. So the keypress landed exactly where the prompts ask for it - and it
+turned the guest's NumLock *on* while the host keyboard's light went off. DOSBox
+keeps its own state and starts it clear; the host LED is not the guest, and the
+two had been in opposite phase for the whole run.
+
+None of that was assumed. It fell out of thirty-six rows that each carry a
+timestamp of sorts - which is what a record of AX alone would not have had: two
+runs contradicting each other about a key, with no way to tell which was the
+anomaly or that either was.
+
+**The same bits show the Insert toggle updating after the read rather than before
+it** - `Insert` reports `0000` on its own row and `0080` on the next one down. §57
+had that as a difference between two emulators; it is visible inside one run as
+an ordering.
+
+`keyprobe` now writes the toggles it started with, so the next run states what
+this one left to be reconstructed.

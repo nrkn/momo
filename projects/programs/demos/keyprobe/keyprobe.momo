@@ -77,7 +77,9 @@ const u8[] sIntro1 = "keyprobe - press each combination as it is asked for.$"
 const u8[] sIntro2 = "If one is impossible or does nothing, press Esc to move on.$"
 const u8[] sIntro3 = "Results go to KEYS.TXT.$"
 const u8[] sHeader = "key                 AX   flags$"
+const u8[] sStart  = "start                    $"
 const u8[] sArrow  = "  -> $"
+const u8[] sSpace  = " $"
 const u8[] sPress  = "  press: $"
 const u8[] sWrote  = "written to KEYS.TXT: $"
 const u8[] sFailed = "could not create KEYS.TXT, DOS error $"
@@ -192,6 +194,21 @@ newline()
 putStr( addr( sIntro3 ) )
 newline()
 newline()
+
+// **The toggles as the run starts**, before anybody has pressed anything.
+// NumLock, CapsLock and Insert are state rather than modifiers, and a row
+// further down carries whatever they were by then - so without this the
+// file says what the state *became* and never what it began as.
+//
+// It is what turned a guess into an answer once already: the second run had
+// NumLock set for the keypad rows and clear for every row above them, which
+// places the keypress and says which way it went. That was reconstructable
+// from thirty-six rows and is a line here.
+addStr( addr( sStart ) )
+addHex( 0 )
+addStr( addr( sSpace ) )
+addHex( shiftFlags() )
+addLineEnd()
 
 addStr( addr( sHeader ) )
 addLineEnd()

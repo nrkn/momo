@@ -34,6 +34,24 @@ __entry:
         call    newline
 ; ---- newline()
         call    newline
+; ---- addStr( addr( sStart ) )
+        mov     ax, sStart                  ; link-time constant
+        mov     [addStr__at], ax
+        call    addStr
+; ---- addHex( 0 )
+        mov     word [addHex__w], 0
+        call    addHex
+; ---- addStr( addr( sSpace ) )
+        mov     ax, sSpace                  ; link-time constant
+        mov     [addStr__at], ax
+        call    addStr
+; ---- addHex( shiftFlags() )
+        call    shiftFlags
+        mov     ax, [shiftFlags__ret]
+        mov     [addHex__w], ax
+        call    addHex
+; ---- addLineEnd()
+        call    addLineEnd
 ; ---- addStr( addr( sHeader ) )
         mov     ax, sHeader                 ; link-time constant
         mov     [addStr__at], ax
@@ -779,7 +797,9 @@ sIntro1:        db      'keyprobe - press each combination as it is asked for.$'
 sIntro2:        db      'If one is impossible or does nothing, press Esc to move on.$'        ; u8[60] const
 sIntro3:        db      'Results go to KEYS.TXT.$'        ; u8[24] const
 sHeader:        db      'key                 AX   flags$'        ; u8[31] const
+sStart:         db      'start                    $'        ; u8[26] const
 sArrow:         db      '  -> $'        ; u8[6] const
+sSpace:         db      ' $'        ; u8[2] const
 sPress:         db      '  press: $'        ; u8[10] const
 sWrote:         db      'written to KEYS.TXT: $'        ; u8[22] const
 sFailed:        db      'could not create KEYS.TXT, DOS error $'        ; u8[38] const

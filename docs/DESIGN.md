@@ -4978,16 +4978,21 @@ no way to know.
 `Ctrl+Shift+Right` is `74E0` with the shift bit, exactly as Left is - so both
 word selections cost nothing beyond the motion.
 
-**The keypad rows in this run were taken with NumLock on**, whatever the prompt
-says: `00A0` carries `0020`, and the AL bytes are `4` and `7` rather than zero.
-So they record the *other* case - a keypad that produces characters - and the
-aliasing claim below rests on the earlier run, where the same two keys reported
-`4B00` and `4700` with no NumLock bit.
+**The keypad rows in this run were taken with NumLock on**, so they record the
+other case - a keypad that produces characters - and the aliasing claim below
+rests on the earlier run, where the same two keys reported `4B00` and `4700`.
 
-Which is worth more than a correction: **the flags being in the file are what
-make that detectable at all.** A record of AX alone would have had two runs
-disagreeing with no way to tell that the person's keyboard had been in a
-different state.
+**And the flags say when it changed, which says which way it went.** `0020` is
+clear on every row up to and including `Ctrl+PgDn` and set on both keypad rows,
+so the keypress landed between them - and it turned the guest's NumLock *on*
+while the host keyboard's light went off. DOSBox was keeping its own state and
+starting it clear, which is a thing about the emulator that nothing here had
+to assume: thirty-six rows of flags located it.
+
+Worth more than the correction: **a record of AX alone would have had two runs
+disagreeing about a key with no way to tell which was the anomaly, or that
+either was.** `keyprobe` now writes the toggles it started with as well, so the
+next run says that outright instead of leaving it to be reconstructed.
 
 ### Rules
 
