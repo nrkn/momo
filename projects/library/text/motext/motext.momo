@@ -116,29 +116,38 @@ newline()
 textInit()
 show( u16( textNoRoom() ) )
 
+// **Nine characters a line, so one chunk a line.** Seventeen made two, and two
+// times the line limit is the chunk limit - so which of them ran out first was
+// decided by a handful of chunks, and the answer this checks for was one
+// rounding away from being the other one. The same fixture-chasing that
+// `morange` had twice, caught here before it passed for the wrong reason.
 for ( u16 i = 0; i < textMaxLines + 10; i++ ) {
   textLoad( '\n' )
 
-  for ( u16 j = 0; j < 17; j++ ) {
+  for ( u16 j = 0; j < 9; j++ ) {
     textLoad( 'x' )
   }
 }
 
 show( u16( textNoRoom() ) )
 show( u16( textLines() == textMaxLines ) )
+
+// **Which limit**, because "it did not fit" had been the wrong half of the
+// answer twice - once for `momoed.asm` on a 286, where the machine had room for
+// six thousand more chunks than the file wanted and the line table was full.
+show( u16( textWhyNoRoom() ) )
 newline()
 
 // **A line read back from past the first 64 KB of the block**, which is the
-// whole claim of §58. Each of these lines is seventeen characters and takes two
-// chunks, so line three thousand starts about ninety-six kilobytes into the
-// region - past anything a `u16` offset could reach. It is a segment index that
-// reaches it, and these are the bytes coming back.
+// whole claim of §58. One chunk a line puts the halfway line about ninety-six
+// kilobytes into the region - past anything a `u16` offset could reach. It is a
+// segment index that reaches it, and these are the bytes coming back.
 //
 // **Not the last line.** `textLoad` keeps appending once `lineNew` has been
 // refused, so the last one collects everything the failed iterations produced
 // and its length is a fact about where the limit fell rather than about this.
-show( lineChunks( 3000 ) )
-showLine( 3000, 0, 20 )
+show( lineChunks( textMaxLines / 2 ) )
+showLine( textMaxLines / 2, 0, 20 )
 
 // ---- a run of typing, and the future ----
 //

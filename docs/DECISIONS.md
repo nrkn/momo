@@ -2534,3 +2534,60 @@ overflow check lives and nowhere else.
 §55 has been noting that number *formatting* into a buffer is missing since
 before the prompt existed. This is the other direction, and it arrived because a
 prompt asked for a line number.
+
+### The 286 said what a timing run is for
+
+Two files, read from a floppy, timed from Enter to text on screen:
+
+| | file | | KB/s |
+|---|---|---|---|
+| `edit.com motext.asm` | 100 KB | 48 s | 2.1 |
+| `momoed motext.asm` | 100 KB | 45 s | 2.2 |
+| `edit.com momoed.asm` | 280 KB | 121 s | 2.3 |
+
+**Two programs, files nearly three times apart in size, and the same rate.**
+Which is a stronger statement than parity on one file: the floppy is the whole
+cost, and neither editor is doing anything to it that matters. Nothing about
+this measurement is an argument for making the loading faster.
+
+It is an argument about the other thing it measured. Those 45 seconds were
+spent showing **nothing**, while `edit.com` spent its 48 counting lines - so
+what came out of a timing run was not speed but a progress dot.
+
+`momoed.asm` failed on the same machine after about three minutes.
+
+### The failure was not the thing the machine made it look like
+
+The 286 reports 577 KB free, which invites the reading that the file did not fit
+in memory. It is not: 577 KB gives 26,332 chunks of room past the records and the
+file wanted 20,978.
+
+**It ran out of lines.** 8,191 against a limit of 8,000, which is deterministic
+and would have happened on any machine - the earlier DOSBox run that worked was a
+`momoed.asm` 650 lines shorter, before this session added to it.
+
+Three things follow, and only the last is about capacity:
+
+- **The message was the wrong half of the answer, for the second time.** §58 opens
+  by recording that the plan watched the byte figure and the line figure was the
+  one that bit; the message said "does not fit in the buffer" both times. §54
+  records which limit now and the editor prints it with the numbers.
+- **The three minutes were spent after the answer was known.** §54 declines every
+  byte once the buffer is full, and the load read on to the end of a quarter-
+  megabyte file anyway. It stops at the first refusal now.
+- **12,000 lines rather than 8,000.** Chunks per line runs between two and four
+  across this repository, so past about twelve thousand the chunks run out first
+  at any realistic shape and a larger line table buys nothing.
+
+### A fixture passed by a hair, one commit after the rule about it
+
+`motext` fills until the buffer refuses and checks that *lines* were what ran
+out. Seventeen characters a line is two chunks, and twice the line limit is the
+chunk limit - so with the line table at 12,000 the two ran out within twenty
+chunks of each other, and which one won was a rounding.
+
+Nine characters a line is one chunk, and the margin is now a factor of two. The
+rule written a commit earlier was about a fixture that had to *exceed* a
+constant; this is the same failure in a fixture that has to stay under a
+different one, and it was found by arithmetic rather than by the test going red -
+because it did not go red.

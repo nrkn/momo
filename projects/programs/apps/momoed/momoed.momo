@@ -49,6 +49,11 @@ u8[80] wasName
 bool haveName
 bool dirty
 
+// Whether a load may print. True at startup, where the DOS prompt is still on
+// screen and there is nothing else to look at; false for `^O`, where the
+// editor is drawn and dots would land in the middle of the document.
+bool loud
+
 // **The prompt serves five questions and is one mechanism.** What differs is the
 // label, what Enter does, and whether Enter closes it - three facts, held here
 // rather than in five copies of the same loop.
@@ -94,7 +99,11 @@ u16 replLen
 u16 askValue
 u16 askCount
 
-const pieceSize = 128
+// **Four kilobytes rather than 128**, which was the size when the heap had
+// nothing spare and is a DOS call per 128 bytes of a file. On a floppy a quarter
+// of a megabyte that way is a lot of calls, and it is also what makes a progress
+// dot per read a sensible unit: fifty-odd dots for a big file, not two thousand.
+const pieceSize = 4096
 view u8[pieceSize] piece = _heap[textHeap]
 
 // The clipboard, after §54's claim and after the read buffer - §17 static
@@ -121,7 +130,14 @@ const u8[] sUsage   = "usage: momoed FILE$"
 const u8[] sNoFile  = " (new)$"
 const u8[] sSaved   = " saved$"
 const u8[] sFailed  = " WRITE FAILED$"
-const u8[] sTooBig  = "file does not fit in the buffer - not opened$"
+const u8[] sTooBig  = "file does not fit - not opened$"
+const u8[] sNoLines = "too many lines$"
+const u8[] sNoChunk = "too much text$"
+const u8[] sNoMem   = "not enough memory past the program$"
+const u8[] sOf      = " of $"
+const u8[] sLoading = "loading $"
+const u8[] sLines   = " lines, room for $"
+const u8[] sChunks  = " chunks of text$"
 const u8[] sNoRoom  = " FULL$"
 const u8[] sStar    = "*$"
 const u8[] sFind    = "find: $"
@@ -188,9 +204,24 @@ bool loadFile() {
   got = fileRead( handle, addr( piece ), pieceSize )
 
   while ( got > 0 ) {
+    // A dot a read, which is the only thing on screen for the length of a
+    // floppy. Three quarters of a minute of nothing reads as a machine that has
+    // stopped, and `edit.com` spends the same time saying how far along it is.
+    if ( loud ) putChar( '.' )
+
     for ( u16 i = 0; i < got; i++ ) {
       textLoad( piece[i] )
     }
+
+    // **Stop at the first refusal rather than reading to the end.** §54 declines
+    // every byte after the buffer is full, so carrying on is a quarter of a
+    // megabyte of floppy read to arrive at an answer that was known three
+    // minutes earlier.
+    if ( textNoRoom() ) {
+      fileClose( handle )
+      return false
+    }
+
     got = fileRead( handle, addr( piece ), pieceSize )
   }
 
@@ -213,6 +244,17 @@ bool saveFile() {
   fileClose( handle )
 
   return true
+}
+
+// Which of the three limits, and what the machine had. **A file that ran out of
+// lines and one that ran out of text want different numbers raised**, and the
+// message that said neither had been the wrong half of the answer twice.
+u16 whyNotOpened() {
+  if ( textWhyNoRoom() == whyLines ) return addr( sNoLines )
+  if ( textWhyNoRoom() == whyChunks ) return addr( sNoChunk )
+  if ( textWhyNoRoom() == whyBlock ) return addr( sNoMem )
+
+  return addr( sTooBig )
 }
 
 // ---- the screen ----
@@ -1100,16 +1142,43 @@ sub step( u16 k ) {
 
 haveName = takeName()
 
+loud = true
+
 if ( !haveName ) {
   putStr( addr( sUsage ) )
   newline()
-} else if ( !loadFile() ) {
+} else {
+  putStr( addr( sLoading ) )
+
+  // `fileName` is nul-terminated for DOS, not `$`-terminated for the console,
+  // so it cannot go through `putStr`.
+  for ( u16 i = 0; fileName[i] != 0; i++ ) {
+    putChar( fileName[i] )
+  }
+
+  newline()
+}
+
+if ( haveName && !loadFile() ) {
   // Refusing to open is the whole point: an editor that shows you part of a file
   // and then writes that part back over the whole is worse than one that will
-  // not open it.
-  putStr( addr( sTooBig ) )
+  // not open it. **Which limit, and what this machine had**, because a file too
+  // long and a machine too small want different things done next.
   newline()
-} else {
+  putStr( whyNotOpened() )
+  newline()
+
+  putNumber( textLines() )
+  putStr( addr( sOf ) )
+  putNumber( textLineRoom() )
+  putStr( addr( sLines ) )
+
+  putNumber( textRoom() )
+  putStr( addr( sChunks ) )
+  newline()
+} else if ( haveName ) {
+  loud = false
+
   // `videoMode` is §48's bracket over §43's save and restore, so the display
   // cannot be left in whatever this program set it to - which `simplerl` got
   // wrong for the whole of its life and paid eighty bytes to fix.

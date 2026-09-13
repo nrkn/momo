@@ -11,15 +11,19 @@ motext__halfChunk: equ     8
 motext__maxChunks: equ     24000
 motext__maxUndo: equ     2048
 textUndoMax:    equ     2048
-textMaxLines:   equ     8000
+textMaxLines:   equ     12000
 motext__nextParas: equ     3000
 motext__usedParas: equ     1500
-motext__headParas: equ     1000
-motext__lenParas: equ     1000
+motext__headParas: equ     1500
+motext__lenParas: equ     1500
 motext__opInsert: equ     1
 motext__opDelete: equ     2
 motext__opSplit: equ     3
 motext__opJoin: equ     4
+whyNothing:     equ     0
+whyChunks:      equ     1
+whyLines:       equ     2
+whyBlock:       equ     3
 morange__clsSpace: equ     0
 morange__clsWord: equ     1
 morange__clsPunct: equ     2
@@ -1052,6 +1056,8 @@ motext__chunkSplit:
         jne     .L110                       ; unsigned ==
 ; ---- noRoom = true
         mov     byte [motext__noRoom], 1
+; ---- whyNoRoom = whyChunks
+        mov     byte [motext__whyNoRoom], 1
 ; ---- return
         ret
 .L110:
@@ -1173,6 +1179,8 @@ lineInsert:
         jne     .L127                       ; unsigned ==
 ; ---- noRoom = true
         mov     byte [motext__noRoom], 1
+; ---- whyNoRoom = whyChunks
+        mov     byte [motext__whyNoRoom], 1
 ; ---- return
         ret
 .L127:
@@ -1701,6 +1709,8 @@ lineSplit:
         jne     .L182                       ; unsigned ==
 ; ---- noRoom = true
         mov     byte [motext__noRoom], 1
+; ---- whyNoRoom = whyChunks
+        mov     byte [motext__whyNoRoom], 1
 ; ---- return
         ret
 .L182:
@@ -2500,6 +2510,8 @@ motext__lineNew:
         jb      .L270                       ; unsigned >=
 ; ---- noRoom = true
         mov     byte [motext__noRoom], 1
+; ---- whyNoRoom = whyLines
+        mov     byte [motext__whyNoRoom], 2
 ; ---- return
         ret
 .L270:
@@ -2547,6 +2559,8 @@ textInit:
         mov     byte [motext__breakRun], 1
 ; ---- noRoom     = false
         mov     byte [motext__noRoom], 0
+; ---- whyNoRoom  = whyNothing
+        mov     byte [motext__whyNoRoom], 0
 ; ---- stepDepth  = 0
         mov     word [motext__stepDepth], 0
 ; ---- stepLost   = false
@@ -2565,6 +2579,8 @@ textInit:
         jne     .L273                       ; unsigned ==
 ; ---- noRoom = true
         mov     byte [motext__noRoom], 1
+; ---- whyNoRoom = whyBlock
+        mov     byte [motext__whyNoRoom], 3
 ; ---- return
         ret
 .L273:
@@ -2578,10 +2594,10 @@ textInit:
         add     ax, 1500
         mov     [motext__headSeg], ax
 ; ---- lenSeg   = headSeg + headParas
-        add     ax, 1000
+        add     ax, 1500
         mov     [motext__lenSeg], ax
 ; ---- textBase = lenSeg + lenParas
-        add     ax, 1000
+        add     ax, 1500
         mov     [motext__textBase], ax
 ; ---- if ( blockEnd() <= textBase ) {
         call    blockEnd
@@ -2591,6 +2607,8 @@ textInit:
         ja      .L276                       ; unsigned <=
 ; ---- noRoom = true
         mov     byte [motext__noRoom], 1
+; ---- whyNoRoom = whyBlock
+        mov     byte [motext__whyNoRoom], 3
 ; ---- return
         ret
 .L276:
@@ -2618,11 +2636,13 @@ textInit:
         mov     word [motext__chunkLimit], 0
 ; ---- noRoom = true
         mov     byte [motext__noRoom], 1
+; ---- whyNoRoom = whyBlock
+        mov     byte [motext__whyNoRoom], 3
 ; ---- return
         ret
 .L282:
 ; ---- lineLimit = textMaxLines
-        mov     word [motext__lineLimit], 8000
+        mov     word [motext__lineLimit], 12000
 ; ---- lineNew()
         call    motext__lineNew
         ret
@@ -4196,6 +4216,7 @@ motext__stepDepth: dw      0        ; u16
 motext__stepLost: db      0        ; bool
 motext__undoLost: db      0        ; bool
 motext__undoing: db      0        ; bool
+motext__whyNoRoom: db      0        ; u8
 motext__noRoom: db      0        ; bool
 motext__undoAtLine: dw      0        ; u16
 motext__undoAtCol: dw      0        ; u16

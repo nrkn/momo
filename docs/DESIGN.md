@@ -5435,6 +5435,38 @@ Find is the one that stays open on Enter, because it is the one a person repeats
 Up and down are its alone, too: in a filename they would be two keys that
 silently search the document behind the prompt.
 
+### A refusal says which limit, because it had been the wrong one twice
+
+"File does not fit in the buffer" is three different problems wearing one
+sentence: too many lines, too much text, or not enough memory past the program.
+They want different things done next - two different consts and a bigger machine
+- and a person told only that it did not fit cannot tell which they are looking
+at.
+
+**It had been the wrong half of the answer twice.** `momoed.asm` was refused on a
+286 that had room for six thousand more chunks than the file wanted, because the
+line table was full; and the same thing had happened before §58, which is why
+that section opens by saying the plan watched the byte figure and the line figure
+was the one that bit.
+
+So §54 records which, and the editor prints it with the numbers beside it.
+
+### Loading says something, and stops at the first refusal
+
+Timed on a 286 reading a floppy: `motext.asm` is 100 KB and `edit.com` opens it
+in 48 seconds against this one's 45. And `edit.com` spends its 48 saying how
+far along it is while this spent its 45 showing nothing at all - three quarters
+of a minute of blank screen, which reads as a machine that has stopped.
+
+A dot a read, which is also why the read buffer went from 128 bytes to four
+kilobytes: at 128 a quarter-megabyte file is two thousand dots and a DOS call per
+128 bytes, and at four kilobytes it is sixty of each.
+
+**And the read stops at the first refusal.** §54 declines every byte after the
+buffer is full, so reading on is a quarter of a megabyte of floppy to arrive at
+an answer that was known three minutes earlier - which is what the 286 did before
+saying no.
+
 ### Refusing is the interesting half of open
 
 **A dirty buffer refuses to be replaced.** Opening over unsaved work is the same
@@ -5733,6 +5765,10 @@ language feature.
   from the string, not written beside it.
 - **A refusal cleans up after itself.** `^O` puts back the file it was showing,
   because the buffer was emptied before the refusal was known.
+- **A refusal says which limit.** Lines, text and memory are three problems and
+  one sentence cannot be all of them.
+- **A load stops at the first refusal**, rather than reading to the end of a
+  file it has already declined.
 - **The editor never calls `readKey`.** `nextKey` is the program's, so the
   command layer is testable. The same holds for output: rendering goes through a
   routine the program supplies.

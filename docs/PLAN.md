@@ -366,6 +366,20 @@ All are set out in DESIGN §20 unless noted.
 section that was itself a plan - see the note at the top for why, and where to
 look for the rest.
 
+- **What a 286 said about loading.** 2026-09-13. Timed off a floppy,
+  `edit.com` opens a 100 KB file in 48 seconds and `momoed` in 45 - and
+  `edit.com` does a 280 KB one at the same rate, so the floppy is the whole cost
+  and neither editor is doing anything to it that matters. What the timing
+  actually bought was three fixes that are not speed: a dot a read instead of
+  forty-five seconds of blank screen, a load that stops at the first refusal
+  instead of reading a quarter of a megabyte to reach an answer it already had,
+  and a refusal that says **which** limit.
+
+  The refusal on `momoed.asm` looked like memory - the machine reports 577 KB
+  free - and was the line table: 8,191 against 8,000, deterministic everywhere.
+  That is the second time the message has been the wrong half of the answer, so
+  §54 records which limit and the line table went to 12,000, past which the
+  chunks run out first at any realistic shape.
 - **Prompt commands.** 2026-09-13. `^G` go to line, `^O` open and `^R` replace,
   all through §60 and the one prompt §55 already had; the record is DECISIONS
   under Prompt commands. **Replace decided the shape**, by being two questions:

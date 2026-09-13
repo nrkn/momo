@@ -72,7 +72,7 @@ local const maxUndo   = 2048
 // log is a case worth covering and the fixture that covers it has to be sized
 // against this number, so the number is readable rather than copied.
 const textUndoMax  = maxUndo
-const textMaxLines = 8000
+const textMaxLines = 12000
 const textChunks   = maxChunks
 const textChunkSize = chunkSize
 
@@ -245,6 +245,18 @@ local bool undoLost
 // Suspended while an undo runs, or the reversal would push its own entry and the
 // log would never drain. `textLoad` suspends it too.
 local bool undoing
+
+// **Which limit stopped it**, because "does not fit in the buffer" has now been
+// the wrong half of the answer twice. A file that ran out of *lines* and one
+// that ran out of *bytes* want different things done about them - a bigger
+// `textMaxLines` and a bigger `maxChunks` are separate numbers - and a person
+// told only that it did not fit cannot tell which they are looking at.
+const whyNothing = 0
+const whyChunks  = 1
+const whyLines   = 2
+const whyBlock   = 3
+
+local u8 whyNoRoom
 
 // Set the moment an edit could not get the chunk or the line it needed, and
 // cleared only by `textInit`. Every refusal below leaves the buffer unchanged
@@ -456,6 +468,13 @@ u16 textRedos() => undoCount - undoDone
 // caller that never asks is the bug this exists to make findable.
 bool textNoRoom() => noRoom
 
+// One of `whyChunks`, `whyLines` or `whyBlock`, which are three different
+// problems with three different answers.
+u8 textWhyNoRoom() => whyNoRoom
+
+// How many lines this machine had room for, beside `textRoom` for the chunks.
+u16 textLineRoom() => lineLimit
+
 u16 undoLine() => undoAtLine
 u16 undoCol() => undoAtCol
 
@@ -470,6 +489,7 @@ local sub chunkSplit( u16 c ) {
   d = chunkTake()
   if ( d == 0 ) {
     noRoom = true
+    whyNoRoom = whyChunks
     return
   }
 
@@ -506,6 +526,7 @@ sub lineInsert( u16 ln, u16 col, u8 ch ) {
       d = chunkTake()
       if ( d == 0 ) {
         noRoom = true
+        whyNoRoom = whyChunks
         return
       }
 
@@ -655,6 +676,7 @@ sub lineSplit( u16 ln, u16 col ) {
   d = chunkTake()
   if ( d == 0 ) {
     noRoom = true
+    whyNoRoom = whyChunks
     return
   }
 
@@ -862,6 +884,7 @@ u16 lineChunks( u16 ln ) {
 local sub lineNew {
   if ( lineCount >= lineLimit ) {
     noRoom = true
+    whyNoRoom = whyLines
     return
   }
 
@@ -886,6 +909,7 @@ sub textInit {
   undoing    = false
   breakRun   = true
   noRoom     = false
+  whyNoRoom  = whyNothing
   stepDepth  = 0
   stepLost   = false
   undoLost   = false
@@ -898,6 +922,7 @@ sub textInit {
 
   if ( recBase == 0 ) {
     noRoom = true
+    whyNoRoom = whyBlock
     return
   }
 
@@ -916,6 +941,7 @@ sub textInit {
   // come back looking like room - the same care `blockFits` takes.
   if ( blockEnd() <= textBase ) {
     noRoom = true
+    whyNoRoom = whyBlock
     return
   }
 
@@ -929,6 +955,7 @@ sub textInit {
   if ( chunkLimit < 2 ) {
     chunkLimit = 0
     noRoom = true
+    whyNoRoom = whyBlock
     return
   }
 
