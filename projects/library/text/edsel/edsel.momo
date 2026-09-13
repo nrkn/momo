@@ -41,7 +41,7 @@ u16 spanToCol
 
 // ---- the three things under test ----
 
-bool isMotion( u8 a ) => a >= 1 && a <= 7
+bool isMotion( u8 a ) => a >= 1 && a <= 8
 
 const actLeft   = 1
 const actRight  = 2
@@ -50,6 +50,7 @@ const actDown   = 4
 const actHome   = 5
 const actEnd    = 6
 const actWordL  = 7
+const actWordR  = 8
 
 bool killSelection() {
   u16 ln
@@ -150,6 +151,9 @@ sub apply( u8 a ) {
   } else if ( a == actWordL ) {
     wordPrev( viewLine(), viewCol() )
     viewGoto( wordLine(), wordCol() )
+  } else if ( a == actWordR ) {
+    wordNext( viewLine(), viewCol() )
+    viewGoto( wordLine(), wordCol() )
   }
 }
 
@@ -182,6 +186,8 @@ sub step( u16 k ) {
     apply( actEnd )
   } else if ( k == keyExt + keyCtrlLeft ) {
     apply( actWordL )
+  } else if ( k == keyExt + keyCtrlRight ) {
+    apply( actWordR )
   } else if ( k == 3 ) {
     doCopy()
   } else if ( k == 24 ) {
@@ -420,9 +426,11 @@ where()
 // the anchor by the time the word walk runs. That is the claim here, and it is
 // the reason the fold was worth doing in one place rather than in a table.
 //
-// **`Ctrl+Right` is absent because nothing has measured it.** §57's rule is that a
-// scancode is what `keyprobe` reported, and `keyprobe` has never asked for that
-// one. `morange` covers the forward walk; this covers what the editor can reach.
+// **`Ctrl+Right` was absent here until somebody pressed it.** §57's rule is that
+// a scancode is what `keyprobe` reported; it had never been asked, and the
+// convention that would have been quoted instead turned out to be right - which
+// is the argument for the rule rather than against it, because nothing about
+// quoting it would have said so.
 
 const u8[] wordSrc = "the quick_brown fox(bar)\n"
 
@@ -452,6 +460,29 @@ where()
 step( keyShift + keyCtrlLeft )
 where()
 step( keyShift + keyCtrlLeft )
+where()
+
+step( 3 )
+clipShow()
+
+// Forwards over the same boundaries, which have to be the ones the backward walk
+// found or a run of Ctrl+Right and a run of Ctrl+Left disagree about the words.
+step( keyEsc )
+where()
+
+step( keyExt + keyCtrlRight )
+where()
+step( keyExt + keyCtrlRight )
+where()
+step( keyExt + keyCtrlRight )
+where()
+step( keyExt + keyCtrlRight )
+where()
+
+// And with Shift, which is bound nowhere in either direction.
+step( keyShift + keyCtrlRight )
+where()
+step( keyShift + keyCtrlRight )
 where()
 
 step( 3 )

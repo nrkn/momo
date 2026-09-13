@@ -2389,3 +2389,27 @@ up rather than known.
 `Shift+Left`. §57 said only Left collided, which was one example mistaken for the
 whole set - harmless, because the code masks the flags either way, and wrong in a
 document whose job is to be the thing somebody trusts instead of measuring again.
+
+### The convention was right, and that is the argument for the rule
+
+`Ctrl+Right` is `74E0` and `Ctrl+PgDn` is `76E0` - exactly what `std/key.momo`
+had written down as "conventionally 0x74 and 0x76" while refusing to make them
+constants.
+
+So the rule cost a round trip to a person and bought two numbers that were
+already there. **That is the argument for it rather than against it.** Quoting
+the convention produces the same constants and no way to know they are the same;
+the value is not in the numbers, it is in which of them are load-bearing being
+knowable afterwards. The one time a convention is wrong is not distinguishable
+in advance from the times it is right.
+
+### The flags in the record earned their place on the second run
+
+`keyprobe` records AX *and* the shift flags. The second run's keypad rows
+disagree with the first - `4B34` against `4B00` - and the flags say why: `0020`
+is set, NumLock was on, and the prompt asking for it off was answered with it on.
+
+A record of AX alone would have had two runs contradicting each other about a key
+with no way to tell which was the anomaly, or that either was. The aliasing claim
+in §57 rests on the first run, and it is only checkable because the second one
+carries the reason it differs.

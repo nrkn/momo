@@ -389,7 +389,7 @@ const actWordR  = 25
 // the mechanism against a script meanwhile. Every prefix here being 0 costs one
 // comparison per entry per keystroke, which at this rate is nothing.
 const u16[] bindPrefix = [
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 ]
 
 const u16[] bindKey = [
@@ -414,6 +414,7 @@ const u16[] bindKey = [
   22,                    // ^V
   1,                     // ^A
   keyExt + keyCtrlLeft,
+  keyExt + keyCtrlRight,
   keyExt + keyCtrlHome,
   keyExt + keyCtrlEnd
 ]
@@ -422,7 +423,7 @@ const u8[] bindAction = [
   actLeft, actRight, actUp, actDown, actHome, actEnd, actDelete,
   actPgUp, actPgDn, actBack, actEnter, actUndo, actSave, actRedo,
   actFind, actAgain, actCopy, actCut, actPaste, actAll,
-  actWordL,
+  actWordL, actWordR,
   actTop, actBottom
 ]
 
@@ -814,11 +815,12 @@ sub apply( u8 a, u16 k ) {
     message = 0
     onMatch = false
   } else if ( a == actWordL ) {
-    // **`Ctrl+Shift+Left` needs nothing here.** §57 folds Shift into the key
-    // space and `step` folds it back out, so a shifted Ctrl+arrow arrives as
-    // this same action with `selecting` set - and the rule above has already
-    // marked the anchor by the time this runs. Word selection is what word
-    // motion costs, which is nothing.
+    // **`Ctrl+Shift+Left` needs nothing here**, and neither does its twin. §57
+    // folds Shift into the key space and `step` folds it back out, so a shifted
+    // Ctrl+arrow arrives as this same action with `selecting` set - and the rule
+    // above has already marked the anchor by the time this runs. `keyprobe` says
+    // both pairs differ in one flag bit and nothing else: `73E0` for Left and
+    // `74E0` for Right, each with and without `0002`.
     wordPrev( viewLine(), viewCol() )
     viewGoto( wordLine(), wordCol() )
   } else if ( a == actWordR ) {

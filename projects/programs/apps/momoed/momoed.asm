@@ -14,6 +14,7 @@ keyPgUp:        equ     73
 keyPgDn:        equ     81
 keyDelete:      equ     83
 keyCtrlLeft:    equ     115
+keyCtrlRight:   equ     116
 keyCtrlEnd:     equ     117
 keyCtrlHome:    equ     119
 keyEsc:         equ     27
@@ -5370,7 +5371,7 @@ keyAction:
         mov     word [keyAction__i], 0
 .L791:
         mov     ax, [keyAction__i]
-        cmp     ax, 23
+        cmp     ax, 24
         jae     .L793                       ; unsigned <
 ; ---- if ( bindKey[i] == k && bindPrefix[i] == pending ) return bindAction[i]
         mov     ax, [keyAction__i]
@@ -5408,7 +5409,7 @@ keyIsPrefix:
         mov     word [keyIsPrefix__i], 0
 .L799:
         mov     ax, [keyIsPrefix__i]
-        cmp     ax, 23
+        cmp     ax, 24
         jae     .L801                       ; unsigned <
 ; ---- if ( bindPrefix[i] == k ) return true
         mov     ax, [keyIsPrefix__i]
@@ -7328,11 +7329,11 @@ sNoMatch:       db      'not found$'        ; u8[10] const
 sWrapped:       db      'wrapped$'        ; u8[8] const
 sNoUndo:        db      'too big to undo$'        ; u8[16] const
 sClipFull:      db      'clipboard full$'        ; u8[15] const
-bindPrefix:     times 23 dw 0        ; u16[23]
-bindKey:        dw      331, 333, 328, 336, 327, 335, 339, 329, 337, 8, 13, 26, 19, 25, 6, 12,        ; u16[23] const
-                dw      3, 24, 22, 1, 371, 375, 373
-bindAction:     db      2, 3, 4, 5, 6, 7, 9, 15, 16, 8, 10, 11, 12, 17, 18, 19, 20, 21, 22, 23,        ; u8[23] const
-                db      24, 13, 14
+bindPrefix:     times 24 dw 0        ; u16[24]
+bindKey:        dw      331, 333, 328, 336, 327, 335, 339, 329, 337, 8, 13, 26, 19, 25, 6, 12,        ; u16[24] const
+                dw      3, 24, 22, 1, 371, 372, 375, 373
+bindAction:     db      2, 3, 4, 5, 6, 7, 9, 15, 16, 8, 10, 11, 12, 17, 18, 19, 20, 21, 22, 23,        ; u8[24] const
+                db      24, 25, 13, 14
 statusNumber__digits: times 6 db 0        ; u8[6]
 
 ; ============================================================ heap ====

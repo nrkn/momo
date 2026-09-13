@@ -4923,6 +4923,9 @@ taken again.
 | `Shift+Left` | 4BE0 | 0002 |
 | `Ctrl+Left` | 73E0 | 0104 |
 | `Ctrl+Shift+Left` | 73E0 | 0106 |
+| `Right` | 4DE0 | 0000 |
+| `Ctrl+Right` | 74E0 | 0104 |
+| `Ctrl+Shift+Right` | 74E0 | 0106 |
 | `Up` | 48E0 | 0000 |
 | `Shift+Up` | 48E0 | 0002 |
 | `Home` | 47E0 | 0000 |
@@ -4947,10 +4950,11 @@ taken again.
 | `Enter` | 1C0D | 0000 |
 | `PgUp` | 49E0 | 0000 |
 | `PgDn` | 51E0 | 0000 |
-| `Insert` | 52E0 | 0080 |
+| `Insert` | 52E0 | 0000 |
 | `Ctrl+PgUp` | 84E0 | 0184 |
-| `Keypad Left, NumLock OFF` | 4B00 | 0080 |
-| `Keypad Home, NumLock OFF` | 4700 | 0080 |
+| `Ctrl+PgDn` | 76E0 | 0184 |
+| `Keypad Left, NumLock OFF` | 4B34 | 00A0 |
+| `Keypad Home, NumLock OFF` | 4737 | 00A0 |
 
 `Ctrl+/` is the refusal below; Esc was pressed to move past it, which is what
 `011B` is.
@@ -4965,9 +4969,25 @@ So it normalises to `keyShift + 115` with no new constant, which is what makes
 word *selection* cost nothing once word motion exists - and is measured here
 rather than assumed.
 
-`Ctrl+Right`, `Ctrl+Shift+Right` and `Ctrl+PgDn` are in the prompt list now and
-have never been asked. Until they are they are not constants, which is why
-`momoed` binds word motion leftwards only.
+**`Ctrl+Right` is `74E0` and `Ctrl+PgDn` is `76E0`**, which is what the
+convention said they would be for as long as they were only a convention. They
+are constants now because somebody pressed them, and that is the whole of the
+difference: quoting the convention would have produced the same two numbers and
+no way to know.
+
+`Ctrl+Shift+Right` is `74E0` with the shift bit, exactly as Left is - so both
+word selections cost nothing beyond the motion.
+
+**The keypad rows in this run were taken with NumLock on**, whatever the prompt
+says: `00A0` carries `0020`, and the AL bytes are `4` and `7` rather than zero.
+So they record the *other* case - a keypad that produces characters - and the
+aliasing claim below rests on the earlier run, where the same two keys reported
+`4B00` and `4700` with no NumLock bit.
+
+Which is worth more than a correction: **the flags being in the file are what
+make that detectable at all.** A record of AX alone would have had two runs
+disagreeing with no way to tell that the person's keyboard had been in a
+different state.
 
 ### Rules
 
@@ -5393,21 +5413,21 @@ is a new action; a character is not.
 
 ### Word motion, and word selection for nothing
 
-`Ctrl+Left` walks back a word and **`Ctrl+Shift+Left` is bound to nothing and
-works anyway.** §57 folds Shift into the key space, `step` folds it back out, and
-what is left is the same action with `selecting` set - so the rule that a shifted
-motion extends has already marked the anchor by the time the word walk runs.
+`Ctrl+Left` and `Ctrl+Right` walk a word, and **the shifted pair of them is bound
+to nothing and works anyway.** §57 folds Shift into the key space, `step` folds
+it back out, and what is left is the same action with `selecting` set - so the
+rule that a shifted motion extends has already marked the anchor by the time the
+word walk runs.
 
 That is the fold paying for itself. A table with a shifted twin per motion would
 have needed a row here; one place that strips Shift needed nothing at all, and
 the same will be true of every motion added after this.
 
-**`Ctrl+Right` is not bound, because nothing has measured it.** §57's rule is
-that a scancode is what `keyprobe` reported, and `keyprobe` had never asked for
-that one - it asks now. The convention says 0x74, and a convention is not
-evidence.
-§61 has the forward walk and it is tested; what is missing is a key to reach it
-with.
+**`Ctrl+Right` was not bound until somebody pressed it.** §57's rule is that a
+scancode is what `keyprobe` reported, and `keyprobe` had never asked for that
+one. It asked, the answer was `74E0` - which is what the convention had said all
+along - and the round trip to a person is what makes that a fact here rather
+than a repetition.
 
 ### `^C` and `^X` with nothing selected take the line
 
