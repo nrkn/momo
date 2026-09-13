@@ -296,6 +296,25 @@ readKey:
         mov     [readKey__ret], ax
         ret
 
+; ============================================== bool mode__isTextMode ====
+
+mode__isTextMode:
+; ---- local bool isTextMode( u8 m ) => m <= 0x03 || m == 0x07
+        mov     al, [mode__isTextMode__m]
+        cmp     al, 3                       ; byte operands, no widening
+        jbe     .L28                        ; unsigned <=
+        mov     al, [mode__isTextMode__m]
+        cmp     al, 7                       ; byte operands, no widening
+        jne     .L26                        ; unsigned ==
+.L28:
+        mov     ax, 1
+        jmp     .L27
+.L26:
+        xor     ax, ax
+.L27:
+        mov     [mode__isTextMode__ret], al ; narrowed to bool
+        ret
+
 ; ============================================== sub saveMode ====
 
 saveMode:
@@ -308,6 +327,13 @@ saveMode:
         xor     ah, ah                      ; u8 -> u16
         and     ax, 127
         mov     [mode__savedMode], al       ; narrowed to u8
+; ---- savedRows = u16( bdaRows[0] ) + 1
+        mov     dx, 0x40                    ; segment of mode__bdaRows
+        mov     es, dx
+        mov     al, [es:132]
+        xor     ah, ah                      ; u8 -> u16
+        inc     ax
+        mov     [mode__savedRows], ax
         ret
 
 ; ============================================== sub restoreMode ====
@@ -320,6 +346,24 @@ restoreMode:
         mov     [_al], al                   ; u8 -> u8, no widening
 ; ---- int 0x10
         call    int10
+; ---- if ( isTextMode( savedMode ) && savedRows > 25 ) {
+        mov     al, [mode__savedMode]
+        mov     [mode__isTextMode__m], al   ; u8 -> u8, no widening
+        call    mode__isTextMode
+        mov     al, [mode__isTextMode__ret]
+        xor     ah, ah                      ; bool -> u16
+        test    ax, ax
+        jz      .L31
+        mov     ax, [mode__savedRows]
+        cmp     ax, 25
+        jbe     .L31                        ; unsigned >
+; ---- _ax = 0x1112
+        mov     word [_ax], 4370
+; ---- _bl = 0
+        mov     byte [_bl], 0
+; ---- int 0x10
+        call    int10
+.L31:
 ; ---- curW = 0
         mov     word [mode__curW], 0
 ; ---- curH = 0
@@ -339,7 +383,7 @@ isMove:
         mov     ax, [lastKey]
         xor     ah, ah                      ; cast to u8
         test    ax, ax
-        jne     .L26                        ; unsigned ==
+        jne     .L35                        ; unsigned ==
         mov     ax, [lastKey]
         mov     cl, 8                       ; 8086 has no shift-by-immediate
         shr     ax, cl                      ; unsigned >>
@@ -347,12 +391,12 @@ isMove:
         mov     bl, [isMove__key]
         xor     bh, bh                      ; u8 -> u16
         cmp     ax, bx
-        jne     .L26                        ; unsigned ==
+        jne     .L35                        ; unsigned ==
         mov     ax, 1
-        jmp     .L27
-.L26:
+        jmp     .L36
+.L35:
         xor     ax, ax
-.L27:
+.L36:
         mov     [isMove__ret], al           ; narrowed to bool
         ret
 
@@ -361,20 +405,20 @@ isMove:
 draw:
 ; ---- for( u8 y = 0; y < mapH; y++ ){
         mov     byte [draw__y], 0
-.L30:
+.L39:
         mov     al, [draw__y]
         cmp     al, 10                      ; byte operands, no widening
-        jb      .L33                        ; unsigned <
-        jmp     .L32
-.L33:
+        jb      .L42                        ; unsigned <
+        jmp     .L41
+.L42:
 ; ---- for( u8 x = 0; x < mapW; x++ ){
         mov     byte [draw__x], 0
-.L34:
+.L43:
         mov     al, [draw__x]
         cmp     al, 20                      ; byte operands, no widening
-        jb      .L37                        ; unsigned <
-        jmp     .L36
-.L37:
+        jb      .L46                        ; unsigned <
+        jmp     .L45
+.L46:
 ; ---- ch = tileAt( x, y )
         mov     al, [draw__y]
         xor     ah, ah                      ; u8 -> u16
@@ -389,9 +433,9 @@ draw:
         mov     [draw__ch], al              ; narrowed to u8
 ; ---- if( ch == '#') ch = solidBlock
         cmp     al, 35                      ; byte operands, no widening
-        jne     .L38                        ; unsigned ==
+        jne     .L47                        ; unsigned ==
         mov     byte [draw__ch], 219
-.L38:
+.L47:
 ; ---- writeAt( x, y, ch, defAttr )
         mov     al, [draw__x]
         mov     [writeAt__col], al          ; u8 -> u8, no widening
@@ -401,14 +445,14 @@ draw:
         mov     [writeAt__ch], al           ; u8 -> u8, no widening
         mov     byte [writeAt__attr], 7
         call    writeAt
-.L35:
+.L44:
         inc     byte [draw__x]
-        jmp     .L34
-.L36:
-.L31:
+        jmp     .L43
+.L45:
+.L40:
         inc     byte [draw__y]
-        jmp     .L30
-.L32:
+        jmp     .L39
+.L41:
         ret
 
 ; ============================================== sub cls ====
@@ -424,6 +468,7 @@ cls:
 ; sync is emitted once rather than at every call site.
 
 int10:
+        push    es
         mov     ax, [_ax]
         mov     bx, [_bx]
         mov     cx, [_cx]
@@ -437,9 +482,11 @@ int10:
         mov     [_dx], dx
         mov     [_si], si
         mov     [_di], di
+        pop     es
         ret
 
 int16:
+        push    es
         mov     ax, [_ax]
         mov     bx, [_bx]
         mov     cx, [_cx]
@@ -453,9 +500,11 @@ int16:
         mov     [_dx], dx
         mov     [_si], si
         mov     [_di], di
+        pop     es
         ret
 
 int21:
+        push    es
         mov     ax, [_ax]
         mov     bx, [_bx]
         mov     cx, [_cx]
@@ -469,6 +518,7 @@ int21:
         mov     [_dx], dx
         mov     [_si], si
         mov     [_di], di
+        pop     es
         ret
 
 ; ============================================================ data ====
@@ -505,7 +555,10 @@ mode__curH:     dw      0        ; u16
 mode__curElems: dw      0        ; u16
 mode__curSeg:   dw      0        ; u16
 mode__curElemBytes: db      0        ; u8
+mode__isTextMode__m: db      0        ; u8
+mode__isTextMode__ret: db      0        ; bool
 mode__savedMode: db      0        ; u8
+mode__savedRows: dw      0        ; u16
 playerX:        db      9        ; u8 = 9
 playerY:        db      4        ; u8 = 4
 oldPx:          db      0        ; u8

@@ -1190,7 +1190,15 @@ if ( haveName && !loadFile() ) {
   // cannot be left in whatever this program set it to - which `simplerl` got
   // wrong for the whole of its life and paid eighty bytes to fix.
   videoMode {
-    setMode( modeText )
+    // The program owns the mode and does not set one by number. It is launched
+    // into whatever the prompt left behind - `mode 80,50` gives a fifty-line
+    // editor with nothing here asking for one - and imposes 80x25 only when
+    // what it found cannot be described, which is a graphics mode.
+    //
+    // Asking for `modeText` unconditionally is what this used to do, and it
+    // meant a tall screen was flattened on the way in. The mode number could not
+    // say which mode 3 it was, so neither could the program.
+    if ( !adoptMode() ) setMode( modeText )
 
     cols = screenWidth()
     rows = screenHeight()

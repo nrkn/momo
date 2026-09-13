@@ -5444,6 +5444,25 @@ buildW311Shell:
         call    closeBox
         ret
 
+; ============================================== bool mode__isTextMode ====
+
+mode__isTextMode:
+; ---- local bool isTextMode( u8 m ) => m <= 0x03 || m == 0x07
+        mov     al, [mode__isTextMode__m]
+        cmp     al, 3                       ; byte operands, no widening
+        jbe     .L660                       ; unsigned <=
+        mov     al, [mode__isTextMode__m]
+        cmp     al, 7                       ; byte operands, no widening
+        jne     .L658                       ; unsigned ==
+.L660:
+        mov     ax, 1
+        jmp     .L659
+.L658:
+        xor     ax, ax
+.L659:
+        mov     [mode__isTextMode__ret], al ; narrowed to bool
+        ret
+
 ; ============================================== sub saveMode ====
 
 saveMode:
@@ -5456,6 +5475,13 @@ saveMode:
         xor     ah, ah                      ; u8 -> u16
         and     ax, 127
         mov     [mode__savedMode], al       ; narrowed to u8
+; ---- savedRows = u16( bdaRows[0] ) + 1
+        mov     dx, 0x40                    ; segment of mode__bdaRows
+        mov     es, dx
+        mov     al, [es:132]
+        xor     ah, ah                      ; u8 -> u16
+        inc     ax
+        mov     [mode__savedRows], ax
         ret
 
 ; ============================================== sub restoreMode ====
@@ -5468,6 +5494,24 @@ restoreMode:
         mov     [_al], al                   ; u8 -> u8, no widening
 ; ---- int 0x10
         call    int10
+; ---- if ( isTextMode( savedMode ) && savedRows > 25 ) {
+        mov     al, [mode__savedMode]
+        mov     [mode__isTextMode__m], al   ; u8 -> u8, no widening
+        call    mode__isTextMode
+        mov     al, [mode__isTextMode__ret]
+        xor     ah, ah                      ; bool -> u16
+        test    ax, ax
+        jz      .L663
+        mov     ax, [mode__savedRows]
+        cmp     ax, 25
+        jbe     .L663                       ; unsigned >
+; ---- _ax = 0x1112
+        mov     word [_ax], 4370
+; ---- _bl = 0
+        mov     byte [_bl], 0
+; ---- int 0x10
+        call    int10
+.L663:
 ; ---- curW = 0
         mov     word [mode__curW], 0
 ; ---- curH = 0
@@ -5681,7 +5725,10 @@ mode__curH:     dw      0        ; u16
 mode__curElems: dw      0        ; u16
 mode__curSeg:   dw      0        ; u16
 mode__curElemBytes: db      0        ; u8
+mode__isTextMode__m: db      0        ; u8
+mode__isTextMode__ret: db      0        ; bool
 mode__savedMode: db      0        ; u8
+mode__savedRows: dw      0        ; u16
 strLen__n:      dw      0        ; u16
 nthStr__i:      dw      0        ; u16
 nthStr__seen:   dw      0        ; u16

@@ -3948,13 +3948,15 @@ the columns form was already right and this changes nothing.
 
 **Partly built.** `std/mode.momo` is the half that had consumers: the mode table,
 the current-screen descriptor, save, set and restore, the row table §43 settled on,
-and one spelling of a palette entry. `modetest` exercises it.
+one spelling of a palette entry, and `adoptMode` - the text slice of the properties
+query, added when §55 turned out to want it. `modetest` exercises it.
 
-**Not built**, and each waits on the same thing: the properties query with its
-fallback chain, aspect ratio, the interleaved, planar and banked layouts, and
-windowing. Every one of those serves `momode`, `momove` or `momopnt`, all three of
-which are blocked on a mouse - so none of them can be exercised by anything that
-exists, and building them would be writing code no program could run.
+**Not built**, and each waits on the same thing: the properties query in its
+general form with a fallback chain, aspect ratio, the interleaved, planar and
+banked layouts, and windowing. Every one of those serves `momode`, `momove` or
+`momopnt`, all three of which are blocked on a mouse - so none of them can be
+exercised by anything that exists, and building them would be writing code no
+program could run.
 
 ### What landed, and what nine programs stopped carrying
 
@@ -3987,6 +3989,47 @@ read-back that had stopped working.
 we found rather than one we set, and it need not be in the table. A zero width is
 a truthful "we no longer know"; a stale one still reads as an answer.
 
+### The number is not the whole of a text mode, and save had to learn it too
+
+The table is built around this fact - 80x25 and the tall mode are both `AL=03`,
+and the second is mode 3 followed by the 8x8 font - and the descriptor was
+written around it, reading geometry back rather than stating it. **Save and
+restore were not**, and `AH=0Fh` hands back only the number.
+
+So `videoMode` could not round-trip a tall text mode: a fifty-line screen was
+saved as `3`, restored as mode 3, and came back as twenty-five rows. That
+happened to *every* program using the bracket, whatever it did in between,
+because it is the close that does it - a graphics demo launched from a 50-line
+prompt flattened the prompt on the way out. It is `simplerl`'s bug exactly, one
+level down: the mode was put back, but a mode is more than its number.
+
+`saveMode` now records the row count beside the number and `restoreMode` reloads
+the 8x8 font when the saved mode was text and taller than 25. **The adapter still
+decides whether tall means 43 or 50**, which is right, because it is the same
+adapter that gave the rows away.
+
+### `adoptMode` - the mode we are already in
+
+§55's rule said *the program owns the mode; it does not set one by number*, and
+`momoed` was setting `modeText` because there was no way to ask what was on
+screen: the descriptor is filled by `setMode` and by nothing else, so a program
+that set nothing knew nothing. It flattened a 50-line screen on the way in for
+the same reason the restore flattened it on the way out.
+
+`adoptMode` describes what is there instead of setting anything - geometry from
+the BIOS data area, the segment from the mode number, nothing cleared. **It is
+the text slice of the properties query and not the query**, and the difference is
+the refusal: a graphics mode gets `false`, because width, height and the element
+width would have to come from a table with no row for a mode we did not set,
+which is the case the full query exists for. A caller that gets `false` asks for
+a mode in the ordinary way.
+
+That is §55's rule made true rather than aspirational, and it is what makes
+`mode 80,50` at the prompt give a fifty-line editor with nothing in the program
+asking for one - and a 40-column one too, which is a mode `edit.com` refuses.
+Both halves together cost the editor a little over two hundred bytes; DECISIONS
+§43 has the figures.
+
 ### Rules
 
 - **The frame's segment stays a constant in the program**, even though the table
@@ -4012,6 +4055,15 @@ a truthful "we no longer know"; a stale one still reads as an answer.
   first mode where they differ.
 - **The table is knowledge; the descriptor is fact.** A row says what a mode
   nominally is. The descriptor says what the adapter gave us.
+- **What is saved is what has to be restored, not what can be read.** `AH=0Fh`
+  answers with a number and a text mode is more than one, so `saveMode` takes the
+  row count as well. A save that captures less than the mode is puts back a
+  different screen and reports success.
+- **`adoptMode` refuses rather than guesses.** Describing a graphics mode we did
+  not set would mean reading a table that has no row for it. `false` is the
+  fallback chain's entry point, not a failure.
+- **`adoptMode` does not set anything**, so it clears nothing and can be called
+  by a program that intends to keep the screen it was launched into.
 
 ### The repository was already the argument
 
@@ -5726,6 +5778,14 @@ rather than wait on one, and it should be taken deliberately rather than drifted
 into: **the properties query gets built when `momoed` asks for a text mode by
 what it wants rather than by number.**
 
+**The text half of that is now built**, and it was asked for by exactly the
+route above: `mode 80,50` at the prompt, an editor that flattened it to 25, and
+no way to ask the library what was on screen. §43's `adoptMode` is the answer and
+it is deliberately the slice rather than the query - it describes a text mode and
+refuses a graphics one. What that leaves for the full query is the fallback
+chain and the modes a program did not set, which still wait on the same three
+consumers and the same mouse.
+
 ### Text in a graphics mode, which is wanted and is not a change to any of this
 
 **Wanted, not designed.** The reason is width rather than decoration: the text
@@ -5837,9 +5897,11 @@ language feature.
 - **The flags are masked to the modifier bits.** They carry state as well, and
   the state differs between machines for the same keypress.
 - **A binding table is `const` arrays, not a `group`.**
-- **The program owns the mode; it does not set one by number.** §43's query, once
-  built, and `saveMode`/`restoreMode` are a `bracket` (§48) so the close cannot
-  be forgotten.
+- **The program owns the mode; it does not set one by number.** It takes the one
+  it was launched into through §43's `adoptMode`, and imposes `modeText` only when
+  that comes back `false`. `saveMode`/`restoreMode` are a `bracket` (§48) so the
+  close cannot be forgotten - and the close has to put back a *mode* rather than a
+  mode number, which §43 records it did not originally do.
 
 ### What the first version is
 

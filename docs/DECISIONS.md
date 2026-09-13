@@ -1719,6 +1719,74 @@ Building them now would mean writing code nothing can run, and this repository h
 exactly one defence against that, which is that a program exercises a library. The
 half that landed had nine programs waiting for it. The half that did not has none.
 
+### `mode 80,50`, and the bracket put back the wrong screen
+
+Reported from the 286 rather than found by a test: `mode 80,50` at the prompt,
+then `momoed`, and the screen fell to 25 rows - **and stayed there after
+exiting**. Two symptoms, one fact, and the file already knew the fact. Its own
+table comment says 80x25 and the tall mode are both `AL=03` and that the second
+is mode 3 followed by the 8x8 font. `AH=0Fh` reports the number.
+
+So `saveMode` recorded `3`, `restoreMode` set mode 3, the BIOS loaded the 8x16
+font with it, and fifty rows became twenty-five. **The close is what did it**, so
+it was never about the editor: every program using `videoMode` flattened a tall
+prompt on the way out, whatever it did in between. The descriptor had been
+written around this exact fact - it reads geometry back rather than stating it -
+and save and restore never got the same treatment.
+
+The going-in half was the same fact from the other side. `momoed` called
+`setMode( modeText )` because there was no way to ask what was on screen: the
+descriptor is filled by `setMode` and by nothing else, so a program that set
+nothing knew nothing. §55's rule *the program owns the mode; it does not set one
+by number* was written before there was any way to obey it.
+
+### The slice, not the query, and the refusal is what keeps it a slice
+
+`adoptMode` describes the current text mode and refuses a graphics one. The
+refusal is the whole reason it can be built now: describing a mode we did not set
+means reading a table that has no row for it, which is the fallback chain, which
+is the query. `false` hands that back to the caller as *ask me for one instead*,
+and `momoed`'s call site is one line.
+
+The paragraph above says the query is unbuilt because nothing could run it, and
+predicted that `momoed` would be what changed that. It was - just for a smaller
+piece than the prediction had in mind, and by being unable to obey a rule rather
+than by wanting a bigger screen.
+
+### What it cost, predicted from the emitted code and then measured
+
+`isTextMode` and the font branch cannot be pruned, because `restoreMode` calls
+them and every mode-setting program calls that. So the cost lands on programs
+with nothing to trade for it - the same shape as `simplerl`'s eighty bytes above,
+and by coincidence almost exactly the same size.
+
+Counted off the diff before building: 15 bytes in `saveMode`, 40 in
+`restoreMode`, 25 for the helper, and four bytes of data for `savedRows` and the
+helper's two temporaries.
+
+| `tilefill`, the smallest consumer | before | after |
+|---|---|---|
+| code | 664 | 744 |
+| data | 196 | 200 |
+| image | 860 | 944 |
+
+Predicted +80 and +4; measured +80 and +4. `momoed` pays 228 for both halves,
+which includes `adoptMode` itself and its call site.
+
+**Eighty bytes is what this library costs a program that gains nothing**, twice
+now, for the same kind of property both times: no program here leaves a mode it
+did not find. The first eighty bought putting the mode back. These eighty bought
+putting the *right* mode back.
+
+### The e2e claim is a round trip, because 43 and 50 are both right
+
+`modetest` already asserts the tall mode as an inequality, for the reason the
+adapter decides between EGA's 43 and VGA's 50. The new test takes the height
+before the bracket and compares after it, setting the short mode inside so that a
+restore doing nothing would leave 25 rows to be caught. The descriptor is emptied
+by the restore, so what gets asked afterwards is the hardware - through
+`adoptMode`, which makes one call test both halves.
+
 ---
 
 ## 54. `motext`

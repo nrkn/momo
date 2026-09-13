@@ -183,6 +183,87 @@ __entry:
         call    putNumber
 ; ---- newline()
         call    newline
+; ---- setMode( modeTall )
+        mov     byte [setMode__id], 1
+        call    setMode
+; ---- tall = screenHeight()
+        call    screenHeight
+        mov     ax, [screenHeight__ret]
+        mov     [tall], ax
+; ---- videoMode {
+        call    saveMode
+; ---- setMode( modeText )
+        mov     byte [setMode__id], 0
+        call    setMode
+; ---- putNumber( u16( screenHeight() == 25 ) )
+        call    screenHeight
+        mov     ax, [screenHeight__ret]
+        cmp     ax, 25
+        jne     .L10                        ; unsigned ==
+        mov     ax, 1
+        jmp     .L11
+.L10:
+        xor     ax, ax
+.L11:
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- newline()
+        call    newline
+; ---- }
+        call    restoreMode
+; ---- putNumber( u16( adoptMode() ) )
+        call    adoptMode
+        mov     al, [adoptMode__ret]
+        xor     ah, ah                      ; bool -> u16
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- putChar( ' ' )
+        mov     byte [putChar__c], 32
+        call    putChar
+; ---- putNumber( u16( screenWidth() == 80 ) )
+        call    screenWidth
+        mov     ax, [screenWidth__ret]
+        cmp     ax, 80
+        jne     .L13                        ; unsigned ==
+        mov     ax, 1
+        jmp     .L14
+.L13:
+        xor     ax, ax
+.L14:
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- putChar( ' ' )
+        mov     byte [putChar__c], 32
+        call    putChar
+; ---- putNumber( u16( screenHeight() == tall ) )
+        call    screenHeight
+        mov     ax, [screenHeight__ret]
+        mov     bx, [tall]
+        cmp     ax, bx
+        jne     .L16                        ; unsigned ==
+        mov     ax, 1
+        jmp     .L17
+.L16:
+        xor     ax, ax
+.L17:
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- newline()
+        call    newline
+; ---- setMode( modeGfx256 )
+        mov     byte [setMode__id], 2
+        call    setMode
+; ---- putNumber( u16( adoptMode() ) )
+        call    adoptMode
+        mov     al, [adoptMode__ret]
+        xor     ah, ah                      ; bool -> u16
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- newline()
+        call    newline
+; ---- setMode( modeText )
+        mov     byte [setMode__id], 0
+        call    setMode
 ; ---- putNumber( u16( dac8( 0 ) ) )
         mov     word [putNumber__n], 0
         call    putNumber
@@ -234,19 +315,19 @@ putNumber:
 ; ---- if (n == 0) {
         mov     ax, [putNumber__n]
         test    ax, ax
-        jne     .L10                        ; unsigned ==
+        jne     .L19                        ; unsigned ==
 ; ---- putChar(ioZeroChar)
         mov     byte [putChar__c], 48
         call    putChar
 ; ---- return
         ret
-.L10:
+.L19:
 ; ---- for (i = 0; n > 0; i++) {
         mov     byte [putNumber__i], 0
-.L13:
+.L22:
         mov     ax, [putNumber__n]
         test    ax, ax
-        jbe     .L15                        ; unsigned >
+        jbe     .L24                        ; unsigned >
 ; ---- digits[i] = u8(n % ioBase) + ioZeroChar
         mov     ax, [putNumber__n]
         mov     bx, 10
@@ -264,15 +345,15 @@ putNumber:
         xor     dx, dx                      ; clear high half for div
         div     bx
         mov     [putNumber__n], ax
-.L14:
+.L23:
         inc     byte [putNumber__i]
-        jmp     .L13
-.L15:
+        jmp     .L22
+.L24:
 ; ---- for (; i > 0; i--) {
-.L17:
+.L26:
         mov     al, [putNumber__i]
         test    al, al
-        jbe     .L19                        ; unsigned >
+        jbe     .L28                        ; unsigned >
 ; ---- putChar(digits[i - 1])
         mov     al, [putNumber__i]
         xor     ah, ah                      ; u8 -> u16
@@ -281,10 +362,10 @@ putNumber:
         mov     al, [putNumber__digits + bx]
         mov     [putChar__c], al            ; u8 -> u8, no widening
         call    putChar
-.L18:
+.L27:
         dec     byte [putNumber__i]
-        jmp     .L17
-.L19:
+        jmp     .L26
+.L28:
         ret
 
 ; ============================================== u16 screenWidth ====
@@ -327,6 +408,25 @@ screenStride:
         mov     [screenStride__ret], ax
         ret
 
+; ============================================== bool mode__isTextMode ====
+
+mode__isTextMode:
+; ---- local bool isTextMode( u8 m ) => m <= 0x03 || m == 0x07
+        mov     al, [mode__isTextMode__m]
+        cmp     al, 3                       ; byte operands, no widening
+        jbe     .L32                        ; unsigned <=
+        mov     al, [mode__isTextMode__m]
+        cmp     al, 7                       ; byte operands, no widening
+        jne     .L30                        ; unsigned ==
+.L32:
+        mov     ax, 1
+        jmp     .L31
+.L30:
+        xor     ax, ax
+.L31:
+        mov     [mode__isTextMode__ret], al ; narrowed to bool
+        ret
+
 ; ============================================== sub saveMode ====
 
 saveMode:
@@ -339,6 +439,13 @@ saveMode:
         xor     ah, ah                      ; u8 -> u16
         and     ax, 127
         mov     [mode__savedMode], al       ; narrowed to u8
+; ---- savedRows = u16( bdaRows[0] ) + 1
+        mov     dx, 0x40                    ; segment of mode__bdaRows
+        mov     es, dx
+        mov     al, [es:132]
+        xor     ah, ah                      ; u8 -> u16
+        inc     ax
+        mov     [mode__savedRows], ax
         ret
 
 ; ============================================== sub restoreMode ====
@@ -351,6 +458,24 @@ restoreMode:
         mov     [_al], al                   ; u8 -> u8, no widening
 ; ---- int 0x10
         call    int10
+; ---- if ( isTextMode( savedMode ) && savedRows > 25 ) {
+        mov     al, [mode__savedMode]
+        mov     [mode__isTextMode__m], al   ; u8 -> u8, no widening
+        call    mode__isTextMode
+        mov     al, [mode__isTextMode__ret]
+        xor     ah, ah                      ; bool -> u16
+        test    ax, ax
+        jz      .L35
+        mov     ax, [mode__savedRows]
+        cmp     ax, 25
+        jbe     .L35                        ; unsigned >
+; ---- _ax = 0x1112
+        mov     word [_ax], 4370
+; ---- _bl = 0
+        mov     byte [_bl], 0
+; ---- int 0x10
+        call    int10
+.L35:
 ; ---- curW = 0
         mov     word [mode__curW], 0
 ; ---- curH = 0
@@ -382,14 +507,14 @@ setMode:
         mov     bx, ax
         mov     al, [screenMode__smallFont + bx]
         test    al, al
-        je      .L21                        ; unsigned !=
+        je      .L39                        ; unsigned !=
 ; ---- _ax = 0x1112
         mov     word [_ax], 4370
 ; ---- _bl = 0
         mov     byte [_bl], 0
 ; ---- int 0x10
         call    int10
-.L21:
+.L39:
 ; ---- curSeg = screenMode[id].seg
         mov     al, [setMode__id]
         xor     ah, ah                      ; u8 -> u16
@@ -409,7 +534,7 @@ setMode:
         mov     bx, ax
         mov     al, [screenMode__elemBytes + bx]
         cmp     al, 2                       ; byte operands, no widening
-        jne     .L24                        ; unsigned ==
+        jne     .L42                        ; unsigned ==
 ; ---- curW = bdaCols[0]
         mov     dx, 0x40                    ; segment of mode__bdaCols
         mov     es, dx
@@ -422,8 +547,8 @@ setMode:
         xor     ah, ah                      ; u8 -> u16
         inc     ax
         mov     [mode__curH], ax
-        jmp     .L25
-.L24:
+        jmp     .L43
+.L42:
 ; ---- curW = screenMode[id].nomW
         mov     al, [setMode__id]
         xor     ah, ah                      ; u8 -> u16
@@ -438,10 +563,75 @@ setMode:
         mov     bx, ax
         mov     ax, [screenMode__nomH + bx]
         mov     [mode__curH], ax
-.L25:
+.L43:
 ; ---- curElems = curW
         mov     ax, [mode__curW]
         mov     [mode__curElems], ax
+        ret
+
+; ============================================== bool adoptMode ====
+
+adoptMode:
+; ---- _ah = 0x0F
+        mov     byte [_ah], 15
+; ---- int 0x10
+        call    int10
+; ---- m = _al & 0x7F
+        mov     al, [_al]
+        xor     ah, ah                      ; u8 -> u16
+        and     ax, 127
+        mov     [adoptMode__m], al          ; narrowed to u8
+; ---- if ( !isTextMode( m ) ) return false
+        mov     [mode__isTextMode__m], al   ; u8 -> u8, no widening
+        call    mode__isTextMode
+        mov     al, [mode__isTextMode__ret]
+        xor     ah, ah                      ; bool -> u16
+        test    ax, ax
+        jnz     .L45
+        mov     byte [adoptMode__ret], 0
+        ret
+.L45:
+; ---- curW = bdaCols[0]
+        mov     dx, 0x40                    ; segment of mode__bdaCols
+        mov     es, dx
+        mov     ax, [es:74]
+        mov     [mode__curW], ax
+; ---- curH = u16( bdaRows[0] ) + 1
+        mov     dx, 0x40                    ; segment of mode__bdaRows
+        mov     es, dx
+        mov     al, [es:132]
+        xor     ah, ah                      ; u8 -> u16
+        inc     ax
+        mov     [mode__curH], ax
+; ---- if ( curW == 0 ) curW = 80
+        mov     ax, [mode__curW]
+        test    ax, ax
+        jne     .L48                        ; unsigned ==
+        mov     word [mode__curW], 80
+.L48:
+; ---- if ( curH < 25 ) curH = 25
+        mov     ax, [mode__curH]
+        cmp     ax, 25
+        jae     .L51                        ; unsigned <
+        mov     word [mode__curH], 25
+.L51:
+; ---- curElems = curW
+        mov     ax, [mode__curW]
+        mov     [mode__curElems], ax
+; ---- curElemBytes = 2
+        mov     byte [mode__curElemBytes], 2
+; ---- curSeg = m == 0x07 ? 0xB000 : 0xB800
+        mov     al, [adoptMode__m]
+        cmp     al, 7                       ; byte operands, no widening
+        jne     .L54                        ; unsigned ==
+        mov     ax, 45056
+        jmp     .L55
+.L54:
+        mov     ax, 47104
+.L55:
+        mov     [mode__curSeg], ax
+; ---- return true
+        mov     byte [adoptMode__ret], 1
         ret
 
 ; ============================================== sub screenRowsInit ====
@@ -451,11 +641,11 @@ screenRowsInit:
         mov     word [screenRowsInit__at], 0
 ; ---- for ( u16 y = 0; y < curH; y++ ) {
         mov     word [screenRowsInit__y], 0
-.L27:
+.L57:
         mov     ax, [screenRowsInit__y]
         mov     bx, [mode__curH]
         cmp     ax, bx
-        jae     .L29                        ; unsigned <
+        jae     .L59                        ; unsigned <
 ; ---- rowBase[y] = at
         mov     ax, [screenRowsInit__at]
         mov     bx, [screenRowsInit__y]
@@ -466,10 +656,10 @@ screenRowsInit:
         mov     bx, [mode__curElems]
         add     ax, bx
         mov     [screenRowsInit__at], ax
-.L28:
+.L58:
         inc     word [screenRowsInit__y]
-        jmp     .L27
-.L29:
+        jmp     .L57
+.L59:
         ret
 
 ; ============================================== u16 screenRow ====
@@ -554,12 +744,17 @@ screenHeight__ret: dw      0        ; u16
 screenSegment__ret: dw      0        ; u16
 screenElemBytes__ret: db      0        ; u8
 screenStride__ret: dw      0        ; u16
+mode__isTextMode__m: db      0        ; u8
+mode__isTextMode__ret: db      0        ; bool
 mode__savedMode: db      0        ; u8
+mode__savedRows: dw      0        ; u16
 setMode__id:    db      0        ; u8
+adoptMode__ret: db      0        ; bool
 screenRow__y:   dw      0        ; u16
 screenRow__ret: dw      0        ; u16
 tall:           dw      0        ; u16
 putNumber__i:   db      0        ; u8
+adoptMode__m:   db      0        ; u8
 screenRowsInit__y: dw      0        ; u16
 screenRowsInit__at: dw      0        ; u16
 

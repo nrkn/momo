@@ -79,6 +79,42 @@ putChar( ' ' )
 putNumber( screenSegment() )
 newline()
 
+// ---- a tall mode survives save and restore, which the number cannot say
+//
+// The claim is a *round trip* rather than a row count, for the reason the tall
+// mode above is asserted as an inequality: 43 and 50 are both right and the
+// adapter decides. So the height is taken before and compared after, and the
+// middle of the block sets the short mode so that a restore doing nothing would
+// leave 25 rows behind and be seen.
+
+setMode( modeTall )
+tall = screenHeight()
+
+videoMode {
+  setMode( modeText )
+
+  putNumber( u16( screenHeight() == 25 ) )
+  newline()
+}
+
+// The descriptor was emptied by the restore, so the hardware is what gets asked.
+putNumber( u16( adoptMode() ) )
+putChar( ' ' )
+putNumber( u16( screenWidth() == 80 ) )
+putChar( ' ' )
+putNumber( u16( screenHeight() == tall ) )
+newline()
+
+// ---- a graphics mode is refused, which is what makes the fallback reachable
+
+setMode( modeGfx256 )
+
+putNumber( u16( adoptMode() ) )
+newline()
+
+// Leave the display the way this program found it.
+setMode( modeText )
+
 // ---- the DAC conversion, which is arithmetic and needs no hardware
 
 putNumber( u16( dac8( 0 ) ) )

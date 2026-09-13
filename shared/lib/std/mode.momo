@@ -90,14 +90,25 @@ u16 screenStride() => curElems
 
 // ---- setting one ------------------------------------------------------------
 
+// Modes 0 to 3 and 7 are the text ones; everything above is a frame. The number
+// is the only thing `AH=0Fh` hands back, so this is what can be asked of it.
+local bool isTextMode( u8 m ) => m <= 0x03 || m == 0x07
+
 // Bit 7 of the mode byte is "do not clear on set", which a caller may have asked
 // for. Masking it off is what makes the saved value safe to hand straight back.
-local u8 savedMode = 0
+//
+// **The number is not the whole of a text mode**, which is the same fact the
+// table above is built around: 80x25 and the tall mode are both mode 3, so a
+// save that kept only the number could not put a fifty-line screen back. The
+// row count is the missing half and the BIOS data area has it.
+local u8  savedMode = 0
+local u16 savedRows = 0
 
 sub saveMode {
   _ah = 0x0F
   int 0x10
   savedMode = _al & 0x7F
+  savedRows = u16( bdaRows[0] ) + 1
 }
 
 // Puts the hardware back and **empties the descriptor**, because what is on
@@ -109,6 +120,17 @@ sub restoreMode {
   _ah = 0x00
   _al = savedMode
   int 0x10
+
+  // Setting the number back loads the 8x16 font with it, so a fifty-line screen
+  // comes back as twenty-five unless the tall mode is rebuilt the way `setMode`
+  // builds one. The saved row count is what says it was tall; the adapter still
+  // decides whether that means 43 or 50, which is right, because it is the same
+  // adapter that gave the rows away in the first place.
+  if ( isTextMode( savedMode ) && savedRows > 25 ) {
+    _ax = 0x1112
+    _bl = 0
+    int 0x10
+  }
 
   curW = 0
   curH = 0
@@ -156,6 +178,47 @@ sub setMode( u8 id ) {
   }
 
   curElems = curW
+}
+
+// ---- the mode we are already in, rather than one we set ---------------------
+
+// §43's properties query is the general form of this and is still not built:
+// what it owes is every mode, with a fallback chain behind each field. This is
+// the **text slice** of it, which is the half a program launched from a prompt
+// actually wants - `mode 80,50` and then an editor should give a fifty-line
+// editor, not twenty-five rows the program imposed on a screen it never asked
+// about.
+//
+// It describes rather than sets, so nothing on screen changes and nothing is
+// cleared.
+//
+// **A graphics mode is refused rather than guessed at.** Width, height and the
+// element width would have to come from the table, and there is no row in it for
+// a mode we did not set - which is precisely the case the properties query
+// exists for. `false` means "ask me for one instead".
+bool adoptMode() {
+  u8 m
+
+  _ah = 0x0F
+  int 0x10
+  m = _al & 0x7F
+
+  if ( !isTextMode( m ) ) return false
+
+  // The first link of §43's fallback chain, and the only one this slice needs.
+  // 0x044A is there back to CGA; 0x0484 is EGA and later and reads zero on one,
+  // and mode 3 is 80x25 on anything that can run this at all.
+  curW = bdaCols[0]
+  curH = u16( bdaRows[0] ) + 1
+
+  if ( curW == 0 ) curW = 80
+  if ( curH < 25 ) curH = 25
+
+  curElems = curW
+  curElemBytes = 2
+  curSeg = m == 0x07 ? 0xB000 : 0xB800
+
+  return true
 }
 
 // ---- rows -------------------------------------------------------------------

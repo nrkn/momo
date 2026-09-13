@@ -93,6 +93,25 @@ readKey:
         mov     [readKey__ret], ax
         ret
 
+; ============================================== bool mode__isTextMode ====
+
+mode__isTextMode:
+; ---- local bool isTextMode( u8 m ) => m <= 0x03 || m == 0x07
+        mov     al, [mode__isTextMode__m]
+        cmp     al, 3                       ; byte operands, no widening
+        jbe     .L14                        ; unsigned <=
+        mov     al, [mode__isTextMode__m]
+        cmp     al, 7                       ; byte operands, no widening
+        jne     .L12                        ; unsigned ==
+.L14:
+        mov     ax, 1
+        jmp     .L13
+.L12:
+        xor     ax, ax
+.L13:
+        mov     [mode__isTextMode__ret], al ; narrowed to bool
+        ret
+
 ; ============================================== sub saveMode ====
 
 saveMode:
@@ -105,6 +124,13 @@ saveMode:
         xor     ah, ah                      ; u8 -> u16
         and     ax, 127
         mov     [mode__savedMode], al       ; narrowed to u8
+; ---- savedRows = u16( bdaRows[0] ) + 1
+        mov     dx, 0x40                    ; segment of mode__bdaRows
+        mov     es, dx
+        mov     al, [es:132]
+        xor     ah, ah                      ; u8 -> u16
+        inc     ax
+        mov     [mode__savedRows], ax
         ret
 
 ; ============================================== sub restoreMode ====
@@ -117,6 +143,24 @@ restoreMode:
         mov     [_al], al                   ; u8 -> u8, no widening
 ; ---- int 0x10
         call    int10
+; ---- if ( isTextMode( savedMode ) && savedRows > 25 ) {
+        mov     al, [mode__savedMode]
+        mov     [mode__isTextMode__m], al   ; u8 -> u8, no widening
+        call    mode__isTextMode
+        mov     al, [mode__isTextMode__ret]
+        xor     ah, ah                      ; bool -> u16
+        test    ax, ax
+        jz      .L17
+        mov     ax, [mode__savedRows]
+        cmp     ax, 25
+        jbe     .L17                        ; unsigned >
+; ---- _ax = 0x1112
+        mov     word [_ax], 4370
+; ---- _bl = 0
+        mov     byte [_bl], 0
+; ---- int 0x10
+        call    int10
+.L17:
 ; ---- curW = 0
         mov     word [mode__curW], 0
 ; ---- curH = 0
@@ -148,14 +192,14 @@ setMode:
         mov     bx, ax
         mov     al, [screenMode__smallFont + bx]
         test    al, al
-        je      .L12                        ; unsigned !=
+        je      .L21                        ; unsigned !=
 ; ---- _ax = 0x1112
         mov     word [_ax], 4370
 ; ---- _bl = 0
         mov     byte [_bl], 0
 ; ---- int 0x10
         call    int10
-.L12:
+.L21:
 ; ---- curSeg = screenMode[id].seg
         mov     al, [setMode__id]
         xor     ah, ah                      ; u8 -> u16
@@ -175,7 +219,7 @@ setMode:
         mov     bx, ax
         mov     al, [screenMode__elemBytes + bx]
         cmp     al, 2                       ; byte operands, no widening
-        jne     .L15                        ; unsigned ==
+        jne     .L24                        ; unsigned ==
 ; ---- curW = bdaCols[0]
         mov     dx, 0x40                    ; segment of mode__bdaCols
         mov     es, dx
@@ -188,8 +232,8 @@ setMode:
         xor     ah, ah                      ; u8 -> u16
         inc     ax
         mov     [mode__curH], ax
-        jmp     .L16
-.L15:
+        jmp     .L25
+.L24:
 ; ---- curW = screenMode[id].nomW
         mov     al, [setMode__id]
         xor     ah, ah                      ; u8 -> u16
@@ -204,7 +248,7 @@ setMode:
         mov     bx, ax
         mov     ax, [screenMode__nomH + bx]
         mov     [mode__curH], ax
-.L16:
+.L25:
 ; ---- curElems = curW
         mov     ax, [mode__curW]
         mov     [mode__curElems], ax
@@ -215,12 +259,12 @@ setMode:
 blit:
 ; ---- for( u16 row = 0; row < tileH; row++ ){
         mov     word [blit__row], 0
-.L18:
+.L27:
         mov     ax, [blit__row]
         cmp     ax, 8
-        jb      .L21                        ; unsigned <
-        jmp     .L20
-.L21:
+        jb      .L30                        ; unsigned <
+        jmp     .L29
+.L30:
 ; ---- dest = ( u16( ty ) * tileH + row ) * screenW + u16( tx ) * tileW
         mov     al, [blit__ty]
         xor     ah, ah                      ; u8 -> u16
@@ -251,10 +295,10 @@ blit:
         mov     [blit__src], ax
 ; ---- for( u16 col = 0; col < tileW; col++ ){
         mov     word [blit__col], 0
-.L22:
+.L31:
         mov     ax, [blit__col]
         cmp     ax, 8
-        jae     .L24                        ; unsigned <
+        jae     .L33                        ; unsigned <
 ; ---- pixels[ dest + col ] = tiles[ src + col ]
         mov     ax, [blit__src]
         mov     bx, [blit__col]
@@ -270,14 +314,14 @@ blit:
         mov     es, dx
         pop     ax
         mov     [es:bx], al
-.L23:
+.L32:
         inc     word [blit__col]
-        jmp     .L22
-.L24:
-.L19:
+        jmp     .L31
+.L33:
+.L28:
         inc     word [blit__row]
-        jmp     .L18
-.L20:
+        jmp     .L27
+.L29:
         ret
 
 ; ==================================================== int helpers ====
@@ -365,7 +409,10 @@ mode__curH:     dw      0        ; u16
 mode__curElems: dw      0        ; u16
 mode__curSeg:   dw      0        ; u16
 mode__curElemBytes: db      0        ; u8
+mode__isTextMode__m: db      0        ; u8
+mode__isTextMode__ret: db      0        ; bool
 mode__savedMode: db      0        ; u8
+mode__savedRows: dw      0        ; u16
 setMode__id:    db      0        ; u8
 blit__from:     dw      0        ; u16
 blit__tx:       db      0        ; u8
