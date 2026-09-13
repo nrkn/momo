@@ -1,6 +1,8 @@
 # Momo
 
-A small imperative language that compiles to **readable, commented NASM** for a
+A fantasy console for real hardware
+
+Its language is small, imperative and compiles to **readable, commented NASM** for a
 strict 8086 subset, producing DOS `.COM` files.
 
 ```momo
@@ -39,13 +41,7 @@ code it produced, and each instruction choice is annotated with the reason:
 
 ## Why
 
-Three reasons.
-
-**Primarily, to write small games and tools.** Momo is meant to be used rather
-than admired. There is a roguelike, the standard library is a text-mode screen, a
-keyboard and strings, and what it is measured against is a list of programs that
-work rather than features that exist - `docs/DECISIONS.md` §15 records the early
-version of that list, and what met it.
+**Primarily, to write small games and tools.** 
 
 **Secondarily, to show that x86 assembly is not overwhelming if you start with
 a small subset and work up.** Not by hiding the assembly - by shrinking it
@@ -66,10 +62,10 @@ until it fits in your head. Most of the design falls out of that one idea:
 The compiler is the way in, not the destination: write Momo without looking at
 the assembly, then look at the assembly when you want to know what happened.
 
-**And to try out language ideas that have been rattling around for a decade,
-with echoes going back further.** Various small prototypes over the years;
-[Yuki](https://github.com/nrkn/yuki-js) is the one that survived to become a
-reference point.
+**And as a home for ideas that have been rattling around in my head for a 
+decade, with echoes going back further.** 
+
+[Yuki](https://github.com/nrkn/yuki-js) is the direct ancestor.
 
 ## What makes it unusual
 
