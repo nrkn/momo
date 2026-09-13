@@ -369,11 +369,22 @@ look for the rest.
 - **What a 286 said about loading.** 2026-09-13. Timed off a floppy,
   `edit.com` opens a 100 KB file in 48 seconds and `momoed` in 45 - and
   `edit.com` does a 280 KB one at the same rate, so the floppy is the whole cost
-  and neither editor is doing anything to it that matters. What the timing
-  actually bought was three fixes that are not speed: a dot a read instead of
-  forty-five seconds of blank screen, a load that stops at the first refusal
-  instead of reading a quarter of a megabyte to reach an answer it already had,
-  and a refusal that says **which** limit.
+  and neither editor was doing anything to it that mattered - **which was wrong,
+  and the next run disproved it**. With four-kilobyte reads instead of 128 the
+  same machine did the same 287 KB file in 65 seconds where `edit.com` took 130
+  - exactly double. Then the same file off `c:` instead of `a:`: `edit.com` 19
+  seconds and `momoed` 45, which splits both costs. The read buffer is worth 5.5x
+  on floppy I/O, and **our ingest is 2.4x slower than `edit.com`'s** - hidden on
+  the floppy, where the buffer was winning more than the loop was losing.
+
+  What the timing bought besides that was three fixes that are not speed: a dot
+  a read instead of forty-five seconds of blank screen, a load that stops at the
+  first refusal instead of reading a quarter of a megabyte to reach an answer it
+  already had, and a refusal that says **which** limit.
+
+  `loadrate` says the loop is 241 lines a second on that machine, which is 42 of
+  the 45 seconds - so the open is loop-bound on anything but a floppy, and was
+  loop-bound on the floppy too once the read buffer was fixed.
 
   The refusal on `momoed.asm` looked like memory - the machine reports 577 KB
   free - and was the line table: 8,191 against 8,000, deterministic everywhere.

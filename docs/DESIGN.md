@@ -5459,8 +5459,25 @@ far along it is while this spent its 45 showing nothing at all - three quarters
 of a minute of blank screen, which reads as a machine that has stopped.
 
 A dot a read, which is also why the read buffer went from 128 bytes to four
-kilobytes: at 128 a quarter-megabyte file is two thousand dots and a DOS call per
-128 bytes, and at four kilobytes it is sixty of each.
+kilobytes: at 128 a quarter-megabyte file is two thousand dots and a DOS call
+per 128 bytes, and at four kilobytes it is seventy of each.
+
+**That turned out to be the speed change, which nothing predicted.** The same
+286, the same 287 KB file: `edit.com` 130 seconds and `momoed` 65, exactly
+double. The timing run before it had been read as saying the floppy was the
+whole cost - it was not, and two editors agreeing only meant both were reading
+in small blocks.
+
+Running the same file from the hard disk instead of the floppy splits both
+costs: `edit.com` 130 seconds to 19, `momoed` 65 to 45. So the disk was 111
+seconds of one and 20 of the other - **the read buffer is worth five and a half
+times on floppy I/O** - and what is left is the loop, where `momoed` takes 45
+seconds against `edit.com`'s 19.
+
+**So the loading is two and a half times slower than `edit.com`, and the floppy
+was hiding it.** `loadrate` pushes the same shape of text through §54 with no
+disk in the way, which makes that number checkable on any machine rather than
+inferred from four timings.
 
 **And the read stops at the first refusal.** §54 declines every byte after the
 buffer is full, so reading on is a quarter of a megabyte of floppy to arrive at

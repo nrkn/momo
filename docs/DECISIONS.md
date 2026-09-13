@@ -2539,16 +2539,79 @@ prompt asked for a line number.
 
 Two files, read from a floppy, timed from Enter to text on screen:
 
+A 286 reading a floppy, before and after the read buffer went from 128 bytes to
+four kilobytes:
+
 | | file | | KB/s |
 |---|---|---|---|
 | `edit.com motext.asm` | 100 KB | 48 s | 2.1 |
-| `momoed motext.asm` | 100 KB | 45 s | 2.2 |
-| `edit.com momoed.asm` | 280 KB | 121 s | 2.3 |
+| `momoed motext.asm`, 128-byte reads | 100 KB | 45 s | 2.2 |
+| `edit.com momoed.asm` | 287 KB | 130 s | 2.2 |
+| **`momoed momoed.asm`, 4 KB reads** | 287 KB | **65 s** | **4.4** |
+
+The last two are the same file on the same machine, and the times are exactly
+double. Before that, everything was the same rate.
+
+### Running it from the hard disk split both costs at once
+
+The same 287 KB file, the same machine, off `c:` instead of `a:`:
+
+| | floppy | hard disk | so disk was | so CPU is |
+|---|---|---|---|---|
+| `edit.com` | 130 s | 19 s | ~111 s | ~19 s |
+| `momoed` | 65 s | 45 s | ~20 s | ~45 s |
+
+Four numbers and both halves fall out, which no pair of them could have given.
+
+**The read buffer is worth five and a half times on floppy I/O.** The same
+device, the same bytes: 111 seconds in small blocks against 20 in four-kilobyte
+ones. The "exactly double" above was real and its cause was not what it looked
+like - the two programs differ in how they *ask* for the file, not in how fast
+the disk is.
+
+**And our ingest is two and a half times slower than `edit.com`'s.** 45 seconds
+against 19 for the same bytes with the disk taken out of it. On the floppy that
+was hidden - we were ahead overall because the read buffer was winning more
+than the loop was losing.
+
+So the answer reversed twice from the same run of data. The floppy is the whole
+cost; then it is not, and we are twice as fast; then the disk comes out and we
+are half as fast, and were the whole time.
+
+**`loadrate` was a prediction rather than a question**, and the prediction held.
+If the 45 seconds on `c:` were essentially the loop, it should report about 225
+lines a second on that machine.
+
+It reported 8,000 lines in 605 ticks - **241 a second**, 6.8 KB/s. And the
+sixteen lines a second between the prediction and the answer are the hard disk:
+287 KB at 6.8 KB/s is 42 seconds of loop, against 45 measured, leaving about
+three for `c:`. Every number in the table above now has a cause.
+
+| | |
+|---|---|
+| floppy, small reads | ~111 s |
+| floppy, 4 KB reads | ~20 s |
+| hard disk, 4 KB reads | ~3 s |
+| **`textLoad`, 287 KB** | **~42 s** |
+
+So `momoed`'s file open is loop-bound on anything but a floppy, and was
+loop-bound on the floppy too once the read buffer was fixed.
+
+### The parity reading, and why it was wrong
 
 **Two programs, files nearly three times apart in size, and the same rate.**
-Which is a stronger statement than parity on one file: the floppy is the whole
-cost, and neither editor is doing anything to it that matters. Nothing about
-this measurement is an argument for making the loading faster.
+Which was read as: the floppy is the whole cost, and neither editor is doing
+anything to it that matters.
+
+**That was wrong, and the same machine disproved it.** One change to the
+loading path - a four-kilobyte read buffer instead of 128 bytes - and the times
+separate cleanly into a factor of two.
+
+The error is worth more than the correction. **Agreement between two
+implementations is not evidence that the cost is external** - it is evidence
+that they are paying the same cost, and "the same cost" and "the device" are
+different claims. Both programs were reading in small blocks. A comparison was
+read as a measurement, and the thing it measured was a shared inefficiency.
 
 It is an argument about the other thing it measured. Those 45 seconds were
 spent showing **nothing**, while `edit.com` spent its 48 counting lines - so
@@ -2591,3 +2654,34 @@ rule written a commit earlier was about a fixture that had to *exceed* a
 constant; this is the same failure in a fixture that has to stay under a
 different one, and it was found by arithmetic rather than by the test going red -
 because it did not go red.
+
+### Where the rest of the 65 seconds goes is not known, and is measurable
+
+Seventy DOS calls for 280 KB cannot be the per-call overhead any more - that is
+under a second of the 65. So what is left is the floppy and `textLoad`, in some
+proportion nobody has measured.
+
+Timing another file open cannot separate them, because it measures both again.
+So `loadrate` does the half that is not the disk: the same shape of text through
+§54 from memory, nothing on the disk at all. Subtract it from a real open and the
+rest is the floppy.
+
+Under DOSBox it reports 612 lines a second at 29 bytes a line - about 17 KB/s -
+which is a number about DOSBox and not about a 286. **The point is that the
+machine that raised the question can answer it**, and the answer decides whether
+the next thing to look at is `textLoad` or nothing at all.
+
+Which is the shape this session has hit twice: a measurement that was actually a
+comparison, and then a probe that measures one half alone. `keyprobe` was the
+first, for the keyboard.
+
+The hard disk run answered it before `loadrate` was needed, and left the probe a
+prediction to check rather than a question to settle. **Where the time goes is
+the loop**, and what it costs against a program written in 1991 is a factor of
+two and a half.
+
+Which points somewhere specific. `textLoad` appends a character by way of
+`lineInsert`, and that walks the chain from the head of the line to find where
+the end is - **every character, for a line it has already walked**. Bulk loading
+is the one caller that always appends to the same place it appended last, and
+is the one that could be told so.

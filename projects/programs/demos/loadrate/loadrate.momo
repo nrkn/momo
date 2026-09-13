@@ -1,0 +1,99 @@
+// loadrate.momo - how much of a file open is the machine and how much is the
+// disk (DESIGN §54, §58).
+//
+// A 286 read `momoed.asm` off a floppy in 65 seconds. 280 KB in 65 seconds is
+// 4.3 KB/s, which is nearly twice what the same machine managed before the read
+// buffer went from 128 bytes to four kilobytes - and that killed the reading
+// that said the floppy was the whole cost. It left the obvious question:
+// **what is the 65 seconds now?**
+//
+// Timing another file open cannot answer it, because that measures both halves
+// again. So this does the half that is not the disk: bytes through `textLoad`
+// from memory, nothing on the disk at all. Subtract, and the rest is the floppy.
+//
+// A number nobody has to estimate, measured on whatever machine runs it.
+
+include "lib/std/io.momo"
+include "lib/std/time.momo"
+include "lib/motext.momo"
+
+// About thirty characters, which is what the `.asm` that prompted this averages.
+// **Line length is not incidental**: a chunk holds sixteen, so the shape of the
+// text decides how often a fresh one is taken and how far `lineSeek` walks to
+// reach the end of a line.
+const u8[] sample = "        mov     ax, [bx + 4]\n"
+
+// Two chunks a line, so this is sixteen thousand of twenty-four thousand - big
+// enough to time and clear of the ceiling.
+const rounds = 8000
+
+const u8[] sIntro  = "loadrate - textLoad with no disk in the way.$"
+const u8[] sPer    = " bytes a line$"
+const u8[] sLines  = " lines$"
+const u8[] sTicks  = " ticks at 18.2 a second$"
+const u8[] sRate   = "lines a second: $"
+const u8[] sFull   = "buffer filled early - the figures are what fitted$"
+const u8[] sQuick  = "under one tick - use a slower machine or more rounds$"
+
+u16 start
+u16 spent
+u16 done
+
+// ---- entry ----
+
+putStr( addr( sIntro ) )
+newline()
+
+putNumber( len( sample ) )
+putStr( addr( sPer ) )
+newline()
+
+textInit()
+
+done = 0
+start = ticks()
+
+for ( u16 i = 0; i < rounds; i++ ) {
+  for ( u16 j = 0; j < len( sample ); j++ ) {
+    textLoad( sample[j] )
+  }
+
+  done++
+
+  // The buffer is finite and this is deliberately sized near it, so stopping
+  // when it fills is an ordinary outcome rather than a failure - what is timed
+  // is whatever went in.
+  if ( textNoRoom() ) {
+    putStr( addr( sFull ) )
+    newline()
+    break
+  }
+}
+
+spent = ticksSince( start )
+
+putNumber( done )
+putStr( addr( sLines ) )
+newline()
+
+putNumber( spent )
+putStr( addr( sTicks ) )
+newline()
+
+// **Lines a second rather than bytes**, because the byte count of a run this
+// size does not fit a `u16` and a wrapped figure would look like an answer.
+// Multiply by the line length above for bytes.
+if ( spent == 0 ) {
+  putStr( addr( sQuick ) )
+  newline()
+} else {
+  // **The remainder is carried rather than thrown away.** `done / spent` first
+  // is an integer divide that loses most of the answer at these sizes - eight
+  // thousand lines in six hundred ticks is thirteen, and thirteen times eighteen
+  // is 234 where the answer is 241. The other order overflows a `u16`, so the
+  // quotient and the remainder are scaled separately and added.
+  putStr( addr( sRate ) )
+  putNumber( done / spent * ticksPerSecond
+             + ( done % spent ) * ticksPerSecond / spent )
+  newline()
+}
