@@ -4366,10 +4366,17 @@ chain is walked once per line, never once per character.** `lineSlice` is the
 whole read interface, and there is deliberately no "character at" call for a
 caller to put in a loop.
 
-### Far memory is the wrong home for this, and §16 says why
+### Far memory was refused here, and §58 is where that was overturned
 
-Everything lives in `_heap` through a `view` (§17). A `far` region past the
-segment (§47) would buy space and lose more than it buys:
+**Kept as written, because it was right for as long as it lasted and the way it
+stopped being right is the useful part.** What follows is the original
+argument; §58 is what answered each bullet, and the one that mattered was
+answered by this very section - the chunk design bounds every touch, so the
+per-access cost is paid on the bytes touched rather than on the buffer.
+
+The argument as it stood: everything lives in `_heap` through a `view` (§17),
+and a `far` region past the segment (§47) would buy space and lose more than it
+buys:
 
 - **§16 reloads ES on every access and refuses to hoist a runtime segment**,
   deliberately, because a callee reassigning the variable leaves ES pointing at
@@ -4384,23 +4391,34 @@ segment (§47) would buy space and lose more than it buys:
 With no `far` declaration a program emits no segment register at all (§1), and
 this one does not need to.
 
+**All three were answered.** The first by the chunk design itself. The second by
+`textSave` staging a line at a time, which turned out faster than the DOS call
+per sixteen bytes it replaced. The third by making a chunk a *paragraph*, so the
+constant size is one chunk and the region is reached by segment - which is the
+one part §58 had to invent rather than merely re-price.
+
 ### An ordinary array would be in the image, which is why the view is not a preference
 
 A plain array is emitted as `times N db 0`, so `u8[16384] text` is 16 KB of
 `.COM`. §13 emits no storage for the heap at all, so the same capacity as a view
 over `_heap` costs the binary nothing.
 
-The records are the other half of that and do cost image: the chunk links, the
-line heads and the undo log are ordinary arrays, so **the image grows with
-capacity even though the text does not.** `npm run memory` reports both halves,
-and reports the view as a claim rather than an alias precisely so `maxChunks` can
-be tuned against an answer.
+The records used to be the other half of that and *did* cost image: the chunk
+links, the line heads and the undo log were ordinary arrays, so the image grew
+with capacity even though the text did not. §58 moved them into the heap the
+text vacated, and the rule that came out of it is the general form of this
+paragraph: **capacity lives in the heap or past the segment, and the image is
+for code.**
 
-**It claims the bottom of the heap**, and a program partitioning the rest starts
-after it:
+`npm run memory` reports both halves, and reports a view over `_heap` as a claim
+rather than an alias precisely so the capacity consts can be tuned against an
+answer.
+
+**It claims the bottom of the heap for the records**, and a program partitioning
+the rest starts after it:
 
 ```momo
-view u8[myBytes] mine = _heap[textBytes]
+view u8[myBytes] mine = _heap[textHeap]
 ```
 
 which is §17's static partitioning with the library going first. Two libraries
@@ -4614,6 +4632,113 @@ It cost this file the property of including nothing at all, which `DECISIONS.md`
 ### What was left out
 
 The cursor, which is §56's.
+
+---
+
+## 58. Text past the segment
+
+**Built.** §54's text lives in the block DOS gave us (§47) and its records live
+in the heap the text vacated, so **none of the buffer's capacity is in the image
+at all**. That is the rule the move settled, and it is worth stating on its own:
+capacity lives in the heap or past the segment, and the image is for code.
+
+### A chunk is a paragraph, which is what takes the 64 KB cap off
+
+The obvious shape is `far u8[textBytes] text = seg` - one region, indexed as
+before. It does not work past 64 KB, because the index is a `u16` and a far
+region is reached at `segment:offset`. Sixteen chunks short of a megabyte would
+be unreachable by arithmetic rather than by memory.
+
+**A chunk is sixteen bytes and so is a paragraph**, so chunk `c` is the paragraph
+`c` past the base:
+
+```momo
+local far u8[chunkSize] dst = dstSeg
+...
+dstSeg = textBase + c
+```
+
+No index ever holds more than one chunk, so `maxChunks` is bounded by the block
+and by the records rather than by what a `u16` can reach. It also makes the
+address arithmetic an *add* where it used to be a shift.
+
+**Two windows, not one**, because a split and a merge copy between two chunks;
+with one the segment would have to change between every read and its write.
+
+### What it costs, and why §54's refusal stopped applying
+
+§16 reloads ES per access and never hoists a runtime segment. That is what makes
+this safe - two live windows cannot be confused for each other - and it is also
+the price: roughly eighteen cycles for every byte actually touched.
+
+§54 rejected far memory on exactly that, and **the argument was true about a text
+buffer and false about this one**, because the buffer had not been designed when
+the argument was made. The chunk design bounds every touch: an edit reaches one
+chunk, a redraw reaches the rows on screen, and `lineSlice` walks a chain rather
+than a document. Nothing touches the whole buffer, so nothing pays the price at
+scale.
+
+### The records went into the heap, and a `group` could not come with them
+
+A group's fields are storage, so a `group` of this size is emitted as
+`times N db 0` and puts every byte of capacity into the `.COM` - which was
+measured at tens of kilobytes of zeros on disk before they moved. §18 lays a
+group out as parallel arrays anyway, so what is lost moving to views is the
+source form §52 exists for, and nothing about the layout.
+
+That is a real loss and it is the price of the size. It is also the second time
+this library has traded a nicety for capacity, the first being the text itself.
+
+### `textSave` is here on an argument that has since reversed
+
+§54 argued carefully that writing the buffer out belonged *inside* it, because
+doing it efficiently meant handing DOS each chunk where it already lay. This puts
+the chunks somewhere DOS cannot be pointed at - §38's rule is that a DOS buffer
+is in our own segment - so it now stages a line at a time through a buffer and
+needs nothing but `lineSlice`.
+
+**By the rule that put it there, it should now leave.** It stays because
+`textLoad` cannot: that one does need the privates, and splitting a file's two
+halves across two libraries is worse than the inconsistency. Which is a judgement
+rather than a rule, and is written down as one.
+
+It is also faster than what it replaced. The first version made a DOS call per
+sixteen bytes.
+
+### No block means no buffer, and the free list is the whole of the handling
+
+`blockBase` returns 0 when there is no memory past our own segment, and writing
+to segment 0 is the interrupt table. Rather than a check at every write,
+`textInit` leaves the free list empty: every allocation already goes through
+`chunkTake`, which already refuses, and every refusal already sets `noRoom`. So
+the failure arrives through machinery that was there for a different reason, and
+needs no new path at all.
+
+**The fit is asked about the last paragraph rather than about the size**, because
+the size no longer fits the `u16` `blockFits` takes - which is the same fact that
+made the change worth making.
+
+### Rules
+
+- **A chunk is a paragraph.** That is what keeps every index inside a `u16`, and
+  it is why `chunkSize` may not change without this section changing.
+- **The window is set immediately before it is used**, and nothing between the
+  two calls out to anything that could move it.
+- **Capacity lives in the heap or past the segment.** An array is storage in the
+  image, and capacity in the image is zeros on disk.
+- **No block means an empty free list**, not a check at every write.
+
+### What is still capped, and by what
+
+The records. Each chunk costs three bytes of heap and each line four, so the
+ceiling is now a heap one rather than a byte one - and it is high enough that
+`momoed` opens its own source and not its own assembly. `DECISIONS.md` §58 has
+the figures.
+
+**Streaming is still what to reach for when this is not enough**, and it is still
+considerably more machinery: keeping the file on disk and paging chunks is the
+piece table's original virtue and would reach any file size at all. Far memory is
+hundreds of kilobytes from being exhausted, so it is not that yet.
 
 ---
 
@@ -5407,16 +5532,17 @@ open; replace; multiple cursors; syntax colour; and text in a graphics mode.
 Each is a paragraph of its own or a line in §54's, and none was needed for the
 thing to be an editor.
 
-### The 64 KB is the live constraint now, and selection is what spent it
+### Selection filled the 64 KB, and §58 emptied it again
 
-The clipboard is the third claim on the heap after §54's buffer and the file read
-buffer, and after it there are **three figures' worth of bytes left** rather than
-four - `DECISIONS.md` §61 has the numbers and the date they were taken.
+The clipboard was the third claim on the heap and took what was left of it -
+under a kilobyte unclaimed, with §54's undo log still at sixty-four entries
+because every byte it grew by came out of the same budget the text did.
 
-That is not a problem to solve here. It is the point at which PLAN §58 stops
-being a good idea and becomes the next one, and it is also why the undo log is
-still sixty-four entries: every byte that log grows by comes out of the same
-budget the text does.
+That is what made §58 the next piece rather than a someday one, and it is why
+this section is written in the past tense. The text and its records are out of
+the segment now, the log is eight times longer, and a cut of several lines is
+undoable again. `DECISIONS.md` §61 has the figures that forced it and §58 has
+the ones that followed.
 
 ### What is not settled
 
@@ -5428,7 +5554,7 @@ answered for a game by being deliberately the smallest thing that counts as one.
 
 ## Sections designed, but not built
 
-Sixteen sections carry numbers but no text here, because what they describe does
+Fifteen sections carry numbers but no text here, because what they describe does
 not exist yet. All are in `PLAN.md`. The heading names no range deliberately - the
 set stopped being contiguous the moment one of them was built.
 
@@ -5449,7 +5575,6 @@ set stopped being contiguous the moment one of them was built.
 | §50 | A layout DSL: content, layout and paint as three documents |
 | §51 | `addr()` in an initialiser - the table of addresses that cannot be written down |
 | §53 | Nested arrays, and the spine they need |
-| §58 | Text past the segment - where §54 runs out, and why far memory is back |
 
 ---
 

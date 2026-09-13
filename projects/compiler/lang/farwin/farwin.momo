@@ -1,0 +1,89 @@
+// farwin.momo - a far window whose segment moves, one paragraph at a time
+// (DESIGN §16, §47, §58).
+//
+// §58 puts §54's text past the segment by making a chunk a *paragraph*: both are
+// sixteen bytes, so chunk `c` is a segment rather than an offset and the index
+// never has to hold more than one chunk. That is what takes the 64 KB cap off a
+// `far` region, and this is the smallest program that shows it working.
+//
+// It was written as a throwaway probe before any of §58 was built and kept,
+// because it holds the mechanism on its own: `motext` passing does not say
+// whether the far windows or the chunk chain were what worked.
+//
+// Three claims: a `far` region declared in terms of a variable; two of them live
+// at once, so a copy between chunks needs no third buffer; and the segment
+// changing between accesses without the compiler hoisting anything. The last is
+// what §16 promises and is the one that would be silent if it broke.
+
+include "lib/std/io.momo"
+include "lib/std/block.momo"
+
+const winSize = 16
+
+u16 base
+u16 srcSeg
+u16 dstSeg
+
+far u8[winSize] src = srcSeg
+far u8[winSize] dst = dstSeg
+
+sub show( u16 n ) {
+  putNumber( n )
+  putChar( ' ' )
+}
+
+// ---- entry ----
+
+base = blockBase()
+
+if ( base == 0 || !blockFits( base, 64 * winSize ) ) {
+  putStr( addr( sNoRoom ) )
+  newline()
+} else {
+  // Four paragraphs, each written through the same declaration with a different
+  // segment. If the compiler hoisted the segment load these would all land in
+  // one place and the read back would show it.
+  for ( u16 c = 0; c < 4; c++ ) {
+    dstSeg = base + c
+    for ( u16 i = 0; i < winSize; i++ ) {
+      dst[i] = u8( c * 16 + i )
+    }
+  }
+
+  for ( u16 c = 0; c < 4; c++ ) {
+    dstSeg = base + c
+    show( dst[0] )
+    show( dst[15] )
+  }
+  newline()
+
+  // A copy between two paragraphs with both windows live, which is what a chunk
+  // split needs and is the one shape a single window could not do.
+  srcSeg = base + 2
+  dstSeg = base + 3
+  for ( u16 i = 0; i < 8; i++ ) {
+    dst[i] = src[i + 8]
+  }
+
+  dstSeg = base + 3
+  show( dst[0] )
+  show( dst[7] )
+  show( dst[8] )
+  newline()
+
+  // Far past the first 64 KB of the block, which is the whole point: a segment
+  // index reaches where a u16 offset cannot.
+  if ( blockFits( base + 5000, winSize ) ) {
+    dstSeg = base + 5000
+    dst[0] = 99
+    dstSeg = base + 5001
+    dst[0] = 77
+    dstSeg = base + 5000
+    show( dst[0] )
+    dstSeg = base + 5001
+    show( dst[0] )
+    newline()
+  }
+}
+
+const u8[] sNoRoom = "no block$"

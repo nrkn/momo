@@ -1,4 +1,4 @@
-// motext.momo - the text buffer an editor edits (DESIGN §54).
+// motext.momo - the text buffer an editor edits (DESIGN §54, §58).
 //
 // A line is a chain of chunks and the chunks are deliberately not kept full, so
 // an insert moves bytes inside one chunk and touches nothing else. A chunk that
@@ -12,16 +12,22 @@
 // 0.6 seconds to move a 16 KB gap. Nothing here moves bulk text: a split moves
 // half a chunk, a merge moves at most one, and an insert moves part of one.
 //
-// **The text lives in a view over `_heap`.** An ordinary array is emitted as
-// `times N db 0` and would put every byte of capacity into the `.COM`; §13 emits
-// no storage for the heap, so this costs the binary nothing. The records - the
-// chunk links, the line heads and the undo log - are ordinary arrays and do cost
-// image, which is what `npm run memory` reports.
+// **The text lives past our own segment** (§58), in the block DOS gave us, and a
+// chunk is addressed as a *paragraph* rather than as an offset - both are sixteen
+// bytes, so chunk `c` is the paragraph `c` past the base and no index ever has to
+// hold more than one chunk.
 //
-// **It claims the bottom of the heap**, and a program partitioning the rest
-// starts after it:
+// **The records live in the heap the text vacated** - the chunk links, the line
+// heads and the undo log, all views rather than arrays. Nothing of either half is
+// in the image, which is the rule the move settled: **capacity lives in the heap
+// or past the segment, and the image is for code.** An ordinary array is emitted
+// as `times N db 0` and puts every byte of capacity into the `.COM`, which at
+// this size is tens of kilobytes of zeros on disk.
 //
-//   view u8[myBytes] mine = _heap[textBytes]
+// **It claims the bottom of the heap for those records**, and a program
+// partitioning the rest starts after it:
+//
+//   view u8[myBytes] mine = _heap[textHeap]
 //
 // That is §17's static partitioning with this library going first. Two libraries
 // both wanting the heap is the point at which that stops being enough, and
@@ -31,16 +37,16 @@
 // chain once and copies out. That is the rule the piece-table draft produced and
 // it holds here too: the chain is walked once per line, never once per character.
 //
-// **This file used to include nothing at all**, and `textSave` is what ended
-// that. Writing a buffer out efficiently means handing DOS each chunk where it
-// already lies, which needs `text`, `chunk` and `line` - all of them `local`. A
-// library above this one could only have gone through `lineSlice` into a buffer
-// it had to own, so the choice was never where the routine reads best but
-// whether the buffer serialises itself or something else copies it twice. §11
-// prunes the include for a program that never saves, so it costs nothing that
-// does not use it.
+// **`textSave` is here on an argument that has since reversed.** It used to be
+// here because it handed DOS each chunk where it already lay, which needed
+// everything private in this file. §58 put the chunks somewhere DOS cannot be
+// pointed at, so it stages through a buffer in our own segment and now needs
+// nothing but `lineSlice`. It stays because `textLoad` cannot leave - that one
+// does need the privates - and splitting a file's two halves across two libraries
+// is worse than the inconsistency. §11 prunes the include either way.
 
 include "lib/std/file.momo"
+include "lib/std/block.momo"
 
 // ---- capacity ----
 //
@@ -51,32 +57,84 @@ include "lib/std/file.momo"
 
 local const chunkSize = 16
 local const halfChunk = chunkSize / 2
-local const maxChunks = 2400
-local const maxUndo   = 64
+local const maxChunks = 8192
+local const maxUndo   = 512
 
-const textMaxLines = 900
-const textBytes    = maxChunks * chunkSize
+// **Chunks rather than bytes**, because the byte count no longer fits a `u16` -
+// which is the whole of what moving past the segment bought. A program that
+// wants to know the capacity in bytes multiplies, in whatever width it likes.
+const textMaxLines = 4000
+const textChunks   = maxChunks
+const textChunkSize = chunkSize
 
 // ---- storage ----
 
-local view u8[textBytes] text = _heap[0]
+// **The text lives past our own segment**, in the block DOS gave us (§47), and
+// the chunks are addressed by *segment* rather than by offset: a chunk is
+// sixteen bytes and so is a paragraph, so chunk `c` is the paragraph `c` past
+// the base. That is why there is no offset arithmetic below and no 64 KB cap
+// above - the index never has to hold more than one chunk, so `maxChunks` is
+// bounded by the block and by the records, not by what a `u16` can reach.
+//
+// **Two windows, because a split and a merge copy between two chunks.** One
+// would mean changing the segment between every read and its write.
+//
+// §16 reloads ES per access and never hoists a runtime segment, which is
+// exactly what makes this safe and is also what it costs: about eighteen cycles
+// for every byte actually touched. Nothing here touches more than a chunk at a
+// time, which is the whole reason the argument that refused far memory stopped
+// being true - it was pricing a buffer nobody had built yet.
+local u16 textBase
+local u16 srcSeg
+local u16 dstSeg
+
+local far u8[chunkSize] src = srcSeg
+local far u8[chunkSize] dst = dstSeg
+
+// **The window is set immediately before it is used**, and nothing between the
+// two calls out to anything that could move it. That is the one rule this
+// arrangement adds and the one way it can go quietly wrong.
+local sub atDst( u16 c ) {
+  dstSeg = textBase + c
+}
+
+local sub atSrc( u16 c ) {
+  srcSeg = textBase + c
+}
 
 // Chunk 0 is the null, so `next == 0` ends a chain and no real chunk is 0. A
 // chunk's bytes are at `c * chunkSize`, and there is no table of addresses
 // because `chunkSize` is a power of two and §26 folds the multiply to a shift.
 // A table would be right if the stride were imposed, as §43's is; here it is
 // ours to choose, so it is chosen to need no table.
-local group chunk[maxChunks] {
-  u16 next
-  u8  used
-}
+// **Views over the heap, not arrays**, and not a `group` either - which is a
+// loss worth naming. §52 exists so a record can be read as a row, and §18 lays a
+// group out as parallel arrays anyway, so what changes here is only the source
+// form. What forces it is that a group's fields are storage: they would be
+// emitted as `times N db 0` and put every byte of capacity into the `.COM`,
+// which at this size is tens of kilobytes of zeros on disk.
+//
+// So the records went where the text used to be. **The heap did not get smaller
+// when the text moved past the segment - it got vacated**, and this is what moved
+// into it.
+local view u16[maxChunks] chunkNext = _heap[0]
+local view u8[maxChunks]  chunkUsed = _heap[maxChunks * 2]
 local u16 chunkFree
 
-local group line[textMaxLines] {
-  u16 head
-  u16 length
-}
+local view u16[textMaxLines] lineHead = _heap[maxChunks * 3]
+local view u16[textMaxLines] lineLen  = _heap[maxChunks * 3 + textMaxLines * 2]
 local u16 lineCount
+
+// What this library claims at the bottom of the heap, so a program can say
+// where its own regions start. It used to be the text's byte count; the text
+// has moved and the records have taken its place, so the number changed and
+// the contract did not.
+//
+//   view u8[myBytes] mine = _heap[textHeap]
+//
+// `npm run memory` reports a view over `_heap` as a claim rather than an alias
+// precisely so this addition can be checked rather than asserted.
+const textHeap = maxChunks * 3 + textMaxLines * 4 + maxUndo * 7
 
 // The undo log records edits rather than storage: what was done and where, never
 // which chunk it landed in. Reversal goes back through the ordinary operations,
@@ -93,13 +151,17 @@ local const opJoin   = 4
 // The run is kept as marked entries rather than as a count on one entry
 // because redo has to put the characters back, and a single entry with a
 // count has nowhere to keep them.
-local group undo[maxUndo] {
-  u8   op
-  u16  line
-  u16  col
-  u8   ch
-  bool joinPrev
-}
+// Views over the heap for the same reason the records are: a group's fields are
+// storage, and at this size that is kilobytes of zeros in the `.COM` for capacity
+// nobody has used yet. **The principle the move settled: capacity lives in the
+// heap and code lives in the image.**
+local const logAt = maxChunks * 3 + textMaxLines * 4
+
+local view u8[maxUndo]  logOp   = _heap[logAt]
+local view u16[maxUndo] logLine = _heap[logAt + maxUndo]
+local view u16[maxUndo] logCol  = _heap[logAt + maxUndo * 3]
+local view u8[maxUndo]  logCh   = _heap[logAt + maxUndo * 5]
+local view bool[maxUndo] logJoin = _heap[logAt + maxUndo * 6]
 
 // A window rather than a stack that fills: when the log is full the oldest entry
 // goes, because dropping the newest would mean the edit just made is the one
@@ -166,15 +228,15 @@ local u16 chunkTake() {
   c = chunkFree
   if ( c == 0 ) return 0
 
-  chunkFree = chunk[c].next
-  chunk[c].next = 0
-  chunk[c].used = 0
+  chunkFree = chunkNext[c]
+  chunkNext[c] = 0
+  chunkUsed[c] = 0
   return c
 }
 
 local sub chunkGive( u16 c ) {
-  chunk[c].used = 0
-  chunk[c].next = chunkFree
+  chunkUsed[c] = 0
+  chunkNext[c] = chunkFree
   chunkFree = c
 }
 
@@ -193,19 +255,19 @@ local sub lineSeek( u16 ln, u16 col ) {
   u16 left
   u16 prev
 
-  c = line[ln].head
+  c = lineHead[ln]
   left = col
   prev = 0
 
-  while ( left > chunk[c].used && chunk[c].next != 0 ) {
-    left -= chunk[c].used
+  while ( left > chunkUsed[c] && chunkNext[c] != 0 ) {
+    left -= chunkUsed[c]
     prev = c
-    c = chunk[c].next
+    c = chunkNext[c]
   }
 
   // Past the end of the last chunk: clamp, so a caller appending to a line whose
   // length it got wrong writes at the end rather than off it.
-  if ( left > chunk[c].used ) left = chunk[c].used
+  if ( left > chunkUsed[c] ) left = chunkUsed[c]
 
   seekChunk = c
   seekOff = left
@@ -226,10 +288,10 @@ local bool continuesRun( u8 op, u16 ln, u16 col ) {
   if ( breakRun || undoDone == 0 ) return false
 
   at = ( undoHead + undoDone - 1 ) % maxUndo
-  if ( undo[at].line != ln || undo[at].op != op ) return false
+  if ( logLine[at] != ln || logOp[at] != op ) return false
 
-  if ( op == opInsert ) return undo[at].col + 1 == col
-  if ( op == opDelete ) return undo[at].col == col || undo[at].col == col + 1
+  if ( op == opInsert ) return logCol[at] + 1 == col
+  if ( op == opDelete ) return logCol[at] == col || logCol[at] == col + 1
 
   return false
 }
@@ -274,11 +336,11 @@ local sub undoPush( u8 op, u16 ln, u16 col, u8 ch ) {
   }
 
   at = ( undoHead + undoCount ) % maxUndo
-  undo[at].op       = op
-  undo[at].line     = ln
-  undo[at].col      = col
-  undo[at].ch       = ch
-  undo[at].joinPrev = joins
+  logOp[at]       = op
+  logLine[at]     = ln
+  logCol[at]      = col
+  logCh[at]       = ch
+  logJoin[at] = joins
 
   undoCount++
   undoDone++
@@ -352,8 +414,6 @@ u16 undoCol() => undoAtCol
 // character rather than anything that grows.
 local sub chunkSplit( u16 c ) {
   u16 d
-  u16 from
-  u16 to
 
   d = chunkTake()
   if ( d == 0 ) {
@@ -361,23 +421,22 @@ local sub chunkSplit( u16 c ) {
     return
   }
 
-  from = c * chunkSize
-  to   = d * chunkSize
+  atSrc( c )
+  atDst( d )
 
   for ( u16 i = 0; i < chunkSize - halfChunk; i++ ) {
-    text[ to + i ] = text[ from + halfChunk + i ]
+    dst[i] = src[ halfChunk + i ]
   }
 
-  chunk[d].used = chunkSize - halfChunk
-  chunk[d].next = chunk[c].next
-  chunk[c].used = halfChunk
-  chunk[c].next = d
+  chunkUsed[d] = chunkSize - halfChunk
+  chunkNext[d] = chunkNext[c]
+  chunkUsed[c] = halfChunk
+  chunkNext[c] = d
 }
 
 sub lineInsert( u16 ln, u16 col, u8 ch ) {
   u16 c
   u16 off
-  u16 base
   u16 d
 
   if ( ln >= lineCount ) return
@@ -386,8 +445,8 @@ sub lineInsert( u16 ln, u16 col, u8 ch ) {
   c = seekChunk
   off = seekOff
 
-  if ( chunk[c].used == chunkSize ) {
-    if ( off == chunkSize && chunk[c].next == 0 ) {
+  if ( chunkUsed[c] == chunkSize ) {
+    if ( off == chunkSize && chunkNext[c] == 0 ) {
       // Appending past the end of a full last chunk. Splitting here would leave
       // both halves half empty and do it again half a chunk later, so a file
       // read in character by character would occupy twice the buffer it needs.
@@ -398,34 +457,34 @@ sub lineInsert( u16 ln, u16 col, u8 ch ) {
         return
       }
 
-      chunk[c].next = d
+      chunkNext[c] = d
       c = d
       off = 0
     } else {
       chunkSplit( c )
-      if ( chunk[c].used == chunkSize ) return    // chunkSplit set noRoom
+      if ( chunkUsed[c] == chunkSize ) return    // chunkSplit set noRoom
 
       // The split moved the upper half away, so the position may have gone too.
-      if ( off > chunk[c].used ) {
-        off -= chunk[c].used
-        c = chunk[c].next
+      if ( off > chunkUsed[c] ) {
+        off -= chunkUsed[c]
+        c = chunkNext[c]
       }
     }
   }
 
-  base = c * chunkSize
-  for ( u16 i = chunk[c].used; i > off; i-- ) {
-    text[ base + i ] = text[ base + i - 1 ]
+  atDst( c )
+  for ( u16 i = chunkUsed[c]; i > off; i-- ) {
+    dst[i] = dst[ i - 1 ]
   }
 
-  text[ base + off ] = ch
-  chunk[c].used++
-  line[ln].length++
+  dst[off] = ch
+  chunkUsed[c]++
+  lineLen[ln]++
 
   undoPush( opInsert, ln, col, ch )
 }
 
-sub lineAppend( u16 ln, u8 ch ) => lineInsert( ln, line[ln].length, ch )
+sub lineAppend( u16 ln, u8 ch ) => lineInsert( ln, lineLen[ln], ch )
 
 // After a deletion has left `c` short, fold the chunk after it in if the two
 // together fit, and drop `c` out of the chain if it has emptied with nothing to
@@ -441,36 +500,34 @@ sub lineAppend( u16 ln, u8 ch ) => lineInsert( ln, line[ln].length, ch )
 // for a second policy to get wrong.
 local sub chunkMerge( u16 ln, u16 c, u16 prev ) {
   u16 d
-  u16 from
-  u16 to
   u16 at
   u16 n
 
-  d = chunk[c].next
+  d = chunkNext[c]
 
-  if ( d != 0 && chunk[c].used + chunk[d].used <= chunkSize ) {
-    from = d * chunkSize
-    to   = c * chunkSize
-    at   = chunk[c].used
-    n    = chunk[d].used
+  if ( d != 0 && chunkUsed[c] + chunkUsed[d] <= chunkSize ) {
+    atSrc( d )
+    atDst( c )
+    at = chunkUsed[c]
+    n  = chunkUsed[d]
 
     for ( u16 i = 0; i < n; i++ ) {
-      text[ to + at + i ] = text[ from + i ]
+      dst[ at + i ] = src[i]
     }
 
-    chunk[c].used = at + n
-    chunk[c].next = chunk[d].next
+    chunkUsed[c] = at + n
+    chunkNext[c] = chunkNext[d]
     chunkGive( d )
     return
   }
 
   // Empty, with nothing to fold into it. Unlink it - unless it is all the line
   // has, because a line always owns at least one chunk even when it is blank.
-  if ( chunk[c].used == 0 && ( prev != 0 || chunk[c].next != 0 ) ) {
+  if ( chunkUsed[c] == 0 && ( prev != 0 || chunkNext[c] != 0 ) ) {
     if ( prev == 0 ) {
-      line[ln].head = chunk[c].next
+      lineHead[ln] = chunkNext[c]
     } else {
-      chunk[prev].next = chunk[c].next
+      chunkNext[prev] = chunkNext[c]
     }
     chunkGive( c )
   }
@@ -480,10 +537,10 @@ sub lineDelete( u16 ln, u16 col ) {
   u16 c
   u16 prev
   u16 off
-  u16 base
   u16 n
+  u8  gone
 
-  if ( ln >= lineCount || col >= line[ln].length ) return
+  if ( ln >= lineCount || col >= lineLen[ln] ) return
 
   lineSeek( ln, col )
   c    = seekChunk
@@ -498,30 +555,34 @@ sub lineDelete( u16 ln, u16 col ) {
   // nothing satisfies the same condition and there may be a run of them. Getting
   // this wrong is not a missed character: `used` goes to 255 on the decrement
   // below and the line then reports a chunk of whatever the heap holds next.
-  while ( off == chunk[c].used && chunk[c].next != 0 ) {
+  while ( off == chunkUsed[c] && chunkNext[c] != 0 ) {
     prev = c
-    c = chunk[c].next
+    c = chunkNext[c]
     off = 0
   }
 
   // Unreachable while the merge keeps empty chunks out of a chain, which is
   // exactly why it is written down: the merge is a policy and this is the
   // invariant it happens to maintain.
-  if ( chunk[c].used == 0 ) return
+  if ( chunkUsed[c] == 0 ) return
 
-  base = c * chunkSize
-  n    = chunk[c].used
+  atDst( c )
+  n    = chunkUsed[c]
+  gone = dst[off]
 
-  undoPush( opDelete, ln, col, text[ base + off ] )
+  // Read before the push rather than inside it: the window has to still be on
+  // this chunk when the shift below runs, and a call in between is where that
+  // stops being obvious.
+  undoPush( opDelete, ln, col, gone )
 
   for ( u16 i = off; i + 1 < n; i++ ) {
-    text[ base + i ] = text[ base + i + 1 ]
+    dst[i] = dst[ i + 1 ]
   }
 
-  chunk[c].used--
-  line[ln].length--
+  chunkUsed[c]--
+  lineLen[ln]--
 
-  if ( chunk[c].used < halfChunk ) chunkMerge( ln, c, prev )
+  if ( chunkUsed[c] < halfChunk ) chunkMerge( ln, c, prev )
 }
 
 // Enter. The chunk under the cut is divided, its tail becomes the head of a new
@@ -531,8 +592,6 @@ sub lineSplit( u16 ln, u16 col ) {
   u16 c
   u16 off
   u16 d
-  u16 from
-  u16 to
   u16 tail
 
   if ( ln >= lineCount || lineCount >= textMaxLines ) return
@@ -547,27 +606,27 @@ sub lineSplit( u16 ln, u16 col ) {
     return
   }
 
-  from = c * chunkSize
-  to   = d * chunkSize
+  atSrc( c )
+  atDst( d )
 
-  for ( u16 i = 0; i < chunk[c].used - off; i++ ) {
-    text[ to + i ] = text[ from + off + i ]
+  for ( u16 i = 0; i < chunkUsed[c] - off; i++ ) {
+    dst[i] = src[ off + i ]
   }
 
-  chunk[d].used = chunk[c].used - off
-  chunk[d].next = chunk[c].next
-  chunk[c].used = off
-  chunk[c].next = 0
+  chunkUsed[d] = chunkUsed[c] - off
+  chunkNext[d] = chunkNext[c]
+  chunkUsed[c] = off
+  chunkNext[c] = 0
 
   for ( u16 i = lineCount; i > ln + 1; i-- ) {
-    line[i].head   = line[i - 1].head
-    line[i].length = line[i - 1].length
+    lineHead[i]   = lineHead[i - 1]
+    lineLen[i] = lineLen[i - 1]
   }
 
-  tail = line[ln].length - col
-  line[ln].length = col
-  line[ln + 1].head   = d
-  line[ln + 1].length = tail
+  tail = lineLen[ln] - col
+  lineLen[ln] = col
+  lineHead[ln + 1]   = d
+  lineLen[ln + 1] = tail
   lineCount++
 
   undoPush( opSplit, ln, col, 0 )
@@ -585,19 +644,19 @@ sub lineJoin( u16 ln ) {
   // Recorded before the join, because afterwards the column it happened at is
   // the one thing nothing can recover. Backspace at column 0 is a join, and an
   // edit that cannot be taken back is worse than one that is slow.
-  undoPush( opJoin, ln, line[ln].length, 0 )
+  undoPush( opJoin, ln, lineLen[ln], 0 )
 
-  c = line[ln].head
-  while ( chunk[c].next != 0 ) {
-    c = chunk[c].next
+  c = lineHead[ln]
+  while ( chunkNext[c] != 0 ) {
+    c = chunkNext[c]
   }
 
-  chunk[c].next = line[ln + 1].head
-  line[ln].length += line[ln + 1].length
+  chunkNext[c] = lineHead[ln + 1]
+  lineLen[ln] += lineLen[ln + 1]
 
   for ( u16 i = ln + 1; i + 1 < lineCount; i++ ) {
-    line[i].head   = line[i + 1].head
-    line[i].length = line[i + 1].length
+    lineHead[i]   = lineHead[i + 1]
+    lineLen[i] = lineLen[i + 1]
   }
   lineCount--
 }
@@ -606,34 +665,34 @@ sub lineJoin( u16 ln ) {
 // this short: there is no inverse of anything here, only the other one of a
 // pair.
 local sub undoEntry( u16 at ) {
-  undoAtLine = undo[at].line
-  undoAtCol  = undo[at].col
+  undoAtLine = logLine[at]
+  undoAtCol  = logCol[at]
 
-  if ( undo[at].op == opInsert ) {
-    lineDelete( undo[at].line, undo[at].col )
-  } else if ( undo[at].op == opDelete ) {
-    lineInsert( undo[at].line, undo[at].col, undo[at].ch )
-  } else if ( undo[at].op == opSplit ) {
-    lineJoin( undo[at].line )
-  } else if ( undo[at].op == opJoin ) {
-    lineSplit( undo[at].line, undo[at].col )
+  if ( logOp[at] == opInsert ) {
+    lineDelete( logLine[at], logCol[at] )
+  } else if ( logOp[at] == opDelete ) {
+    lineInsert( logLine[at], logCol[at], logCh[at] )
+  } else if ( logOp[at] == opSplit ) {
+    lineJoin( logLine[at] )
+  } else if ( logOp[at] == opJoin ) {
+    lineSplit( logLine[at], logCol[at] )
   }
 }
 
 // One entry forwards - the same four operations the other way round, which is
 // why redo needed no new machinery beyond remembering what was inserted.
 local sub redoEntry( u16 at ) {
-  undoAtLine = undo[at].line
-  undoAtCol  = undo[at].col
+  undoAtLine = logLine[at]
+  undoAtCol  = logCol[at]
 
-  if ( undo[at].op == opInsert ) {
-    lineInsert( undo[at].line, undo[at].col, undo[at].ch )
-  } else if ( undo[at].op == opDelete ) {
-    lineDelete( undo[at].line, undo[at].col )
-  } else if ( undo[at].op == opSplit ) {
-    lineSplit( undo[at].line, undo[at].col )
-  } else if ( undo[at].op == opJoin ) {
-    lineJoin( undo[at].line )
+  if ( logOp[at] == opInsert ) {
+    lineInsert( logLine[at], logCol[at], logCh[at] )
+  } else if ( logOp[at] == opDelete ) {
+    lineDelete( logLine[at], logCol[at] )
+  } else if ( logOp[at] == opSplit ) {
+    lineSplit( logLine[at], logCol[at] )
+  } else if ( logOp[at] == opJoin ) {
+    lineJoin( logLine[at] )
   }
 }
 
@@ -653,7 +712,7 @@ sub undoOnce {
     undoDone--
     at = ( undoHead + undoDone ) % maxUndo
     undoEntry( at )
-    more = undo[at].joinPrev && undoDone > 0
+    more = logJoin[at] && undoDone > 0
   }
 
   breakRun = true
@@ -678,7 +737,7 @@ sub redoOnce {
 
     more = false
     if ( undoDone < undoCount ) {
-      more = undo[ ( undoHead + undoDone ) % maxUndo ].joinPrev
+      more = logJoin[ ( undoHead + undoDone ) % maxUndo ]
     }
   }
 
@@ -690,7 +749,7 @@ sub redoOnce {
 
 u16 textLines() => lineCount
 
-u16 lineLength( u16 ln ) => ln < lineCount ? line[ln].length : 0
+u16 lineLength( u16 ln ) => ln < lineCount ? lineLen[ln] : 0
 
 // `count` bytes of line `ln` from column `col`, copied to `at`. Returns how many
 // were actually there. One walk of the chain however long the line is, which is
@@ -700,31 +759,30 @@ u16 lineSlice( u16 ln, u16 col, u16 count, u16 at ) {
   u16 c
   u16 left
   u16 done
-  u16 base
   u16 n
 
   if ( ln >= lineCount ) return 0
 
-  c = line[ln].head
+  c = lineHead[ln]
   left = col
   done = 0
 
   while ( c != 0 && done < count ) {
-    if ( left >= chunk[c].used ) {
-      left -= chunk[c].used
+    if ( left >= chunkUsed[c] ) {
+      left -= chunkUsed[c]
     } else {
-      base = c * chunkSize
-      n = chunk[c].used - left
+      atDst( c )
+      n = chunkUsed[c] - left
       if ( n > count - done ) n = count - done
 
       for ( u16 i = 0; i < n; i++ ) {
-        poke8( at + done + i, text[ base + left + i ] )
+        poke8( at + done + i, dst[ left + i ] )
       }
 
       done += n
       left = 0
     }
-    c = chunk[c].next
+    c = chunkNext[c]
   }
 
   return done
@@ -738,11 +796,11 @@ u16 lineChunks( u16 ln ) {
 
   if ( ln >= lineCount ) return 0
 
-  c = line[ln].head
+  c = lineHead[ln]
   n = 0
   while ( c != 0 ) {
     n++
-    c = chunk[c].next
+    c = chunkNext[c]
   }
   return n
 }
@@ -755,21 +813,16 @@ local sub lineNew {
     return
   }
 
-  line[lineCount].head   = chunkTake()
-  line[lineCount].length = 0
+  lineHead[lineCount]   = chunkTake()
+  lineLen[lineCount] = 0
   lineCount++
 }
 
 // A library has no top-level statements to run, so this is explicit - the same
 // reason §43's row table is filled by a call rather than by setting a mode.
 sub textInit {
-  for ( u16 i = 1; i < maxChunks - 1; i++ ) {
-    chunk[i].next = i + 1
-  }
-  chunk[maxChunks - 1].next = 0
-  chunkFree = 1
-
   lineCount = 0
+  chunkFree = 0
   undoHead  = 0
   undoCount = 0
   undoDone  = 0
@@ -780,8 +833,34 @@ sub textInit {
   stepLost  = false
   undoLost  = false
 
+  // The block past our own segment, and whether the last chunk is still
+  // inside it. **The question is asked about the last paragraph rather than
+  // about the size**, because the size no longer fits the `u16` `blockFits`
+  // takes - which is the same fact that made this change worth making.
+  textBase = blockBase()
+
+  if ( textBase == 0 || !blockFits( textBase + maxChunks - 1, chunkSize ) ) {
+    // No block means no buffer, and an empty free list is the whole of the
+    // handling: every allocation below already goes through `chunkTake`, so
+    // nothing can be written to a segment we were not given. At `textBase` 0
+    // that segment would be the interrupt table.
+    noRoom = true
+    return
+  }
+
+  for ( u16 i = 1; i < maxChunks - 1; i++ ) {
+    chunkNext[i] = i + 1
+  }
+  chunkNext[maxChunks - 1] = 0
+  chunkFree = 1
+
   lineNew()
 }
+
+// Whether there is a buffer at all. `textNoRoom` says the same thing and more,
+// so this exists only for a program that wants to tell a machine with no room
+// past the segment from a file that was too big for one that had it.
+bool textHasBuffer() => textBase != 0
 
 // One character of a file being read in. A newline starts a line, anything else
 // appends. **Records no undo**: reading a file in is not an edit anybody wants
@@ -805,6 +884,14 @@ sub textLoad( u8 ch ) {
 // so a file written here reloads to exactly the buffer that wrote it.
 local const u8[] lineEnd = "\r\n"
 
+// **DOS writes from `DS:DX` (§38) and the text is no longer in `DS`**, so it
+// has to come back through our own segment on the way out. Which is a better
+// arrangement than the one it replaced rather than a worse one: this file's
+// first version handed DOS one chunk at a time, so a save was an interrupt per
+// sixteen bytes.
+local const stageBytes = 512
+local u8[stageBytes] stage
+
 // The whole buffer to an already-open handle, returning the bytes written. The
 // handle is the caller's: this knows how a buffer is shaped and nothing about
 // where a file came from.
@@ -816,19 +903,20 @@ local const u8[] lineEnd = "\r\n"
 // Each chunk is handed to DOS where it already lies, so nothing is copied on the
 // way out - which is the whole reason this routine is in this file.
 u16 textSave( u16 handle ) {
-  u16 c
   u16 total
+  u16 col
+  u16 n
 
   total = 0
 
   for ( u16 ln = 0; ln < lineCount; ln++ ) {
-    c = line[ln].head
+    col = 0
+    n = lineSlice( ln, col, stageBytes, addr( stage ) )
 
-    while ( c != 0 ) {
-      if ( chunk[c].used > 0 ) {
-        total += fileWrite( handle, addr( text ) + c * chunkSize, chunk[c].used )
-      }
-      c = chunk[c].next
+    while ( n > 0 ) {
+      total += fileWrite( handle, addr( stage ), n )
+      col += n
+      n = lineSlice( ln, col, stageBytes, addr( stage ) )
     }
 
     if ( ln + 1 < lineCount ) total += fileWrite( handle, addr( lineEnd ), 2 )

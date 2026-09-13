@@ -31,7 +31,7 @@ const u8[] source = "line one\n"
 
 const pieceSize = 64
 
-view u8[pieceSize] piece = _heap[textBytes]
+view u8[pieceSize] piece = _heap[textHeap]
 
 u16 handle
 u16 wrote

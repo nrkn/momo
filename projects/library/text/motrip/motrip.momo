@@ -16,7 +16,7 @@ const u8[] source = "alpha\nbeta\ngamma\n"
 
 const pieceSize = 64
 
-view u8[pieceSize] piece = _heap[textBytes]
+view u8[pieceSize] piece = _heap[textHeap]
 
 // What the buffer held before it was written. A length per line is enough to
 // catch a lost separator, a doubled one or a dropped trailing line, and the text

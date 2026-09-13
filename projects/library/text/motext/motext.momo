@@ -128,6 +128,18 @@ show( u16( textNoRoom() ) )
 show( u16( textLines() == textMaxLines ) )
 newline()
 
+// **A line read back from past the first 64 KB of the block**, which is the
+// whole claim of §58. Each of these lines is seventeen characters and takes two
+// chunks, so line three thousand starts about ninety-six kilobytes into the
+// region - past anything a `u16` offset could reach. It is a segment index that
+// reaches it, and these are the bytes coming back.
+//
+// **Not the last line.** `textLoad` keeps appending once `lineNew` has been
+// refused, so the last one collects everything the failed iterations produced
+// and its length is a fact about where the limit fell rather than about this.
+show( lineChunks( 3000 ) )
+showLine( 3000, 0, 20 )
+
 // ---- a run of typing, and the future ----
 //
 // The entries stay one per character, because redo has to put each of them back;

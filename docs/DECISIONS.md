@@ -2149,8 +2149,9 @@ Measured with `npm run memory` on 2026-09-13, after the clipboard landed:
 
 Selection cost about 2,400 bytes of image and took a 1 KB clipboard out of the
 heap, and image and heap come out of the same 64 KB, so it was paid for twice.
-What is left is under a kilobyte, and **PLAN §58 stops being a good idea and
-becomes the next one.**
+What is left is under a kilobyte, and **§58 stops being a good idea and becomes
+the next one.** It was, immediately: everything below is what the ceiling looked
+like for the one commit it lasted.
 
 ### Which is why the undo log is still sixty-four entries, and that is not enough
 
@@ -2163,7 +2164,12 @@ nothing for anything else.
 **The fix is one byte per character rather than seven**, and it is a different
 shape: a span deleted goes into a text arena and the log holds one entry saying
 where it came from. That is a seven-fold difference on the text plus one entry
-instead of hundreds, and it is what should happen before the number is touched.
+instead of hundreds.
+
+**In the event the number was touched, because §58 made room for it.** Five
+hundred and twelve entries is about eight lines cut, which is enough that the
+arena stopped being urgent - so it is still the right shape and is now wanted
+for its own sake rather than to escape a wall.
 
 It is not a small change, and the reason is worth writing down: undoing such an
 entry means *inserting a span*, which is §61 - which is above §54. So either the
@@ -2244,3 +2250,104 @@ and say so - and it needed one thing from §61 first: **the count cannot answer
 the question.** A span that exactly filled the buffer returns the same number as
 one that was cut off, so `rangeCopied` is a separate answer and the test that
 holds it is two calls that both return four.
+
+---
+
+## 58. Text past the segment
+
+### The ceiling was not where the plan said it was
+
+PLAN §58 priced the ceiling in bytes - about 40 KB - and the thing that actually
+stopped `momoed` opening its own source was the **line table**. `momoed.momo` is
+26 KB against a 38 KB buffer and 2,097 chunks against 2,400; what refused it was
+920 lines against 900.
+
+Worth recording because the wrong half was being watched. A chunk holds sixteen
+bytes but **a line holds at least one chunk**, so a file of short lines runs out
+of lines long before it runs out of text, and source code is a file of short
+lines. The byte figure was the one in the document and the line figure was the
+one that bit.
+
+### What it moved, and what that was worth
+
+`npm run memory -- momoed`, 2026-09-13, before and after:
+
+| | before | after |
+|---|---|---|
+| image | 24,490 | 14,002 |
+| heap claimed | 41,728 | 45,312 |
+| heap unclaimed | 942 | 5,670 |
+| chunks | 2,400 | 8,192 |
+| lines | 900 | 4,000 |
+| undo entries | 64 | 512 |
+
+The text is no longer in the 64 KB at all, and neither are the records. **The
+image came down by ten kilobytes while capacity went up between three and eight
+times**, which is the shape of the whole change: nothing was traded, something
+was moved out of a room that was full.
+
+The undo log is the visible half of the reclaim. Sixty-four entries meant a cut
+of more than one line reported *too big to undo*; five hundred and twelve is
+about eight lines, and it cost heap that the text used to be sitting in.
+
+### A chunk is a paragraph, which is the one thing that had to be invented
+
+The plan assumed `far u8[textBytes] text = seg` - the same array, somewhere else.
+That does not work past 64 KB, because a far region is reached at
+`segment:offset` and the offset is a `u16`. The capacity the change exists to buy
+would have been unreachable by arithmetic rather than by memory.
+
+A chunk is sixteen bytes and so is a paragraph, so chunk `c` became the paragraph
+`c` past the base. No index holds more than one chunk, the cap goes away
+entirely, and the address arithmetic turns from a shift into an add. It also
+needs **two** windows rather than one, because a split and a merge copy between
+two chunks and a single window would have to change segment between every read
+and its write.
+
+### The records in the image were measured before they were moved
+
+Mid-change, with the text far and the records still ordinary arrays, the image
+was **55,026 bytes** - about 41 KB of it `times N db 0`. A `.COM` that is three
+quarters zeros on disk.
+
+That is §54's own argument about the text, one level down, and it had been true
+all along at a size where it did not matter. Moving the records into the heap the
+text had just vacated took the image to 14 KB and cost nothing, because image and
+heap come out of the same 64 KB either way.
+
+**The rule it settled**: capacity lives in the heap or past the segment, and the
+image is for code.
+
+The cost is that a `group` could not come with them - a group's fields are
+storage - so the records are parallel views, which is the source form §52 exists
+to avoid. §18 lays a group out as parallel arrays anyway, so the layout is
+identical and only the reading is worse. A real loss, taken deliberately.
+
+### A compiler bug that had been unreachable until now
+
+A `far` region whose segment is a `local` variable printed back out naming the
+*unqualified* symbol: `far u8[...] src = srcSeg` rather than `= motext__srcSeg`.
+It compiled correctly - the resolver does its own lookup and takes the right
+label - and failed on the round trip, which is the tier that re-parses what the
+printer wrote.
+
+`resolveFarAddress` did not set `node.label`, which every other path that
+resolves an identifier does. Nothing had reached it because every far segment in
+the repository until now was a literal or `_ds`: a `local` variable as a segment
+is what §58 needed and nothing before it had wanted.
+
+Nine round-trip tests fail with the fix neutered, and the coverage is permanent
+now that a library uses the construct.
+
+### What is still capped
+
+The records, at three bytes a chunk and four a line, out of a heap that is also
+holding the undo log and the program's own regions. So the ceiling is a heap one
+now rather than a byte one, and it lands in a useful place: **`momoed` opens its
+own source and not its own assembly.** `momoed.asm` is 6,887 lines and 17,501
+chunks against 4,000 and 8,192.
+
+Streaming - keeping the file on disk and paging chunks - is still what to reach
+for when that is not enough, and is still considerably more machinery. Far memory
+is hundreds of kilobytes from being exhausted, so what caps this is a table in a
+64 KB segment and not the memory it points at.

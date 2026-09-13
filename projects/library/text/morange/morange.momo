@@ -119,20 +119,24 @@ newline()
 
 // ---- a group longer than the log can hold ----
 //
-// Two hundred and twenty edits into a log of sixty-four. The edits happen; the
-// log is emptied rather than left holding the tail of the group, because half a
-// group restored is a document nobody asked for.
+// Five hundred and fifty edits into a log of five hundred and twelve. The edits
+// happen; the log is emptied rather than left holding the tail of the group,
+// because half a group restored is a document nobody asked for.
+//
+// The numbers moved with §58 and the shape did not: the log is eight times
+// longer, so the fixture is proportionally bigger and the case it covers is the
+// same one.
 
 textInit()
 
-for ( u16 i = 0; i < 20; i++ ) {
+for ( u16 i = 0; i < 50; i++ ) {
   for ( u16 j = 0; j < 10; j++ ) {
     textLoad( u8( j ) + '0' )
   }
   textLoad( '\n' )
 }
 
-rangeDelete( 0, 0, 20, 0 )
+rangeDelete( 0, 0, 50, 0 )
 dump()
 show( u16( textUndoLost() ) )
 show( textUndos() )

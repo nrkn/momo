@@ -59,14 +59,14 @@ u16  message
 bool onMatch
 
 const pieceSize = 128
-view u8[pieceSize] piece = _heap[textBytes]
+view u8[pieceSize] piece = _heap[textHeap]
 
 // The clipboard, after §54's claim and after the read buffer - §17 static
 // partitioning, with this program's two pieces going after the library's one.
 // **It is where the 64 KB starts to bite**: `npm run memory` is what says how
 // much is left, and PLAN §58 is where the ceiling goes up.
 const clipBytes = 1024
-view u8[clipBytes] clip = _heap[textBytes + pieceSize]
+view u8[clipBytes] clip = _heap[textHeap + pieceSize]
 u16 clipLen
 
 // Whether the keystroke being handled had Shift on it. §57 folds Shift into the

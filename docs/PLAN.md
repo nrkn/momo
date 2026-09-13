@@ -27,7 +27,7 @@ happen.
 | | | wants |
 |---|---|---|
 | `momowad` (§41) | assets in bulk, with Doom-style PWAD overrides. Compatible with WAD at the container level, carrying our own lump types | nothing - §38 landed |
-| `momoed` (§55) | the editor - **a first version opens, edits, searches, selects and saves one file**; an explorer beside a text pane and text modes `edit.com` never had are what is left | directory enumeration, for the explorer half only - §38 put that out of scope and names the DTA collision behind it |
+| `momoed` (§55) | the editor - **opens, edits, searches, selects and saves one file, and holds it past the segment**; an explorer beside a text pane and text modes `edit.com` never had are what is left | directory enumeration, for the explorer half only - §38 put that out of scope and names the DTA collision behind it |
 | `momode` | a graphical shell and launcher. Single-tasking, and windowed by screen offsets an aware program is handed (§43) | a mouse, and §40's ES gap |
 | `momove` | a small vector editor, for icons and the like | a mouse, §37's geometric booleans |
 | `momopnt` | the library three image editors share - sprite, bitmap font, paint | a mouse, a palette library, §43 |
@@ -131,16 +131,6 @@ at all, which makes one a floor rather than a measurement.
   since a README that shows off wants something to show.
 - **Fixed-point division.** DESIGN §25 is half built and says which half: `*` on
   8.8 lands, division does not, and §25 sets out why it is the awkward one.
-- **Text past the segment.** §58 - **now the binding constraint rather than a
-  ceiling in the distance**: with selection built, `momoed` has under a kilobyte
-  of its 64 KB unclaimed, and DECISIONS §61 has the figures. The editor holds
-  about 38 KB and the ceiling
-  is near 40, because a chunk costs nineteen bytes of one 64 KB segment to hold
-  sixteen. Tuning the const has just bought 2.3x and is most of what tuning can
-  buy. §54 refused a `far` buffer and **the reason it gave stopped being true**:
-  it priced a buffer where an edit could touch the whole document, and the chunk
-  design bounds every touch to one chunk or the rows on screen. `block.momo` and
-  `dosblk` already reach past the segment with no compiler change.
 - **Finish `momoed`.** DESIGN §55 is partly built and says which half: it opens a
   file, edits it, searches it, selects in it and writes it back, and there is no
   explorer. The explorer is the next piece and the only one that wants something
@@ -376,6 +366,18 @@ All are set out in DESIGN §20 unless noted.
 section that was itself a plan - see the note at the top for why, and where to
 look for the rest.
 
+- **Text past the segment.** 2026-09-13. §58, now in `DESIGN.md`, and the record
+  is DECISIONS §58. §54's text lives in the block DOS gave us and its records in
+  the heap the text vacated, so none of the buffer's capacity is in the image.
+  The image came down ten kilobytes while capacity went up between three and
+  eight times - 8,192 chunks, 4,000 lines and 512 undo entries against 2,400,
+  900 and 64.
+
+  **A chunk is a paragraph**, which is the one thing the plan did not anticipate:
+  a single far region cannot be indexed past 64 KB, so chunk `c` is the paragraph
+  `c` past the base and no index holds more than a chunk. The plan also watched
+  the wrong half - what refused `momoed.momo` was 920 lines against 900, not its
+  26 KB against 38.
 - **Selection and the clipboard.** 2026-09-13. §61, now in `DESIGN.md`, with the
   selection itself in §56 and a group of edits in §54; the record is DECISIONS
   §61. Shift with any motion extends, `^A`, `^C`, `^X` and `^V`, and `^C`/`^X`
@@ -387,7 +389,8 @@ look for the rest.
   afterwards, which is why the undo log is still sixty-four entries and why a cut
   of more than one line reports *too big to undo* rather than half restoring. The
   fix is one byte per character instead of seven and it is a different shape, not
-  a bigger number; §58 is the other half of the same problem.
+  a bigger number - though §58, immediately after, made room for a bigger number
+  as well and the log is now 512 entries.
 - **Search.** 2026-09-13. §59 and §60, now in `DESIGN.md`, and the record is
   DECISIONS §59. `shared/lib/mofind.momo` scans a line at a time through windows
   that overlap by the pattern length, and `shared/lib/mofield.momo` is the one
@@ -2495,86 +2498,3 @@ over the outer array with the address slot, and `len` on a constant index.
 Out: the length spine, mutable leaves, three levels, and `u16[][]`. Each is a
 paragraph of its own above, and none is needed in order to delete `nthStr`.
 ---
-
-## 58. Text past the segment
-
-**Not built, and not previously written down** - which is the first thing to say,
-because §54 left capacity as a const to tune and said nothing about what happens
-when tuning runs out. It runs out at about 40 KB.
-
-### Where the ceiling actually is, measured
-
-`momoed` on 2026-09-12, after `maxChunks` went from 1,024 to 2,400:
-
-| | |
-|---|---|
-| text, in a view over `_heap` | 38,400 bytes |
-| image | 18,780 bytes |
-| heap left unclaimed | 7,692 bytes |
-
-**Each chunk costs nineteen bytes to hold sixteen.** Sixteen of heap for the text
-and three of image for the link and the fill level - and the image comes out of
-the same 64 KB, so both halves are the same pocket. With the code at about 13 KB
-that puts the ceiling near 40 KB, and the figures above are within a few thousand
-bytes of it.
-
-So the 2.3x that tuning just bought is most of what tuning can buy. The next one
-is not a const.
-
-### §54 refused far memory, and the reason it gave stopped being true
-
-That section rejected a `far` buffer in three bullets, and the load-bearing one
-was:
-
-> §16 reloads ES on every access and refuses to hoist a runtime segment... A text
-> buffer is touched per keystroke and per character drawn.
-
-**That was a true statement about a text buffer and a false one about this text
-buffer**, and the difference is that the buffer had not been designed yet when
-the argument was made. The chunk design bounds every touch: an edit reaches one
-chunk of sixteen bytes, a redraw reaches the rows on screen, and `lineSlice`
-walks a chain rather than a document. Nothing touches the whole buffer.
-
-So the cost of putting the *text* in a far block is about eighteen cycles for
-each byte actually touched. A full 80x25 redraw is two thousand bytes, which is
-roughly 36,000 cycles - about 7.5 ms on the target, once per redraw rather than
-once per keystroke of typing. That is affordable, and the argument that said
-otherwise was pricing a buffer nobody built.
-
-**The records stay in the image either way**, because a `group` is arrays and
-arrays are storage. So far chunks move the 16-byte half out and leave the 3-byte
-half behind: the line limit still comes from the segment, and 900 lines at four
-bytes is 3.6 KB of it.
-
-### What it would take, and what is already in place
-
-`block.momo` (§47) hands out segments past our own and says whether a region
-fits; `dosblk` reaches 634 KB past its own segment in tier 2 with no compiler
-change. A `far` region takes a constant size and a `u16` segment (§16), which is
-exactly the shape a chunk array wants.
-
-§38's constraint is already satisfied by accident: DOS reads have to land in our
-own segment, and `momoed` already reads a file in pieces into a heap buffer and
-feeds it through `textLoad` a byte at a time. The bytes reach the chunks through
-code rather than through DOS, so nothing changes.
-
-What is genuinely new is that `text` stops being a `view` and becomes a `far`
-region, and every `text[...]` in §54 becomes a far access. That is a change to
-one file with no change to its interface.
-
-### What this is not
-
-**Not a bigger `chunkSize`.** Waste is bounded by half a chunk per chain, so
-doubling the chunk doubles the waste and buys nothing the const above does not.
-
-**Not streaming, yet.** Keeping the file on disk and paging chunks is the piece
-table's original virtue and would reach any file size at all. It is also
-considerably more machinery, and far memory is hundreds of KB away from being
-exhausted - so this is what to reach for when a far block is not enough, and not
-before.
-
-### What wants it
-
-Editing `momoed.asm`, which is the obvious thing to open the editor with and is
-about 150 KB. More generally §32: a compiler that runs on the target has to read
-its own source, and this is the same ceiling seen from the other side.

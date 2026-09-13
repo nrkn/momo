@@ -1519,6 +1519,14 @@ export const resolve = (program: Program): ResolveResult => {
       const symbol = lookup(node.name)
       if (!symbol) raise(node, `"${node.name}" is not declared`)
 
+      // The printer reads `label` to write a name back out, and every other path
+      // that resolves an identifier sets it. This one did its own lookup and did
+      // not, so a far region whose segment is a `local` variable round-tripped to
+      // source naming a symbol that no longer existed - which compiled here and
+      // failed on the way back in. Nothing hit it until §58, because every far
+      // segment before that was a literal or `_ds`.
+      node.label = symbol.label
+
       if (symbol.kind === 'const') return { from: 'const', value: symbol.value }
 
       if (symbol.kind === 'var') {
