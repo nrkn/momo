@@ -311,3 +311,54 @@ sub wordPrev( u16 ln, u16 col ) {
   atLine = ln
   atCol  = col
 }
+
+// ---- every occurrence of one span, replaced by another ----
+//
+// It is here rather than in an editor because it is the same span walk as
+// everything above with §59 choosing where: find a match, delete it, put the
+// other text in, carry on. What makes it worth a routine of its own is that the
+// carrying on is the part that can be wrong.
+//
+// **The walk continues from the end of what it wrote**, not from where the match
+// was. Replacing `a` with `aa` would otherwise find its own output for ever, and
+// a replacement that contains the term is not an unusual thing to ask for - it is
+// what renaming `foo` to `foo2` looks like.
+//
+// **The whole thing is one `undoStep`.** A replace of four hundred occurrences
+// that takes four hundred steps to undo is one nobody dares run.
+
+include "lib/mofind.momo"
+
+// The pattern is §59's, already set by `findSet`, because the caller had to set
+// it to have something to replace. Returns how many were replaced.
+u16 rangeReplaceAll( u16 at, u16 n ) {
+  u16 ln
+  u16 col
+  u16 count
+
+  count = 0
+
+  if ( findLength() == 0 ) return 0
+
+  undoStep {
+    ln  = 0
+    col = 0
+
+    while ( findNext( ln, col ) ) {
+      ln  = findLine()
+      col = findCol()
+
+      rangeDelete( ln, col, ln, col + findLength() )
+      rangeInsert( ln, col, at, n )
+
+      ln  = rangeEndLine()
+      col = rangeEndCol()
+      count++
+    }
+  }
+
+  endLine = ln
+  endCol  = col
+
+  return count
+}

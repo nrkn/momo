@@ -34,3 +34,14 @@ cdef|ghij|klm 13
 0:201
 0:201
 0:0
+3 
+[qux bar qux/baz qux/] 3
+3 
+[quxqux bar quxqux/baz quxqux/] 3
+3 
+[z bar z/baz z/] 3
+4 
+[ bar /ba /] 3
+[z bar z/baz z/] 3
+0 
+[z bar z/baz z/] 3

@@ -17,6 +17,7 @@
 // which is why it was built in that order.
 
 include "lib/std/key.momo"
+include "lib/std/str.momo"
 include "lib/std/screen.momo"
 include "lib/std/mode.momo"
 include "lib/moview.momo"
@@ -42,21 +43,56 @@ const attrSel    = color( white, blue )
 u16 cols
 u16 rows
 
+// The name being edited, and the one to go back to when an open is refused.
 u8[80] fileName
+u8[80] wasName
 bool haveName
 bool dirty
 
-// The prompt takes the status line and every keystroke while it is open, which
-// is the first mode this editor has had. `message` is an address of a `$` string
-// or 0, shown beside whichever status line is up and cleared by the next key -
-// so a "not found" is visible until the person does something and then is not.
-bool prompting
-u16  message
+// **The prompt serves five questions and is one mechanism.** What differs is the
+// label, what Enter does, and whether Enter closes it - three facts, held here
+// rather than in five copies of the same loop.
+//
+// Replace is two of these in a row, which is the case that decided the shape: a
+// command can answer Enter by asking the *next* question, and then a prompt that
+// knows what it is for is all the machinery a two-part command needs.
+const askNone = 0
+const askFind = 1
+const askGoto = 2
+const askOpen = 3
+const askTerm = 4
+const askWith = 5
+
+u8  asking
+u16 askLabel
+
+// Where the field starts, **measured from the label rather than written down**.
+// It used to be a const that had to agree with the width of one string; with
+// five strings that is four more chances to be a column out, and the caret
+// sitting beside what it is editing is exactly the kind of wrong that gets
+// noticed last.
+u16 askAt
+
+// `message` is an address of a `$` string or 0, shown beside whichever status
+// line is up and cleared by the next key - so a "not found" is visible until the
+// person does something and then is not.
+u16 message
 
 // Whether the last search in this prompt landed on something, which is the one
 // thing the renderer needs that §59 cannot answer on its own - `findLine` and
 // `findCol` still hold the previous match after a failed one.
 bool onMatch
+
+bool prompting() => asking != askNone
+
+// The replacement text, kept out of the field because the field is about to be
+// the second question.
+u8[fieldMax] replText
+u16 replLen
+
+// What the last answer parsed to, and what the last replace did.
+u16 askValue
+u16 askCount
 
 const pieceSize = 128
 view u8[pieceSize] piece = _heap[textHeap]
@@ -89,15 +125,18 @@ const u8[] sTooBig  = "file does not fit in the buffer - not opened$"
 const u8[] sNoRoom  = " FULL$"
 const u8[] sStar    = "*$"
 const u8[] sFind    = "find: $"
+const u8[] sGoto    = "go to line: $"
+const u8[] sOpen    = "open: $"
+const u8[] sTerm    = "replace: $"
+const u8[] sWith    = "with: $"
+const u8[] sDirty   = "unsaved changes - save first$"
+const u8[] sNoLine  = "no such line$"
+const u8[] sDone    = "replaced $"
 const u8[] sNoMatch = "not found$"
 const u8[] sWrapped = "wrapped$"
 const u8[] sNoUndo  = "too big to undo$"
 const u8[] sClipFull = "clipboard full$"
 
-// Where the field starts on the status line - the width of `sFind` without its
-// terminator. Named rather than written twice, because the caret and the text
-// have to agree about it or the cursor sits beside what it is editing.
-const promptAt = 6
 
 // ---- the command tail ----
 
@@ -243,7 +282,7 @@ sub viewRow( u16 y, u16 at, u16 n ) {
   // down in the status line for as long as a person is typing a term, so
   // without this a search says which *line* it found and leaves them to work
   // out which word - which is most of the answer missing on a line with two.
-  if ( !prompting || !onMatch ) return
+  if ( !prompting() || !onMatch ) return
   if ( viewTop() + y != findLine() ) return
 
   for ( u16 x = 0; x < findLength(); x++ ) {
@@ -311,11 +350,21 @@ sub drawStatus {
     cellAt( x, rows - 1, ' ', attrStatus )
   }
 
-  if ( prompting ) {
-    statusText( 0, addr( sFind ) )
-    statusField( promptAt )
+  if ( prompting() ) {
+    statusText( 0, askLabel )
+    statusField( askAt )
 
-    if ( message != 0 ) statusText( promptAt + fieldLength() + 2, message )
+    if ( message != 0 ) {
+      statusText( askAt + fieldLength() + 2, message )
+
+      // The one message with a number in it, and the number goes after the
+      // words rather than into them - there is no formatting into a string
+      // here and §55 has been waiting for one since before the prompt existed.
+      if ( message == addr( sDone ) ) {
+        statusNumber( askAt + fieldLength() + 2 + 9, askCount )
+      }
+    }
+
     return
   }
 
@@ -341,8 +390,8 @@ sub drawStatus {
 // prompt is open the next character lands in the prompt, so that is where it
 // goes - a caret left in the document would be pointing at the wrong thing.
 sub placeCursor {
-  if ( prompting ) {
-    moveTo( u8( promptAt + fieldCursor() ), u8( rows - 1 ) )
+  if ( prompting() ) {
+    moveTo( u8( askAt + fieldCursor() ), u8( rows - 1 ) )
     return
   }
 
@@ -383,13 +432,17 @@ const actPaste  = 22
 const actAll    = 23
 const actWordL  = 24
 const actWordR  = 25
+const actGoto   = 26
+const actOpen   = 27
+const actRepl   = 28
 
 // No chord in this table yet, and the machinery is kept rather than removed:
 // `^K ^C` for a comment toggle is the obvious first one, and `edloop` holds
 // the mechanism against a script meanwhile. Every prefix here being 0 costs one
 // comparison per entry per keystroke, which at this rate is nothing.
 const u16[] bindPrefix = [
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0
 ]
 
 const u16[] bindKey = [
@@ -413,6 +466,9 @@ const u16[] bindKey = [
   24,                    // ^X
   22,                    // ^V
   1,                     // ^A
+  7,                     // ^G
+  15,                    // ^O
+  18,                    // ^R
   keyExt + keyCtrlLeft,
   keyExt + keyCtrlRight,
   keyExt + keyCtrlHome,
@@ -423,6 +479,7 @@ const u8[] bindAction = [
   actLeft, actRight, actUp, actDown, actHome, actEnd, actDelete,
   actPgUp, actPgDn, actBack, actEnter, actUndo, actSave, actRedo,
   actFind, actAgain, actCopy, actCut, actPaste, actAll,
+  actGoto, actOpen, actRepl,
   actWordL, actWordR,
   actTop, actBottom
 ]
@@ -645,6 +702,111 @@ sub doSelectAll {
   viewGoto( textLines() - 1, lineLength( textLines() - 1 ) )
 }
 
+// ---- the prompt ----
+
+// Opening one measures its own label, so a command adds a string and nothing
+// else. `fieldClear` rather than a preload: with no selection, a pre-filled
+// field appends to the last answer instead of replacing it.
+sub promptOpen( u8 what, u16 label ) {
+  u16 i
+
+  i = 0
+  while ( peek8( label + i ) != '$' ) {
+    i++
+  }
+
+  asking   = what
+  askLabel = label
+  askAt    = i
+  message  = 0
+  onMatch  = false
+
+  fieldClear()
+}
+
+sub promptClose {
+  asking  = askNone
+  message = 0
+}
+
+sub doGoto {
+  // `std/str.momo` does the reading, because "a digit that is not one refuses the
+  // whole answer" is a fact about numbers rather than about editors - and it has
+  // a boundary either side of 65,535 that wants a test rather than a mirror.
+  if ( !strNumber( fieldAddr(), fieldLength() ) ) {
+    message = addr( sNoLine )
+    return
+  }
+
+  askValue = strValue()
+
+  if ( askValue == 0 || askValue > textLines() ) {
+    message = addr( sNoLine )
+    return
+  }
+
+  undoBreak()
+  viewUnmark()
+  viewGoto( askValue - 1, 0 )
+}
+
+// **A dirty buffer refuses to be replaced.** Opening over unsaved work is the
+// same shape as saving a truncated file: one keystroke, nothing said, and the
+// only copy gone. §55's rule, at the other end of the same file.
+//
+// **A failed open puts back what was there**, which is the half that is easy to
+// miss. `loadFile` has already emptied the buffer by the time it finds out the
+// file will not fit, so refusing at that point would leave an empty document
+// wearing the new name - and one `^S` away from writing nothing over it. The
+// buffer was not dirty to get here, so the file on disk is what it held and
+// reading it again is exact.
+//
+// The clipboard is deliberately untouched. Cutting from one file and pasting
+// into the next is most of why opening without quitting is worth having.
+sub doOpen {
+  if ( dirty ) {
+    message = addr( sDirty )
+    return
+  }
+
+  if ( fieldLength() == 0 ) return
+
+  memCopy( addr( wasName ), addr( fileName ), len( fileName ) )
+  memCopy( addr( fileName ), fieldAddr(), fieldLength() )
+  fileName[ fieldLength() ] = 0
+
+  if ( loadFile() ) {
+    viewUnmark()
+    viewHome()
+    dirty = false
+    return
+  }
+
+  message = addr( sTooBig )
+  memCopy( addr( fileName ), addr( wasName ), len( fileName ) )
+  loadFile()
+  viewUnmark()
+  viewHome()
+  dirty = false
+}
+
+// §61 does the walk, because the way it can be wrong is a span question and not
+// an editor one. What is left here is what to say afterwards.
+sub doReplaceAll {
+  if ( findLength() == 0 ) return
+
+  askCount = rangeReplaceAll( addr( replText ), replLen )
+
+  if ( askCount > 0 ) {
+    dirty = true
+    viewUnmark()
+    viewGoto( rangeEndLine(), rangeEndCol() )
+  }
+
+  message = addr( sDone )
+  if ( textUndoLost() ) message = addr( sNoUndo )
+}
+
 // ---- finding ----
 
 // **The wrap lives here and not in §59.** The library reports that it ran out of
@@ -692,15 +854,54 @@ sub doFind( bool forward ) {
 // and searching backwards has no key of its own otherwise - `F3` and `Shift+F3`
 // are what a person would reach for and `keyprobe` has not measured either, so
 // they are not written down here on the strength of a table somebody else read.
+// What Enter means, which is the only thing that differs between the five.
+// **Find stays open and the rest close**, because find is the one a person
+// repeats - and `askTerm` answers by asking the next question, which is how a
+// two-part command gets by without a mechanism of its own.
+sub promptDone {
+  if ( asking == askFind ) {
+    findSet( fieldAddr(), fieldLength() )
+    doFind( true )
+    return
+  }
+
+  if ( asking == askTerm ) {
+    findSet( fieldAddr(), fieldLength() )
+    promptOpen( askWith, addr( sWith ) )
+    return
+  }
+
+  if ( asking == askWith ) {
+    replLen = fieldLength()
+    memCopy( addr( replText ), fieldAddr(), replLen )
+    asking = askNone
+    doReplaceAll()
+    return
+  }
+
+  if ( asking == askGoto ) {
+    asking = askNone
+    doGoto()
+    return
+  }
+
+  if ( asking == askOpen ) {
+    asking = askNone
+    doOpen()
+  }
+}
+
 sub promptKey( u16 k ) {
   u8 r
 
-  // Editing the term clears what the last search said about it, the same way
-  // any keystroke outside the prompt does. A "not found" left standing over a
-  // term that has since been corrected is worse than no message at all.
+  // Editing the answer clears what the last one was told about it. A "not
+  // found" left standing over a term that has since been corrected is worse
+  // than no message at all.
   message = 0
 
-  if ( k == keyExt + keyUp || k == keyExt + keyDown ) {
+  // Up and down are the find prompt's alone. In a filename they would be two
+  // keys that silently search the document behind it.
+  if ( asking == askFind && ( k == keyExt + keyUp || k == keyExt + keyDown ) ) {
     findSet( fieldAddr(), fieldLength() )
     doFind( k == keyExt + keyDown )
     return
@@ -709,11 +910,9 @@ sub promptKey( u16 k ) {
   r = fieldKey( k )
 
   if ( r == fieldAccept ) {
-    findSet( fieldAddr(), fieldLength() )
-    doFind( true )
+    promptDone()
   } else if ( r == fieldCancel ) {
-    prompting = false
-    message = 0
+    promptClose()
   }
 }
 
@@ -810,10 +1009,13 @@ sub apply( u8 a, u16 k ) {
     // pre-filled field would quietly append to the last search instead. `^L` is
     // the key that repeats one, so both behaviours exist and neither is a
     // surprise.
-    fieldClear()
-    prompting = true
-    message = 0
-    onMatch = false
+    promptOpen( askFind, addr( sFind ) )
+  } else if ( a == actGoto ) {
+    promptOpen( askGoto, addr( sGoto ) )
+  } else if ( a == actOpen ) {
+    promptOpen( askOpen, addr( sOpen ) )
+  } else if ( a == actRepl ) {
+    promptOpen( askTerm, addr( sTerm ) )
   } else if ( a == actWordL ) {
     // **`Ctrl+Shift+Left` needs nothing here**, and neither does its twin. §57
     // folds Shift into the key space and `step` folds it back out, so a shifted
@@ -836,10 +1038,7 @@ sub apply( u8 a, u16 k ) {
     doSelectAll()
   } else if ( a == actAgain ) {
     if ( findLength() == 0 ) {
-      fieldClear()
-      prompting = true
-      message = 0
-      onMatch = false
+      promptOpen( askFind, addr( sFind ) )
     } else {
       doFind( true )
     }
@@ -853,7 +1052,7 @@ sub step( u16 k ) {
   // The prompt takes everything, including `^Q` - a door out of a mode is `Esc`
   // and putting a second one in would mean a keystroke meant for the field
   // could close the program instead.
-  if ( prompting ) {
+  if ( prompting() ) {
     promptKey( k )
     return
   }

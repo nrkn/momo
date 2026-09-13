@@ -5244,6 +5244,21 @@ That is the one thing here worth a test of its own, and it is the one that is
 wrong quietly: getting it wrong leaves the middle of the selection sitting in the
 document with both ends correctly removed.
 
+### Replacing every occurrence, and where that loops
+
+Find a match, delete it, put the other text in, carry on - and the carrying on is
+the only part that can be wrong. **The walk continues from the end of what it
+wrote**, because from the match a replacement containing the term finds what it
+just put there, and again, without end.
+
+The whole thing is one `undoStep`. A replace across a document that takes four
+hundred presses to undo is one nobody dares run, which makes the grouping part of
+the feature rather than a nicety.
+
+Four cases and only one is obvious: same length is arithmetic, longer is the loop
+above, and shorter and empty are where the walk must not step past text that
+moved back towards it. The test does all four.
+
 ### Where a span begins: three classes, and `_` is a letter
 
 Word motion is a span question asked from one end - `Ctrl+Left` is "the start of
@@ -5290,6 +5305,8 @@ clean.
   exactly filled the buffer comes back the same length as one that was cut off.
 - **The line window lives for one call.** Both word routines drop it before they
   start, so no caller has to remember that an edit invalidated it.
+- **A replace continues from the end of what it wrote.** From the match, a
+  replacement containing the term finds its own output for ever.
 
 ---
 
@@ -5395,6 +5412,55 @@ place the muscle memory already has a second answer.
 is what every editor does and what the `256 + scancode` form gives for free. It
 also means they cannot be bound apart, which is the cost of the alias and is
 worth knowing before somebody wants it.
+
+### One prompt, five questions
+
+`^F` find, `^G` go to line, `^O` open, and `^R` replace - which is two questions
+in a row. What differs between them is three facts: the label, what Enter does,
+and whether Enter closes the prompt. Everything else is one mechanism.
+
+**Replace is the case that decided the shape.** A command can answer Enter by
+asking the *next* question, and once that is allowed a two-part command needs no
+machinery of its own - `askTerm` sets the pattern and opens `askWith`, and the
+second Enter runs the replace. Without it, replace would have been a second
+prompt implementation or a mode inside a mode.
+
+**The label measures itself.** The column the field starts at used to be a const
+that had to agree with the width of one string; with five strings that is four
+more chances to be a column out, and a caret sitting beside what it is editing is
+the kind of wrong that gets noticed last. `promptOpen` walks the label to its
+`$` and that is the answer.
+
+Find is the one that stays open on Enter, because it is the one a person repeats.
+Up and down are its alone, too: in a filename they would be two keys that
+silently search the document behind the prompt.
+
+### Refusing is the interesting half of open
+
+**A dirty buffer refuses to be replaced.** Opening over unsaved work is the same
+shape as saving a truncated file - one keystroke, nothing said, the only copy
+gone - which is a rule this section already had at the other end of the same
+file.
+
+**And a failed open puts back what was there**, which is the half that is easy to
+miss. `loadFile` empties the buffer before it discovers the file will not fit, so
+stopping at that point leaves an empty document wearing the *new* name and one
+`^S` away from writing nothing over it. The buffer was not dirty to get this far,
+so the file on disk is what it held and reading it back is exact.
+
+The clipboard survives an open deliberately. Cutting from one file and pasting
+into the next is most of why opening without quitting is worth having.
+
+### Replace is every occurrence, and the walk is §61's
+
+One step back for the lot, because a replace of four hundred occurrences that
+takes four hundred presses to undo is one nobody dares run.
+
+The walk itself is in §61 rather than here, because the way it can be wrong is a
+span question: **it continues from the end of what it wrote**, not from where the
+match was. Replacing `qux` with `quxqux` otherwise finds its own output for ever,
+and a replacement containing the term is not an odd thing to ask for - it is what
+renaming `foo` to `foo2` looks like.
 
 ### The find prompt is the first mode, and the first thing that is not a key
 
@@ -5663,6 +5729,10 @@ language feature.
   one thing and removes another.
 - **A cut that did not fit the clipboard is refused**, not truncated. §61 is
   asked rather than the count compared.
+- **A prompt measures its own label.** The column the field starts at is derived
+  from the string, not written beside it.
+- **A refusal cleans up after itself.** `^O` puts back the file it was showing,
+  because the buffer was emptied before the refusal was known.
 - **The editor never calls `readKey`.** `nextKey` is the program's, so the
   command layer is testable. The same holds for output: rendering goes through a
   routine the program supplies.

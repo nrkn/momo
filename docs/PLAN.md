@@ -366,6 +366,18 @@ All are set out in DESIGN §20 unless noted.
 section that was itself a plan - see the note at the top for why, and where to
 look for the rest.
 
+- **Prompt commands.** 2026-09-13. `^G` go to line, `^O` open and `^R` replace,
+  all through §60 and the one prompt §55 already had; the record is DECISIONS
+  under Prompt commands. **Replace decided the shape**, by being two questions:
+  once a command can answer Enter by asking the next one, a two-part command
+  needs no machinery of its own. The label measures its own width, which the
+  fifth string is where it stopped being a preference.
+
+  `strNumber` went into `std/str.momo` rather than the editor, with the two rows
+  either side of 65,535 that an off-by-one in an overflow check lives in. And a
+  failed `^O` puts back the file it was showing - the refusal was already
+  written and was still wrong, because the buffer is emptied before the refusal
+  is known.
 - **The records past the segment too.** 2026-09-13. §58 again, and the record is
   DECISIONS §58. Moving the text out had left the chunk links and line heads as
   heap views at three bytes a chunk and four a line, so the ceiling stopped being

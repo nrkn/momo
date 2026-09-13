@@ -82,3 +82,34 @@ putNumber( other[3] )                       // 7
 newline()
 putNumber( other[4] )                       // 111, left over from "hello" above
 newline()
+
+// strNumber: two answers, because the failing one has no number in it.
+const u8[] nOk   = "1234"
+const u8[] nBad  = "12x4"
+const u8[] nBig  = "120000"
+const u8[] nMax  = "65535"
+const u8[] nOver = "65536"
+
+sub showNum( u16 at, u16 n ) {
+  putNumber( u16( strNumber( at, n ) ) )
+  putChar( ' ' )
+  putNumber( strValue() )
+  newline()
+}
+
+showNum( addr( nOk ), len( nOk ) )          // 1 1234
+
+// A digit that is not one refuses the whole answer, and leaves nothing behind
+// for a caller who forgot to look at the bool.
+showNum( addr( nBad ), len( nBad ) )        // 0 0
+
+// No characters is not the number zero.
+showNum( addr( nOk ), 0 )                   // 0 0
+
+// Past what a u16 holds is a refusal rather than a wrap.
+showNum( addr( nBig ), len( nBig ) )        // 0 0
+
+// The two sides of the boundary, which is where an off-by-one in the overflow
+// test would live and nowhere else.
+showNum( addr( nMax ), len( nMax ) )        // 1 65535
+showNum( addr( nOver ), len( nOver ) )      // 0 0

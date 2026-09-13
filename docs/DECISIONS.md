@@ -2480,3 +2480,57 @@ times the case it existed for had silently stopped happening.
 `textUndoMax` is public now and the fixture is a function of it. The general
 shape: **a test whose fixture has to exceed a library's constant should read the
 constant**, because the failure mode is not a red test, it is a green one.
+
+## Prompt commands
+
+### Replace decided the shape of the prompt, by being two questions
+
+`^F`, `^G`, `^O` and `^R` differ in three facts - the label, what Enter does, and
+whether Enter closes - and that is a small enough difference to hold in one
+mechanism. What made it *small* was allowing a command to answer Enter by asking
+the next question.
+
+Without that, replace is either a second prompt implementation or a mode inside a
+mode, and the generalisation stops paying. With it, the two-part command is two
+lines in the accept arm and §60 needed nothing at all.
+
+### The label measures itself, because four more strings is four more chances
+
+The column the field starts at was a const agreeing with the width of one string.
+Five strings is four more opportunities for the caret to sit a column away from
+what it is editing - which is a defect that looks like a rendering glitch and
+gets noticed last.
+
+`promptOpen` walks the label to its terminator. **A number that can be derived
+from the thing it describes should be**, and the fifth consumer is where that
+stopped being a preference.
+
+### A failed open would have destroyed what it refused to replace
+
+`^O` already refused a dirty buffer, which is §55's rule about not writing over
+unsaved work. The failure path had the same defect one level in: `loadFile`
+empties the buffer before it discovers the file will not fit, so refusing at that
+point leaves an empty document wearing the *new* name, one `^S` from writing
+nothing over it.
+
+The fix is that the buffer was not dirty to get there, so the file on disk is
+what it held and reading it back is exact. **The interesting part is that the
+refusal was already written and was still wrong** - "refuse rather than truncate"
+had been applied to the answer and not to the cleanup.
+
+### The number parse went to `std/str.momo` rather than into the editor
+
+"A digit that is not one refuses the whole answer" is a fact about numbers, not
+about editors - `12x` meaning line 12 is a typo silently obeyed. So is the other
+half: **past 65,535 is a refusal rather than a wrap**, which is the same failure
+arriving by arithmetic instead of by a stray keystroke.
+
+Both were written into the editor first and both had a bug there. The partial
+value was left behind on failure, so a caller ignoring the bool got 12 for
+`"12x"`; and the overflow was silent. Moving it to `str.momo` got it a test, and
+the test is two rows either side of 65,535 - which is where an off-by-one in the
+overflow check lives and nowhere else.
+
+§55 has been noting that number *formatting* into a buffer is missing since
+before the prompt existed. This is the other direction, and it arrived because a
+prompt asked for a line number.

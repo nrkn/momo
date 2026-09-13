@@ -143,3 +143,52 @@ sub memFill( u16 at, u16 count, u8 value ) {
     poke8( at + i, value )
   }
 }
+
+// ---- digits ----
+
+// `n` bytes at `at`, read as a decimal number. **False when any one of them is
+// not a digit**, rather than stopping at the first - because a caller handed 12
+// for `"12x"` has been told a typo was an answer, and a line number is exactly
+// where that is obeyed silently.
+//
+// Empty is false too: there is no number in no characters, and returning 0 would
+// be a valid line for a prompt somebody just pressed Enter at.
+//
+// The value comes back through `strValue` rather than the return, because there
+// are two answers and the failing one has no number in it. Same shape §54 uses
+// for where an undo landed.
+local u16 numValue
+
+u16 strValue() => numValue
+
+bool strNumber( u16 at, u16 n ) {
+  u8 ch
+
+  numValue = 0
+  if ( n == 0 ) return false
+
+  for ( u16 i = 0; i < n; i++ ) {
+    ch = peek8( at + i )
+
+    // **Zeroed on the way out, not left part way.** A caller that ignores the
+    // bool would otherwise be handed 12 for `"12x"`, which is the failure this
+    // routine exists to prevent arriving by a different door.
+    if ( ch < '0' || ch > '9' ) {
+      numValue = 0
+      return false
+    }
+
+    // **Past 65,535 is a refusal rather than a wrap**, and the two tests are
+    // exact: anything above 6,553 cannot take another digit, and 6,553 itself
+    // can take one only up to 5. A wrap here is the same shape as `"12x"` -
+    // a number handed back that the person did not type.
+    if ( numValue > 6553 || ( numValue == 6553 && ch > '5' ) ) {
+      numValue = 0
+      return false
+    }
+
+    numValue = numValue * 10 + u16( ch - '0' )
+  }
+
+  return true
+}

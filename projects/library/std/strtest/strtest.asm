@@ -214,6 +214,36 @@ __entry:
         call    putNumber
 ; ---- newline()
         call    newline
+; ---- showNum( addr( nOk ), len( nOk ) )          // 1 1234
+        mov     ax, nOk                     ; link-time constant
+        mov     [showNum__at], ax
+        mov     word [showNum__n], 4
+        call    showNum
+; ---- showNum( addr( nBad ), len( nBad ) )        // 0 0
+        mov     ax, nBad                    ; link-time constant
+        mov     [showNum__at], ax
+        mov     word [showNum__n], 4
+        call    showNum
+; ---- showNum( addr( nOk ), 0 )                   // 0 0
+        mov     ax, nOk                     ; link-time constant
+        mov     [showNum__at], ax
+        mov     word [showNum__n], 0
+        call    showNum
+; ---- showNum( addr( nBig ), len( nBig ) )        // 0 0
+        mov     ax, nBig                    ; link-time constant
+        mov     [showNum__at], ax
+        mov     word [showNum__n], 6
+        call    showNum
+; ---- showNum( addr( nMax ), len( nMax ) )        // 1 65535
+        mov     ax, nMax                    ; link-time constant
+        mov     [showNum__at], ax
+        mov     word [showNum__n], 5
+        call    showNum
+; ---- showNum( addr( nOver ), len( nOver ) )      // 0 0
+        mov     ax, nOver                   ; link-time constant
+        mov     [showNum__at], ax
+        mov     word [showNum__n], 5
+        call    showNum
 
 ; ---- implicit exit ----
         mov     word [_ax], 0x4C00          ; DOS terminate, exit code 0
@@ -511,6 +541,117 @@ memFill:
 .L46:
         ret
 
+; ============================================== u16 strValue ====
+
+strValue:
+; ---- u16 strValue() => numValue
+        mov     ax, [str__numValue]
+        mov     [strValue__ret], ax
+        ret
+
+; ============================================== bool strNumber ====
+
+strNumber:
+; ---- numValue = 0
+        mov     word [str__numValue], 0
+; ---- if ( n == 0 ) return false
+        mov     ax, [strNumber__n]
+        test    ax, ax
+        jne     .L48                        ; unsigned ==
+        mov     byte [strNumber__ret], 0
+        ret
+.L48:
+; ---- for ( u16 i = 0; i < n; i++ ) {
+        mov     word [strNumber__i], 0
+.L51:
+        mov     ax, [strNumber__i]
+        mov     bx, [strNumber__n]
+        cmp     ax, bx
+        jb      .L54                        ; unsigned <
+        jmp     .L53
+.L54:
+; ---- ch = peek8( at + i )
+        mov     ax, [strNumber__at]
+        mov     bx, [strNumber__i]
+        add     ax, bx
+        mov     bx, ax
+        mov     al, [bx]                    ; peek8 - unchecked, by design
+        mov     [strNumber__ch], al         ; u8 -> u8, no widening
+; ---- if ( ch < '0' || ch > '9' ) {
+        cmp     al, 48                      ; byte operands, no widening
+        jb      .L57                        ; unsigned <
+        mov     al, [strNumber__ch]
+        cmp     al, 57                      ; byte operands, no widening
+        jbe     .L55                        ; unsigned >
+.L57:
+; ---- numValue = 0
+        mov     word [str__numValue], 0
+; ---- return false
+        mov     byte [strNumber__ret], 0
+        ret
+.L55:
+; ---- if ( numValue > 6553 || ( numValue == 6553 && ch > '5' ) ) {
+        mov     ax, [str__numValue]
+        cmp     ax, 6553
+        ja      .L62                        ; unsigned >
+        mov     ax, [str__numValue]
+        cmp     ax, 6553
+        jne     .L60                        ; unsigned ==
+        mov     al, [strNumber__ch]
+        cmp     al, 53                      ; byte operands, no widening
+        jbe     .L60                        ; unsigned >
+.L62:
+; ---- numValue = 0
+        mov     word [str__numValue], 0
+; ---- return false
+        mov     byte [strNumber__ret], 0
+        ret
+.L60:
+; ---- numValue = numValue * 10 + u16( ch - '0' )
+        mov     ax, [str__numValue]
+        mov     bx, 10
+        mul     bx                          ; low 16 bits are sign-agnostic
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     al, [strNumber__ch]
+        xor     ah, ah                      ; u8 -> u16
+        sub     ax, 48
+        mov     bx, ax
+        pop     ax
+        add     ax, bx
+        mov     [str__numValue], ax
+.L52:
+        inc     word [strNumber__i]
+        jmp     .L51
+.L53:
+; ---- return true
+        mov     byte [strNumber__ret], 1
+        ret
+
+; ============================================== sub showNum ====
+
+showNum:
+; ---- putNumber( u16( strNumber( at, n ) ) )
+        mov     ax, [showNum__at]
+        mov     [strNumber__at], ax
+        mov     ax, [showNum__n]
+        mov     [strNumber__n], ax
+        call    strNumber
+        mov     al, [strNumber__ret]
+        xor     ah, ah                      ; bool -> u16
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- putChar( ' ' )
+        mov     byte [putChar__c], 32
+        call    putChar
+; ---- putNumber( strValue() )
+        call    strValue
+        mov     ax, [strValue__ret]
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- newline()
+        call    newline
+        ret
+
 ; ==================================================== int helpers ====
 ; One per distinct interrupt: the literal is baked in, so the register
 ; sync is emitted once rather than at every call site.
@@ -569,7 +710,14 @@ memCopy__count: dw      0        ; u16
 memFill__at:    dw      0        ; u16
 memFill__count: dw      0        ; u16
 memFill__value: db      0        ; u8
+str__numValue:  dw      0        ; u16
+strValue__ret:  dw      0        ; u16
+strNumber__at:  dw      0        ; u16
+strNumber__n:   dw      0        ; u16
+strNumber__ret: db      0        ; bool
 found:          dw      0        ; u16
+showNum__at:    dw      0        ; u16
+showNum__n:     dw      0        ; u16
 putNumber__i:   db      0        ; u8
 strLen__n:      dw      0        ; u16
 strCopy__i:     dw      0        ; u16
@@ -581,6 +729,8 @@ strFind__i:     dw      0        ; u16
 strFind__c:     db      0        ; u8
 memCopy__i:     dw      0        ; u16
 memFill__i:     dw      0        ; u16
+strNumber__i:   dw      0        ; u16
+strNumber__ch:  db      0        ; u8
 
 ; ---- arrays ----
 hello:          db      'hello$'        ; u8[6] const
@@ -589,13 +739,18 @@ empty:          db      '$'        ; u8[1] const
 path:           db      'hp 10/10$'        ; u8[9] const
 buffer:         times 16 db 0        ; u8[16]
 other:          times 16 db 0        ; u8[16]
+nOk:            db      '1234'        ; u8[4] const
+nBad:           db      '12x4'        ; u8[4] const
+nBig:           db      '120000'        ; u8[6] const
+nMax:           db      '65535'        ; u8[5] const
+nOver:          db      '65536'        ; u8[5] const
 putNumber__digits: times 5 db 0        ; u8[5]
 
 ; ============================================================ heap ====
 ; No storage is emitted - a .COM owns everything past its image, so
 ; these are addresses and NASM does the arithmetic.
 
-_hstack:        equ     262        ; 6 worst-case + 256 interrupt reserve
+_hstack:        equ     264        ; 8 worst-case + 256 interrupt reserve
 _htop:          equ     0FFFEh - _hstack
 
 _hsize:         dw      _htop - _heap        ; NASM computes this

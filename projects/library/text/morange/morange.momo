@@ -245,3 +245,63 @@ for ( u16 i = 0; i < textUndoMax / 10 + 5; i++ ) {
 showNext( 0, 0 )
 showPrev( 0, 251 )
 showPrev( 0, 201 )
+
+// ---- replacing every occurrence ----
+//
+// The four cases are the four length relationships, and only one of them is
+// obvious. Same length is arithmetic; longer is where a replacement containing
+// the term would loop for ever; shorter and empty are where the walk has to not
+// step past the text that moved back towards it.
+
+const u8[] rSrc  = "foo bar foo\n"
+                   "baz foo\n"
+
+const u8[] rFoo  = "foo"
+const u8[] rQux  = "qux"
+const u8[] rQux2 = "quxqux"
+const u8[] rZ    = "z"
+const u8[] rNone = "nope"
+
+textInit()
+
+for ( u16 i = 0; i < len( rSrc ); i++ ) {
+  textLoad( rSrc[i] )
+}
+
+// Same length, three occurrences over two lines.
+findSet( addr( rFoo ), len( rFoo ) )
+show( rangeReplaceAll( addr( rQux ), len( rQux ) ) )
+newline()
+dump()
+
+// **Longer, and the replacement contains the term.** Continuing from where the
+// match was rather than from the end of what was written finds `qux` inside the
+// `quxqux` that was just put there, and does it again, for ever.
+findSet( addr( rQux ), len( rQux ) )
+show( rangeReplaceAll( addr( rQux2 ), len( rQux2 ) ) )
+newline()
+dump()
+
+// Shorter.
+findSet( addr( rQux2 ), len( rQux2 ) )
+show( rangeReplaceAll( addr( rZ ), len( rZ ) ) )
+newline()
+dump()
+
+// Empty, which is a delete of every occurrence and finds four where the line
+// before it had two.
+findSet( addr( rZ ), len( rZ ) )
+show( rangeReplaceAll( addr( rZ ), 0 ) )
+newline()
+dump()
+
+// One step back for all four, which is what makes a replace across a document
+// something a person will run.
+undoOnce()
+dump()
+
+// Not there: nothing replaced, nothing touched.
+findSet( addr( rNone ), len( rNone ) )
+show( rangeReplaceAll( addr( rZ ), len( rZ ) ) )
+newline()
+dump()
