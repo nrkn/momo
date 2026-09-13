@@ -381,13 +381,15 @@ const actCopy   = 20
 const actCut    = 21
 const actPaste  = 22
 const actAll    = 23
+const actWordL  = 24
+const actWordR  = 25
 
 // No chord in this table yet, and the machinery is kept rather than removed:
 // `^K ^C` for a comment toggle is the obvious first one, and `edloop` holds
 // the mechanism against a script meanwhile. Every prefix here being 0 costs one
 // comparison per entry per keystroke, which at this rate is nothing.
 const u16[] bindPrefix = [
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 ]
 
 const u16[] bindKey = [
@@ -411,6 +413,7 @@ const u16[] bindKey = [
   24,                    // ^X
   22,                    // ^V
   1,                     // ^A
+  keyExt + keyCtrlLeft,
   keyExt + keyCtrlHome,
   keyExt + keyCtrlEnd
 ]
@@ -419,6 +422,7 @@ const u8[] bindAction = [
   actLeft, actRight, actUp, actDown, actHome, actEnd, actDelete,
   actPgUp, actPgDn, actBack, actEnter, actUndo, actSave, actRedo,
   actFind, actAgain, actCopy, actCut, actPaste, actAll,
+  actWordL,
   actTop, actBottom
 ]
 
@@ -715,7 +719,8 @@ sub promptKey( u16 k ) {
 bool isMotion( u8 a ) => a == actLeft || a == actRight || a == actUp ||
                         a == actDown || a == actHome || a == actEnd ||
                         a == actTop  || a == actBottom ||
-                        a == actPgUp || a == actPgDn
+                        a == actPgUp || a == actPgDn ||
+                        a == actWordL || a == actWordR
 
 sub apply( u8 a, u16 k ) {
   // Any motion ends a run of typing. Two keystrokes with a cursor move between
@@ -808,6 +813,17 @@ sub apply( u8 a, u16 k ) {
     prompting = true
     message = 0
     onMatch = false
+  } else if ( a == actWordL ) {
+    // **`Ctrl+Shift+Left` needs nothing here.** §57 folds Shift into the key
+    // space and `step` folds it back out, so a shifted Ctrl+arrow arrives as
+    // this same action with `selecting` set - and the rule above has already
+    // marked the anchor by the time this runs. Word selection is what word
+    // motion costs, which is nothing.
+    wordPrev( viewLine(), viewCol() )
+    viewGoto( wordLine(), wordCol() )
+  } else if ( a == actWordR ) {
+    wordNext( viewLine(), viewCol() )
+    viewGoto( wordLine(), wordCol() )
   } else if ( a == actCopy ) {
     doCopy()
   } else if ( a == actCut ) {

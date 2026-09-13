@@ -4901,13 +4901,73 @@ difference would look like anything except what it is.
 **Shift with a navigation key is the only case the flags decide**, which is why
 there is no modifier column anywhere above this. Ctrl with the arrows and
 Home/End gets its own scancodes, `Shift+Tab`, `Ctrl+Backspace` and `Ctrl+Enter`
-get their own codes, and Alt arrives extended. Only `Shift+Left` is byte for byte
-what `Left` reports, so Shift is folded into the key space and costs one
-comparison.
+get their own codes, and Alt arrives extended. **Every Shift+navigation pair is
+byte for byte its unshifted form** - the table below has them - so Shift is
+folded into the key space and costs one comparison.
 
 The keypad aliases the grey keys, because both normalise on the scancode. That is
 what every editor does and it means they cannot be bound apart, which is the cost
 of the alias and is worth knowing before somebody wants it.
+
+### What it reported, which is the record
+
+`keyprobe` had been kept as the *question* and its answers had not: thirty-two
+combinations asked under two emulators, and what survived was four constants -
+the ones somebody needed that day - plus a paragraph of prose. This is the run
+itself, and it lives here because a measurement nobody can read back has to be
+taken again.
+
+| key | AX | flags |
+|---|---|---|
+| `Left` | 4BE0 | 0000 |
+| `Shift+Left` | 4BE0 | 0002 |
+| `Ctrl+Left` | 73E0 | 0104 |
+| `Ctrl+Shift+Left` | 73E0 | 0106 |
+| `Up` | 48E0 | 0000 |
+| `Shift+Up` | 48E0 | 0002 |
+| `Home` | 47E0 | 0000 |
+| `Shift+Home` | 47E0 | 0002 |
+| `Ctrl+Home` | 77E0 | 0104 |
+| `End` | 4FE0 | 0000 |
+| `Shift+End` | 4FE0 | 0002 |
+| `Tab` | 0F09 | 0000 |
+| `Shift+Tab` | 0F00 | 0002 |
+| `Backspace` | 0E08 | 0000 |
+| `Ctrl+Backspace` | 0E7F | 0104 |
+| `Delete` | 53E0 | 0000 |
+| `Shift+Delete` | 53E0 | 0002 |
+| `Ctrl+S` | 1F13 | 0104 |
+| `Ctrl+Z` | 2C1A | 0104 |
+| `Ctrl+Y` | 1519 | 0104 |
+| `Ctrl+K` | 250B | 0104 |
+| `Ctrl+/` | 011B | 0000 | *skipped*
+| `Ctrl+Enter` | 1C0A | 0104 |
+| `F1` | 3B00 | 0000 |
+| `Alt+F` | 2100 | 0208 |
+| `Enter` | 1C0D | 0000 |
+| `PgUp` | 49E0 | 0000 |
+| `PgDn` | 51E0 | 0000 |
+| `Insert` | 52E0 | 0080 |
+| `Ctrl+PgUp` | 84E0 | 0184 |
+| `Keypad Left, NumLock OFF` | 4B00 | 0080 |
+| `Keypad Home, NumLock OFF` | 4700 | 0080 |
+
+`Ctrl+/` is the refusal below; Esc was pressed to move past it, which is what
+`011B` is.
+
+**Every Shift+navigation pair is byte for byte its unshifted form.** `Shift+Up`
+is `48E0` and so is `Up`; the same holds for Home, End, Left and Delete. That is
+why the flags are read at all, and the prose above this used to say only
+`Shift+Left` collided - which was one example mistaken for the whole set.
+
+**`Ctrl+Shift+Left` is `73E0` and so is `Ctrl+Left`**, differing in one flag bit.
+So it normalises to `keyShift + 115` with no new constant, which is what makes
+word *selection* cost nothing once word motion exists - and is measured here
+rather than assumed.
+
+`Ctrl+Right`, `Ctrl+Shift+Right` and `Ctrl+PgDn` are in the prompt list now and
+have never been asked. Until they are they are not constants, which is why
+`momoed` binds word motion leftwards only.
 
 ### Rules
 
@@ -5105,6 +5165,33 @@ That is the one thing here worth a test of its own, and it is the one that is
 wrong quietly: getting it wrong leaves the middle of the selection sitting in the
 document with both ends correctly removed.
 
+### Where a span begins: three classes, and `_` is a letter
+
+Word motion is a span question asked from one end - `Ctrl+Left` is "the start of
+the word I am in", and selecting a word is the span between two of these - so it
+is here rather than in a file of its own.
+
+**A run of punctuation is a unit**, the way a run of letters is. `baz(qux)` is
+four boundaries in eight characters, and an editor that folds punctuation into
+the word walks straight past all of them; neutering that class collapses the
+three middle positions of the test onto one. `_` counts as a letter, which is
+what makes this useful on code rather than on prose.
+
+**The rule is the start of the next word rather than the end of this one** -
+Windows' convention, and what makes a run of `Ctrl+Right` read as walking the
+words. Backwards is the start of the word the cursor is in, or of the one before
+it when it is already there, so a run of `Ctrl+Left` walks rather than sticking.
+
+### One line at a time, through a window that lives for one call
+
+This is the only reader here that goes backwards as well as forwards, so the
+window is **centred** on the position asked for: anchored at either end it would
+re-slice on every character in one of the two directions.
+
+It is dropped at the start of both routines, which closes the one way a cache
+like this goes quietly wrong - a window held across an edit reads the text as it
+was. Closed by construction rather than by every caller remembering.
+
 ### A newline in a span is one byte
 
 §54's `textSave` owns the DOS convention and puts a carriage return back on the
@@ -5122,6 +5209,8 @@ clean.
 - **A newline in a span is `\n` alone.** The file convention belongs to §54.
 - **A copy that did not fit says so**, because the count cannot: a span that
   exactly filled the buffer comes back the same length as one that was cut off.
+- **The line window lives for one call.** Both word routines drop it before they
+  start, so no caller has to remember that an edit invalidated it.
 
 ---
 
@@ -5301,6 +5390,24 @@ saying because the tidy version is wrong. `undoStep` breaks the run before it, s
 wrapping every keystroke in one turns a run of typing into one action per
 character - §54's coalescing undone by a bracket that looked harmless. A command
 is a new action; a character is not.
+
+### Word motion, and word selection for nothing
+
+`Ctrl+Left` walks back a word and **`Ctrl+Shift+Left` is bound to nothing and
+works anyway.** §57 folds Shift into the key space, `step` folds it back out, and
+what is left is the same action with `selecting` set - so the rule that a shifted
+motion extends has already marked the anchor by the time the word walk runs.
+
+That is the fold paying for itself. A table with a shifted twin per motion would
+have needed a row here; one place that strips Shift needed nothing at all, and
+the same will be true of every motion added after this.
+
+**`Ctrl+Right` is not bound, because nothing has measured it.** §57's rule is
+that a scancode is what `keyprobe` reported, and `keyprobe` had never asked for
+that one - it asks now. The convention says 0x74, and a convention is not
+evidence.
+§61 has the forward walk and it is tested; what is missing is a key to reach it
+with.
 
 ### `^C` and `^X` with nothing selected take the line
 

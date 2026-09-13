@@ -2351,3 +2351,41 @@ Streaming - keeping the file on disk and paging chunks - is still what to reach
 for when that is not enough, and is still considerably more machinery. Far memory
 is hundreds of kilobytes from being exhausted, so what caps this is a table in a
 64 KB segment and not the memory it points at.
+
+### Word selection cost nothing, which is what the fold was for
+
+`Ctrl+Shift+Left` is bound nowhere and works. §57 folds Shift into the key space
+because `Shift+Left` is byte for byte what `Left` reports; §55 folds it back out
+in one place and keeps the flag; so a shifted Ctrl+arrow arrives as the ordinary
+Ctrl+arrow action with `selecting` set, and the rule that a shifted motion
+extends has already marked the anchor before the word walk runs.
+
+Worth recording because the alternative was live at the time: a shifted twin of
+every motion in the binding table. That would have needed a new row for this and
+a new row for every motion after it, each having to agree with its twin for ever.
+**One place that strips a modifier is not the same size of decision as a column
+in a table, and this is the measurement of the difference: zero lines.**
+
+### The measurements were taken, not kept, and then found
+
+`keyprobe` asked for `Ctrl+Shift+Left` under two emulators. Nothing in the
+repository says what it reported.
+
+What survives of thirty-two combinations is four constants - the ones somebody
+needed that day - and a paragraph of prose. §57 calls `keyprobe` "kept as the
+record", and it is the *question*: the program is committed and its answers are
+not. A measurement nobody can read back has to be taken again, and taking it
+again is a person pressing thirty-six key combinations twice.
+
+It was still sitting in `build/` from the original session, and it is now a table
+in §57. Two things came out of reading it that neither the prose nor the
+constants had.
+
+**`Ctrl+Shift+Left` is `73E0` and so is `Ctrl+Left`**, differing in one flag bit -
+which is what makes word selection free, and was assumed until the file turned
+up rather than known.
+
+**Every Shift+navigation pair is byte for byte its unshifted form**, not just
+`Shift+Left`. §57 said only Left collided, which was one example mistaken for the
+whole set - harmless, because the code masks the flags either way, and wrong in a
+document whose job is to be the thing somebody trusts instead of measuring again.

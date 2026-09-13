@@ -167,3 +167,147 @@ sub rangeInsert( u16 ln, u16 col, u16 at, u16 n ) {
   endLine = ln
   endCol  = col
 }
+
+// ---- where a span begins and ends ----
+//
+// Word motion is a span question asked from one end: `Ctrl+Left` is "the start of
+// the word I am in", and selecting a word is the span between two of these. So it
+// is here rather than in a file of its own, and it needs the same read interface
+// as everything above - `lineSlice` and `lineLength`, nothing private to §54.
+
+// Three classes, because a run of punctuation is a unit in every editor worth
+// copying and so is a run of letters. `_` counts as a letter, which is what makes
+// this useful on code rather than on prose.
+local const clsSpace = 0
+local const clsWord  = 1
+local const clsPunct = 2
+
+local u8 classOf( u8 ch ) {
+  if ( ch == ' ' || ch == 9 ) return clsSpace
+  if ( ch >= '0' && ch <= '9' ) return clsWord
+  if ( ch >= 'A' && ch <= 'Z' ) return clsWord
+  if ( ch >= 'a' && ch <= 'z' ) return clsWord
+  if ( ch == '_' ) return clsWord
+
+  return clsPunct
+}
+
+// A window onto one line, re-sliced when the walk leaves it. **Centred on the
+// position asked for**, because this is the one reader here that goes backwards
+// as well as forwards and a window anchored at either end would re-slice every
+// character in one of the two directions.
+local const wordWindow = 128
+
+local u8[wordWindow] wbuf
+local u16 winLine
+local u16 winFrom
+local u16 winLen
+local bool winHeld
+
+local u16 atLine
+local u16 atCol
+
+u16 wordLine() => atLine
+u16 wordCol()  => atCol
+
+local u8 charAt( u16 ln, u16 col ) {
+  u16 from
+
+  if ( !winHeld || ln != winLine || col < winFrom || col >= winFrom + winLen ) {
+    from = 0
+    if ( col > wordWindow / 2 ) from = col - wordWindow / 2
+
+    winLen  = lineSlice( ln, from, wordWindow, addr( wbuf ) )
+    winLine = ln
+    winFrom = from
+    winHeld = true
+  }
+
+  if ( col < winFrom || col >= winFrom + winLen ) return 0
+
+  return wbuf[ col - winFrom ]
+}
+
+// **The window lives for one call and no longer.** Both routines below drop it
+// before they start, so it can never be read after an edit has moved the text
+// under it - which is the one way a cache like this goes quietly wrong, and it is
+// closed by construction rather than by every caller remembering.
+local sub wordForget {
+  winHeld = false
+}
+
+// The start of the next word: skip the rest of whatever the cursor is inside,
+// then skip the whitespace after it. That is Windows' rule rather than the one
+// where the cursor lands on the *end* of a word, and it is what makes a run of
+// `Ctrl+Right` read as walking the words.
+sub wordNext( u16 ln, u16 col ) {
+  u16 length
+  u8  cls
+
+  wordForget()
+  length = lineLength( ln )
+
+  // Past the end is the next line, the same wrap the right arrow already does.
+  if ( col >= length ) {
+    atLine = ln
+    atCol  = length
+
+    if ( ln + 1 < textLines() ) {
+      atLine = ln + 1
+      atCol  = 0
+    }
+
+    return
+  }
+
+  cls = classOf( charAt( ln, col ) )
+
+  if ( cls != clsSpace ) {
+    while ( col < length && classOf( charAt( ln, col ) ) == cls ) {
+      col++
+    }
+  }
+
+  while ( col < length && classOf( charAt( ln, col ) ) == clsSpace ) {
+    col++
+  }
+
+  atLine = ln
+  atCol  = col
+}
+
+// The start of the word the cursor is in, or of the one before it when it is
+// already there - which is what makes a run of `Ctrl+Left` walk backwards rather
+// than stick on the first boundary it finds.
+sub wordPrev( u16 ln, u16 col ) {
+  u8 cls
+
+  wordForget()
+
+  if ( col == 0 ) {
+    atLine = 0
+    atCol  = 0
+
+    if ( ln > 0 ) {
+      atLine = ln - 1
+      atCol  = lineLength( ln - 1 )
+    }
+
+    return
+  }
+
+  col--
+
+  while ( col > 0 && classOf( charAt( ln, col ) ) == clsSpace ) {
+    col--
+  }
+
+  cls = classOf( charAt( ln, col ) )
+
+  while ( col > 0 && classOf( charAt( ln, col - 1 ) ) == cls ) {
+    col--
+  }
+
+  atLine = ln
+  atCol  = col
+}

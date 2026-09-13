@@ -163,3 +163,83 @@ got = rangeCopy( 0, 0, 0, 4, addr( buf ), 4 )
 show( got )
 show( u16( rangeCopied() ) )
 newline()
+
+// ---- word boundaries ----
+//
+// The fixture has all three classes next to each other and whitespace at both
+// ends of a word, because the interesting positions are exactly the ones where
+// two classes meet: `baz(qux)` is four boundaries in eight characters, and an
+// editor that treats punctuation as part of the word walks straight past them.
+
+const u8[] words = "  foo_bar  baz(qux)\n"
+                   "next\n"
+
+sub showNext( u16 ln, u16 col ) {
+  wordNext( ln, col )
+  putNumber( wordLine() )
+  putChar( ':' )
+  putNumber( wordCol() )
+  newline()
+}
+
+sub showPrev( u16 ln, u16 col ) {
+  wordPrev( ln, col )
+  putNumber( wordLine() )
+  putChar( ':' )
+  putNumber( wordCol() )
+  newline()
+}
+
+textInit()
+
+for ( u16 i = 0; i < len( words ); i++ ) {
+  textLoad( words[i] )
+}
+
+// Forwards through the line: out of the leading spaces, over a word with an
+// underscore in it, over the spaces, over `baz`, over `(`, over `qux`, over `)`,
+// and then off the end onto the next line.
+showNext( 0, 0 )
+showNext( 0, 2 )
+showNext( 0, 11 )
+showNext( 0, 14 )
+showNext( 0, 15 )
+showNext( 0, 18 )
+showNext( 0, 19 )
+showNext( 1, 4 )
+
+// The last line has nothing after it, so it stays put rather than wrapping to a
+// line that is not there.
+showNext( 2, 0 )
+
+// The same walk backwards, which has to land on the same boundaries or a run of
+// Ctrl+Left and a run of Ctrl+Right disagree about where the words are.
+showPrev( 0, 19 )
+showPrev( 0, 18 )
+showPrev( 0, 15 )
+showPrev( 0, 14 )
+showPrev( 0, 11 )
+showPrev( 0, 2 )
+showPrev( 0, 0 )
+showPrev( 1, 0 )
+
+// ---- a word longer than the window ----
+//
+// The reader holds a hundred and twenty-eight bytes of one line and re-slices
+// when the walk leaves it, so a run longer than that crosses the boundary in
+// both directions. Two hundred characters is two crossings forwards and two
+// back, and a walk that dropped one would stop at the seam.
+
+textInit()
+
+for ( u16 i = 0; i < 200; i++ ) {
+  textLoad( 'x' )
+}
+textLoad( ' ' )
+for ( u16 i = 0; i < 50; i++ ) {
+  textLoad( 'y' )
+}
+
+showNext( 0, 0 )
+showPrev( 0, 251 )
+showPrev( 0, 201 )

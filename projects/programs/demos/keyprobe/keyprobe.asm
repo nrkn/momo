@@ -43,7 +43,7 @@ __entry:
 ; ---- total = countStrings( addr( prompts ), len( prompts ) )
         mov     ax, prompts                 ; link-time constant
         mov     [countStrings__at], ax
-        mov     word [countStrings__bytes], 291
+        mov     word [countStrings__bytes], 335
         call    countStrings
         mov     ax, [countStrings__ret]
         mov     [total], ax
@@ -772,7 +772,7 @@ countStrings__i: dw      0        ; u16
 countStrings__n: dw      0        ; u16
 
 ; ---- arrays ----
-prompts:        db      'Left$Shift+Left$Ctrl+Left$Ctrl+Shift+Left$Up$Shift+Up$Home$Shift+Home$Ctrl+Home$End$Shift+End$Tab$Shift+Tab$Backspace$Ctrl+Backspace$Delete$Shift+Delete$Ctrl+S$Ctrl+Z$Ctrl+Y$Ctrl+K$Ctrl+/$Ctrl+Enter$F1$Alt+F$Enter$PgUp$PgDn$Insert$Ctrl+PgUp$Keypad Left, NumLock OFF$Keypad Home, NumLock OFF$'        ; u8[291] const
+prompts:        db      'Left$Shift+Left$Ctrl+Left$Ctrl+Shift+Left$Right$Ctrl+Right$Ctrl+Shift+Right$Up$Shift+Up$Home$Shift+Home$Ctrl+Home$End$Shift+End$Tab$Shift+Tab$Backspace$Ctrl+Backspace$Delete$Shift+Delete$Ctrl+S$Ctrl+Z$Ctrl+Y$Ctrl+K$Ctrl+/$Ctrl+Enter$F1$Alt+F$Enter$PgUp$PgDn$Insert$Ctrl+PgUp$Ctrl+PgDn$Keypad Left, NumLock OFF$Keypad Home, NumLock OFF$'        ; u8[335] const
 hexDigit:       db      '0123456789ABCDEF'        ; u8[16] const
 outName:        db      'KEYS.TXT', 0        ; u8[9] const
 sIntro1:        db      'keyprobe - press each combination as it is asked for.$'        ; u8[54] const
