@@ -6306,3 +6306,89 @@ questions.
   decision, and it is listed here because it is a *language* question that
   happens to have been noticed while thinking about self-hosting. Three ways out
   are set out there; none is chosen.
+
+---
+
+## 62. `modir` - a directory as a list
+
+**Built.** `shared/lib/modir.momo`, with `dirlist` as the worked example.
+
+§38's `dir.momo` walks a directory once and hands back one entry at a time, which
+is the shape DOS has and **not the shape a panel wants**: a panel needs a count
+before it draws anything, a cursor that can move up, and an order DOS does not
+supply. FAT returns entries in creation order, so a list that passed DOS's answer
+through looks arbitrary to everybody except the person who made the files.
+
+It is a library for §55's reason rather than for reuse: **everything a headless
+tier can run lives below the editor.** Nothing here draws, and everything here is
+where the mistakes are - the sort, the cap, the window and the thumb.
+
+### The names do not move; the indices do
+
+Sorting thirteen-byte records means shifting thirteen bytes a step. `order` is a
+`u16` array and sorting that shifts two, with the same comparisons either way.
+Every public routine takes a position in the sorted order and nothing above this
+ever sees a slot.
+
+**Inserted as they arrive rather than sorted afterwards.** The enumeration is
+disk-bound - DOS reads a directory sector per handful of entries - so a binary
+search and a shift of at most 512 bytes disappear into it, where a second pass
+would be a second pass over data already in hand.
+
+Directories sort to the front, then names by byte. No case fold: DOS hands names
+back uppercased, so folding would be a branch nothing could exercise.
+
+### A directory larger than the cap is refused, not truncated
+
+`listOverflowed` is §55's *a refusal says which limit* again. A list that quietly
+stopped at 256 would hide exactly the file somebody was looking for, and would
+look identical to a complete one.
+
+### `.` and `..` are skipped
+
+This shows what is in one directory rather than being something to navigate with,
+so an entry whose only purpose is to go elsewhere would be a control that does
+nothing. Subdirectories themselves are the caller's choice through `attr`, and
+sort to the front when asked for.
+
+### The thumb is proportional, and the arithmetic is where it goes wrong
+
+The thumb is as much of the track as the window is of the list, so its size says
+how much of the directory is on screen rather than only where in it you are.
+
+Two things are wrong in the obvious spelling, and both are silent:
+
+- **`( track - size ) * top` overflows a `u16`.** Twenty-four by twelve thousand
+  is 288,000 for a list nothing would blink at. Divided first with the remainder
+  carried, which is `loadrate`'s `perSecond` fix arriving in a second place.
+- **The span is `track - size`, not `track`**, or the thumb never reaches the
+  bottom when the list does. That is the tell of every hand-rolled scrollbar.
+
+A thumb is never zero rows. `track * track / count` rounds to nothing for a long
+list, which empties the bar exactly when it carries the most information.
+
+### The test makes what it reads, and the first version read the harness
+
+`dirlist` creates four files in an order that is not their order, so a missing
+sort is visible rather than merely possible - a fixture already in order would let
+one pass.
+
+It used `.TXT` and matched the harness's own `OUT.TXT`, `STDOUT.TXT` and
+`STDERR.TXT`, which is the exact failure its own header warns about, walked into
+while writing it. **A pattern a test creates files for has to be one nothing else
+can satisfy**, and `.QQQ` is that.
+
+The window and the thumb are driven from the same four files by shrinking the
+window rather than by making thousands, because what is under test there is
+arithmetic and the interesting sizes are ratios.
+
+### Rules
+
+- **Names are ASCIZ**, the form `fileOpen` takes, so a caller opening what is
+  selected needs no copy. A caller printing one copies out and terminates - which
+  the test got wrong first, and its fixture would have hidden.
+- **A slot is not a position.** Everything public is in sorted order.
+- **The list is rebuilt from nothing on every load.** A directory is not ours and
+  anything may have written to it.
+- **Capacity is in the heap** (§17), continuing §54's chain: a program that
+  includes this puts its own claims at `dirHeap`.

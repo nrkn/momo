@@ -1,0 +1,185 @@
+// dirlist.momo - modir (PLAN §62).
+//
+// `dirtest`'s rule and `filetest`'s before it: **the test makes what it reads.**
+//
+// The extension is `.QQQ` because the first version used `.TXT` and matched the
+// harness's own `OUT.TXT`, `STDOUT.TXT` and `STDERR.TXT` - which is the exact
+// failure the paragraph below warns about, walked into while writing it. A
+// pattern a test creates files for has to be one nothing else can satisfy.
+// It creates files whose names are deliberately in the wrong order on disk, so
+// that a list which merely passed DOS's answer through would come out visibly
+// unsorted - a fixture sorted already would let a missing sort pass.
+//
+// The window and the thumb need no directory at all and are driven from a made-up
+// count, because what is being checked there is arithmetic. The thumb in
+// particular is one expression with a `u16` overflow in it if written the obvious
+// way, and a directory small enough to test with is far too small to reach it.
+
+include "lib/std/io.momo"
+include "lib/std/file.momo"
+include "lib/modir.momo"
+
+// Created in an order that is not their order, and chosen so that sorting by
+// bytes is visible: ZED before ALPHA on disk, alphabetical afterwards.
+const u8[] fileZ = "ZED.QQQ\0"
+const u8[] fileM = "MID.QQQ\0"
+const u8[] fileA = "ALPHA.QQQ\0"
+const u8[] fileB = "BETA.QQQ\0"
+
+const u8[] pattern = "*.QQQ\0"
+const u8[] payload = "x"
+
+const u8[] sLoaded = "loaded: $"
+const u8[] sOrder  = "order:$"
+const u8[] sNamed  = "named: $"
+const u8[] sWindow = "window:$"
+const u8[] sThumb  = "thumb:$"
+
+u16 handle
+
+sub make( u16 at ) {
+  handle = fileCreate( at )
+  fileWrite( handle, addr( payload ), 1 )
+  fileClose( handle )
+}
+
+sub remove( u16 at ) {
+  _ah = 0x41
+  _dx = at
+  int 0x21
+}
+
+// ---- four files, made in the wrong order ----
+
+make( addr( fileZ ) )
+make( addr( fileM ) )
+make( addr( fileA ) )
+make( addr( fileB ) )
+
+listLoad( addr( pattern ), dirNormal )
+
+putStr( addr( sLoaded ) )
+putNumber( listCount() )
+putChar( ' ' )
+putNumber( u16( listOverflowed() ) )
+newline()
+
+putStr( addr( sOrder ) )
+newline()
+
+// **ASCIZ, so it is copied out and terminated here.** `putStr` looks for a `$`
+// and would run off the end of a name into the next entry - which in this
+// fixture happens to be zeroes, so the wrong version would print correctly and
+// prove nothing.
+u8[listNameMax + 1] shown
+
+sub showName( u16 i ) {
+  u16 at
+  u16 n
+
+  at = listName( i )
+  n = 0
+  while ( peek8( at + n ) != 0 ) {
+    shown[n] = peek8( at + n )
+    n++
+  }
+
+  shown[n] = '$'
+  putStr( addr( shown ) )
+  putChar( ' ' )
+  putNumber( u16( listIsDir( i ) ) )
+  newline()
+}
+
+for ( u16 i = 0; i < listCount(); i++ ) {
+  showName( i )
+}
+
+// ---- which entry is a given name, without holding an index ----
+
+putStr( addr( sNamed ) )
+putNumber( u16( listIsNamed( 0, addr( fileA ) ) ) )
+putChar( ' ' )
+putNumber( u16( listIsNamed( 1, addr( fileA ) ) ) )
+newline()
+
+// ---- the window, which is §56's shape at a smaller size ----
+
+listSize( 2 )
+listHome()
+
+putStr( addr( sWindow ) )
+newline()
+
+sub showWindow {
+  putNumber( listTop() )
+  putChar( ' ' )
+  putNumber( listCursor() )
+  newline()
+}
+
+showWindow()                    // 0 0
+
+listDown()
+showWindow()                    // 0 1
+
+// The third entry is past a window of two, so the top follows by the least that
+// brings the cursor back.
+listDown()
+showWindow()                    // 1 2
+
+listEnd()
+showWindow()                    // 2 3
+
+// Clamped at both ends rather than wrapping, because a list is not a ring.
+listDown()
+showWindow()                    // 2 3
+
+listHome()
+showWindow()                    // 0 0
+
+listUp()
+showWindow()                    // 0 0
+
+// ---- the thumb, which needs numbers no directory here could reach ----
+//
+// Driven from the window alone: `listSize` and a count. The count comes from the
+// files above, so the interesting sizes are made by shrinking the window rather
+// than by making thousands of files.
+
+putStr( addr( sThumb ) )
+newline()
+
+sub showThumb {
+  putNumber( listThumbSize() )
+  putChar( ' ' )
+  putNumber( listThumbAt() )
+  newline()
+}
+
+// A window that holds everything: the thumb fills the track and sits at the top,
+// which is what says there is nothing to scroll.
+listSize( 4 )
+listHome()
+showThumb()                     // 4 0
+
+// Two of four visible, so half a track. At the top, then at the bottom - and
+// **the bottom is what the arithmetic is for**: a thumb that stops short of it
+// is the tell of the naive formula.
+listSize( 2 )
+listHome()
+showThumb()                     // 1 0
+
+listEnd()
+showThumb()                     // 1 1
+
+// One row of track, and a list longer than it: the thumb cannot be zero rows or
+// the bar is empty exactly when it is carrying the most information.
+listSize( 1 )
+listHome()
+showThumb()                     // 1 0
+
+remove( addr( fileZ ) )
+remove( addr( fileM ) )
+remove( addr( fileA ) )
+remove( addr( fileB ) )

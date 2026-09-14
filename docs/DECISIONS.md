@@ -3067,3 +3067,55 @@ With `"alpha\nbeta"` in the test, the same neuter turns `2 5 1 4 1` into
 `2 5 1 0 1` and loses `beta` completely. Third time this session that a check
 came back clean and the fixture was the reason - and the third time it was found
 by asking why rather than by moving on.
+
+---
+
+## 62. `modir`
+
+### The shape DOS has is not the shape a panel wants
+
+`dirFirst`/`dirNext` is a walk, and a panel needs a count before it draws its
+first row, a cursor that goes up as well as down, and an order. Three things a
+one-at-a-time interface cannot give, and none of them about drawing - which is
+the whole argument for this being a library with a headless test rather than two
+hundred lines inside `momoed`.
+
+### The sort is free because the disk is slow
+
+Inserting each entry into sorted position as it arrives is O(n²) moves in the
+worst case, which would be the wrong choice if anything else were happening. What
+is happening is DOS reading directory sectors, and a binary search plus a shift of
+at most 512 bytes of `u16` indices disappears into that.
+
+**Sorting indices rather than records** is the part worth keeping: thirteen bytes
+a step becomes two, with the comparisons unchanged. The same shape §58 used for
+the line table - move the small thing.
+
+### Two silent bugs in one expression
+
+The thumb position is one line and both ways of getting it wrong are invisible in
+a test small enough to write by hand.
+
+`( track - size ) * top` wraps a `u16` at 288,000, which a twenty-four row track
+and a twelve thousand line list reach without anything unusual happening. The fix
+is `loadrate`'s: divide first, carry the remainder. **Second time that exact
+shape has come up**, which is enough to call it a pattern rather than an incident.
+
+Using `track` instead of `track - size` for the span leaves the thumb short of the
+bottom when the list is at its end. Nobody reports it and everybody notices it.
+
+So the thumb cases in `dirlist` are driven by shrinking the window rather than by
+making a directory big enough - the ratios are what matter and four files reach
+all of them.
+
+### The test walked into the failure its own header describes
+
+`dirlist` opens by saying that enumerating whatever the harness left in the
+working directory would be a test of the harness. It then used `*.TXT` and picked
+up `OUT.TXT`, `STDOUT.TXT` and `STDERR.TXT` - seven entries where four were
+predicted.
+
+Worth recording because the prediction is what caught it. A count written down
+first turns "the harness has files too" from something to remember into something
+the run says out loud, and this is the third time this week that predicting the
+number first has been the thing that worked.

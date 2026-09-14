@@ -1,0 +1,278 @@
+// modir.momo - a directory as a sorted list with a window over it (PLAN §62).
+//
+// §38's `dir.momo` walks a directory once and hands back one entry at a time,
+// which is the shape DOS has and not the shape a panel wants: a panel needs a
+// count before it draws anything, a cursor that can move up, and an order DOS
+// does not supply. FAT returns entries in the order they were created, so an
+// unsorted list looks arbitrary to everybody except the person who made the
+// files in that order.
+//
+// It is a library rather than part of `momoed` for §55's reason and not for
+// reuse: **everything a headless tier can run lives below the editor.** Nothing
+// here draws, and what is here is where the mistakes are - the sort, the cap,
+// the window, and one piece of arithmetic that overflows a `u16` if it is
+// written the obvious way.
+//
+// `momode` wants a file list and `momowad` wants an asset browser, so a second
+// consumer is plausible. That is not why this exists and the seam is not built
+// for it; §37's mechanism means a caller that turns up later costs nothing.
+
+include "lib/std/dir.momo"
+include "lib/std/str.momo"
+include "lib/motext.momo"
+
+// A DOS name is 8.3, so twelve characters and a terminator. **The cap on entries
+// is the interesting number**: every one costs thirteen bytes, and a directory
+// with more files than this has to be refused rather than truncated - a list that
+// silently stopped at 192 would hide exactly the file somebody was looking for.
+const listNameMax = 13
+const listMax     = 256
+
+// §17 static partitioning, continuing §54's chain: capacity lives in the heap so
+// that it is not kilobytes of zeroes in the image. A program that includes this
+// puts its own claims at `dirHeap`.
+local const listAt    = textHeap
+local const listBytes = listMax * listNameMax + listMax
+
+const dirHeap = listAt + listBytes
+
+local view u8[listMax * listNameMax] listNames = _heap[listAt]
+local view u8[listMax]               listDir   = _heap[listAt + listMax * listNameMax]
+
+// Entries in the order DOS gave them, and `order` is what puts them in the order
+// a person wants. **The names do not move.** Sorting thirteen-byte records means
+// shifting thirteen bytes per step; sorting indices means shifting two, and the
+// comparison is the same either way.
+local u16[listMax] order
+
+local u16  listCount_
+local bool listFull_
+
+u16 listCount() => listCount_
+
+// **True when the directory had more files than the cap**, which is a refusal and
+// not a result. §55's rule: a refusal says which limit, because a caller that
+// cannot tell a full list from a complete one will report the wrong thing.
+bool listOverflowed() => listFull_
+
+// The address of entry `i`'s name, ASCIZ - the form `fileOpen` takes, so a caller
+// that wants to open what is selected needs no copy.
+u16 listName( u16 i ) => addr( listNames ) + order[i] * listNameMax
+
+bool listIsDir( u16 i ) => listDir[ order[i] ] != 0
+
+// ---- the order ----
+
+// Directories first, then by name. A byte comparison is enough for the second
+// half because DOS hands names back uppercased, so there is no case to fold -
+// and doing it anyway would be a fold that nothing could ever exercise.
+local bool before( u16 slot, u16 other ) {
+  u16 a
+  u16 b
+  u8  ca
+  u8  cb
+
+  if ( listDir[slot] != listDir[other] ) return listDir[slot] != 0
+
+  a = addr( listNames ) + slot * listNameMax
+  b = addr( listNames ) + other * listNameMax
+
+  for ( u16 i = 0; i < listNameMax; i++ ) {
+    ca = peek8( a + i )
+    cb = peek8( b + i )
+
+    if ( ca != cb ) return ca < cb
+    if ( ca == 0 ) return false
+  }
+
+  return false
+}
+
+// Binary search for where a new entry belongs, then shift the indices above it.
+//
+// **Inserting as they arrive rather than sorting afterwards**, because the
+// enumeration is disk-bound: DOS is reading a directory sector per handful of
+// entries, and a `log n` comparison plus a shift of at most 512 bytes disappears
+// into that. A second pass would be a second pass over data already in hand.
+local sub insertSorted( u16 slot ) {
+  u16 lo
+  u16 hi
+  u16 mid
+
+  lo = 0
+  hi = listCount_
+
+  while ( lo < hi ) {
+    mid = ( lo + hi ) / 2
+
+    if ( before( slot, order[mid] ) ) {
+      hi = mid
+    } else {
+      lo = mid + 1
+    }
+  }
+
+  for ( u16 i = listCount_; i > lo; i-- ) {
+    order[i] = order[i - 1]
+  }
+
+  order[lo] = slot
+  listCount_++
+}
+
+// `.` and `..` are skipped. This is a panel showing what is in one directory
+// rather than something to navigate with, so an entry whose only purpose is to
+// go somewhere else would be a control that does nothing.
+local bool isDotted( u16 at ) => peek8( at ) == '.'
+
+// Enumerate `pattern` and build the list. `attr` is §38's - `dirNormal` for files
+// alone, `dirDirectory` to include subdirectories, which sort to the front.
+//
+// The list is rebuilt from nothing every time, because a directory is not ours
+// and anything may have written to it since.
+sub listLoad( u16 pattern, u8 attr ) {
+  u16 slot
+  u16 to
+  u16 n
+
+  listCount_ = 0
+  listFull_  = false
+
+  if ( !dirFirst( pattern, attr ) ) return
+
+  while ( true ) {
+    if ( !isDotted( dirName() ) ) {
+      if ( listCount_ >= listMax ) {
+        listFull_ = true
+        return
+      }
+
+      // The slot is the arrival position; `order` is what makes it the right
+      // one. Nothing above this ever sees a slot.
+      slot = listCount_
+      to = addr( listNames ) + slot * listNameMax
+
+      n = dirNameLen()
+      if ( n > listNameMax - 1 ) n = listNameMax - 1
+
+      memCopy( to, dirName(), n )
+      poke8( to + n, 0 )
+
+      listDir[slot] = dirIsDir() ? 1 : 0
+
+      insertSorted( slot )
+    }
+
+    if ( !dirNext() ) return
+  }
+}
+
+// True when `i` names the file at `at`, so a caller can mark the one it has open
+// without holding an index that a reload would invalidate.
+bool listIsNamed( u16 i, u16 at ) {
+  u16 a
+  u8  ca
+  u8  cb
+
+  a = listName( i )
+
+  for ( u16 k = 0; k < listNameMax; k++ ) {
+    ca = peek8( a + k )
+    cb = peek8( at + k )
+
+    if ( ca != cb ) return false
+    if ( ca == 0 ) return true
+  }
+
+  return true
+}
+
+// ---- the window ----
+//
+// §56's shape at a smaller size: a top, a cursor, and a height, with the scroll
+// following the cursor rather than being driven directly. One axis, because a
+// name is short enough that there has never been a second one.
+
+local u16 listTop_
+local u16 listCur_
+local u16 listRows
+
+u16 listTop()    => listTop_
+u16 listCursor() => listCur_
+
+sub listSize( u16 h ) {
+  listRows = h
+}
+
+local sub listFollow {
+  if ( listCur_ < listTop_ ) listTop_ = listCur_
+  if ( listRows > 0 && listCur_ >= listTop_ + listRows ) listTop_ = listCur_ - listRows + 1
+}
+
+sub listGoto( u16 i ) {
+  listCur_ = i
+  if ( listCount_ > 0 && listCur_ >= listCount_ ) listCur_ = listCount_ - 1
+  if ( listCount_ == 0 ) listCur_ = 0
+
+  listFollow()
+}
+
+sub listHome => listGoto( 0 )
+sub listEnd  => listGoto( listCount_ > 0 ? listCount_ - 1 : 0 )
+
+sub listUp {
+  if ( listCur_ > 0 ) listGoto( listCur_ - 1 )
+}
+
+sub listDown => listGoto( listCur_ + 1 )
+
+sub listPageUp {
+  if ( listCur_ > listRows ) {
+    listGoto( listCur_ - listRows )
+  } else {
+    listGoto( 0 )
+  }
+}
+
+sub listPageDown => listGoto( listCur_ + listRows )
+
+// ---- the thumb ----
+//
+// Modern proportions rather than a fixed block: the thumb is as much of the track
+// as the window is of the list, so its size says how much of the directory is on
+// screen and not merely where in it you are.
+
+// At least one row, or a long directory produces a thumb of no rows and the bar
+// has nothing in it at the one time it matters most.
+u16 listThumbSize() {
+  u16 size
+
+  if ( listCount_ <= listRows || listCount_ == 0 ) return listRows
+
+  size = listRows * listRows / listCount_
+  return size < 1 ? 1 : size
+}
+
+// **The multiply has to come second.** `( track - size ) * top` is 24 by twelve
+// thousand for a directory nothing would blink at, which wraps a `u16` and puts
+// the thumb somewhere arbitrary. Divided first with the remainder carried, which
+// is `loadrate`'s `perSecond` fix in a second place - the first time cost an
+// afternoon and a wrong number in a document.
+//
+// `span` is `( track - size )` rather than the track, or the thumb never reaches
+// the bottom when the list does. That is the tell of a hand-rolled scrollbar.
+u16 listThumbAt() {
+  u16 size
+  u16 span
+  u16 room
+
+  if ( listCount_ <= listRows ) return 0
+
+  size = listThumbSize()
+  span = listRows - size
+  room = listCount_ - listRows
+
+  if ( span == 0 || room == 0 ) return 0
+
+  return listTop_ / room * span + ( listTop_ % room ) * span / room
+}
