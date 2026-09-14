@@ -1,32 +1,46 @@
-// dirlist.momo - modir (PLAN §62).
+// dirlist.momo - modir (DESIGN §62).
 //
 // `dirtest`'s rule and `filetest`'s before it: **the test makes what it reads.**
 //
 // The extension is `.QQQ` because the first version used `.TXT` and matched the
-// harness's own `OUT.TXT`, `STDOUT.TXT` and `STDERR.TXT` - which is the exact
-// failure the paragraph below warns about, walked into while writing it. A
-// pattern a test creates files for has to be one nothing else can satisfy.
-// It creates files whose names are deliberately in the wrong order on disk, so
-// that a list which merely passed DOS's answer through would come out visibly
-// unsorted - a fixture sorted already would let a missing sort pass.
+// harness's own `OUT.TXT`, `STDOUT.TXT` and `STDERR.TXT` - seven entries where
+// four were predicted, which is the failure this paragraph exists to warn about,
+// walked into while writing it. A pattern a test creates files for has to be one
+// nothing else can satisfy.
 //
-// The window and the thumb need no directory at all and are driven from a made-up
-// count, because what is being checked there is arithmetic. The thumb in
-// particular is one expression with a `u16` overflow in it if written the obvious
-// way, and a directory small enough to test with is far too small to reach it.
+// **Creating the files out of order does not put them out of order.** Tier 2 runs
+// under DOSBox over a *mounted host directory*, so what comes back is the host
+// filesystem's order, and that is already alphabetical. Neutering the name
+// comparison changed nothing and the fixture was the reason - so the sort is
+// checked through the one ordering no filesystem can supply: `ZSUB` is a
+// subdirectory named to sort last, and directories come first.
+//
+// The window and the thumb need no directory at all. What is under test there is
+// arithmetic, and the interesting sizes are ratios - so they are made by
+// shrinking the window rather than by creating thousands of files.
 
 include "lib/std/io.momo"
 include "lib/std/file.momo"
 include "lib/modir.momo"
 
-// Created in an order that is not their order, and chosen so that sorting by
-// bytes is visible: ZED before ALPHA on disk, alphabetical afterwards.
 const u8[] fileZ = "ZED.QQQ\0"
 const u8[] fileM = "MID.QQQ\0"
 const u8[] fileA = "ALPHA.QQQ\0"
 const u8[] fileB = "BETA.QQQ\0"
 
+const u8[] subDir = "ZSUB\0"
+
 const u8[] pattern = "*.QQQ\0"
+
+// Matches `ZED.QQQ` and `ZSUB` and nothing the harness leaves behind. Two
+// entries, and the right order is the reverse of the alphabetical one.
+//
+// **`Z*.*` rather than `Z*`**, and the difference is not cosmetic: a DOS pattern
+// with no dot in it carries an empty extension, so `Z*` matches `ZSUB` and not
+// `ZED.QQQ`. Measured rather than remembered - the first version found one entry
+// where two were predicted.
+const u8[] zPattern = "Z*.*\0"
+
 const u8[] payload = "x"
 
 const u8[] sLoaded = "loaded: $"
@@ -34,6 +48,7 @@ const u8[] sOrder  = "order:$"
 const u8[] sNamed  = "named: $"
 const u8[] sWindow = "window:$"
 const u8[] sThumb  = "thumb:$"
+const u8[] sSorted = "sorted:$"
 
 u16 handle
 
@@ -49,23 +64,20 @@ sub remove( u16 at ) {
   int 0x21
 }
 
-// ---- four files, made in the wrong order ----
+// AH=39h and AH=3Ah. §38 leaves directories out of the library and this is a
+// fixture rather than a capability - `dirtest` reaches past the library for
+// delete in the same way and for the same reason.
+sub makeDir( u16 at ) {
+  _ah = 0x39
+  _dx = at
+  int 0x21
+}
 
-make( addr( fileZ ) )
-make( addr( fileM ) )
-make( addr( fileA ) )
-make( addr( fileB ) )
-
-listLoad( addr( pattern ), dirNormal )
-
-putStr( addr( sLoaded ) )
-putNumber( listCount() )
-putChar( ' ' )
-putNumber( u16( listOverflowed() ) )
-newline()
-
-putStr( addr( sOrder ) )
-newline()
+sub removeDir( u16 at ) {
+  _ah = 0x3A
+  _dx = at
+  int 0x21
+}
 
 // **ASCIZ, so it is copied out and terminated here.** `putStr` looks for a `$`
 // and would run off the end of a name into the next entry - which in this
@@ -91,6 +103,25 @@ sub showName( u16 i ) {
   newline()
 }
 
+// ---- four files and a directory ----
+
+make( addr( fileZ ) )
+make( addr( fileM ) )
+make( addr( fileA ) )
+make( addr( fileB ) )
+makeDir( addr( subDir ) )
+
+listLoad( addr( pattern ), dirNormal )
+
+putStr( addr( sLoaded ) )
+putNumber( listCount() )
+putChar( ' ' )
+putNumber( u16( listOverflowed() ) )
+newline()
+
+putStr( addr( sOrder ) )
+newline()
+
 for ( u16 i = 0; i < listCount(); i++ ) {
   showName( i )
 }
@@ -105,18 +136,18 @@ newline()
 
 // ---- the window, which is §56's shape at a smaller size ----
 
-listSize( 2 )
-listHome()
-
-putStr( addr( sWindow ) )
-newline()
-
 sub showWindow {
   putNumber( listTop() )
   putChar( ' ' )
   putNumber( listCursor() )
   newline()
 }
+
+listSize( 2 )
+listHome()
+
+putStr( addr( sWindow ) )
+newline()
 
 showWindow()                    // 0 0
 
@@ -141,14 +172,7 @@ showWindow()                    // 0 0
 listUp()
 showWindow()                    // 0 0
 
-// ---- the thumb, which needs numbers no directory here could reach ----
-//
-// Driven from the window alone: `listSize` and a count. The count comes from the
-// files above, so the interesting sizes are made by shrinking the window rather
-// than by making thousands of files.
-
-putStr( addr( sThumb ) )
-newline()
+// ---- the thumb ----
 
 sub showThumb {
   putNumber( listThumbSize() )
@@ -156,6 +180,9 @@ sub showThumb {
   putNumber( listThumbAt() )
   newline()
 }
+
+putStr( addr( sThumb ) )
+newline()
 
 // A window that holds everything: the thumb fills the track and sits at the top,
 // which is what says there is nothing to scroll.
@@ -173,13 +200,44 @@ showThumb()                     // 1 0
 listEnd()
 showThumb()                     // 1 1
 
+// Three of four, which is the only size here with a position strictly between
+// the ends - so it is the one that says the division and its carry agree.
+listSize( 3 )
+listHome()
+showThumb()                     // 2 0
+
+listEnd()
+showThumb()                     // 2 1
+
 // One row of track, and a list longer than it: the thumb cannot be zero rows or
 // the bar is empty exactly when it is carrying the most information.
 listSize( 1 )
 listHome()
 showThumb()                     // 1 0
 
+// ---- the sort, through the one order a filesystem cannot produce ----
+//
+// `ZSUB` is a directory and sorts last by name, so directories-first is the only
+// thing that can put it at the top. The cursor is printed with the count because
+// a load resets the window - without that, this shorter list would inherit a
+// cursor from the longer one above and point past its own end.
+
+listLoad( addr( zPattern ), dirDirectory )
+
+putStr( addr( sSorted ) )
+newline()
+
+putNumber( listCount() )
+putChar( ' ' )
+putNumber( listCursor() )
+newline()
+
+for ( u16 i = 0; i < listCount(); i++ ) {
+  showName( i )
+}
+
 remove( addr( fileZ ) )
 remove( addr( fileM ) )
 remove( addr( fileA ) )
 remove( addr( fileB ) )
+removeDir( addr( subDir ) )

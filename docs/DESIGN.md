@@ -6369,9 +6369,15 @@ list, which empties the bar exactly when it carries the most information.
 
 ### The test makes what it reads, and the first version read the harness
 
-`dirlist` creates four files in an order that is not their order, so a missing
-sort is visible rather than merely possible - a fixture already in order would let
-one pass.
+`dirlist` creates four files in an order that is not their order - **and that is
+not enough, because creating them out of order does not put them out of
+order.** Tier 2 runs under DOSBox over a mounted host directory, so entries come
+back in the host filesystem's order, which is already alphabetical. Neutering
+the name comparison changed nothing.
+
+So the sort is checked through the one ordering a filesystem cannot supply:
+`ZSUB` is a subdirectory named to sort last, and directories come first. That
+is a claim only this library can satisfy.
 
 It used `.TXT` and matched the harness's own `OUT.TXT`, `STDOUT.TXT` and
 `STDERR.TXT`, which is the exact failure its own header warns about, walked into

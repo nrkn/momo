@@ -3119,3 +3119,47 @@ Worth recording because the prediction is what caught it. A count written down
 first turns "the harness has files too" from something to remember into something
 the run says out loud, and this is the third time this week that predicting the
 number first has been the thing that worked.
+
+### The teeth check came back clean, and the mount was the reason
+
+The fixture creates four files in an order that is not their order, which reads
+like it tests a sort and does not. **Tier 2 runs under DOSBox over a mounted
+host directory**, so what `FindFirst` walks is not a FAT directory in creation
+order - it is the host filesystem's enumeration, and that is already
+alphabetical. Every entry arrived in the position it belonged in, and neutering
+the byte comparison changed not one line of output.
+
+Fourth time in this stretch of work that a clean check was the fixture rather
+than the code, and the first where the *environment* was what made it clean.
+The earlier three were fixtures that happened not to reach the case; this one
+could not reach it, because the thing being tested was being done for us.
+
+**A sort is only under test where the right answer is one the source of the
+data cannot already have given.** Here that is directories-first: `ZSUB` sorts
+last by name and has to come out first, which no filesystem would produce. The
+neuter now moves it, which is the check working.
+
+The span check is worth a line too. `track` instead of `track - size` was
+described above as leaving the thumb short of the bottom; the run says it does
+something worse, putting the thumb at row 2 of a two-row track and row 3 of a
+three-row one. It does not stop short, **it leaves the track entirely** - which
+in a panel means drawing outside it.
+
+### One thing the rewrite found that no neuter would have
+
+`listLoad` did not reset the window. Loading a shorter directory left the cursor
+wherever the longer one had put it, pointing past the end of a list that had
+just been rebuilt - and nothing in the first version of the test loaded twice,
+so nothing could have caught it. It surfaced from writing a second load into the
+test for an unrelated reason.
+
+Which is the argument for the second load being in the test permanently: the
+cursor is printed beside the count there, and the only thing that makes it zero
+is the reset.
+
+### `Z*` and `Z*.*` are different patterns
+
+One entry where two were predicted, and the reason is DOS: **a pattern with no
+dot in it carries an empty extension**, so `Z*` matches `ZSUB` and not
+`ZED.QQQ`. Not a library question at all, and exactly the kind of thing that
+would have been a puzzling explorer bug rather than a failed prediction.
