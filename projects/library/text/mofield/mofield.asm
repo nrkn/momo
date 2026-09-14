@@ -11,11 +11,14 @@ keyRight:       equ     77
 keyHome:        equ     71
 keyEnd:         equ     79
 keyDelete:      equ     83
+keyCtrlBack:    equ     127
 keyExt:         equ     256
+keyShift:       equ     512
 fieldMax:       equ     64
 fieldGoing:     equ     0
 fieldAccept:    equ     1
 fieldCancel:    equ     2
+clipMax:        equ     64
 
 ; =========================================================== entry ====
 
@@ -169,6 +172,128 @@ __entry:
         call    putNumber
 ; ---- newline()
         call    newline
+; ---- putStr( addr( sSel ) )
+        mov     ax, sSel                    ; link-time constant
+        mov     [putStr__at], ax
+        call    putStr
+; ---- newline()
+        call    newline
+; ---- fieldClear()
+        call    fieldClear
+; ---- press( 'a' )
+        mov     word [press__k], 97
+        call    press
+; ---- press( 'b' )
+        mov     word [press__k], 98
+        call    press
+; ---- press( 'c' )
+        mov     word [press__k], 99
+        call    press
+; ---- press( 'd' )
+        mov     word [press__k], 100
+        call    press
+; ---- showSel()                               // 0 4 4
+        call    showSel
+; ---- press( keyShift + keyLeft )
+        mov     word [press__k], 587
+        call    press
+; ---- press( keyShift + keyLeft )
+        mov     word [press__k], 587
+        call    press
+; ---- showSel()                               // 1 2 4
+        call    showSel
+; ---- press( keyExt + keyLeft )
+        mov     word [press__k], 331
+        call    press
+; ---- showSel()                               // 0 1 1
+        call    showSel
+; ---- press( 1 )
+        mov     word [press__k], 1
+        call    press
+; ---- showSel()                               // 1 0 4
+        call    showSel
+; ---- press( 3 )
+        mov     word [press__k], 3
+        call    press
+; ---- putStr( addr( sClip ) )
+        mov     ax, sClip                   ; link-time constant
+        mov     [putStr__at], ax
+        call    putStr
+; ---- showClip()                              // abcd
+        call    showClip
+; ---- show()                                  // abcd 4
+        call    show
+; ---- press( 1 )
+        mov     word [press__k], 1
+        call    press
+; ---- press( 24 )
+        mov     word [press__k], 24
+        call    press
+; ---- show()                                  //  0
+        call    show
+; ---- showSel()                               // 0 0 0
+        call    showSel
+; ---- press( 22 )
+        mov     word [press__k], 22
+        call    press
+; ---- show()                                  // abcd 4
+        call    show
+; ---- press( 1 )
+        mov     word [press__k], 1
+        call    press
+; ---- press( 'X' )
+        mov     word [press__k], 88
+        call    press
+; ---- show()                                  // X 1
+        call    show
+; ---- fieldClear()
+        call    fieldClear
+; ---- setClip( addr( pAbc ), len( pAbc ) )
+        mov     ax, pAbc                    ; link-time constant
+        mov     [setClip__at], ax
+        mov     word [setClip__n], 3
+        call    setClip
+; ---- press( 22 )
+        mov     word [press__k], 22
+        call    press
+; ---- press( keyShift + keyLeft )
+        mov     word [press__k], 587
+        call    press
+; ---- press( keyShift + keyLeft )
+        mov     word [press__k], 587
+        call    press
+; ---- press( 8 )
+        mov     word [press__k], 8
+        call    press
+; ---- show()                                  // a 1
+        call    show
+; ---- fieldClear()
+        call    fieldClear
+; ---- setClip( addr( pTwoLines ), len( pTwoLines ) )
+        mov     ax, pTwoLines               ; link-time constant
+        mov     [setClip__at], ax
+        mov     word [setClip__n], 8
+        call    setClip
+; ---- press( 22 )
+        mov     word [press__k], 22
+        call    press
+; ---- show()                                  // one 3
+        call    show
+; ---- fieldClear()
+        call    fieldClear
+; ---- press( 233 )
+        mov     word [press__k], 233
+        call    press
+; ---- press( 127 )
+        mov     word [press__k], 127
+        call    press
+; ---- putNumber( fieldLength() )
+        call    fieldLength
+        mov     ax, [fieldLength__ret]
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- newline()                               // 1
+        call    newline
 
 ; ---- implicit exit ----
         mov     word [_ax], 0x4C00          ; DOS terminate, exit code 0
@@ -182,6 +307,18 @@ putChar:
 ; ---- _dl = c
         mov     al, [putChar__c]
         mov     [_dl], al                   ; u8 -> u8, no widening
+; ---- int 0x21
+        call    int21
+        ret
+
+; ============================================== sub putStr ====
+
+putStr:
+; ---- _ah = 0x09
+        mov     byte [_ah], 9
+; ---- _dx = at
+        mov     ax, [putStr__at]
+        mov     [_dx], ax
 ; ---- int 0x21
         call    int21
         ret
@@ -256,9 +393,39 @@ putNumber:
 .L14:
         ret
 
+; ============================================== sub memCopy ====
+
+memCopy:
+; ---- for ( u16 i = 0; i < count; i++ ) {
+        mov     word [memCopy__i], 0
+.L16:
+        mov     ax, [memCopy__i]
+        mov     bx, [memCopy__count]
+        cmp     ax, bx
+        jae     .L18                        ; unsigned <
+; ---- poke8( to + i, peek8( from + i ) )
+        mov     ax, [memCopy__to]
+        mov     bx, [memCopy__i]
+        add     ax, bx
+        push    ax                          ; save the address while the value is computed
+        mov     ax, [memCopy__from]
+        mov     bx, [memCopy__i]
+        add     ax, bx
+        mov     bx, ax
+        mov     al, [bx]                    ; peek8 - unchecked, by design
+        pop     bx
+        mov     [bx], al
+.L17:
+        inc     word [memCopy__i]
+        jmp     .L16
+.L18:
+        ret
+
 ; ============================================== sub fieldClear ====
 
 fieldClear:
+; ---- fieldMarked = false
+        mov     byte [mofield__fieldMarked], 0
 ; ---- fieldLen = 0
         mov     word [mofield__fieldLen], 0
 ; ---- fieldCur = 0
@@ -268,19 +435,21 @@ fieldClear:
 ; ============================================== sub fieldSet ====
 
 fieldSet:
+; ---- fieldMarked = false
+        mov     byte [mofield__fieldMarked], 0
 ; ---- if ( n > fieldMax ) n = fieldMax
         mov     ax, [fieldSet__n]
         cmp     ax, 64
-        jbe     .L16                        ; unsigned >
+        jbe     .L20                        ; unsigned >
         mov     word [fieldSet__n], 64
-.L16:
+.L20:
 ; ---- for ( u16 i = 0; i < n; i++ ) {
         mov     word [fieldSet__i], 0
-.L19:
+.L23:
         mov     ax, [fieldSet__i]
         mov     bx, [fieldSet__n]
         cmp     ax, bx
-        jae     .L21                        ; unsigned <
+        jae     .L25                        ; unsigned <
 ; ---- fieldBuf[i] = peek8( at + i )
         mov     ax, [fieldSet__at]
         mov     bx, [fieldSet__i]
@@ -289,10 +458,10 @@ fieldSet:
         mov     al, [bx]                    ; peek8 - unchecked, by design
         mov     bx, [fieldSet__i]
         mov     [mofield__fieldBuf + bx], al
-.L20:
+.L24:
         inc     word [fieldSet__i]
-        jmp     .L19
-.L21:
+        jmp     .L23
+.L25:
 ; ---- fieldLen = n
         mov     ax, [fieldSet__n]
         mov     [mofield__fieldLen], ax
@@ -325,24 +494,176 @@ fieldCursor:
         mov     [fieldCursor__ret], ax
         ret
 
+; ============================================== bool fieldSelected ====
+
+fieldSelected:
+; ---- bool fieldSelected() => fieldMarked && fieldMark != fieldCur
+        mov     al, [mofield__fieldMarked]
+        test    al, al
+        jz      .L27
+        mov     ax, [mofield__fieldMark]
+        mov     bx, [mofield__fieldCur]
+        cmp     ax, bx
+        je      .L27                        ; unsigned !=
+        mov     ax, 1
+        jmp     .L28
+.L27:
+        xor     ax, ax
+.L28:
+        mov     [fieldSelected__ret], al    ; narrowed to bool
+        ret
+
+; ============================================== u16 fieldFrom ====
+
+fieldFrom:
+; ---- u16 fieldFrom() => !fieldMarked ? fieldCur : ( fieldMark < fieldCur ? fieldMark : fieldCur )
+        mov     al, [mofield__fieldMarked]
+        test    al, al
+        jnz     .L31
+        mov     ax, [mofield__fieldCur]
+        jmp     .L32
+.L31:
+        mov     ax, [mofield__fieldMark]
+        mov     bx, [mofield__fieldCur]
+        cmp     ax, bx
+        jae     .L34                        ; unsigned <
+        mov     ax, [mofield__fieldMark]
+        jmp     .L35
+.L34:
+        mov     ax, [mofield__fieldCur]
+.L35:
+.L32:
+        mov     [fieldFrom__ret], ax
+        ret
+
+; ============================================== u16 fieldTo ====
+
+fieldTo:
+; ---- u16 fieldTo()   => !fieldMarked ? fieldCur : ( fieldMark < fieldCur ? fieldCur : fieldMark )
+        mov     al, [mofield__fieldMarked]
+        test    al, al
+        jnz     .L37
+        mov     ax, [mofield__fieldCur]
+        jmp     .L38
+.L37:
+        mov     ax, [mofield__fieldMark]
+        mov     bx, [mofield__fieldCur]
+        cmp     ax, bx
+        jae     .L40                        ; unsigned <
+        mov     ax, [mofield__fieldCur]
+        jmp     .L41
+.L40:
+        mov     ax, [mofield__fieldMark]
+.L41:
+.L38:
+        mov     [fieldTo__ret], ax
+        ret
+
+; ============================================== sub fieldUnmark ====
+
+fieldUnmark:
+; ---- fieldMarked = false
+        mov     byte [mofield__fieldMarked], 0
+        ret
+
+; ============================================== sub fieldSelectAll ====
+
+fieldSelectAll:
+; ---- fieldMark = 0
+        mov     word [mofield__fieldMark], 0
+; ---- fieldMarked = fieldLen > 0
+        mov     ax, [mofield__fieldLen]
+        test    ax, ax
+        jbe     .L43                        ; unsigned >
+        mov     ax, 1
+        jmp     .L44
+.L43:
+        xor     ax, ax
+.L44:
+        mov     [mofield__fieldMarked], al  ; narrowed to bool
+; ---- fieldCur = fieldLen
+        mov     ax, [mofield__fieldLen]
+        mov     [mofield__fieldCur], ax
+        ret
+
+; ============================================== sub mofield__fieldSetMark ====
+
+mofield__fieldSetMark:
+; ---- if ( fieldMarked ) return
+        mov     al, [mofield__fieldMarked]
+        test    al, al
+        jz      .L46
+        ret
+.L46:
+; ---- fieldMark = fieldCur
+        mov     ax, [mofield__fieldCur]
+        mov     [mofield__fieldMark], ax
+; ---- fieldMarked = true
+        mov     byte [mofield__fieldMarked], 1
+        ret
+
+; ============================================== bool mofield__fieldKill ====
+
+mofield__fieldKill:
+; ---- if ( !fieldSelected() ) return false
+        call    fieldSelected
+        mov     al, [fieldSelected__ret]
+        xor     ah, ah                      ; bool -> u16
+        test    ax, ax
+        jnz     .L49
+        mov     byte [mofield__fieldKill__ret], 0
+        ret
+.L49:
+; ---- from = fieldFrom()
+        call    fieldFrom
+        mov     ax, [fieldFrom__ret]
+        mov     [mofield__fieldKill__from], ax
+; ---- to = fieldTo()
+        call    fieldTo
+        mov     ax, [fieldTo__ret]
+        mov     [mofield__fieldKill__to], ax
+; ---- while ( to > from ) {
+.L52:
+        mov     ax, [mofield__fieldKill__to]
+        mov     bx, [mofield__fieldKill__from]
+        cmp     ax, bx
+        jbe     .L54                        ; unsigned >
+; ---- fieldRemove( from )
+        mov     ax, [mofield__fieldKill__from]
+        mov     [mofield__fieldRemove__at], ax
+        call    mofield__fieldRemove
+; ---- to--
+        dec     word [mofield__fieldKill__to]
+.L53:
+        jmp     .L52
+.L54:
+; ---- fieldCur = from
+        mov     ax, [mofield__fieldKill__from]
+        mov     [mofield__fieldCur], ax
+; ---- fieldMarked = false
+        mov     byte [mofield__fieldMarked], 0
+; ---- return true
+        mov     byte [mofield__fieldKill__ret], 1
+        ret
+
 ; ============================================== sub mofield__fieldInsert ====
 
 mofield__fieldInsert:
 ; ---- if ( fieldLen >= fieldMax ) return
         mov     ax, [mofield__fieldLen]
         cmp     ax, 64
-        jb      .L23                        ; unsigned >=
+        jb      .L56                        ; unsigned >=
         ret
-.L23:
+.L56:
 ; ---- i = fieldLen
         mov     ax, [mofield__fieldLen]
         mov     [mofield__fieldInsert__i], ax
 ; ---- while ( i > fieldCur ) {
-.L26:
+.L59:
         mov     ax, [mofield__fieldInsert__i]
         mov     bx, [mofield__fieldCur]
         cmp     ax, bx
-        jbe     .L28                        ; unsigned >
+        jbe     .L61                        ; unsigned >
 ; ---- fieldBuf[i] = fieldBuf[i - 1]
         mov     ax, [mofield__fieldInsert__i]
         dec     ax
@@ -352,9 +673,9 @@ mofield__fieldInsert:
         mov     [mofield__fieldBuf + bx], al
 ; ---- i--
         dec     word [mofield__fieldInsert__i]
-.L27:
-        jmp     .L26
-.L28:
+.L60:
+        jmp     .L59
+.L61:
 ; ---- fieldBuf[fieldCur] = ch
         mov     al, [mofield__fieldInsert__ch]
         mov     bx, [mofield__fieldCur]
@@ -365,6 +686,37 @@ mofield__fieldInsert:
         inc     word [mofield__fieldCur]
         ret
 
+; ============================================== sub mofield__fieldPasteAt ====
+
+mofield__fieldPasteAt:
+; ---- n = fieldPasteIn( addr( pasteBuf ), fieldMax )
+        mov     ax, mofield__pasteBuf       ; link-time constant
+        mov     [fieldPasteIn__at], ax
+        mov     word [fieldPasteIn__max], 64
+        call    fieldPasteIn
+        mov     ax, [fieldPasteIn__ret]
+        mov     [mofield__fieldPasteAt__n], ax
+; ---- for ( u16 i = 0; i < n; i++ ) {
+        mov     word [mofield__fieldPasteAt__i], 0
+.L63:
+        mov     ax, [mofield__fieldPasteAt__i]
+        mov     bx, [mofield__fieldPasteAt__n]
+        cmp     ax, bx
+        jae     .L65                        ; unsigned <
+; ---- fieldInsert( pasteBuf[i] )
+        mov     ax, [mofield__fieldPasteAt__i]
+        mov     bx, ax
+        mov     al, [mofield__pasteBuf + bx]
+        mov     [mofield__fieldInsert__ch], al; u8 -> u8, no widening
+        call    mofield__fieldInsert
+.L64:
+        inc     word [mofield__fieldPasteAt__i]
+        jmp     .L63
+.L65:
+; ---- fieldMarked = false
+        mov     byte [mofield__fieldMarked], 0
+        ret
+
 ; ============================================== sub mofield__fieldRemove ====
 
 mofield__fieldRemove:
@@ -372,18 +724,18 @@ mofield__fieldRemove:
         mov     ax, [mofield__fieldRemove__at]
         mov     bx, [mofield__fieldLen]
         cmp     ax, bx
-        jb      .L30                        ; unsigned >=
+        jb      .L67                        ; unsigned >=
         ret
-.L30:
+.L67:
 ; ---- for ( u16 i = at; i + 1 < fieldLen; i++ ) {
         mov     ax, [mofield__fieldRemove__at]
         mov     [mofield__fieldRemove__i], ax
-.L33:
+.L70:
         mov     ax, [mofield__fieldRemove__i]
         inc     ax
         mov     bx, [mofield__fieldLen]
         cmp     ax, bx
-        jae     .L35                        ; unsigned <
+        jae     .L72                        ; unsigned <
 ; ---- fieldBuf[i] = fieldBuf[i + 1]
         mov     ax, [mofield__fieldRemove__i]
         inc     ax
@@ -391,10 +743,10 @@ mofield__fieldRemove:
         mov     al, [mofield__fieldBuf + bx]
         mov     bx, [mofield__fieldRemove__i]
         mov     [mofield__fieldBuf + bx], al
-.L34:
+.L71:
         inc     word [mofield__fieldRemove__i]
-        jmp     .L33
-.L35:
+        jmp     .L70
+.L72:
 ; ---- fieldLen--
         dec     word [mofield__fieldLen]
         ret
@@ -405,106 +757,355 @@ fieldKey:
 ; ---- if ( k == 13 ) return fieldAccept
         mov     ax, [fieldKey__k]
         cmp     ax, 13
-        jne     .L37                        ; unsigned ==
+        jne     .L74                        ; unsigned ==
         mov     byte [fieldKey__ret], 1
         ret
-.L37:
+.L74:
 ; ---- if ( k == 27 ) return fieldCancel
         mov     ax, [fieldKey__k]
         cmp     ax, 27
-        jne     .L40                        ; unsigned ==
+        jne     .L77                        ; unsigned ==
         mov     byte [fieldKey__ret], 2
         ret
-.L40:
+.L77:
+; ---- extend = false
+        mov     byte [fieldKey__extend], 0
+; ---- if ( k >= keyShift ) {
+        mov     ax, [fieldKey__k]
+        cmp     ax, 512
+        jb      .L80                        ; unsigned >=
+; ---- extend = true
+        mov     byte [fieldKey__extend], 1
+; ---- k = keyExt + ( k - keyShift )
+        mov     ax, 256
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [fieldKey__k]
+        sub     ax, 512
+        mov     bx, ax
+        pop     ax
+        add     ax, bx
+        mov     [fieldKey__k], ax
+.L80:
+; ---- if ( k == 3 ) {
+        mov     ax, [fieldKey__k]
+        cmp     ax, 3
+        je      .L85                        ; unsigned ==
+        jmp     .L83
+.L85:
+; ---- if ( fieldSelected() ) {
+        call    fieldSelected
+        mov     al, [fieldSelected__ret]
+        xor     ah, ah                      ; bool -> u16
+        test    ax, ax
+        jz      .L86
+; ---- fieldCopyOut( addr( fieldBuf ) + fieldFrom(), fieldTo() - fieldFrom() )
+        mov     ax, mofield__fieldBuf       ; link-time constant
+        push    ax                          ; save lhs: rhs is not a leaf
+        call    fieldFrom
+        mov     ax, [fieldFrom__ret]
+        mov     bx, ax
+        pop     ax
+        add     ax, bx
+        push    ax                          ; argument evaluated before any is stored
+        call    fieldTo
+        mov     ax, [fieldTo__ret]
+        push    ax                          ; save lhs: rhs is not a leaf
+        call    fieldFrom
+        mov     ax, [fieldFrom__ret]
+        mov     bx, ax
+        pop     ax
+        sub     ax, bx
+        mov     [fieldCopyOut__n], ax
+        pop     ax
+        mov     [fieldCopyOut__at], ax
+        call    fieldCopyOut
+.L86:
+; ---- return fieldGoing
+        mov     byte [fieldKey__ret], 0
+        ret
+.L83:
+; ---- if ( k == 24 ) {
+        mov     ax, [fieldKey__k]
+        cmp     ax, 24
+        je      .L91                        ; unsigned ==
+        jmp     .L89
+.L91:
+; ---- if ( fieldSelected() ) {
+        call    fieldSelected
+        mov     al, [fieldSelected__ret]
+        xor     ah, ah                      ; bool -> u16
+        test    ax, ax
+        jz      .L92
+; ---- fieldCopyOut( addr( fieldBuf ) + fieldFrom(), fieldTo() - fieldFrom() )
+        mov     ax, mofield__fieldBuf       ; link-time constant
+        push    ax                          ; save lhs: rhs is not a leaf
+        call    fieldFrom
+        mov     ax, [fieldFrom__ret]
+        mov     bx, ax
+        pop     ax
+        add     ax, bx
+        push    ax                          ; argument evaluated before any is stored
+        call    fieldTo
+        mov     ax, [fieldTo__ret]
+        push    ax                          ; save lhs: rhs is not a leaf
+        call    fieldFrom
+        mov     ax, [fieldFrom__ret]
+        mov     bx, ax
+        pop     ax
+        sub     ax, bx
+        mov     [fieldCopyOut__n], ax
+        pop     ax
+        mov     [fieldCopyOut__at], ax
+        call    fieldCopyOut
+; ---- fieldKill()
+        call    mofield__fieldKill
+.L92:
+; ---- return fieldGoing
+        mov     byte [fieldKey__ret], 0
+        ret
+.L89:
+; ---- if ( k == 22 ) {
+        mov     ax, [fieldKey__k]
+        cmp     ax, 22
+        jne     .L95                        ; unsigned ==
+; ---- fieldKill()
+        call    mofield__fieldKill
+; ---- fieldPasteAt()
+        call    mofield__fieldPasteAt
+; ---- return fieldGoing
+        mov     byte [fieldKey__ret], 0
+        ret
+.L95:
+; ---- if ( k == 1 ) {
+        mov     ax, [fieldKey__k]
+        cmp     ax, 1
+        jne     .L98                        ; unsigned ==
+; ---- fieldSelectAll()
+        call    fieldSelectAll
+; ---- return fieldGoing
+        mov     byte [fieldKey__ret], 0
+        ret
+.L98:
+; ---- if ( k == keyExt + keyLeft || k == keyExt + keyRight ||
+        mov     ax, [fieldKey__k]
+        cmp     ax, 331
+        je      .L103                       ; unsigned ==
+        mov     ax, [fieldKey__k]
+        cmp     ax, 333
+        je      .L103                       ; unsigned ==
+        mov     ax, [fieldKey__k]
+        cmp     ax, 327
+        je      .L103                       ; unsigned ==
+        mov     ax, [fieldKey__k]
+        cmp     ax, 335
+        jne     .L101                       ; unsigned ==
+.L103:
+; ---- if ( extend ) {
+        mov     al, [fieldKey__extend]
+        test    al, al
+        jz      .L108
+; ---- fieldSetMark()
+        call    mofield__fieldSetMark
+        jmp     .L109
+.L108:
+; ---- fieldUnmark()
+        call    fieldUnmark
+.L109:
+.L101:
 ; ---- if ( k == 8 ) {
         mov     ax, [fieldKey__k]
         cmp     ax, 8
-        jne     .L43                        ; unsigned ==
-; ---- if ( fieldCur > 0 ) {
+        jne     .L111                       ; unsigned ==
+; ---- if ( !fieldKill() && fieldCur > 0 ) {
+        call    mofield__fieldKill
+        mov     al, [mofield__fieldKill__ret]
+        xor     ah, ah                      ; bool -> u16
+        test    ax, ax
+        jnz     .L114
         mov     ax, [mofield__fieldCur]
         test    ax, ax
-        jbe     .L46                        ; unsigned >
+        jbe     .L114                       ; unsigned >
 ; ---- fieldCur--
         dec     word [mofield__fieldCur]
 ; ---- fieldRemove( fieldCur )
         mov     ax, [mofield__fieldCur]
         mov     [mofield__fieldRemove__at], ax
         call    mofield__fieldRemove
-.L46:
-        jmp     .L44
-.L43:
+.L114:
+        jmp     .L112
+.L111:
 ; ---- } else if ( k == keyExt + keyDelete ) {
         mov     ax, [fieldKey__k]
         cmp     ax, 339
-        jne     .L49                        ; unsigned ==
-; ---- fieldRemove( fieldCur )
+        jne     .L118                       ; unsigned ==
+; ---- if ( !fieldKill() ) fieldRemove( fieldCur )
+        call    mofield__fieldKill
+        mov     al, [mofield__fieldKill__ret]
+        xor     ah, ah                      ; bool -> u16
+        test    ax, ax
+        jnz     .L121
         mov     ax, [mofield__fieldCur]
         mov     [mofield__fieldRemove__at], ax
         call    mofield__fieldRemove
-        jmp     .L50
-.L49:
+.L121:
+        jmp     .L119
+.L118:
 ; ---- } else if ( k == keyExt + keyLeft ) {
         mov     ax, [fieldKey__k]
         cmp     ax, 331
-        jne     .L52                        ; unsigned ==
+        jne     .L124                       ; unsigned ==
 ; ---- if ( fieldCur > 0 ) fieldCur--
         mov     ax, [mofield__fieldCur]
         test    ax, ax
-        jbe     .L55                        ; unsigned >
+        jbe     .L127                       ; unsigned >
         dec     word [mofield__fieldCur]
-.L55:
-        jmp     .L53
-.L52:
+.L127:
+        jmp     .L125
+.L124:
 ; ---- } else if ( k == keyExt + keyRight ) {
         mov     ax, [fieldKey__k]
         cmp     ax, 333
-        jne     .L58                        ; unsigned ==
+        jne     .L130                       ; unsigned ==
 ; ---- if ( fieldCur < fieldLen ) fieldCur++
         mov     ax, [mofield__fieldCur]
         mov     bx, [mofield__fieldLen]
         cmp     ax, bx
-        jae     .L61                        ; unsigned <
+        jae     .L133                       ; unsigned <
         inc     word [mofield__fieldCur]
-.L61:
-        jmp     .L59
-.L58:
+.L133:
+        jmp     .L131
+.L130:
 ; ---- } else if ( k == keyExt + keyHome ) {
         mov     ax, [fieldKey__k]
         cmp     ax, 327
-        jne     .L64                        ; unsigned ==
+        jne     .L136                       ; unsigned ==
 ; ---- fieldCur = 0
         mov     word [mofield__fieldCur], 0
-        jmp     .L65
-.L64:
+        jmp     .L137
+.L136:
 ; ---- } else if ( k == keyExt + keyEnd ) {
         mov     ax, [fieldKey__k]
         cmp     ax, 335
-        jne     .L67                        ; unsigned ==
+        jne     .L139                       ; unsigned ==
 ; ---- fieldCur = fieldLen
         mov     ax, [mofield__fieldLen]
         mov     [mofield__fieldCur], ax
-        jmp     .L68
-.L67:
-; ---- } else if ( k >= 32 && k < 127 ) {
+        jmp     .L140
+.L139:
+; ---- } else if ( k >= 32 && k < keyExt && k != keyCtrlBack ) {
         mov     ax, [fieldKey__k]
         cmp     ax, 32
-        jb      .L70                        ; unsigned >=
+        jb      .L142                       ; unsigned >=
+        mov     ax, [fieldKey__k]
+        cmp     ax, 256
+        jae     .L142                       ; unsigned <
         mov     ax, [fieldKey__k]
         cmp     ax, 127
-        jae     .L70                        ; unsigned <
+        je      .L142                       ; unsigned !=
+; ---- fieldKill()
+        call    mofield__fieldKill
 ; ---- fieldInsert( u8( k ) )
         mov     ax, [fieldKey__k]
         mov     [mofield__fieldInsert__ch], al; u16 -> u8, no widening
         call    mofield__fieldInsert
-.L70:
-.L68:
-.L65:
-.L59:
-.L53:
-.L50:
-.L44:
+.L142:
+.L140:
+.L137:
+.L131:
+.L125:
+.L119:
+.L112:
 ; ---- return fieldGoing
         mov     byte [fieldKey__ret], 0
+        ret
+
+; ============================================== sub fieldCopyOut ====
+
+fieldCopyOut:
+; ---- if ( n > clipMax ) n = clipMax
+        mov     ax, [fieldCopyOut__n]
+        cmp     ax, 64
+        jbe     .L147                       ; unsigned >
+        mov     word [fieldCopyOut__n], 64
+.L147:
+; ---- memCopy( addr( clip ), at, n )
+        mov     ax, clip                    ; link-time constant
+        mov     [memCopy__to], ax
+        mov     ax, [fieldCopyOut__at]
+        mov     [memCopy__from], ax
+        mov     ax, [fieldCopyOut__n]
+        mov     [memCopy__count], ax
+        call    memCopy
+; ---- clipLen = n
+        mov     ax, [fieldCopyOut__n]
+        mov     [clipLen], ax
+        ret
+
+; ============================================== u16 fieldPasteIn ====
+
+fieldPasteIn:
+; ---- n = 0
+        mov     word [fieldPasteIn__n], 0
+; ---- while ( n < clipLen && n < max ) {
+.L150:
+        mov     ax, [fieldPasteIn__n]
+        mov     bx, [clipLen]
+        cmp     ax, bx
+        jb      .L153                       ; unsigned <
+        jmp     .L152
+.L153:
+        mov     ax, [fieldPasteIn__n]
+        mov     bx, [fieldPasteIn__max]
+        cmp     ax, bx
+        jae     .L152                       ; unsigned <
+; ---- if ( clip[n] == 10 || clip[n] == 13 ) break
+        mov     ax, [fieldPasteIn__n]
+        mov     bx, ax
+        mov     al, [clip + bx]
+        cmp     al, 10                      ; byte operands, no widening
+        je      .L157                       ; unsigned ==
+        mov     ax, [fieldPasteIn__n]
+        mov     bx, ax
+        mov     al, [clip + bx]
+        cmp     al, 13                      ; byte operands, no widening
+        jne     .L155                       ; unsigned ==
+.L157:
+        jmp     .L152
+.L155:
+; ---- poke8( at + n, clip[n] )
+        mov     ax, [fieldPasteIn__at]
+        mov     bx, [fieldPasteIn__n]
+        add     ax, bx
+        push    ax                          ; save the address while the value is computed
+        mov     ax, [fieldPasteIn__n]
+        mov     bx, ax
+        mov     al, [clip + bx]
+        pop     bx
+        mov     [bx], al
+; ---- n++
+        inc     word [fieldPasteIn__n]
+.L151:
+        jmp     .L150
+.L152:
+; ---- return n
+        mov     ax, [fieldPasteIn__n]
+        mov     [fieldPasteIn__ret], ax
+        ret
+
+; ============================================== sub setClip ====
+
+setClip:
+; ---- memCopy( addr( clip ), at, n )
+        mov     ax, clip                    ; link-time constant
+        mov     [memCopy__to], ax
+        mov     ax, [setClip__at]
+        mov     [memCopy__from], ax
+        mov     ax, [setClip__n]
+        mov     [memCopy__count], ax
+        call    memCopy
+; ---- clipLen = n
+        mov     ax, [setClip__n]
+        mov     [clipLen], ax
         ret
 
 ; ============================================== sub press ====
@@ -528,7 +1129,7 @@ show:
         mov     [show__at], ax
 ; ---- for ( u16 i = 0; i < fieldLength(); i++ ) {
         mov     word [show__i], 0
-.L74:
+.L160:
         mov     ax, [show__i]
         push    ax                          ; save lhs: rhs is not a leaf
         call    fieldLength
@@ -536,7 +1137,7 @@ show:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jae     .L76                        ; unsigned <
+        jae     .L162                       ; unsigned <
 ; ---- putChar( peek8( at + i ) )
         mov     ax, [show__at]
         mov     bx, [show__i]
@@ -545,10 +1146,10 @@ show:
         mov     al, [bx]                    ; peek8 - unchecked, by design
         mov     [putChar__c], al            ; u8 -> u8, no widening
         call    putChar
-.L75:
+.L161:
         inc     word [show__i]
-        jmp     .L74
-.L76:
+        jmp     .L160
+.L162:
 ; ---- putChar( ' ' )
         mov     byte [putChar__c], 32
         call    putChar
@@ -557,6 +1158,59 @@ show:
         mov     ax, [fieldCursor__ret]
         mov     [putNumber__n], ax
         call    putNumber
+; ---- newline()
+        call    newline
+        ret
+
+; ============================================== sub showSel ====
+
+showSel:
+; ---- putNumber( u16( fieldSelected() ) )
+        call    fieldSelected
+        mov     al, [fieldSelected__ret]
+        xor     ah, ah                      ; bool -> u16
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- putChar( ' ' )
+        mov     byte [putChar__c], 32
+        call    putChar
+; ---- putNumber( fieldFrom() )
+        call    fieldFrom
+        mov     ax, [fieldFrom__ret]
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- putChar( ' ' )
+        mov     byte [putChar__c], 32
+        call    putChar
+; ---- putNumber( fieldTo() )
+        call    fieldTo
+        mov     ax, [fieldTo__ret]
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- newline()
+        call    newline
+        ret
+
+; ============================================== sub showClip ====
+
+showClip:
+; ---- for ( u16 i = 0; i < clipLen; i++ ) {
+        mov     word [showClip__i], 0
+.L164:
+        mov     ax, [showClip__i]
+        mov     bx, [clipLen]
+        cmp     ax, bx
+        jae     .L166                       ; unsigned <
+; ---- putChar( clip[i] )
+        mov     ax, [showClip__i]
+        mov     bx, ax
+        mov     al, [clip + bx]
+        mov     [putChar__c], al            ; u8 -> u8, no widening
+        call    putChar
+.L165:
+        inc     word [showClip__i]
+        jmp     .L164
+.L166:
 ; ---- newline()
         call    newline
         ret
@@ -602,37 +1256,68 @@ _di:            dw      0
 ; ---- variables ----
 i:              dw      0        ; u16
 putChar__c:     db      0        ; u8
+putStr__at:     dw      0        ; u16
 putNumber__n:   dw      0        ; u16
+memCopy__to:    dw      0        ; u16
+memCopy__from:  dw      0        ; u16
+memCopy__count: dw      0        ; u16
 mofield__fieldLen: dw      0        ; u16
 mofield__fieldCur: dw      0        ; u16
+mofield__fieldMark: dw      0        ; u16
+mofield__fieldMarked: db      0        ; bool
 fieldSet__at:   dw      0        ; u16
 fieldSet__n:    dw      0        ; u16
 fieldAddr__ret: dw      0        ; u16
 fieldLength__ret: dw      0        ; u16
 fieldCursor__ret: dw      0        ; u16
+fieldSelected__ret: db      0        ; bool
+fieldFrom__ret: dw      0        ; u16
+fieldTo__ret:   dw      0        ; u16
+mofield__fieldKill__ret: db      0        ; bool
 mofield__fieldInsert__ch: db      0        ; u8
 mofield__fieldRemove__at: dw      0        ; u16
 fieldKey__k:    dw      0        ; u16
 fieldKey__ret:  db      0        ; u8
+clipLen:        dw      0        ; u16
+fieldCopyOut__at: dw      0        ; u16
+fieldCopyOut__n: dw      0        ; u16
+fieldPasteIn__at: dw      0        ; u16
+fieldPasteIn__max: dw      0        ; u16
+fieldPasteIn__ret: dw      0        ; u16
+setClip__at:    dw      0        ; u16
+setClip__n:     dw      0        ; u16
 res:            db      0        ; u8
 press__k:       dw      0        ; u16
 putNumber__i:   db      0        ; u8
+memCopy__i:     dw      0        ; u16
 fieldSet__i:    dw      0        ; u16
+mofield__fieldKill__from: dw      0        ; u16
+mofield__fieldKill__to: dw      0        ; u16
 mofield__fieldInsert__i: dw      0        ; u16
+mofield__fieldPasteAt__i: dw      0        ; u16
+mofield__fieldPasteAt__n: dw      0        ; u16
 mofield__fieldRemove__i: dw      0        ; u16
+fieldKey__extend: db      0        ; bool
+fieldPasteIn__n: dw      0        ; u16
 show__i:        dw      0        ; u16
 show__at:       dw      0        ; u16
+showClip__i:    dw      0        ; u16
 
 ; ---- arrays ----
 mofield__fieldBuf: times 64 db 0        ; u8[64]
+mofield__pasteBuf: times 64 db 0        ; u8[64]
 pAbc:           db      'abc'        ; u8[3] const
+pTwoLines:      db      'one', 13, 10, 'two'        ; u8[8] const
+clip:           times 64 db 0        ; u8[64]
+sSel:           db      'sel:$'        ; u8[5] const
+sClip:          db      'clip:$'        ; u8[6] const
 putNumber__digits: times 5 db 0        ; u8[5]
 
 ; ============================================================ heap ====
 ; No storage is emitted - a .COM owns everything past its image, so
 ; these are addresses and NASM does the arithmetic.
 
-_hstack:        equ     264        ; 8 worst-case + 256 interrupt reserve
+_hstack:        equ     270        ; 14 worst-case + 256 interrupt reserve
 _htop:          equ     0FFFEh - _hstack
 
 _hsize:         dw      _htop - _heap        ; NASM computes this

@@ -414,3 +414,30 @@ produce. So:
   whose reasoning nobody can reconstruct - including whoever submitted them.
 
 A review can catch a bug. It cannot supply an understanding that was never formed.
+
+## Three arrays that had to agree, and the last row was the one that broke
+
+`momoed` scans three parallel `const` arrays by index - `bindPrefix`,
+`bindKey`, `bindAction`. Adding `^B` put an entry in two of them.
+
+Every row after the insertion read the previous row's prefix, which was zero, so
+nothing changed. The **last** row read past the end of the short array entirely,
+and that row was `Ctrl+End`. `Ctrl+Home` is the row before it and worked
+perfectly, which made it look like a keyboard question - and the keyboard record
+even supported that reading, because `Ctrl+End` is the one `Ctrl`+navigation key
+`keyprobe` never measured.
+
+Two things to take from it.
+
+**An off-by-one in parallel arrays hides everywhere except the end.** The entries
+after the insertion are wrong and look right, because the value they pick up is
+usually the same as the value they should have had. Only the row that runs off
+the end has nowhere to get a plausible answer from.
+
+**A plausible cause is worth checking against the code before it is chased.** The
+unmeasured key and the broken key being the same key is a coincidence a whole
+afternoon could go into. What settled it in a minute was counting the arrays.
+
+`npm run drift` holds the three lengths against each other now. §55's rule keeps
+them as arrays rather than a `group`, for a scan cost it measured - so if the
+form cannot make the mistake impossible, something has to make it loud.

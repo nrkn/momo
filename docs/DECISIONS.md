@@ -3406,3 +3406,54 @@ about the machine, not because anything is waiting on it.
 
 **The row is in §57 either way**, which is the point of asking: a question asked
 and answered is worth more than a question left open, even when the answer is no.
+
+### The field got a selection, and that is what let the prompt pre-fill
+
+Two requests that turned out to be one piece of work, and the second was waiting
+on the first without either of them knowing.
+
+§60 gains a mark and a point - §56's shape on one line, for §56's reason: a range
+would be a second coordinate system to keep in step with a cursor that exists
+anyway. Shift with a motion extends and the same motion without it collapses,
+which is one rule in one place rather than a shifted twin of every arm.
+
+**The clipboard is the program's**, through §37's seam, and that is the whole
+point rather than an implementation detail. A field with a clipboard of its own
+would agree with the document's *sometimes*, which is worse than not having one -
+what a person expects is to copy in the document and paste into the find prompt,
+and only asking can do that.
+
+A paste stops at the first line, and **the program enforces it** because the
+program is what knows its clipboard can hold several: §61 puts newlines between
+them. Losing the lines after the first is a rule somebody can predict; joining
+them would put text on the line that was copied from nowhere.
+
+### The comment that said no was right, and had said why
+
+`^F` emptied its field rather than pre-filling it, and the arm said exactly why:
+
+> VS Code pre-fills and *selects*, so typing replaces it; with no selection here a
+> pre-filled field would quietly append to the last search instead.
+
+That objection was correct and is now answered by the other half of the same day's
+work. The pre-fill selects, so the first character typed replaces it, which is
+what VS Code does and what the comment was describing as unavailable.
+
+**Worth recording as a shape.** A refusal that says what it is waiting for turns
+into a to-do list by itself, and this one was written months before the thing it
+was waiting for existed.
+
+Single-line selections only, and that is a boundary rather than a shortcut:
+§59's pattern is 64 bytes with no newline in it, so a span across two lines is not
+a term it could search for.
+
+### `fieldFrom` and `fieldTo` answer with the cursor when nothing is marked
+
+Found by a wrong prediction rather than a failure: the test said `0 4 4` and the
+run said `0 0 4`, because the mark was still sitting at 0 from never having been
+set. Every caller checks `fieldSelected` first, so nothing was broken - and a
+range that means nothing is a range somebody will eventually use.
+
+They answer with the cursor now, so `from == to` is the whole definition of an
+empty selection. §56 has the same property and the same callers; it is worth a
+look there too.

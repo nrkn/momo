@@ -420,6 +420,62 @@ const sceneCount = (): number => {
   return found.length
 }
 
+// Three parallel `const` arrays that have to agree, scanned together by index.
+// Nothing in the language checks that, and when they drifted apart the symptom
+// was one key doing nothing - the *last* row, because that is the only index
+// that reads past the end of the short array rather than reading its neighbour.
+//
+// §55's rule keeps them as arrays rather than a `group`, for a scan cost it
+// measured. This is the other half of that decision: if the form cannot make the
+// mistake impossible, something has to make it loud.
+const parallelTables: [string, string[]][] = [
+  ['projects/programs/apps/momoed/momoed.momo', ['bindPrefix', 'bindKey', 'bindAction']],
+]
+
+const entriesOf = (text: string, name: string): number | null => {
+  const at = text.indexOf(`] ${name} = [`)
+  if (at < 0) return null
+
+  const open = text.indexOf('[', at + name.length)
+  const close = text.indexOf(']', open)
+  if (open < 0 || close < 0) return null
+
+  return text
+    .slice(open + 1, close)
+    .replace(/\/\/[^\n]*/g, '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0).length
+}
+
+const checkParallelTables = () => {
+  for (const [file, names] of parallelTables) {
+    const path = join(root, file)
+    if (!existsSync(path)) continue
+
+    const text = readText(path)
+    const counts = names.map((name) => [name, entriesOf(text, name)] as const)
+
+    const missing = counts.filter(([, n]) => n === null)
+    for (const [name] of missing) {
+      report(path, 1, `parallel table "${name}" not found - the check needs updating`)
+    }
+
+    const found = counts.filter((entry): entry is readonly [string, number] => entry[1] !== null)
+    if (found.length < 2) continue
+
+    const first = found[0][1]
+    if (found.every(([, n]) => n === first)) continue
+
+    report(
+      path,
+      1,
+      `parallel tables disagree: ${found.map(([name, n]) => `${name} ${n}`).join(
+)}`,
+    )
+  }
+}
+
 const checkScenes = () => {
   const actual = sceneCount()
 
@@ -624,6 +680,7 @@ if (args[0] === '--since') {
   checkGrammar()
   checkCounts()
   checkScenes()
+  checkParallelTables()
   checkHeadings()
 
   findings.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line)

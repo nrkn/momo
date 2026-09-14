@@ -6040,7 +6040,10 @@ language feature.
   above. Nothing downstream sees `AL`, `AH` or a flags byte.
 - **The flags are masked to the modifier bits.** They carry state as well, and
   the state differs between machines for the same keypress.
-- **A binding table is `const` arrays, not a `group`.**
+- **A binding table is `const` arrays, not a `group`**, and `npm run drift` holds
+  their lengths against each other. The form cannot make the mistake impossible,
+  so something has to make it loud - they drifted apart once and the symptom was
+  one key doing nothing.
 - **A keystroke redraws what it changed.** A motion inside the window changes no
   cell of the text area; a one-line scroll changes one row and the BIOS moves the
   rest. The whole screen is for the cases that earn it.

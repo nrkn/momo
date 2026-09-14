@@ -1052,9 +1052,18 @@ const actExplor = 29
 // `^K ^C` for a comment toggle is the obvious first one, and `edloop` holds
 // the mechanism against a script meanwhile. Every prefix here being 0 costs one
 // comparison per entry per keystroke, which at this rate is nothing.
+// **One entry per row of the two tables below**, and `npm run drift` holds the
+// three lengths against each other - because they drifted apart once and the
+// symptom was a key that did nothing.
+//
+// Adding `^B` put an entry in `bindKey` and `bindAction` and not here, so every
+// row after it read the previous rows prefix and the *last* one read past the
+// end of this array entirely. `Ctrl+End` is that last row. `Ctrl+Home` is the
+// one before it and worked perfectly, which is what made it look like a
+// keyboard question rather than an off-by-one.
 const u16[] bindPrefix = [
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0
+  0, 0, 0, 0
 ]
 
 const u16[] bindKey = [
@@ -1270,6 +1279,40 @@ sub actSpan {
   lineSpan()
 }
 
+// ---- the clipboard §60 asks the program for (§37) ---------------------------
+//
+// **One clipboard, two places that use it.** A field with a clipboard of its own
+// would agree with this one sometimes, which is worse than not having it: the
+// thing a person expects is to copy in the document and paste into the find
+// prompt, and that is only possible because the field asks rather than owns.
+sub fieldCopyOut( u16 at, u16 n ) {
+  if ( n > clipBytes ) n = clipBytes
+
+  memCopy( addr( clip ), at, n )
+  clipLen = n
+}
+
+// **Stops at the first line.** A clipboard here can hold a span of several lines
+// - §61 puts a newline between them - and a field is one line. Losing the lines
+// after the first is a rule a person can predict; joining them would put text on
+// the line that was never copied from anywhere.
+//
+// The program enforces it rather than the field, because the program is what
+// knows what its clipboard can contain.
+u16 fieldPasteIn( u16 at, u16 max ) {
+  u16 n
+
+  n = 0
+  while ( n < clipLen && n < max ) {
+    if ( clip[n] == 10 || clip[n] == 13 ) break
+
+    poke8( at + n, clip[n] )
+    n++
+  }
+
+  return n
+}
+
 sub doCopy {
   actSpan()
   clipLen = rangeCopy( spanFromLine, spanFromCol, spanToLine, spanToCol,
@@ -1328,6 +1371,33 @@ sub doSelectAll {
 // Opening one measures its own label, so a command adds a string and nothing
 // else. `fieldClear` rather than a preload: with no selection, a pre-filled
 // field appends to the last answer instead of replacing it.
+// **A find that starts from the selection**, and selected in the field so the
+// next character typed replaces it - which is what the arm below used to say it
+// could not do. Its objection was exactly right and is now answered: a field
+// with no selection would have appended to the term rather than replaced it,
+// and §60 has a selection.
+//
+// Single-line selections only, and that is a boundary rather than a shortcut:
+// §59's pattern is 64 bytes with no newline in it, so a span across two lines is
+// not a term it could search for. One too long for the field is left alone for
+// the same reason - a truncated term is a search nobody asked for.
+sub prefillFromSelection {
+  u16 n
+
+  if ( !viewSelected() ) return
+  if ( viewFromLine() != viewToLine() ) return
+
+  n = viewToCol() - viewFromCol()
+  if ( n == 0 || n > fieldMax ) return
+
+  // Through §54's read interface, which is a slice rather than a character - the
+  // chain is walked once for the line and not once per byte.
+  n = lineSlice( viewFromLine(), viewFromCol(), n, addr( piece ) )
+
+  fieldSet( addr( piece ), n )
+  fieldSelectAll()
+}
+
 sub promptOpen( u8 what, u16 label ) {
   u16 i
 
@@ -1669,12 +1739,15 @@ sub apply( u8 a, u16 k ) {
   } else if ( a == actSave ) {
     doSave()
   } else if ( a == actFind ) {
-    // The field is emptied rather than left holding the last term. VS Code
-    // pre-fills and *selects*, so typing replaces it; with no selection here a
-    // pre-filled field would quietly append to the last search instead. `^L` is
-    // the key that repeats one, so both behaviours exist and neither is a
-    // surprise.
+    // The field used to be emptied and left that way, because VS Code pre-fills
+    // and *selects* and this had no selection to pre-fill into - so a pre-filled
+    // field would have appended to the last term rather than replaced it.
+    //
+    // §60 has one now, so the behaviour is VS Code's: the selection if there is
+    // one, selected, and empty if there is not. `^L` still repeats the last
+    // search, so both behaviours exist and neither is a surprise.
     promptOpen( askFind, addr( sFind ) )
+    prefillFromSelection()
   } else if ( a == actGoto ) {
     promptOpen( askGoto, addr( sGoto ) )
   } else if ( a == actOpen ) {
@@ -1683,6 +1756,7 @@ sub apply( u8 a, u16 k ) {
     toggleExplorer()
   } else if ( a == actRepl ) {
     promptOpen( askTerm, addr( sTerm ) )
+    prefillFromSelection()
   } else if ( a == actWordL ) {
     // **`Ctrl+Shift+Left` needs nothing here**, and neither does its twin. §57
     // folds Shift into the key space and `step` folds it back out, so a shifted

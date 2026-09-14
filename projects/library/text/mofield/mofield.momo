@@ -9,9 +9,53 @@
 // at each end where there is nothing to take, and a field that is full.
 
 include "lib/std/io.momo"
+include "lib/std/str.momo"
 include "lib/mofield.momo"
 
 const u8[] pAbc = "abc"
+const u8[] pTwoLines = "one\r\ntwo"
+
+// ---- the clipboard §60 asks the program for (§37) --------------------------
+//
+// A field has no clipboard of its own on purpose: the point of the seam is that
+// it shares whatever its program has, so copying in one place and pasting in
+// another is one clipboard rather than two that agree sometimes. Here that is a
+// buffer; in `momoed` it is the same one `^C` fills from the document.
+//
+// **Newlines stop a paste**, and the program is where that is enforced because
+// the program is what knows its clipboard can hold them. A field is one line.
+const clipMax = 64
+
+u8[clipMax] clip
+u16 clipLen
+
+sub fieldCopyOut( u16 at, u16 n ) {
+  if ( n > clipMax ) n = clipMax
+
+  memCopy( addr( clip ), at, n )
+  clipLen = n
+}
+
+u16 fieldPasteIn( u16 at, u16 max ) {
+  u16 n
+
+  n = 0
+  while ( n < clipLen && n < max ) {
+    if ( clip[n] == 10 || clip[n] == 13 ) break
+
+    poke8( at + n, clip[n] )
+    n++
+  }
+
+  return n
+}
+
+// Straight onto the clipboard, so a paste can be tested without a copy first -
+// including the newline case, which no copy out of a one-line field could make.
+sub setClip( u16 at, u16 n ) {
+  memCopy( addr( clip ), at, n )
+  clipLen = n
+}
 
 u8 res
 
@@ -110,3 +154,108 @@ putNumber( fieldLength() )
 putChar( ' ' )
 putNumber( fieldCursor() )
 newline()
+
+// ---- selecting, and the clipboard that is not the field's ------------------
+//
+// Shift with a motion extends and the same motion without it collapses, which is
+// one rule in one place. The claims below are the ones that would be wrong if it
+// were two: that an unshifted motion clears the mark, and that a *backwards*
+// selection has its ends the right way round.
+
+const u8[] sSel = "sel:$"
+const u8[] sClip = "clip:$"
+
+sub showSel {
+  putNumber( u16( fieldSelected() ) )
+  putChar( ' ' )
+  putNumber( fieldFrom() )
+  putChar( ' ' )
+  putNumber( fieldTo() )
+  newline()
+}
+
+sub showClip {
+  for ( u16 i = 0; i < clipLen; i++ ) {
+    putChar( clip[i] )
+  }
+
+  newline()
+}
+
+putStr( addr( sSel ) )
+newline()
+
+fieldClear()
+press( 'a' )
+press( 'b' )
+press( 'c' )
+press( 'd' )
+
+// Nothing marked is nothing selected, whatever the cursor is doing.
+showSel()                               // 0 4 4
+
+// Two to the left with Shift: marked at 4, cursor at 2, and **the ends come back
+// low first** even though the selection was made backwards.
+press( keyShift + keyLeft )
+press( keyShift + keyLeft )
+showSel()                               // 1 2 4
+
+// An unshifted motion collapses it rather than leaving it behind.
+press( keyExt + keyLeft )
+showSel()                               // 0 1 1
+
+// Select all, then copy - and the field is untouched by a copy.
+press( 1 )
+showSel()                               // 1 0 4
+
+press( 3 )
+putStr( addr( sClip ) )
+showClip()                              // abcd
+show()                                  // abcd 4
+
+// Cut takes it out, and leaves nothing selected at the join.
+press( 1 )
+press( 24 )
+show()                                  //  0
+showSel()                               // 0 0 0
+
+// Paste puts it back where the cursor is.
+press( 22 )
+show()                                  // abcd 4
+
+// A typed character replaces a selection rather than landing beside it.
+press( 1 )
+press( 'X' )
+show()                                  // X 1
+
+// Backspace with a selection takes the selection, not one character.
+fieldClear()
+setClip( addr( pAbc ), len( pAbc ) )
+press( 22 )
+press( keyShift + keyLeft )
+press( keyShift + keyLeft )
+press( 8 )
+show()                                  // a 1
+
+// ---- a clipboard with a newline in it ---------------------------------------
+//
+// **The paste stops at the first line**, which is the program's rule and the one
+// a person can predict. Joining them would put text on the line that nobody
+// copied from anywhere.
+
+fieldClear()
+setClip( addr( pTwoLines ), len( pTwoLines ) )
+press( 22 )
+show()                                  // one 3
+
+// ---- Alt+numpad, which §57 measured and this takes ---------------------------
+//
+// 233 is the character the BIOS composes for Alt+0233, and it arrives as itself.
+// 127 is a glyph and is also what Ctrl+Backspace reports, so it is the one code
+// in the range that must not be typed.
+
+fieldClear()
+press( 233 )
+press( 127 )
+putNumber( fieldLength() )
+newline()                               // 1

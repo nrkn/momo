@@ -115,6 +115,21 @@ sub step( u16 k ) {
 sub viewRow( u16 y, u16 at, u16 n ) {
 }
 
+// §60 asks for these two and this program never presses `^C` or `^V`, so they
+// are the same cost of admission. **They cannot be pruned** the way an unused
+// routine is (§11): `fieldKey` names them on a path this does reach, so the
+// compiler has to find something behind the name.
+//
+// The clipboard `mofield` has a project of its own for, and `momoed` has the one
+// that matters - the shared one, where a copy out of the document is what a
+// paste into a prompt gets.
+sub fieldCopyOut( u16 at, u16 n ) {
+}
+
+u16 fieldPasteIn( u16 at, u16 max ) {
+  return 0
+}
+
 // ---- showing it ----
 
 sub frame {

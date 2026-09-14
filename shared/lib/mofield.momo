@@ -25,6 +25,12 @@ local u8[fieldMax] fieldBuf
 local u16 fieldLen
 local u16 fieldCur
 
+// **A mark and a point**, which is §56 at a smaller size and for the same
+// reason: a range would be a second coordinate system to keep in step with the
+// cursor that exists either way. One axis, because a field is one line.
+local u16 fieldMark
+local bool fieldMarked
+
 // What a keystroke meant. The caller decides what each one does, because Enter
 // in a find prompt and Enter in a filename prompt are not the same thing.
 const fieldGoing  = 0
@@ -34,6 +40,8 @@ const fieldCancel = 2
 // ---- state ----
 
 sub fieldClear {
+  fieldMarked = false
+
   fieldLen = 0
   fieldCur = 0
 }
@@ -41,6 +49,8 @@ sub fieldClear {
 // `n` bytes at `at`, with the cursor left at the end - which is where a person
 // wants it when a prompt opens with the last thing they typed still in it.
 sub fieldSet( u16 at, u16 n ) {
+  fieldMarked = false
+
   if ( n > fieldMax ) n = fieldMax
 
   for ( u16 i = 0; i < n; i++ ) {
@@ -53,9 +63,80 @@ sub fieldSet( u16 at, u16 n ) {
 
 // The buffer's address rather than its bytes, so the caller can hand it straight
 // to `findSet` or a DOS call without copying it a second time.
+// ---- the clipboard, which is the program's ----------------------------------
+//
+// §37 again, the way `viewRow` and `plot` are: this calls routines **the program
+// defines** and the call compiles to a direct one. So a field shares whatever
+// clipboard its program has rather than owning a second one - which is the whole
+// point, because copying in a document and pasting in a prompt is the thing a
+// person expects and two clipboards cannot do.
+//
+//   sub fieldCopyOut( u16 at, u16 n )
+//   u16 fieldPasteIn( u16 at, u16 max )
+//
+// A paste **stops at the first newline** rather than flattening it. A clipboard
+// holding three lines pasted into one line has to lose something either way, and
+// losing the lines after the first is a rule somebody can predict where joining
+// them invents a line nobody copied. That is the program's to enforce: it knows
+// what its clipboard holds.
+
 u16 fieldAddr()   => addr( fieldBuf )
 u16 fieldLength() => fieldLen
 u16 fieldCursor() => fieldCur
+
+// Marked *and* not empty, the same call §56 makes: an anchor sitting on the
+// cursor selects nothing, and without this every caller special-cases it.
+bool fieldSelected() => fieldMarked && fieldMark != fieldCur
+
+// **The cursor when nothing is marked**, so that `from == to` is the whole
+// definition of an empty selection and a caller that forgot to ask gets a range
+// of nothing rather than a range back to wherever the mark was last left. It
+// costs a comparison and removes a class of bug that only appears after a
+// selection has been made and dropped.
+u16 fieldFrom() => !fieldMarked ? fieldCur : ( fieldMark < fieldCur ? fieldMark : fieldCur )
+u16 fieldTo()   => !fieldMarked ? fieldCur : ( fieldMark < fieldCur ? fieldCur : fieldMark )
+
+sub fieldUnmark {
+  fieldMarked = false
+}
+
+// Everything, with the cursor at the end - so the next character typed replaces
+// it. `^A` is one caller and a caller pre-filling the field is the other, which
+// is what makes a pre-filled prompt safe to type into.
+sub fieldSelectAll {
+  fieldMark = 0
+  fieldMarked = fieldLen > 0
+  fieldCur = fieldLen
+}
+
+local sub fieldSetMark {
+  if ( fieldMarked ) return
+
+  fieldMark = fieldCur
+  fieldMarked = true
+}
+
+// What a typed character, a Backspace or a paste does to a selection first.
+// Returns whether there was one, because the three callers want to know for
+// different reasons.
+local bool fieldKill() {
+  u16 from
+  u16 to
+
+  if ( !fieldSelected() ) return false
+
+  from = fieldFrom()
+  to = fieldTo()
+
+  while ( to > from ) {
+    fieldRemove( from )
+    to--
+  }
+
+  fieldCur = from
+  fieldMarked = false
+  return true
+}
 
 // ---- editing ----
 
@@ -77,6 +158,23 @@ local sub fieldInsert( u8 ch ) {
   fieldCur++
 }
 
+// Up to what is left, because the program cannot know how full this is. What it
+// hands back is inserted one byte at a time rather than spliced, so a paste that
+// overflows leaves a full field rather than a corrupt one.
+local sub fieldPasteAt {
+  u16 n
+
+  n = fieldPasteIn( addr( pasteBuf ), fieldMax )
+
+  for ( u16 i = 0; i < n; i++ ) {
+    fieldInsert( pasteBuf[i] )
+  }
+
+  fieldMarked = false
+}
+
+local u8[fieldMax] pasteBuf
+
 local sub fieldRemove( u16 at ) {
   if ( at >= fieldLen ) return
 
@@ -93,17 +191,69 @@ local sub fieldRemove( u16 at ) {
 // read from one keyboard and neither knows about scancodes. Anything unbound is
 // ignored rather than typed: a prompt is where a stray function key would
 // otherwise put a control character into a filename.
+// **Shift is folded back out here**, the way §55 does it one level up: a shifted
+// motion is the same motion with one more fact attached, so there is one arm per
+// command rather than two. The program hands this the key untouched, because a
+// prompt owns the keyboard while it is open.
 u8 fieldKey( u16 k ) {
+  bool extend
+
   if ( k == 13 ) return fieldAccept
   if ( k == 27 ) return fieldCancel
 
+  extend = false
+  if ( k >= keyShift ) {
+    extend = true
+    k = keyExt + ( k - keyShift )
+  }
+
+  // The clipboard three, which are the whole reason this grew a selection.
+  if ( k == 3 ) {
+    if ( fieldSelected() ) {
+      fieldCopyOut( addr( fieldBuf ) + fieldFrom(), fieldTo() - fieldFrom() )
+    }
+    return fieldGoing
+  }
+
+  if ( k == 24 ) {
+    if ( fieldSelected() ) {
+      fieldCopyOut( addr( fieldBuf ) + fieldFrom(), fieldTo() - fieldFrom() )
+      fieldKill()
+    }
+    return fieldGoing
+  }
+
+  if ( k == 22 ) {
+    fieldKill()
+    fieldPasteAt()
+    return fieldGoing
+  }
+
+  if ( k == 1 ) {
+    fieldSelectAll()
+    return fieldGoing
+  }
+
+  // **A motion marks or unmarks before it moves**, which is one rule in one place
+  // rather than a shifted twin of every arm below.
+  if ( k == keyExt + keyLeft || k == keyExt + keyRight ||
+       k == keyExt + keyHome || k == keyExt + keyEnd ) {
+    if ( extend ) {
+      fieldSetMark()
+    } else {
+      fieldUnmark()
+    }
+  }
+
   if ( k == 8 ) {
-    if ( fieldCur > 0 ) {
+    // Backspace with a selection removes the selection, which is what every
+    // editor does and what makes Shift+Left then Backspace mean one thing.
+    if ( !fieldKill() && fieldCur > 0 ) {
       fieldCur--
       fieldRemove( fieldCur )
     }
   } else if ( k == keyExt + keyDelete ) {
-    fieldRemove( fieldCur )
+    if ( !fieldKill() ) fieldRemove( fieldCur )
   } else if ( k == keyExt + keyLeft ) {
     if ( fieldCur > 0 ) fieldCur--
   } else if ( k == keyExt + keyRight ) {
@@ -112,7 +262,11 @@ u8 fieldKey( u16 k ) {
     fieldCur = 0
   } else if ( k == keyExt + keyEnd ) {
     fieldCur = fieldLen
-  } else if ( k >= 32 && k < 127 ) {
+  } else if ( k >= 32 && k < keyExt && k != keyCtrlBack ) {
+    // The same range the document takes, for the same measured reason: the BIOS
+    // composes Alt+numpad into a character, and 127 is a glyph that is also what
+    // `Ctrl+Backspace` reports. §57 has the rows.
+    fieldKill()
     fieldInsert( u8( k ) )
   }
 
