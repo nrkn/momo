@@ -20,6 +20,7 @@ keyCtrlEnd:     equ     117
 keyCtrlHome:    equ     119
 keyEsc:         equ     27
 keyTab:         equ     9
+keyCtrlBack:    equ     127
 keyModShift:    equ     3
 keyExt:         equ     256
 keyShift:       equ     512
@@ -11323,7 +11324,7 @@ step:
 ; ---- return
         ret
 .L1641:
-; ---- if ( a == actNone && had == 0 && k >= 32 && k < 127 ) a = actInsert
+; ---- if ( a == actNone && had == 0 && k >= 32 && k < keyExt && k != keyCtrlBack ) {
         mov     al, [step__a]
         test    al, al
         jne     .L1644                      ; unsigned ==
@@ -11334,8 +11335,12 @@ step:
         cmp     ax, 32
         jb      .L1644                      ; unsigned >=
         mov     ax, [step__k]
-        cmp     ax, 127
+        cmp     ax, 256
         jae     .L1644                      ; unsigned <
+        mov     ax, [step__k]
+        cmp     ax, 127
+        je      .L1644                      ; unsigned !=
+; ---- a = actInsert
         mov     byte [step__a], 1
 .L1644:
 ; ---- apply( a, k )

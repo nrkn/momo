@@ -3319,3 +3319,53 @@ would halve the capacity of each; sharing them means a chunk belongs to whicheve
 document's line points at it, and the free list never learns there is more than
 one. The second is obviously right and is worth writing down before it is
 discovered halfway through.
+
+### Seven rows, and two of them settled a feature to one comparison
+
+The second `keyprobe` run, asked for by a config file rather than by a rebuild.
+
+**Alt with the numeric keypad is composed by the BIOS.** `Alt+0233` came back as
+`00E9` and `Alt+0165` as `00A5` - the finished character in `AL` with a
+scancode of zero, which is exactly what an ordinary letter looks like. So §57's
+key space already delivered it and had done all along; the only thing in the way
+was `momoed` deciding "is this a character" with `k < 127`.
+
+The prediction was written down before the run and held, which is worth one line
+because the week's earlier predictions mostly did not.
+
+**There is a hole in that range and the record already knew.** 127 is a printable
+glyph in codepage 437 *and* what `Ctrl+Backspace` reports - `0E7F`, measured
+months ago and sitting in the table. A range alone types a house where somebody
+meant to delete a word.
+
+The neighbouring collision was already handled for a different reason. `Alt+0224`
+is `à`, which is 0E0h, which is also how `AH=10h` flags a grey navigation key -
+and `keyNorm` tests the scancode as well, because 0E0h is a real character. That
+test was written for the arrow keys and turns out to be exactly what composed
+high characters need.
+
+**`Ctrl+Tab` and `Ctrl+Shift+Tab` are one scancode.** Both `9400`, separated
+only by the shift flag - `0124` against `0126` - which is the shape every
+Shift+navigation pair already has. So tab cycling needs no change to the key
+space at all: the fold §57 does for Shift carries it, and forward and backward
+cost one binding and a flag test.
+
+`^T`, `^W` and `^P` are 20, 23 and 16, which is what they were expected to be
+and is cheap to have confirmed while the machine was in front of somebody.
+
+### The config was bigger than the buffer, and nothing said so
+
+Eight prompts were asked for and seven came back. `TABS.CFG` is 1,312 bytes,
+`cfgMax` was 1,024, and the read stopped mid-comment with the last question past
+the cut.
+
+A probe list quietly missing its last row is the failure the *whole file* exists
+to prevent - a record that looks complete. The buffer is four kilobytes now, and
+more to the point the size is **asked before the read**, because a read that
+fills its buffer cannot tell a file that fitted exactly from one that did not.
+`fileSize` was already there.
+
+Worth noting where the fault sat: not in the parse, which had a test, and not in
+the run, which was done correctly. In the one line that chose a number, in a
+program whose output is a record, with nothing checking the number against the
+thing it was a number for.

@@ -1773,7 +1773,22 @@ sub step( u16 k ) {
     return
   }
 
-  if ( a == actNone && had == 0 && k >= 32 && k < 127 ) a = actInsert
+  // **The whole of Alt+numpad is this line.** The BIOS composes it and hands
+  // back the finished character with a scancode of zero - `Alt+0233` measured as
+  // `00E9` - so §57's key space already delivers it and the only thing in the
+  // way was a range that stopped at 126.
+  //
+  // `keyCtrlBack` is the hole: 127 is a real glyph in codepage 437 and also what
+  // `Ctrl+Backspace` reports, so a range alone would type a house where somebody
+  // meant to delete a word.
+  //
+  // §57 already handles the other collision. `Alt+0224` is `à`, which is 0E0h,
+  // which is also how a grey navigation key is flagged - and `keyNorm` tests the
+  // scancode as well for exactly that reason, so a composed 0E0h with no
+  // scancode comes through as the character it is.
+  if ( a == actNone && had == 0 && k >= 32 && k < keyExt && k != keyCtrlBack ) {
+    a = actInsert
+  }
 
   apply( a, k )
 }

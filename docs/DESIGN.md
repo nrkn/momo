@@ -5199,6 +5199,13 @@ taken again.
 | `Shift+End` | 4FE0 | 0002 |
 | `Tab` | 0F09 | 0000 |
 | `Shift+Tab` | 0F00 | 0002 |
+| `Ctrl+Tab` | 9400 | 0124 |
+| `Ctrl+Shift+Tab` | 9400 | 0126 |
+| `Ctrl+T` | 1414 | 0124 |
+| `Ctrl+W` | 1117 | 0124 |
+| `Ctrl+P` | 1910 | 0124 |
+| `Alt+0233` keypad | 00E9 | 0020 |
+| `Alt+0165` keypad | 00A5 | 0020 |
 | `Backspace` | 0E08 | 0000 |
 | `Ctrl+Backspace` | 0E7F | 0104 |
 | `Delete` | 53E0 | 0000 |

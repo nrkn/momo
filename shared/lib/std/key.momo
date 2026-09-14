@@ -38,11 +38,22 @@ const keyCtrlPgDn  = 118
 const keyCtrlHome  = 119
 const keyCtrlPgUp  = 132
 
+// **`Ctrl+Tab` and `Ctrl+Shift+Tab` are the same scancode**, measured as `9400`
+// twice with only the shift flag between them - which is the shape every
+// Shift+navigation pair has, so the fold below carries it with no new case.
+const keyCtrlTab   = 148
+
 // ASCII values, reported in the low byte.
 const keyEsc    = 27
 const keyEnter  = 13
 const keyTab    = 9
 const keySpace  = 32
+
+// **`Ctrl+Backspace` reports 7F**, measured as `0E7F` - and 7F is a printable
+// glyph in codepage 437. So a program deciding "is this a character" by range
+// alone types a house when somebody meant to delete a word, which is the one
+// hole in an otherwise clean rule.
+const keyCtrlBack = 127
 const keyBack   = 8
 
 // Blocks until a key is pressed. Returns AX: `lo()` is the ASCII value and
