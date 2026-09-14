@@ -11,13 +11,9 @@ dirDirectory:   equ     16
 dir__dirAttrAt: equ     21
 dir__dirNameAt: equ     30
 motext__chunkSize: equ     16
-motext__maxChunks: equ     24000
+motext__maxChunks: equ     32000
 motext__maxUndo: equ     2048
 textMaxLines:   equ     12000
-motext__nextParas: equ     3000
-motext__usedParas: equ     1500
-motext__headParas: equ     1500
-motext__lenParas: equ     1500
 textHeap:       equ     14336
 listNameMax:    equ     13
 listMax:        equ     256

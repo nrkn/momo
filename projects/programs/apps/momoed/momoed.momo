@@ -231,6 +231,7 @@ const u8[] sUsage    = "usage: momoed [FILE]  -  no FILE opens the explorer here
 const u8[] sSave     = "save as: $"
 const u8[] sNoName   = "(untitled)$"
 const u8[] sTooMany  = "too many files$"
+const u8[] sKb       = "K$"
 
 
 // ---- the command tail ----
@@ -321,6 +322,7 @@ u16 buildOpenPath( u16 nameAt ) {
 bool loadFile() {
   u16 handle
   u16 got
+  u16 kb
 
   textInit()
 
@@ -328,6 +330,7 @@ bool loadFile() {
   if ( fileFailed() ) return true
 
   got = fileRead( handle, addr( piece ), pieceSize )
+  kb = 0
 
   // **The whole read is one `textBulk`**, which is where §54 keeps the append
   // position in ordinary variables instead of walking to it a character at a
@@ -342,7 +345,13 @@ bool loadFile() {
       // floppy. Three quarters of a minute of nothing reads as a machine that
       // has stopped, and `edit.com` spends the same time saying how far along
       // it is.
-      if ( loud ) putChar( '.' )
+      if ( loud ) {
+        putChar( '.' )
+      } else {
+        showLoading( kb )
+      }
+
+      kb = kb + got / 1024
 
       for ( u16 i = 0; i < got; i++ ) {
         textLoad( piece[i] )
@@ -355,6 +364,7 @@ bool loadFile() {
       if ( textNoRoom() ) break
 
       got = fileRead( handle, addr( piece ), pieceSize )
+  kb = 0
     }
   }
 
@@ -544,14 +554,40 @@ sub drawExplorer {
   }
 }
 
-sub statusText( u16 x, u16 at ) {
+// Clipped at `stop` rather than at the screen, because the status line has more
+// than one thing on it and they are not all at the left. **The message and the
+// line:column used to overlap**: the message was placed 26 columns from the
+// right and is 30 long, so it ran under the numbers, which were drawn after it
+// and won - leaving "file does not 1it :1 not op", a refusal made unreadable by
+// the one thing on screen that never changes.
+sub statusClip( u16 x, u16 at, u16 stop ) {
   u16 i
   i = 0
 
-  while ( peek8( at + i ) != '$' && x + i < cols ) {
+  while ( peek8( at + i ) != '$' && x + i < stop ) {
     cellAt( x + i, rows - 1, peek8( at + i ), attrStatus )
     i++
   }
+}
+
+sub statusText( u16 x, u16 at ) => statusClip( x, at, cols )
+
+// **The name is ASCIZ and everything else here is `$`-terminated.** `statusText`
+// was being handed it anyway and got away with it: the row is filled with spaces
+// first and the zero bytes after the name render as blanks, so eighty cells of
+// nothing looked exactly like a name. Returns the length, because the caller
+// needs to know where the name ended and counting it separately is how two
+// answers come to differ.
+u16 statusName( u16 x ) {
+  u16 i
+  i = 0
+
+  while ( fileName[i] != 0 && x + i < cols ) {
+    cellAt( x + i, rows - 1, fileName[i], attrStatus )
+    i++
+  }
+
+  return i
 }
 
 // The digits used to be worked out here, in the fourth copy of the same loop in
@@ -578,6 +614,33 @@ sub statusField( u16 x ) {
   for ( u16 i = 0; i < fieldLength() && x + i < cols; i++ ) {
     cellAt( x + i, rows - 1, peek8( at + i ), attrStatus )
   }
+}
+
+// **A load from inside has nowhere to put dots.** At startup there is a DOS
+// prompt underneath and `loud` prints one per read; from inside there is a
+// document on screen and the status line is the only row that may be written
+// over. `edit.com` uses the same row for the same reason.
+//
+// Kilobytes read rather than lines loaded, because the line count lives in the
+// buffer and §58 is explicit that nothing may read the buffer inside `textBulk`.
+// The loader knows how many bytes it has asked for, which is a fact about the
+// file rather than about the buffer, so it is the one that can be shown.
+sub showLoading( u16 kb ) {
+  u16 x
+
+  for ( x = 0; x < cols; x++ ) {
+    cellAt( x, rows - 1, 32, attrStatus )
+  }
+
+  statusText( 0, addr( sLoading ) )
+
+  // Measured, not written down - the same rule the prompt label follows.
+  x = strLen( addr( sLoading ) )
+
+  x = x + statusName( x )
+
+  statusNumber( x + 1, kb )
+  statusText( x + 1 + numWidth( kb ), addr( sKb ) )
 }
 
 sub drawStatus {
@@ -611,24 +674,20 @@ sub drawStatus {
   // A document with nowhere to go yet says so, rather than starting the line
   // with a name-shaped blank.
   if ( haveName ) {
-    statusText( 0, addr( fileName ) )
+    x = statusName( 0 )
   } else {
     statusText( 0, addr( sNoName ) )
-  }
-
-  x = 0
-  if ( haveName ) {
-    while ( fileName[x] != 0 ) {
-      x++
-    }
-  } else {
-    x = 10
+    x = strLen( addr( sNoName ) )
   }
 
   if ( dirty ) statusText( x + 1, addr( sStar ) )
 
-  // Left of the line and column, which are the right-hand twelve columns.
-  if ( message != 0 && cols > 40 ) statusText( cols - 26, message )
+  // **After the name and clipped short of the numbers**, which is where a message
+  // has room: a filename and a star leave fifty-odd columns at 80, against the
+  // thirteen that were left by hanging it off the right-hand end. Right-aligning
+  // it would have meant measuring it first, and the answer would still have been
+  // too long for the gap.
+  if ( message != 0 && cols > 40 ) statusClip( x + 3, message, cols - 13 )
 
   statusNumber( cols - 12, viewLine() + 1 )
   cellAt( cols - 8, rows - 1, ':', attrStatus )
@@ -1214,7 +1273,13 @@ bool openNamed( u16 at, u16 n ) {
     viewUnmark()
     viewHome()
     dirty = false
-    needExp = true
+
+    // **Both panes.** `^O` got away without this because the prompt it came
+    // through forces a full paint on the frame after it closes; the explorer has
+    // no such frame, so opening from it changed the buffer and left the previous
+    // file on screen until something else happened to trigger a redraw.
+    needText = true
+    needExp  = true
     return true
   }
 
@@ -1228,7 +1293,8 @@ bool openNamed( u16 at, u16 n ) {
   viewUnmark()
   viewHome()
   dirty = false
-  needExp = true
+  needText = true
+  needExp  = true
   return false
 }
 

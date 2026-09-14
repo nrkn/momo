@@ -62,7 +62,11 @@ include "lib/std/block.momo"
 
 local const chunkSize = 16
 local const halfChunk = chunkSize / 2
-local const maxChunks = 24000
+// **Bounded by addressing, not by taste.** `chunkNext` is a `u16` per chunk in a
+// far region, and a far region is reached at a `u16` offset - so more than 32,767
+// chunks is two bytes each of somewhere this cannot point at. What a machine
+// actually gets is worked out in `textInit` and is usually less.
+local const maxChunks = 32000
 local const maxUndo   = 2048
 
 // **Chunks rather than bytes**, because the byte count no longer fits a `u16` -
@@ -105,11 +109,11 @@ local u16 dstSeg
 // Four regions rather than one, because each is reached at a `u16` offset and
 // together they are more than 64 KB. They are laid out in order from the base
 // and the text starts after them, which is the whole of the arithmetic.
-local const nextParas = ( maxChunks * 2 ) / chunkSize
-local const usedParas = maxChunks / chunkSize
+// The line tables are the only fixed-size regions, because `textMaxLines` is a
+// constant and the chunk count is not. The two per-chunk records are laid out
+// from what the machine turns out to have - see `textInit`.
 local const headParas = ( textMaxLines * 2 ) / chunkSize
 local const lenParas  = ( textMaxLines * 2 ) / chunkSize
-local const recParas  = nextParas + usedParas + headParas + lenParas
 
 local u16 recBase
 local u16 nextSeg
@@ -974,6 +978,8 @@ local sub lineNew {
 // reason §43's row table is filled by a call rather than by setting a mode.
 sub textInit {
   u16 room
+  u16 avail
+  u16 spare
 
   lineCount  = 0
   chunkFree  = 0
@@ -1004,17 +1010,51 @@ sub textInit {
     return
   }
 
+  // **The records are sized from what the machine has, not from the ceiling.**
+  // This used to lay them out at `maxChunks` and give the text whatever was
+  // left, on the stated grounds that "a far region takes a constant" - which is
+  // true of its *declared size* and not of its base, and the bases here have
+  // been variables all along. So a machine that could not reach the ceiling paid
+  // for it anyway, in records for chunks that could never exist.
+  //
+  // It is worth the arithmetic because it is the difference between fitting and
+  // not: a 577 KB machine went from 24,000 chunks to about 28,500, and the file
+  // that prompted this needs 27,953.
+  if ( blockEnd() <= recBase ) {
+    noRoom = true
+    whyNoRoom = whyBlock
+    return
+  }
+
+  avail = blockEnd() - recBase
+
+  if ( avail <= headParas + lenParas ) {
+    noRoom = true
+    whyNoRoom = whyBlock
+    return
+  }
+
+  // What is left after the line tables is shared between the text and the two
+  // per-chunk records, in the ratio they cost: sixteen bytes of text, two of
+  // `chunkNext`, one of `chunkUsed` - nineteen sixteenths of a paragraph each.
+  //
+  // **Divided before it is multiplied**, with the remainder carried. `spare * 16`
+  // leaves a `u16` at four thousand paragraphs and the machine this was measured
+  // on has thirty-six thousand. Third time that exact shape has been needed;
+  // `loadrate` was the first.
+  spare = avail - headParas - lenParas
+  chunkLimit = spare / 19 * 16 + ( spare % 19 ) * 16 / 19
+
+  if ( chunkLimit > maxChunks ) chunkLimit = maxChunks
+
+  // Rounded up, because a region that stops one paragraph short of its last
+  // entry is a region whose last entry is somebody else.
   nextSeg  = recBase
-  usedSeg  = nextSeg + nextParas
-  headSeg  = usedSeg + usedParas
+  usedSeg  = nextSeg + ( chunkLimit + 7 ) / 8
+  headSeg  = usedSeg + ( chunkLimit + 15 ) / 16
   lenSeg   = headSeg + headParas
   textBase = lenSeg + lenParas
 
-  // **The capacity is what is left rather than what was asked for.** A smaller
-  // machine gets a smaller buffer, which is the whole reason the consts above
-  // are a ceiling: sizing the regions to the block would mean sizing them at
-  // runtime, and a far region takes a constant.
-  //
   // Compared rather than added, so a high base cannot wrap past the end and
   // come back looking like room - the same care `blockFits` takes.
   if ( blockEnd() <= textBase ) {
@@ -1023,9 +1063,9 @@ sub textInit {
     return
   }
 
+  // The ratio is exact; the rounding above is not. Whatever slack that left,
+  // this takes back.
   room = blockEnd() - textBase
-
-  chunkLimit = maxChunks
   if ( room < chunkLimit ) chunkLimit = room
 
   // Chunk 0 is the null and a line needs one of its own, so two is the floor
