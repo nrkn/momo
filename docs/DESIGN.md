@@ -4036,11 +4036,12 @@ Both halves together cost the editor a little over two hundred bytes; DECISIONS
   knows it. §16 loads ES per access, so a `u16` variable costs ten cycles more
   than an immediate every time - `tigerpic` would pay it 92,949 times - and §16
   refuses to hoist a runtime segment, so the constant is the only form §34 can
-  ever improve. `screenSegment()` is for a program that does not know its mode at
-  compile time - which now has a consumer, and not the one this sentence expected:
-  `momoed` reads it to find out whether it can address the mode at all. **A
-  constant frame makes describable wider than usable**, and mode 7 is where the
-  two come apart. A program that pins its `far` to one segment has to ask.
+  ever improve. **The rule is priced for a pixel-pusher and says so**: the number
+  it rests on is `tigerpic`'s 92,949 writes. `momoed` writes 1,920 cells a few
+  times a second and takes the variable, because that is what reaches mode 7 at
+  0xB000 - the screen `mode mono` leaves. `screenSegment()` is what it reads,
+  which is the consumer this sentence used to say did not exist. **The rule
+  stands where the writes are the program**, and an editor is not that.
 - **`saveMode` and `restoreMode` are a `bracket`**, `videoMode` (§48), declared
   here because this file owns the routines. A program that forgets the restore
   leaves the display in mode 13h at the DOS prompt, and the compiler emitting the
@@ -5941,6 +5942,15 @@ language feature.
 - **A keystroke redraws what it changed.** A motion inside the window changes no
   cell of the text area; a one-line scroll changes one row and the BIOS moves the
   rest. The whole screen is for the cases that earn it.
+- **A frame nobody will see is not drawn.** With a key already waiting, the paint
+  this would do is replaced before a person could read it, so a held key costs
+  one repaint when the hand comes off. Paging cannot be made cheaper, only
+  rarer - a page changes every row and has nothing to reuse.
+- **Asking whether a key is waiting must not have side effects.** `keyPending`
+  reads the BIOS data area; the DOS call does Ctrl+C checking, and `^C` is the
+  copy key.
+- **An attribute is a property of the adapter.** MDA has no colours, so the two
+  sets are chosen by the frame segment rather than assumed.
 - **Both ends of a selection and of a prompt take the full path.** The frame that
   clears a highlight has as much to do as the one that drew it, so `repaint` asks
   what the *last* frame showed as well as what this one does.
@@ -6021,6 +6031,33 @@ keeps `lastSel` and `lastAsk` rather than only asking about now.
 
 Anything that moves the window by more than a row - a page, a goto, a find - is
 the case the whole-screen redraw was always right for, and still takes it.
+
+**Which is why Page Down needed a different answer.** Arrows stopped overflowing
+the keyboard buffer entirely - four thousand lines held down - and paging still
+did, at around 550, because a page is a full redraw by nature and 22 a second is
+what a full redraw costs. Drawing faster was not available; **drawing less often
+was.** With a key already waiting the repaint is skipped, so a run of Page Downs
+paints once, when the hand comes off. The screen a person never sees is the
+cheapest one to get right.
+
+### Mono, which was a refusal and should not have been
+
+`mode mono` is mode 7 and its frame is at 0xB000. This program pinned `vram` to
+0xB800 for §43's reason, so it first drew two thousand cells where nobody could
+see them and then, once that was caught, refused the mode outright. `edit.com`
+works in it, and DOS text is visible there, so the refusal was the wrong answer
+to a real question.
+
+**The segment is a variable now**, which §43's rule advises against for a
+measured reason that turns out not to be this program's: the number behind it is
+`tigerpic`'s 92,949 writes, against 1,920 cells a few times a second here.
+`drawrate` mirrors the change so the next run prices it rather than arguing it.
+
+**And an attribute is the adapter's, not a constant.** MDA has 0x07 normal, 0x0F
+bright, 0x70 reverse and 0x01 underline, and a byte meaning white-on-blue means
+none of them. Two sets, chosen by the frame segment - which is the honest signal,
+because the segment *is* what the difference is. The two sets agree on text and
+status, which is why the status line looked right in mono when nothing else did.
 
 Not in it: the explorer and therefore directory enumeration; more than one file
 open; replace; multiple cursors; syntax colour; and text in a graphics mode.

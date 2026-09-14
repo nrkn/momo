@@ -57,6 +57,23 @@ bool keyWaiting() {
   return _al != 0
 }
 
+// The BIOS keyboard buffer's head and tail. Equal means nothing is waiting.
+//
+// **Neither of the two calls that answer this question can be used here.**
+// `int 16h AH=01h` reports in ZF, which is what `keyWaiting` above says and why
+// it reaches for DOS instead. And the DOS call is in the group that does Ctrl+C
+// checking, so a program binding `^C` to something of its own - `momoed` binds
+// it to copy - could be terminated by its own key while merely *asking whether*
+// a key was there.
+//
+// Reading the pointers is cheaper than either, needs no interrupt at all, and is
+// the same move `mode.momo` makes for the screen geometry: the BIOS data area
+// knows, so ask it rather than a function that has opinions.
+local const far u16[1] bdaKeyHead = 0x0040:0x001A
+local const far u16[1] bdaKeyTail = 0x0040:0x001C
+
+bool keyPending() => bdaKeyHead[0] != bdaKeyTail[0]
+
 // ---- the enhanced keyboard, and one key as one number ----
 //
 // Everything below was measured by `keyprobe` under DOSBox and 86Box rather than

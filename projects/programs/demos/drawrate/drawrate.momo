@@ -30,9 +30,16 @@ const edCols = 80
 const edRows = 25
 const winRows = edRows - 1
 
-far u16[edCols * edRows] vram = 0xB800
+// **A variable, mirroring `momoed`.** The editor gave up its constant segment to
+// reach mode 7 at 0xB000, and this measures what the editor does - so the
+// declaration follows it rather than staying on the cheaper form and reporting a
+// number nothing pays. Held against the 401 ticks the constant version measured
+// on the same machine, the full-redraw figure prices that decision on its own.
+u16 vramSeg
 
-const attrText = color( lightGray, black )
+far u16[edCols * edRows] vram = vramSeg
+
+u8 attrText
 
 // Enough that the slower path is seconds on a 286 rather than ticks, and the
 // faster one is still more than one tick.
@@ -61,15 +68,17 @@ u16 oneTicks
 // measure a case that is not the one that beeps.
 sub viewRow( u16 y, u16 at, u16 n ) {
   u16 base
+  u16 hi
 
   base = y * edCols
+  hi = u16( attrText ) << 8
 
   for ( u16 x = 0; x < n; x++ ) {
-    vram[ base + x ] = u16( peek8( at + x ) ) | ( u16( attrText ) << 8 )
+    vram[ base + x ] = u16( peek8( at + x ) ) | hi
   }
 
   for ( u16 x = n; x < edCols; x++ ) {
-    vram[ base + x ] = 32 | ( u16( attrText ) << 8 )
+    vram[ base + x ] = 32 | hi
   }
 }
 
@@ -93,6 +102,9 @@ sub report( u16 label, u16 done, u16 spent ) {
 }
 
 // ---- entry ----
+
+vramSeg  = 0xB800
+attrText = color( lightGray, black )
 
 putStr( addr( sIntro ) )
 newline()

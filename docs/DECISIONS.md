@@ -2204,6 +2204,65 @@ one - and neither was won by being cleverer. §58 stopped doing ten things per
 character that only an edit needs; this stopped drawing cells that had not
 changed.
 
+### Paging could not be made cheaper, so it was made rarer
+
+Arrows stopped overflowing the buffer completely - four thousand lines held
+down, and the test ended the way the last one did. **Page Down still overflowed,
+at around 550 lines**, which is 23 pages, and the arithmetic fits without
+anything new: a page changes every row, so it takes the full redraw, and
+`drawrate` says a full redraw is 22 a second.
+
+The question it raised - whether those scancodes put more in the buffer - has a
+flat no for an answer. Every key is one word in the same fifteen. What differed
+was the cost of the keystroke, not its size.
+
+**There was nothing left to remove from a page.** The window has no rows in
+common with the one before it, so every cell is genuinely new; the two fixes
+above both work by finding cells that are not. So the lever moved from *draw
+faster* to **draw less often**: with a key already waiting, the repaint is
+skipped, because the screen it would paint is replaced before anyone could read
+it. A run of Page Downs paints once, when the hand comes off.
+
+`keyWaiting` already existed, and using it would have been a bug. It is DOS
+`AH=0Bh` - reached for because `int 16h AH=01h` answers in ZF and Momo cannot
+read flags - and the DOS call is in the group that does **Ctrl+C checking**.
+`momoed` binds `^C` to copy. Merely *asking whether a key was waiting* could
+have terminated the editor on its own copy key, and the failure would have
+surfaced the first time somebody copied something rather than in any tier.
+
+`keyPending` reads the BIOS buffer's head and tail out of the BIOS data area
+instead - `0x0040:001A` and `0x0040:001C`, equal meaning empty. No interrupt,
+cheaper than either call, and the same move `mode.momo` already makes for the
+screen geometry: **the data area knows, so ask it rather than a function that
+has opinions.**
+
+Worth recording as a shape rather than a fact about `AH=0Bh`. The hazard was
+not in what the call returns - that part was right - but in what it does on
+the way. A question that has side effects is a question worth asking somewhere
+else, and the BIOS data area is where this program had already learned to look.
+
+### The refusal of mono was honest and was still wrong
+
+`mode mono` left `momoed` drawing into a segment nobody was displaying; the fix
+for that was to refuse the mode. Then: **`edit.com` works in mono, and `dir`
+shows text there.** So the screen was fine, DOS was fine, and the one program
+that could not cope was ours.
+
+A refusal is the right answer to *I cannot address this* and the wrong answer to
+*I chose not to be able to*. §43's rule pinned the frame segment to a constant,
+and the rule is right - for the program it was priced on. `tigerpic` writes
+92,949 pixels and pays ten cycles for each; `momoed` writes 1,920 cells a few
+times a second, and now that `drawrate` exists the difference is a number rather
+than a worry. **The rule kept its reason and gained its exception**, which is
+better than either leaving it absolute or quietly ignoring it.
+
+The attributes are the half that would have been found later and hurt more.
+MDA has no colours - 0x07, 0x0F, 0x70 and 0x01 are all of them - so the
+selection would have come out as something arbitrary on a screen that was
+finally being drawn to. The two sets agree on text and status by accident of
+the byte values, which is exactly why the status line had looked right all
+along and suggested less was wrong than was.
+
 ### Where the fourteen milliseconds go, from the two numbers themselves
 
 A full redraw is 401 ticks for 500 draws of 24 rows: **1.8 ms a row**. A scroll

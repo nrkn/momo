@@ -33,24 +33,42 @@ include "lib/morange.momo"
 const edMaxCols = 80
 const edMaxRows = 50
 
-// §43's rule: the frame's segment stays a **constant** in the program, because
-// §16 reloads ES per access and a `u16` variable costs ten cycles more than an
-// immediate on every cell - which here is every cell of every redraw.
+// **The frame's segment is a variable here**, which §43's rule says it should not
+// be - and that rule is priced for `tigerpic` writing 92,949 pixels, not for an
+// editor writing 1,920 cells a few times a second. §16 reloads ES per access
+// either way; what a variable adds is `mov dx, [seg]` where a constant had
+// `mov dx, imm`, and `drawrate` is how that got priced rather than argued.
 //
-// The price is that the modes this can *adopt* are narrower than the modes §43
-// can describe. Mode 7 is a text mode and its frame is at 0xB000, so a screen
-// set by `mode mono` is one the descriptor answers about correctly and this
-// program cannot address at all. It is checked rather than assumed to be
-// 0xB800: writing 2,000 cells into a segment nothing is displaying looks
-// exactly like a hang.
-const edSegment = 0xB800
+// What it buys is mode 7, whose frame is at 0xB000 - the screen `mode mono`
+// leaves, which `edit.com` works in and this refused. A refusal was the honest
+// answer while the segment was nailed down; it is not an answer now.
+u16 vramSeg
 
-far u16[edMaxCols * edMaxRows] vram = edSegment
+far u16[edMaxCols * edMaxRows] vram = vramSeg
 
-const attrText   = color( lightGray, black )
-const attrStatus = color( black, lightGray )
-const attrMatch  = color( black, cyan )
-const attrSel    = color( white, blue )
+// **An attribute is a property of the adapter, not a constant.** MDA has no
+// colours at all: 0x07 is normal, 0x0F bright, 0x70 reverse and 0x01
+// underline, and a byte meaning white-on-blue means none of those. The two
+// sets agree on the two bytes that happen to mean the same thing either way,
+// which is why the status line looked right in mono even when nothing else did.
+u8 attrText
+u8 attrStatus
+u8 attrMatch
+u8 attrSel
+
+sub useColor {
+  attrText   = color( lightGray, black )
+  attrStatus = color( black, lightGray )
+  attrMatch  = color( black, cyan )
+  attrSel    = color( white, blue )
+}
+
+sub useMono {
+  attrText   = 0x07
+  attrStatus = 0x70
+  attrMatch  = 0x0F
+  attrSel    = 0x70
+}
 
 u16 cols
 u16 rows
@@ -288,6 +306,7 @@ sub cellAt( u16 x, u16 y, u8 ch, u8 attr ) {
 // until something writes over them.
 sub viewRow( u16 y, u16 at, u16 n ) {
   u16 base
+  u16 hi
   u16 hx
   u16 ln
   u16 c0
@@ -297,12 +316,17 @@ sub viewRow( u16 y, u16 at, u16 n ) {
 
   base = y * cols
 
+  // The attribute used to be a `const` and folded into the instruction. It is
+  // the adapter's now, so it is composed once for the row rather than read per
+  // cell - which is where a variable would have cost something.
+  hi = u16( attrText ) << 8
+
   for ( u16 x = 0; x < n; x++ ) {
-    vram[ base + x ] = u16( peek8( at + x ) ) | ( u16( attrText ) << 8 )
+    vram[ base + x ] = u16( peek8( at + x ) ) | hi
   }
 
   for ( u16 x = n; x < cols; x++ ) {
-    vram[ base + x ] = 32 | ( u16( attrText ) << 8 )
+    vram[ base + x ] = 32 | hi
   }
 
   // The selection, painted over the row that was just written rather than into
@@ -1275,13 +1299,21 @@ if ( haveName && !loadFile() ) {
     // meant a tall screen was flattened on the way in. The mode number could not
     // say which mode 3 it was, so neither could the program.
     //
-    // **Describable is not the same as usable**, and the segment is where the
-    // two come apart: mode 7 is a text mode at 0xB000 and `vram` is nailed to
-    // 0xB800 above. A mode this cannot address is refused the same way a
-    // graphics mode is, and the machine gets mode 3 instead - which on a VGA
-    // running `mode mono` is a working screen, and on a real MDA is nothing,
-    // but a real MDA was never going to run this.
-    if ( !adoptMode() || screenSegment() != edSegment ) setMode( modeText )
+    // Any text mode the descriptor can describe, including mode 7 at 0xB000.
+    // Only a graphics mode is refused now, because that is the one `adoptMode`
+    // cannot answer for without §43's full query.
+    if ( !adoptMode() ) setMode( modeText )
+
+    vramSeg = screenSegment()
+
+    // The adapter decides what an attribute means, and 0xB000 is the one that
+    // has no colours. Asked of the descriptor rather than of the mode number,
+    // because the segment is the thing the difference actually is.
+    if ( vramSeg == 0xB000 ) {
+      useMono()
+    } else {
+      useColor()
+    }
 
     cols = screenWidth()
     rows = screenHeight()
@@ -1295,8 +1327,17 @@ if ( haveName && !loadFile() ) {
 
     running = true
 
+    // **A frame nobody will see is not drawn.** With a key already waiting, the
+    // screen this would paint is replaced before a person could read it, so a
+    // held key costs one repaint when the hand comes off rather than one per
+    // keystroke.
+    //
+    // This is what Page Down needed. A page changes every row and has nothing
+    // to reuse, so paging is a full redraw by nature and cannot be made
+    // cheaper - only rarer. `drawrate` says a full redraw is 22 a second on the
+    // 286, which key repeat outruns, and that is what the beeping was.
     while ( running ) {
-      repaint()
+      if ( !keyPending() ) repaint()
       step( readKeyNorm() )
     }
   }

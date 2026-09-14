@@ -28,12 +28,15 @@ viewMaxWidth:   equ     160
 edCols:         equ     80
 edRows:         equ     25
 winRows:        equ     24
-attrText:       equ     7
 rounds:         equ     500
 
 ; =========================================================== entry ====
 
 __entry:
+; ---- vramSeg  = 0xB800
+        mov     word [vramSeg], 47104
+; ---- attrText = color( lightGray, black )
+        mov     byte [attrText], 7
 ; ---- putStr( addr( sIntro ) )
         mov     ax, sIntro                  ; link-time constant
         mov     [putStr__at], ax
@@ -144,7 +147,8 @@ __entry:
         mov     byte [scrollUp__w], 80
         mov     byte [scrollUp__h], 24
         mov     byte [scrollUp__lines], 1
-        mov     byte [scrollUp__attr], 7
+        mov     al, [attrText]
+        mov     [scrollUp__attr], al        ; u8 -> u8, no widening
         call    scrollUp
 ; ---- viewRenderRow( winRows - 1 )
         mov     word [viewRenderRow__y], 23
@@ -1758,6 +1762,12 @@ viewRow:
         mov     bx, 80
         mul     bx                          ; low 16 bits are sign-agnostic
         mov     [viewRow__base], ax
+; ---- hi = u16( attrText ) << 8
+        mov     al, [attrText]
+        xor     ah, ah                      ; u8 -> u16
+        mov     cl, 8                       ; 8086 has no shift-by-immediate
+        shl     ax, cl
+        mov     [viewRow__hi], ax
 ; ---- for ( u16 x = 0; x < n; x++ ) {
         mov     word [viewRow__x], 0
 .L210:
@@ -1765,21 +1775,22 @@ viewRow:
         mov     bx, [viewRow__n]
         cmp     ax, bx
         jae     .L212                       ; unsigned <
-; ---- vram[ base + x ] = u16( peek8( at + x ) ) | ( u16( attrText ) << 8 )
+; ---- vram[ base + x ] = u16( peek8( at + x ) ) | hi
         mov     ax, [viewRow__at]
         mov     bx, [viewRow__x]
         add     ax, bx
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
         xor     ah, ah                      ; u8 -> u16
-        or      ax, 1792
+        mov     bx, [viewRow__hi]
+        or      ax, bx
         push    ax                          ; save value while computing the index
         mov     ax, [viewRow__base]
         mov     bx, [viewRow__x]
         add     ax, bx
         shl     ax, 1                       ; word elements
         mov     bx, ax
-        mov     dx, 0xB800                  ; segment of vram
+        mov     dx, [vramSeg]               ; segment of vram
         mov     es, dx
         pop     ax
         mov     [es:bx], ax
@@ -1794,15 +1805,20 @@ viewRow:
         mov     ax, [viewRow__x]
         cmp     ax, 80
         jae     .L216                       ; unsigned <
-; ---- vram[ base + x ] = 32 | ( u16( attrText ) << 8 )
+; ---- vram[ base + x ] = 32 | hi
+        mov     ax, 32
+        mov     bx, [viewRow__hi]
+        or      ax, bx
+        push    ax                          ; save value while computing the index
         mov     ax, [viewRow__base]
         mov     bx, [viewRow__x]
         add     ax, bx
         shl     ax, 1                       ; word elements
         mov     bx, ax
-        mov     dx, 0xB800                  ; segment of vram
+        mov     dx, [vramSeg]               ; segment of vram
         mov     es, dx
-        mov     word [es:bx], 1824
+        pop     ax
+        mov     [es:bx], ax
 .L215:
         inc     word [viewRow__x]
         jmp     .L214
@@ -2029,6 +2045,8 @@ viewGotoLine__ln: dw      0        ; u16
 moview__viewPlace__ln: dw      0        ; u16
 moview__viewPlace__col: dw      0        ; u16
 viewRenderRow__y: dw      0        ; u16
+vramSeg:        dw      0        ; u16
+attrText:       db      0        ; u8
 start:          dw      0        ; u16
 fullTicks:      dw      0        ; u16
 oneTicks:       dw      0        ; u16
@@ -2068,6 +2086,7 @@ viewRenderRow__n: dw      0        ; u16
 viewRender__y:  dw      0        ; u16
 viewRow__x:     dw      0        ; u16
 viewRow__base:  dw      0        ; u16
+viewRow__hi:    dw      0        ; u16
 
 ; ---- arrays ----
 moview__row:    times 160 db 0        ; u8[160]
