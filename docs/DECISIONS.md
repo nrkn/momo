@@ -2256,6 +2256,26 @@ times a second, and now that `drawrate` exists the difference is a number rather
 than a worry. **The rule kept its reason and gained its exception**, which is
 better than either leaving it absolute or quietly ignoring it.
 
+### What the exception cost, on the same machine and the same program
+
+`drawrate` was changed to match the editor rather than left on the cheaper form,
+so the same 500 draws price the decision directly. Scroll plus one row: **128
+ticks to 130**, which is the BIOS scroll dominating and the change disappearing
+into it. The ratio moved 3.1 to 3.4, which puts the full redraw between 442 and
+454 ticks against 401 - **about 10%**, and derived from the printed ratio rather
+than read off directly.
+
+Counted off the emitted loop beforehand: `mov bx, [hi]` added where an immediate
+had been folded into the `or`, and `mov dx, [seg]` where a constant had
+`mov dx, imm` - eight cycles on about eighty-four, so ten percent. That is what
+the machine said, which is the first prediction this week to land on the number
+rather than near it.
+
+**Ten percent of a path that is now rarely taken, for a screen the editor could
+not previously use at all.** Worth naming as a trade rather than a win: the
+full redraw got slower, and the reason that is acceptable is the two changes
+before it, which stopped it being the thing every keystroke does.
+
 The attributes are the half that would have been found later and hurt more.
 MDA has no colours - 0x07, 0x0F, 0x70 and 0x01 are all of them - so the
 selection would have come out as something arbitrary on a screen that was
