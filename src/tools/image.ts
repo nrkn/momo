@@ -19,15 +19,7 @@
 // the day it fires is the day this grows a directory per project. The image is a
 // build artefact regenerated from scratch, so there is no migration to pay for.
 
-import {
-  closeSync,
-  existsSync,
-  openSync,
-  readdirSync,
-  rmSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs'
+import { existsSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
@@ -328,18 +320,6 @@ const extract = (image: Buffer, wanted: string): Buffer | null => {
 }
 
 // Every image this tool could have written, in the order it writes them.
-// Whether a file can be written, which on Windows is only answerable by trying:
-// an image mounted in an emulator is locked, and nothing about the path says so.
-// Opened `r+` rather than `w`, so the probe cannot truncate what it probes.
-const writable = (path: string): boolean => {
-  try {
-    closeSync(openSync(path, "r+"))
-    return true
-  } catch {
-    return false
-  }
-}
-
 const imageNames = (): string[] =>
   readdirSync(buildRoot)
     .filter((file) => /^momo(-\d+)?\.ima$/i.test(file))
@@ -408,44 +388,62 @@ const main = async () => {
     built.push({ name, disk: disks[n], data: await buildImage(disks[n], label) })
   }
 
-  // **Nothing is removed until everything can be written.** How many disks there
-  // are moves with the number of projects, so a previous run's images are not
-  // overwritten - they are left beside the new ones looking exactly as current.
-  // `momo.ima` from a single-disk run sat beside momo-0, -1 and -2 for three
-  // weeks doing precisely that, which is why the set is cleared.
+  // **Written first, cleaned up after, and nothing is deleted that this run is
+  // about to replace.**
   //
-  // Clearing it *first* is what made the failure worse than not running at all:
-  // an image mounted in an emulator is locked by Windows, so a run that cleared
-  // four and failed on the fourth write left no usable set. A tool whose failure
-  // mode is more destructive than doing nothing is worth a second pass over the
-  // filenames.
-  const wanted = new Set([...imageNames(), ...built.map((b) => b.name)])
-
-  const locked = [...wanted]
-    .map((name) => join(buildRoot, name))
-    .filter(existsSync)
-    .filter((path) => !writable(path))
-
-  if (locked.length > 0) {
-    fail(
-      `cannot write, and nothing was changed:\n  ${locked.join('\n  ')}\n` +
-        'an image mounted in an emulator is locked by it - eject it and run again',
-    )
-  }
-
-  for (const stale of imageNames()) rmSync(join(buildRoot, stale))
+  // How many disks there are moves with the number of projects, so a previous
+  // run's images have to go or they sit beside the new ones looking exactly as
+  // current - `momo.ima` from a single-disk run did that for three weeks. That is
+  // why there is a clean-up at all.
+  //
+  // Doing it *first* made the failure worse than not running: an image mounted in
+  // an emulator cannot be unlinked on Windows, so a run that cleared the set and
+  // then failed left no usable images. The first attempt at fixing that probed
+  // each file with `open(r+)` and passed - **a mounted image is writable and not
+  // deletable, which are different questions** - and the delete failed anyway,
+  // with one image already gone.
+  //
+  // So the order is the fix rather than the check. Every file this writes is
+  // current; anything it could not write keeps its old contents and is named at
+  // the end, which is a tool that has done less than asked rather than damage.
+  const failures: string[] = []
 
   for (const image of built) {
     const out = join(buildRoot, image.name)
 
-    writeFileSync(out, image.data)
+    try {
+      writeFileSync(out, image.data)
+    } catch {
+      failures.push(out)
+      continue
+    }
 
     const used = image.disk.reduce((total, e) => total + Math.ceil(e.size / bytesPerSector), 0)
     console.log(
       `ok: ${out}  (${image.disk.length} files, ${used} of ${totalClusters} clusters)`,
     )
   }
-}
+
+  // Only what this run did not write, and only after it has written. A stale
+  // image that cannot be removed is a warning: the set beside it is correct.
+  const written = new Set(built.map((image) => image.name))
+
+  for (const stale of imageNames()) {
+    if (written.has(stale)) continue
+
+    try {
+      rmSync(join(buildRoot, stale))
+    } catch {
+      console.log(`warning: could not remove the stale ${stale} - eject it`)
+    }
+  }
+
+  if (failures.length > 0) {
+    fail(
+      `could not write, so these still hold what they held before:\n  ${failures.join('\n  ')}\n` +
+        'an image mounted in an emulator is locked by it - eject it and run again',
+    )
+  }}
 
 try {
   await main()
