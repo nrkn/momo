@@ -1,0 +1,171 @@
+// dirtest.momo - std/dir.momo (DESIGN §38).
+//
+// `filetest`'s rule, and for the same reason: **the test needs nothing on the
+// disk.** It creates the files it is about to enumerate, so every name it prints
+// is one this run produced and there is no fixture to go missing or go stale.
+// Enumerating whatever the harness happened to copy into the working directory
+// would be a test of the harness.
+//
+// The interesting half is the last section. §38 kept enumeration out of the file
+// library because `FindFirst` writes to the DTA and the DTA defaults to the
+// command tail, and a hazard that is handled silently is one nothing would notice
+// coming back.
+
+include "lib/std/io.momo"
+include "lib/std/file.momo"
+include "lib/std/dir.momo"
+include "lib/std/str.momo"
+
+// Three files with a shape no other name in the working directory has, so the
+// pattern cannot pick up something the harness left behind.
+const u8[] fileA = "DIRT0001.TMP\0"
+const u8[] fileB = "DIRT0002.TMP\0"
+const u8[] fileC = "DIRT0003.TMP\0"
+
+const u8[] pattern = "DIRT*.TMP\0"
+const u8[] nothing = "NOSUCH*.ZZZ\0"
+
+const u8[] payload = "0123456789ABCDEF"
+
+// Long enough for the longest 8.3 name and its terminator.
+u8[16] name
+
+u16 handle
+u16 count
+
+const u8[] sMade    = "made: $"
+const u8[] sFound   = "found:$"
+const u8[] sCount   = "count: $"
+const u8[] sNone    = "none: $"
+const u8[] sTail    = "tail: $"
+
+// ---- three files that were not there ----
+
+sub make( u16 at, u16 bytes ) {
+  handle = fileCreate( at )
+  fileWrite( handle, addr( payload ), bytes )
+  fileClose( handle )
+
+  putNumber( u16( fileFailed() ) )
+}
+
+putStr( addr( sMade ) )
+make( addr( fileA ), 16 )
+make( addr( fileB ), 8 )
+make( addr( fileC ), 1 )
+newline()
+
+// ---- enumerating them ----
+//
+// The name is copied out and terminated here rather than by the library, which
+// hands back the ASCIZ DOS matched so it can go straight to `fileOpen`. Printing
+// the size beside it is what says the block's other fields were read from the
+// right offsets - three files of three different lengths, so a size read from the
+// wrong place cannot agree by accident.
+
+sub showFound {
+  u16 n
+
+  n = dirNameLen()
+  memCopy( addr( name ), dirName(), n )
+  poke8( addr( name ) + n, '$' )
+
+  putStr( addr( name ) )
+  putChar( ' ' )
+  putNumber( dirSizeLow() )
+  putChar( ' ' )
+  putNumber( u16( dirIsDir() ) )
+  newline()
+}
+
+putStr( addr( sFound ) )
+newline()
+
+count = 0
+
+if ( dirFirst( addr( pattern ), dirNormal ) ) {
+  showFound()
+  count++
+
+  while ( dirNext() ) {
+    showFound()
+    count++
+  }
+}
+
+putStr( addr( sCount ) )
+putNumber( count )
+putChar( ' ' )
+
+// The search ran out rather than failed, which is the distinction a caller needs
+// and cannot get from the bool alone. **The code is printed rather than quoted**
+// - DOS versions differ about which one a fruitless search gets, and the point of
+// running this is to find out rather than to agree with a document.
+putNumber( u16( dirEnded() ) )
+putChar( ' ' )
+putNumber( dirError() )
+newline()
+
+// ---- a pattern that matches nothing is not a failure of the same kind ----
+
+putStr( addr( sNone ) )
+putNumber( u16( dirFirst( addr( nothing ), dirNormal ) ) )
+putChar( ' ' )
+putNumber( u16( dirEnded() ) )
+putChar( ' ' )
+putNumber( dirError() )
+newline()
+
+// ---- the command tail, which is what §38 was actually worried about ----
+//
+// The DTA defaults to `PSP:0080h`. A find block is 43 bytes, so an enumeration
+// that had not moved it writes straight through the tail - and the program has
+// usually read its arguments by then, which is exactly why nobody notices.
+//
+// A pattern is written there, a directory is enumerated, and the pattern is read
+// back. Writing it rather than relying on a real command tail keeps this
+// self-contained and makes the check sharper: 24 bytes of known text across the
+// whole area a find block would land in.
+
+const u8[] guard = "0123456789abcdefghijklmn"
+const psp = 0x80
+
+sub layGuard {
+  for ( u16 i = 0; i < len( guard ); i++ ) {
+    poke8( psp + i, guard[i] )
+  }
+}
+
+bool guardHeld() {
+  for ( u16 i = 0; i < len( guard ); i++ ) {
+    if ( peek8( psp + i ) != guard[i] ) return false
+  }
+
+  return true
+}
+
+layGuard()
+
+if ( dirFirst( addr( pattern ), dirNormal ) ) {
+  while ( dirNext() ) { }
+}
+
+putStr( addr( sTail ) )
+putNumber( u16( guardHeld() ) )
+newline()
+
+// ---- and the files go away again ----
+//
+// Deleted through DOS directly, because §38 leaves delete out of the library and
+// a test that leaves three files behind makes the *next* run's enumeration a
+// different one.
+
+sub remove( u16 at ) {
+  _ah = 0x41
+  _dx = at
+  int 0x21
+}
+
+remove( addr( fileA ) )
+remove( addr( fileB ) )
+remove( addr( fileC ) )

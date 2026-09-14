@@ -144,6 +144,99 @@ sub memFill( u16 at, u16 count, u8 value ) {
   }
 }
 
+// ---- a number as text -------------------------------------------------------
+//
+// `io.momo` formats a number straight to the console and offers no way to ask for
+// the text. That was fine while the console was the only destination; it stopped
+// being fine once three things wanted the same digits somewhere else - a gutter
+// of line numbers, a position in a status bar, and a count inside a message. Each
+// had grown its own loop, and `keyprobe` carries a hex one for the same reason.
+//
+// **Nothing here writes a terminator.** These are the primitive: they return how
+// many bytes they wrote, which is what a caller placing something *after* the
+// number needs and cannot get from a `$` it would then have to find again. A
+// caller wanting a string writes the `$` itself, one `poke8`.
+
+// The widest a `u16` gets, which is 65535.
+const numMaxDigits = 5
+
+// Decimal text of `n` at `at`. Returns the length, and 1 for zero rather than 0 -
+// a number always has at least one digit, and a caller advancing by what it wrote
+// would otherwise overwrite the zero with whatever came next.
+u16 numText( u16 at, u16 n ) {
+  u8[numMaxDigits] digits
+  u16 i
+
+  if ( n == 0 ) {
+    poke8( at, '0' )
+    return 1
+  }
+
+  // `n` is a parameter, so counting it down here cannot affect the caller.
+  i = 0
+  while ( n > 0 ) {
+    digits[i] = u8( n % 10 ) + '0'
+    n /= 10
+    i++
+  }
+
+  for ( u16 j = 0; j < i; j++ ) {
+    poke8( at + j, digits[ i - 1 - j ] )
+  }
+
+  return i
+}
+
+// The same, right-aligned in `width` and padded on the left with `pad`.
+//
+// **A number too wide for the field runs over rather than losing a digit**, and
+// the return says which happened: `width` when it fitted, more when it did not.
+// A gutter that silently dropped the leading digit of 10,000 would be wrong in
+// exactly the place a person is relying on it to be right.
+u16 numRight( u16 at, u16 n, u16 width, u8 pad ) {
+  u16 used
+  u16 blank
+
+  used = numWidth( n )
+  if ( used >= width ) return numText( at, n )
+
+  blank = width - used
+  for ( u16 i = 0; i < blank; i++ ) {
+    poke8( at + i, pad )
+  }
+
+  numText( at + blank, n )
+  return width
+}
+
+// How many digits `n` takes, without writing any. `numRight` needs it before it
+// knows where the number starts, and a caller sizing a column needs it too.
+u16 numWidth( u16 n ) {
+  u16 w
+
+  w = 1
+  while ( n >= 10 ) {
+    n /= 10
+    w++
+  }
+
+  return w
+}
+
+// Four uppercase hex digits, always four - a scancode written as `73E0` and one
+// written as `0F` are being read as a pair by somebody comparing rows, and
+// variable width is what makes that hard. `keyprobe` had this and now shares it.
+u16 numHex( u16 at, u16 n ) {
+  u8 nib
+
+  for ( u16 i = 0; i < 4; i++ ) {
+    nib = u8( ( n >> ( 12 - i * 4 ) ) & 0x0F )
+    poke8( at + i, nib < 10 ? nib + '0' : nib - 10 + 'A' )
+  }
+
+  return 4
+}
+
 // ---- digits ----
 
 // `n` bytes at `at`, read as a decimal number. **False when any one of them is

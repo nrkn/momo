@@ -113,3 +113,75 @@ showNum( addr( nBig ), len( nBig ) )        // 0 0
 // test would live and nowhere else.
 showNum( addr( nMax ), len( nMax ) )        // 1 65535
 showNum( addr( nOver ), len( nOver ) )      // 0 0
+
+// ---- a number as text, which is the other direction ------------------------
+//
+// Written into a buffer and then printed through `putStr`, so what is checked is
+// the bytes that landed rather than a second formatter agreeing with the first.
+// The length is printed beside them because it is half the interface: a caller
+// placing anything after the number is trusting it.
+
+u8[16] buf
+
+sub showText( u16 n ) {
+  u16 used
+
+  used = numText( addr( buf ), n )
+  poke8( addr( buf ) + used, '$' )
+
+  putNumber( used )
+  putChar( ' ' )
+  putStr( addr( buf ) )
+  newline()
+}
+
+sub showRight( u16 n, u16 width ) {
+  u16 used
+
+  used = numRight( addr( buf ), n, width, '.' )
+  poke8( addr( buf ) + used, '$' )
+
+  putNumber( used )
+  putChar( ' ' )
+  putStr( addr( buf ) )
+  newline()
+}
+
+// Zero is one digit, not none - a caller advancing by the return would otherwise
+// write over it.
+showText( 0 )                               // 1 0
+showText( 7 )                               // 1 7
+showText( 4096 )                            // 4 4096
+
+// The widest a u16 gets, which is what `numMaxDigits` is sized for.
+showText( 65535 )                           // 5 65535
+
+// Right-aligned, padded, and the width comes back.
+showRight( 7, 5 )                           // 5 ....7
+showRight( 65535, 5 )                       // 5 65535
+
+// **Too wide runs over rather than losing a digit**, and the return says so.
+// A gutter dropping the leading 1 of 10000 would be wrong exactly where it is
+// being relied on.
+showRight( 10000, 3 )                       // 5 10000
+
+// `numWidth` without writing anything, which is what `numRight` asks first.
+putNumber( numWidth( 0 ) )
+putChar( ' ' )
+putNumber( numWidth( 9 ) )
+putChar( ' ' )
+putNumber( numWidth( 10 ) )
+putChar( ' ' )
+putNumber( numWidth( 65535 ) )
+newline()                                   // 1 1 2 5
+
+// Always four digits, because the reader is comparing rows.
+numHex( addr( buf ), 0x73E0 )
+poke8( addr( buf ) + 4, '$' )
+putStr( addr( buf ) )
+newline()                                   // 73E0
+
+numHex( addr( buf ), 0x000F )
+poke8( addr( buf ) + 4, '$' )
+putStr( addr( buf ) )
+newline()                                   // 000F

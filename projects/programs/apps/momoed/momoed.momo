@@ -393,26 +393,17 @@ sub statusText( u16 x, u16 at ) {
   }
 }
 
+// The digits used to be worked out here, in the fourth copy of the same loop in
+// the repository. `std/str.momo` has it now and this places what it wrote.
+u8[numMaxDigits] numBuf
+
 sub statusNumber( u16 x, u16 n ) {
-  u8[6] digits
-  u16 i
+  u16 used
 
-  if ( n == 0 ) {
-    cellAt( x, rows - 1, '0', attrStatus )
-    return
-  }
+  used = numText( addr( numBuf ), n )
 
-  i = 0
-  while ( n > 0 && i < len( digits ) ) {
-    digits[i] = u8( n % 10 ) + '0'
-    n /= 10
-    i++
-  }
-
-  while ( i > 0 ) {
-    i--
-    cellAt( x, rows - 1, digits[i], attrStatus )
-    x++
+  for ( u16 i = 0; i < used; i++ ) {
+    cellAt( x + i, rows - 1, numBuf[i], attrStatus )
   }
 }
 
@@ -443,10 +434,13 @@ sub drawStatus {
       statusText( askAt + fieldLength() + 2, message )
 
       // The one message with a number in it, and the number goes after the
-      // words rather than into them - there is no formatting into a string
-      // here and §55 has been waiting for one since before the prompt existed.
+      // words rather than into them. **The offset is measured rather than
+      // written down**, which is the same rule the prompt label follows two
+      // routines up: a 9 here agrees with `sDone` until somebody edits the
+      // string, and then it is a column out in the one place a person is
+      // reading a number.
       if ( message == addr( sDone ) ) {
-        statusNumber( askAt + fieldLength() + 2 + 9, askCount )
+        statusNumber( askAt + fieldLength() + 2 + strLen( message ), askCount )
       }
     }
 

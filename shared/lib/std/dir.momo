@@ -1,0 +1,135 @@
+// std/dir.momo - enumerating a directory, and the hazard that made it wait
+// (DESIGN §38).
+//
+// §38 left this out of `file.momo` deliberately, and said why: `FindFirst` writes
+// its result to the **Disk Transfer Area**, which defaults to `PSP:0080h` - the
+// command tail. A program that enumerates a directory destroys its own arguments
+// unless it has read them first or moved the DTA out of the way.
+//
+// **This moves it**, into storage of its own, before every call. So the hazard is
+// gone by construction rather than by the caller remembering, which is the only
+// reason a library is better than the six lines it wraps.
+//
+// A separate file rather than more of `file.momo`, for a reason that is about
+// names rather than tidiness: `mofind.momo` already has `findNext`, and an editor
+// includes both.
+
+// What to match as well as ordinary files. DOS reads these as *additions* - a
+// search always returns normal files - so `dirNormal` is a real value and not a
+// placeholder.
+const dirNormal    = 0x00
+const dirHidden    = 0x02
+const dirSystem    = 0x04
+const dirDirectory = 0x10
+const dirAll       = 0x16
+
+// What DOS reports when a search runs out. It is an ordinary end rather than a
+// failure, and a caller that cannot tell the two apart will report a missing
+// directory as an empty one.
+const dirNoMore = 18
+
+// The find block DOS fills in, and **the first 21 bytes of it are DOS's own
+// search state**. That is what makes this storage rather than something a caller
+// hands in per call: the block has to survive from `dirFirst` to the last
+// `dirNext`, and a caller who copied out the visible fields and passed the copy
+// back would get the same file forever.
+local const dirBlockBytes = 43
+
+local const dirAttrAt = 0x15
+local const dirTimeAt = 0x16
+local const dirDateAt = 0x18
+local const dirSizeAt = 0x1A
+local const dirNameAt = 0x1E
+
+local u8[dirBlockBytes] dirBlock
+
+// §38's capture rule, and the same reasoning: `_cf` holds the carry from the most
+// recent `int`, so anything between the call and the check would answer for
+// itself. `file.momo` keeps its own because that one is `local` to it - three
+// lines duplicated against making an implementation detail public.
+local bool dirBad = false
+local u16  dirErr = 0
+
+local sub dirCapture {
+  dirBad = _cf
+  dirErr = dirBad ? _ax : 0
+}
+
+bool dirFailed() => dirBad
+u16 dirError() => dirErr
+
+// True when the search ended because there was nothing left, which is not the
+// same as a directory that is not there.
+bool dirEnded() => dirBad && dirErr == dirNoMore
+
+// AH=1Ah, DS:DX. **Set before every call rather than once at startup.** The DTA
+// is one address for the whole process and anything else may move it - DOS moves
+// it itself for a child process, and a library that assumed its own setting had
+// survived would write a find block into somebody else's buffer. Setting it again
+// costs one `int` against a class of bug that only appears when two things are
+// enumerating.
+local sub dirSetDTA {
+  _ah = 0x1A
+  _dx = addr( dirBlock )
+  int 0x21
+}
+
+// AH=4Eh. `at` is an ASCIZ pattern - `"*.*\0"`, or a path with wildcards in the
+// last element. `attr` is what to include *besides* ordinary files.
+bool dirFirst( u16 at, u8 attr ) {
+  dirSetDTA()
+
+  _ah = 0x4E
+  _cx = u16( attr )
+  _dx = at
+  int 0x21
+
+  dirCapture()
+  return !dirBad
+}
+
+// AH=4Fh, which continues from the block rather than from anything passed in.
+bool dirNext() {
+  dirSetDTA()
+
+  _ah = 0x4F
+  int 0x21
+
+  dirCapture()
+  return !dirBad
+}
+
+// ---- what the block says ----
+
+// **ASCIZ, and deliberately not `$`-terminated.** It is the name DOS matched, in
+// the form DOS takes back - so it can be handed straight to `fileOpen` without a
+// copy. A caller that wants to print it copies out `dirNameLen` bytes and adds
+// its own terminator, which is one loop in the program that knows what it wants.
+u16 dirName() => addr( dirBlock ) + dirNameAt
+
+u16 dirNameLen() {
+  u16 n
+
+  n = 0
+  while ( peek8( dirName() + n ) != 0 ) {
+    n++
+  }
+
+  return n
+}
+
+u8 dirAttr() => dirBlock[dirAttrAt]
+
+bool dirIsDir() => ( dirBlock[dirAttrAt] & dirDirectory ) != 0
+
+// Thirty-two bits at 0x1A, little-endian, so two words. Both are offered because
+// neither is the answer on its own: a file over 64 KB is ordinary and an editor
+// that showed its size modulo 65,536 would be lying in the one column somebody
+// checks before opening it.
+u16 dirSizeLow()  => peek16( addr( dirBlock ) + dirSizeAt )
+u16 dirSizeHigh() => peek16( addr( dirBlock ) + dirSizeAt + 2 )
+
+// DOS's packed date and time, as they sit. Unpacking them is a decision about
+// display and belongs above this.
+u16 dirTime() => peek16( addr( dirBlock ) + dirTimeAt )
+u16 dirDate() => peek16( addr( dirBlock ) + dirDateAt )

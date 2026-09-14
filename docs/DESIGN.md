@@ -3089,11 +3089,50 @@ for.
 
 ### What is out of scope, and one collision
 
-Directory enumeration, attributes, rename and delete. Enumeration is out for a
-reason rather than for tidiness: `FindFirst` writes to the Disk Transfer Area,
-which defaults to **PSP:0080h - the command tail**. A program that enumerates a
-directory destroys its own arguments unless it reads them first or moves the DTA
-with `AH=1Ah`. Neither is hard; both are invisible until they bite.
+Attributes, rename and delete. **Enumeration was on this list and is now
+`std/dir.momo`**, below.
+
+It was out for a reason rather than for tidiness: `FindFirst` writes to the Disk
+Transfer Area, which defaults to **PSP:0080h - the command tail**. A program that
+enumerates a directory destroys its own arguments unless it reads them first or
+moves the DTA with `AH=1Ah`. Neither is hard; both are invisible until they bite.
+
+### Enumeration, and the hazard handled by construction
+
+**Built**, in `shared/lib/std/dir.momo`, because the explorer wants it and it is
+the one library gap §55 had. `dirFirst`, `dirNext`, and the block read back
+through `dirName`, `dirAttr`, `dirIsDir`, `dirSizeLow`/`High`, `dirTime`/`Date`.
+
+**The DTA is set before every call, to storage of the library's own.** So the
+paragraph above describes a hazard that no longer reaches a caller - which is the
+only thing that makes a library better than the six lines it wraps. Before every
+call rather than once at startup, because the DTA is one address for the whole
+process and a library that assumed its own setting had survived would write a
+find block into somebody else's buffer.
+
+**The block is storage, not a caller's buffer.** Its first 21 bytes are DOS's
+own search state, so it has to survive from `dirFirst` to the last `dirNext`; a
+caller handed the visible fields and asked to pass them back would get the same
+file forever.
+
+**The name comes back ASCIZ**, which is the form DOS takes - so it goes straight
+to `fileOpen` with no copy. A caller that wants to print it copies `dirNameLen`
+bytes and adds its own terminator, which is one loop in the program that knows
+which terminator it wants.
+
+A separate file rather than more of `file.momo`, for a reason about names:
+`mofind.momo` already has `findNext`, and an editor includes both.
+
+`dirtest` follows `filetest`'s rule and creates the files it enumerates, then
+deletes them - so no fixture can go stale and the next run enumerates the same
+directory this one did. **Measured rather than quoted: DOS answers 18 both for a
+search that ran out and for a `FindFirst` that matched nothing**, which is why
+`dirEnded` can be one question.
+
+The teeth are in the last section. A 24-byte guard is written across `PSP:0080h`,
+a directory is enumerated, and the guard is read back - so the fix for the hazard
+is checked rather than described. Without the DTA move, a 43-byte find block
+lands straight through it.
 
 Handles are finite: a `.COM` inherits twenty with five already open, leaving
 fifteen. Ample for an editor, thin for a shell that keeps assets mapped.
@@ -5869,7 +5908,7 @@ speaker"*, and §43 notes nothing in the repository touches those ports. A plana
 text renderer is precisely that - so this is the second thing the editor unblocks
 rather than waits on, after §43's query.
 
-### The explorer wants the one thing §38 refused
+### The explorer wants the one thing §38 refused, and §38 stopped refusing
 
 Directory enumeration, and §38 is precise about why it is out of scope rather
 than merely absent: `FindFirst` writes to the Disk Transfer Area, which defaults
@@ -5885,13 +5924,34 @@ nothing.
 **It is also removable from a first version.** An editor that opens a file named
 on the command line needs none of it, and the explorer is the half that can wait.
 
-### Number formatting into a buffer is missing, and three things want it
+**It waited, and then it was built** - §38 has `std/dir.momo` and `dirtest`, with
+the DTA moved before every call so the collision above cannot reach a caller.
+What is left for the explorer is the half that was never blocked: what it looks
+like, which of §55's unsettled questions it answers, and whether the scrollable
+list it needs is the first thing in this program to go through momolo.
 
-`io.momo` formats a number straight to the console and offers no way to ask for
+### Number formatting into a buffer, which was missing and is not now
+
+`io.momo` formats a number straight to the console and offered no way to ask for
 the text. `keyprobe` carries its own hex formatter for exactly that reason, and a
 gutter of line numbers, a cursor position in a status bar and a byte count in a
-prompt all want the same thing. One small addition to `std/str.momo` rather than
-a fourth copy.
+prompt all want the same thing.
+
+**`std/str.momo` has it**: `numText`, `numRight`, `numWidth` and `numHex`, all
+returning how many bytes they wrote and none of them writing a terminator - which
+is what a caller placing something *after* a number needs and cannot get from a
+`$` it would have to go and find again.
+
+This file was the fourth copy of the digit loop and is now none of it. It also
+fixed a second thing by arriving: the one status message with a number in it was
+placing that number nine columns along, nine being the length of the string
+written down rather than measured. `strLen( message )` now, which is the rule the
+prompt label already followed.
+
+**A number too wide for its field runs over rather than losing a digit**, and
+`numRight` returns what it used so the caller can see that happened. A gutter
+that silently dropped the leading 1 of 10,000 would be wrong in exactly the place
+somebody is relying on it.
 
 ### What is shared with the other editors, and when it leaves
 

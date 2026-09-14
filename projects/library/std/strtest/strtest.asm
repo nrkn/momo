@@ -244,6 +244,97 @@ __entry:
         mov     [showNum__at], ax
         mov     word [showNum__n], 5
         call    showNum
+; ---- showText( 0 )                               // 1 0
+        mov     word [showText__n], 0
+        call    showText
+; ---- showText( 7 )                               // 1 7
+        mov     word [showText__n], 7
+        call    showText
+; ---- showText( 4096 )                            // 4 4096
+        mov     word [showText__n], 4096
+        call    showText
+; ---- showText( 65535 )                           // 5 65535
+        mov     word [showText__n], 65535
+        call    showText
+; ---- showRight( 7, 5 )                           // 5 ....7
+        mov     word [showRight__n], 7
+        mov     word [showRight__width], 5
+        call    showRight
+; ---- showRight( 65535, 5 )                       // 5 65535
+        mov     word [showRight__n], 65535
+        mov     word [showRight__width], 5
+        call    showRight
+; ---- showRight( 10000, 3 )                       // 5 10000
+        mov     word [showRight__n], 10000
+        mov     word [showRight__width], 3
+        call    showRight
+; ---- putNumber( numWidth( 0 ) )
+        mov     word [numWidth__n], 0
+        call    numWidth
+        mov     ax, [numWidth__ret]
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- putChar( ' ' )
+        mov     byte [putChar__c], 32
+        call    putChar
+; ---- putNumber( numWidth( 9 ) )
+        mov     word [numWidth__n], 9
+        call    numWidth
+        mov     ax, [numWidth__ret]
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- putChar( ' ' )
+        mov     byte [putChar__c], 32
+        call    putChar
+; ---- putNumber( numWidth( 10 ) )
+        mov     word [numWidth__n], 10
+        call    numWidth
+        mov     ax, [numWidth__ret]
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- putChar( ' ' )
+        mov     byte [putChar__c], 32
+        call    putChar
+; ---- putNumber( numWidth( 65535 ) )
+        mov     word [numWidth__n], 65535
+        call    numWidth
+        mov     ax, [numWidth__ret]
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- newline()                                   // 1 1 2 5
+        call    newline
+; ---- numHex( addr( buf ), 0x73E0 )
+        mov     ax, buf                     ; link-time constant
+        mov     [numHex__at], ax
+        mov     word [numHex__n], 29664
+        call    numHex
+; ---- poke8( addr( buf ) + 4, '$' )
+        mov     ax, buf                     ; link-time constant
+        add     ax, 4
+        mov     bx, ax
+        mov     byte [bx], 36
+; ---- putStr( addr( buf ) )
+        mov     ax, buf                     ; link-time constant
+        mov     [putStr__at], ax
+        call    putStr
+; ---- newline()                                   // 73E0
+        call    newline
+; ---- numHex( addr( buf ), 0x000F )
+        mov     ax, buf                     ; link-time constant
+        mov     [numHex__at], ax
+        mov     word [numHex__n], 15
+        call    numHex
+; ---- poke8( addr( buf ) + 4, '$' )
+        mov     ax, buf                     ; link-time constant
+        add     ax, 4
+        mov     bx, ax
+        mov     byte [bx], 36
+; ---- putStr( addr( buf ) )
+        mov     ax, buf                     ; link-time constant
+        mov     [putStr__at], ax
+        call    putStr
+; ---- newline()                                   // 000F
+        call    newline
 
 ; ---- implicit exit ----
         mov     word [_ax], 0x4C00          ; DOS terminate, exit code 0
@@ -541,6 +632,218 @@ memFill:
 .L46:
         ret
 
+; ============================================== u16 numText ====
+
+numText:
+; ---- if ( n == 0 ) {
+        mov     ax, [numText__n]
+        test    ax, ax
+        jne     .L48                        ; unsigned ==
+; ---- poke8( at, '0' )
+        mov     ax, [numText__at]
+        mov     bx, ax
+        mov     byte [bx], 48
+; ---- return 1
+        mov     word [numText__ret], 1
+        ret
+.L48:
+; ---- i = 0
+        mov     word [numText__i], 0
+; ---- while ( n > 0 ) {
+.L51:
+        mov     ax, [numText__n]
+        test    ax, ax
+        jbe     .L53                        ; unsigned >
+; ---- digits[i] = u8( n % 10 ) + '0'
+        mov     ax, [numText__n]
+        mov     bx, 10
+        xor     dx, dx                      ; clear high half for div
+        div     bx
+        mov     ax, dx                      ; remainder
+        xor     ah, ah                      ; cast to u8
+        add     ax, 48
+        mov     bx, [numText__i]
+        mov     [numText__digits + bx], al
+; ---- n /= 10
+        mov     ax, [numText__n]
+        mov     bx, 10
+        xor     dx, dx                      ; clear high half for div
+        div     bx
+        mov     [numText__n], ax
+; ---- i++
+        inc     word [numText__i]
+.L52:
+        jmp     .L51
+.L53:
+; ---- for ( u16 j = 0; j < i; j++ ) {
+        mov     word [numText__j], 0
+.L55:
+        mov     ax, [numText__j]
+        mov     bx, [numText__i]
+        cmp     ax, bx
+        jae     .L57                        ; unsigned <
+; ---- poke8( at + j, digits[ i - 1 - j ] )
+        mov     ax, [numText__at]
+        mov     bx, [numText__j]
+        add     ax, bx
+        push    ax                          ; save the address while the value is computed
+        mov     ax, [numText__i]
+        dec     ax
+        mov     bx, [numText__j]
+        sub     ax, bx
+        mov     bx, ax
+        mov     al, [numText__digits + bx]
+        pop     bx
+        mov     [bx], al
+.L56:
+        inc     word [numText__j]
+        jmp     .L55
+.L57:
+; ---- return i
+        mov     ax, [numText__i]
+        mov     [numText__ret], ax
+        ret
+
+; ============================================== u16 numRight ====
+
+numRight:
+; ---- used = numWidth( n )
+        mov     ax, [numRight__n]
+        mov     [numWidth__n], ax
+        call    numWidth
+        mov     ax, [numWidth__ret]
+        mov     [numRight__used], ax
+; ---- if ( used >= width ) return numText( at, n )
+        mov     bx, [numRight__width]
+        cmp     ax, bx
+        jb      .L59                        ; unsigned >=
+        mov     ax, [numRight__at]
+        mov     [numText__at], ax
+        mov     ax, [numRight__n]
+        mov     [numText__n], ax
+        call    numText
+        mov     ax, [numText__ret]
+        mov     [numRight__ret], ax
+        ret
+.L59:
+; ---- blank = width - used
+        mov     ax, [numRight__width]
+        mov     bx, [numRight__used]
+        sub     ax, bx
+        mov     [numRight__blank], ax
+; ---- for ( u16 i = 0; i < blank; i++ ) {
+        mov     word [numRight__i], 0
+.L62:
+        mov     ax, [numRight__i]
+        mov     bx, [numRight__blank]
+        cmp     ax, bx
+        jae     .L64                        ; unsigned <
+; ---- poke8( at + i, pad )
+        mov     ax, [numRight__at]
+        mov     bx, [numRight__i]
+        add     ax, bx
+        push    ax                          ; save the address while the value is computed
+        mov     al, [numRight__pad]
+        pop     bx
+        mov     [bx], al
+.L63:
+        inc     word [numRight__i]
+        jmp     .L62
+.L64:
+; ---- numText( at + blank, n )
+        mov     ax, [numRight__at]
+        mov     bx, [numRight__blank]
+        add     ax, bx
+        mov     [numText__at], ax
+        mov     ax, [numRight__n]
+        mov     [numText__n], ax
+        call    numText
+; ---- return width
+        mov     ax, [numRight__width]
+        mov     [numRight__ret], ax
+        ret
+
+; ============================================== u16 numWidth ====
+
+numWidth:
+; ---- w = 1
+        mov     word [numWidth__w], 1
+; ---- while ( n >= 10 ) {
+.L66:
+        mov     ax, [numWidth__n]
+        cmp     ax, 10
+        jb      .L68                        ; unsigned >=
+; ---- n /= 10
+        mov     ax, [numWidth__n]
+        mov     bx, 10
+        xor     dx, dx                      ; clear high half for div
+        div     bx
+        mov     [numWidth__n], ax
+; ---- w++
+        inc     word [numWidth__w]
+.L67:
+        jmp     .L66
+.L68:
+; ---- return w
+        mov     ax, [numWidth__w]
+        mov     [numWidth__ret], ax
+        ret
+
+; ============================================== u16 numHex ====
+
+numHex:
+; ---- for ( u16 i = 0; i < 4; i++ ) {
+        mov     word [numHex__i], 0
+.L70:
+        mov     ax, [numHex__i]
+        cmp     ax, 4
+        jb      .L73                        ; unsigned <
+        jmp     .L72
+.L73:
+; ---- nib = u8( ( n >> ( 12 - i * 4 ) ) & 0x0F )
+        mov     ax, [numHex__n]
+        push    ax
+        mov     ax, 12
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [numHex__i]
+        shl     ax, 1                       ; * 4 is << 2
+        shl     ax, 1
+        mov     bx, ax
+        pop     ax
+        sub     ax, bx
+        mov     cl, al
+        pop     ax
+        shr     ax, cl                      ; unsigned >>
+        and     ax, 15
+        mov     [numHex__nib], al           ; u16 -> u8, no widening
+; ---- poke8( at + i, nib < 10 ? nib + '0' : nib - 10 + 'A' )
+        mov     ax, [numHex__at]
+        mov     bx, [numHex__i]
+        add     ax, bx
+        push    ax                          ; save the address while the value is computed
+        mov     al, [numHex__nib]
+        cmp     al, 10                      ; byte operands, no widening
+        jae     .L74                        ; unsigned <
+        mov     al, [numHex__nib]
+        xor     ah, ah                      ; u8 -> u16
+        add     ax, 48
+        jmp     .L75
+.L74:
+        mov     al, [numHex__nib]
+        xor     ah, ah                      ; u8 -> u16
+        sub     ax, 10
+        add     ax, 65
+.L75:
+        pop     bx
+        mov     [bx], al
+.L71:
+        inc     word [numHex__i]
+        jmp     .L70
+.L72:
+; ---- return 4
+        mov     word [numHex__ret], 4
+        ret
+
 ; ============================================== u16 strValue ====
 
 strValue:
@@ -557,19 +860,19 @@ strNumber:
 ; ---- if ( n == 0 ) return false
         mov     ax, [strNumber__n]
         test    ax, ax
-        jne     .L48                        ; unsigned ==
+        jne     .L77                        ; unsigned ==
         mov     byte [strNumber__ret], 0
         ret
-.L48:
+.L77:
 ; ---- for ( u16 i = 0; i < n; i++ ) {
         mov     word [strNumber__i], 0
-.L51:
+.L80:
         mov     ax, [strNumber__i]
         mov     bx, [strNumber__n]
         cmp     ax, bx
-        jb      .L54                        ; unsigned <
-        jmp     .L53
-.L54:
+        jb      .L83                        ; unsigned <
+        jmp     .L82
+.L83:
 ; ---- ch = peek8( at + i )
         mov     ax, [strNumber__at]
         mov     bx, [strNumber__i]
@@ -579,34 +882,34 @@ strNumber:
         mov     [strNumber__ch], al         ; u8 -> u8, no widening
 ; ---- if ( ch < '0' || ch > '9' ) {
         cmp     al, 48                      ; byte operands, no widening
-        jb      .L57                        ; unsigned <
+        jb      .L86                        ; unsigned <
         mov     al, [strNumber__ch]
         cmp     al, 57                      ; byte operands, no widening
-        jbe     .L55                        ; unsigned >
-.L57:
+        jbe     .L84                        ; unsigned >
+.L86:
 ; ---- numValue = 0
         mov     word [str__numValue], 0
 ; ---- return false
         mov     byte [strNumber__ret], 0
         ret
-.L55:
+.L84:
 ; ---- if ( numValue > 6553 || ( numValue == 6553 && ch > '5' ) ) {
         mov     ax, [str__numValue]
         cmp     ax, 6553
-        ja      .L62                        ; unsigned >
+        ja      .L91                        ; unsigned >
         mov     ax, [str__numValue]
         cmp     ax, 6553
-        jne     .L60                        ; unsigned ==
+        jne     .L89                        ; unsigned ==
         mov     al, [strNumber__ch]
         cmp     al, 53                      ; byte operands, no widening
-        jbe     .L60                        ; unsigned >
-.L62:
+        jbe     .L89                        ; unsigned >
+.L91:
 ; ---- numValue = 0
         mov     word [str__numValue], 0
 ; ---- return false
         mov     byte [strNumber__ret], 0
         ret
-.L60:
+.L89:
 ; ---- numValue = numValue * 10 + u16( ch - '0' )
         mov     ax, [str__numValue]
         mov     bx, 10
@@ -619,10 +922,10 @@ strNumber:
         pop     ax
         add     ax, bx
         mov     [str__numValue], ax
-.L52:
+.L81:
         inc     word [strNumber__i]
-        jmp     .L51
-.L53:
+        jmp     .L80
+.L82:
 ; ---- return true
         mov     byte [strNumber__ret], 1
         ret
@@ -648,6 +951,73 @@ showNum:
         mov     ax, [strValue__ret]
         mov     [putNumber__n], ax
         call    putNumber
+; ---- newline()
+        call    newline
+        ret
+
+; ============================================== sub showText ====
+
+showText:
+; ---- used = numText( addr( buf ), n )
+        mov     ax, buf                     ; link-time constant
+        mov     [numText__at], ax
+        mov     ax, [showText__n]
+        mov     [numText__n], ax
+        call    numText
+        mov     ax, [numText__ret]
+        mov     [showText__used], ax
+; ---- poke8( addr( buf ) + used, '$' )
+        mov     ax, buf                     ; link-time constant
+        mov     bx, [showText__used]
+        add     ax, bx
+        mov     bx, ax
+        mov     byte [bx], 36
+; ---- putNumber( used )
+        mov     ax, [showText__used]
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- putChar( ' ' )
+        mov     byte [putChar__c], 32
+        call    putChar
+; ---- putStr( addr( buf ) )
+        mov     ax, buf                     ; link-time constant
+        mov     [putStr__at], ax
+        call    putStr
+; ---- newline()
+        call    newline
+        ret
+
+; ============================================== sub showRight ====
+
+showRight:
+; ---- used = numRight( addr( buf ), n, width, '.' )
+        mov     ax, buf                     ; link-time constant
+        mov     [numRight__at], ax
+        mov     ax, [showRight__n]
+        mov     [numRight__n], ax
+        mov     ax, [showRight__width]
+        mov     [numRight__width], ax
+        mov     byte [numRight__pad], 46
+        call    numRight
+        mov     ax, [numRight__ret]
+        mov     [showRight__used], ax
+; ---- poke8( addr( buf ) + used, '$' )
+        mov     ax, buf                     ; link-time constant
+        mov     bx, [showRight__used]
+        add     ax, bx
+        mov     bx, ax
+        mov     byte [bx], 36
+; ---- putNumber( used )
+        mov     ax, [showRight__used]
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- putChar( ' ' )
+        mov     byte [putChar__c], 32
+        call    putChar
+; ---- putStr( addr( buf ) )
+        mov     ax, buf                     ; link-time constant
+        mov     [putStr__at], ax
+        call    putStr
 ; ---- newline()
         call    newline
         ret
@@ -710,6 +1080,19 @@ memCopy__count: dw      0        ; u16
 memFill__at:    dw      0        ; u16
 memFill__count: dw      0        ; u16
 memFill__value: db      0        ; u8
+numText__at:    dw      0        ; u16
+numText__n:     dw      0        ; u16
+numText__ret:   dw      0        ; u16
+numRight__at:   dw      0        ; u16
+numRight__n:    dw      0        ; u16
+numRight__width: dw      0        ; u16
+numRight__pad:  db      0        ; u8
+numRight__ret:  dw      0        ; u16
+numWidth__n:    dw      0        ; u16
+numWidth__ret:  dw      0        ; u16
+numHex__at:     dw      0        ; u16
+numHex__n:      dw      0        ; u16
+numHex__ret:    dw      0        ; u16
 str__numValue:  dw      0        ; u16
 strValue__ret:  dw      0        ; u16
 strNumber__at:  dw      0        ; u16
@@ -718,6 +1101,9 @@ strNumber__ret: db      0        ; bool
 found:          dw      0        ; u16
 showNum__at:    dw      0        ; u16
 showNum__n:     dw      0        ; u16
+showText__n:    dw      0        ; u16
+showRight__n:   dw      0        ; u16
+showRight__width: dw      0        ; u16
 putNumber__i:   db      0        ; u8
 strLen__n:      dw      0        ; u16
 strCopy__i:     dw      0        ; u16
@@ -729,8 +1115,18 @@ strFind__i:     dw      0        ; u16
 strFind__c:     db      0        ; u8
 memCopy__i:     dw      0        ; u16
 memFill__i:     dw      0        ; u16
+numText__j:     dw      0        ; u16
+numText__i:     dw      0        ; u16
+numRight__i:    dw      0        ; u16
+numRight__used: dw      0        ; u16
+numRight__blank: dw      0        ; u16
+numWidth__w:    dw      0        ; u16
+numHex__i:      dw      0        ; u16
+numHex__nib:    db      0        ; u8
 strNumber__i:   dw      0        ; u16
 strNumber__ch:  db      0        ; u8
+showText__used: dw      0        ; u16
+showRight__used: dw      0        ; u16
 
 ; ---- arrays ----
 hello:          db      'hello$'        ; u8[6] const
@@ -744,13 +1140,15 @@ nBad:           db      '12x4'        ; u8[4] const
 nBig:           db      '120000'        ; u8[6] const
 nMax:           db      '65535'        ; u8[5] const
 nOver:          db      '65536'        ; u8[5] const
+buf:            times 16 db 0        ; u8[16]
 putNumber__digits: times 5 db 0        ; u8[5]
+numText__digits: times 5 db 0        ; u8[5]
 
 ; ============================================================ heap ====
 ; No storage is emitted - a .COM owns everything past its image, so
 ; these are addresses and NASM does the arithmetic.
 
-_hstack:        equ     264        ; 8 worst-case + 256 interrupt reserve
+_hstack:        equ     268        ; 12 worst-case + 256 interrupt reserve
 _htop:          equ     0FFFEh - _hstack
 
 _hsize:         dw      _htop - _heap        ; NASM computes this
