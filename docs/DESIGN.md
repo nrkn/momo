@@ -4973,6 +4973,19 @@ opening a short file full-screen looks like, and it is easy to leave untested:
 with a window shorter than the buffer, `viewGoto`'s clamp means the rows past the
 end are unreachable. `DECISIONS.md` §56 has how that was found.
 
+### One row is separable, because the BIOS can move the other twenty-three
+
+`viewRender` was already `viewRenderRow` `height` times and now says so. The
+split exists because a caller that has moved the rest of the window **by other
+means** needs exactly the row that move exposed: a one-line scroll is one BIOS
+interrupt and one of these, where a full redraw is all of them. §55 has the
+measurement that made it worth separating.
+
+It costs a `call` and a `ret` per row, against the eighty far stores that row was
+always going to do, and it keeps the two paths sharing one definition of what a
+row is - which matters more than the call, because the slow path is the only
+thing the fast one can be checked against.
+
 ### A row is copied out before it is handed over
 
 §54's read interface is a slice rather than a character, so `lineSlice` walks the
@@ -5925,6 +5938,12 @@ language feature.
 - **The flags are masked to the modifier bits.** They carry state as well, and
   the state differs between machines for the same keypress.
 - **A binding table is `const` arrays, not a `group`.**
+- **A keystroke redraws what it changed.** A motion inside the window changes no
+  cell of the text area; a one-line scroll changes one row and the BIOS moves the
+  rest. The whole screen is for the cases that earn it.
+- **Both ends of a selection and of a prompt take the full path.** The frame that
+  clears a highlight has as much to do as the one that drew it, so `repaint` asks
+  what the *last* frame showed as well as what this one does.
 - **A mode that can be described is not necessarily one that can be used.** The
   frame's segment is a constant here for §43's reason, so the segment is asked
   about before the geometry is trusted. A mode 7 screen drawn into 0xB800 looks
@@ -5969,9 +5988,33 @@ is right and is also silent - so a file that stopped part way looks exactly like
 one that fitted, and saving it would write the truncation over the original.
 `textNoRoom` exists for that one question and `momoed` asks it before opening.
 
-**The redraw is the whole screen, every keystroke.** At 80x25 that is two
-thousand cells and comfortably inside the time between two keys; dirty-row
-redraw is what §54 and §56 are shaped for and is not needed yet.
+**The redraw used to be the whole screen, every keystroke**, on the claim that
+two thousand cells at 80x25 is comfortably inside the time between two keys.
+**That claim was wrong and was never measured.** Holding Down on a 286 overflowed
+the BIOS keyboard buffer after about ten lines and the machine beeped, where
+`edit.com` on the same machine - subject to the same key repeat, which is what
+makes the comparison mean anything - managed most of a screen.
+
+`drawrate` is the measurement that was owed, and it times the keystroke a person
+is actually holding down rather than drawing in the abstract. Two costs, neither
+of them necessary:
+
+- **A motion inside the window changes no cell of the text area**, and was
+  redrawing every one. `needText` is set by anything that is not a pure motion -
+  one line in `apply` rather than a flag at every edit site, and conservative on
+  purpose: being wrong the safe way costs one redraw, being wrong the other way
+  leaves a stale screen.
+- **A one-line scroll changes one row.** §1 has no string instruction, but the
+  BIOS does - `scrollUp`'s `AH=06h` moves the window in one interrupt, and
+  then exactly one row is new. 1,920 far stores become 80.
+
+**A selection or an open prompt paints into the rows themselves**, so both take
+the full path, and so does the frame *after* either ends - the paint that clears
+a highlight has as much to do as the one that drew it. That is why `repaint`
+keeps `lastSel` and `lastAsk` rather than only asking about now.
+
+Anything that moves the window by more than a row - a page, a goto, a find - is
+the case the whole-screen redraw was always right for, and still takes it.
 
 Not in it: the explorer and therefore directory enumeration; more than one file
 open; replace; multiple cursors; syntax colour; and text in a graphics mode.

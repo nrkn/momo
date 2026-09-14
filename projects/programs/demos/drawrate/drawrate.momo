@@ -1,0 +1,164 @@
+// drawrate.momo - what a redraw costs, and what a scroll could cost instead
+// (DESIGN §55, §56).
+//
+// Holding Down in `momoed` on a 286 overflows the BIOS keyboard buffer and the
+// machine beeps, after about ten lines. `edit.com` on the same machine manages
+// most of a screen - and key repeat is a BIOS setting both programs are subject
+// to, so the difference is entirely ours.
+//
+// §55 said the whole-screen redraw was "comfortably inside the time between two
+// keys". That was a prediction, and this is the measurement it was owed. It is
+// `loadrate`'s shape for the same reason: a program that prints the ratio is
+// harder to be wrong about than two numbers written down on different days.
+//
+// **What is timed is one keystroke of scrolling, both ways.** Not a benchmark of
+// drawing in the abstract - the thing a person is doing when the beeping starts.
+
+include "lib/std/io.momo"
+include "lib/std/time.momo"
+include "lib/std/screen.momo"
+include "lib/moview.momo"
+
+// The same thirty-character line `loadrate` uses, and for the same reason: a
+// chunk holds sixteen, so line length decides how far `lineSlice` walks.
+const u8[] sample = "        mov     ax, [bx + 4]\n"
+
+// 80x25, the size the report is about. The window is one row short of the
+// screen, which is `momoed`'s status line - and the reason `scrollUp` takes a
+// window rather than scrolling the display.
+const edCols = 80
+const edRows = 25
+const winRows = edRows - 1
+
+far u16[edCols * edRows] vram = 0xB800
+
+const attrText = color( lightGray, black )
+
+// Enough that the slower path is seconds on a 286 rather than ticks, and the
+// faster one is still more than one tick.
+const rounds = 500
+
+const u8[] sIntro = "drawrate - one keystroke of scrolling, both ways.$"
+const u8[] sSize  = " columns, $"
+const u8[] sTall  = " rows$"
+const u8[] sFull  = "full redraw: $"
+const u8[] sOne   = "scroll+row:  $"
+const u8[] sDraws = " draws, $"
+const u8[] sTicks = " ticks, $"
+const u8[] sRate  = " a second$"
+const u8[] sTimes = "scroll+row is faster by tenths of: $"
+const u8[] sQuick = "under one tick - use a slower machine or more rounds$"
+
+u16 start
+u16 fullTicks
+u16 oneTicks
+
+// ---- the routine §56 calls, which the program owns (§37) ----
+//
+// Deliberately the two loops `momoed` has and not its other two. The selection
+// and the match overlay are both skipped on any keystroke with nothing selected
+// and no prompt open, which is the keystroke being timed - putting them in would
+// measure a case that is not the one that beeps.
+sub viewRow( u16 y, u16 at, u16 n ) {
+  u16 base
+
+  base = y * edCols
+
+  for ( u16 x = 0; x < n; x++ ) {
+    vram[ base + x ] = u16( peek8( at + x ) ) | ( u16( attrText ) << 8 )
+  }
+
+  for ( u16 x = n; x < edCols; x++ ) {
+    vram[ base + x ] = 32 | ( u16( attrText ) << 8 )
+  }
+}
+
+// Lines a second with the remainder carried - `loadrate` has why the other
+// order is wrong at these sizes.
+u16 perSecond( u16 done, u16 spent ) {
+  if ( spent == 0 ) return 0
+
+  return done / spent * ticksPerSecond + ( done % spent ) * ticksPerSecond / spent
+}
+
+sub report( u16 label, u16 done, u16 spent ) {
+  putStr( label )
+  putNumber( done )
+  putStr( addr( sDraws ) )
+  putNumber( spent )
+  putStr( addr( sTicks ) )
+  putNumber( perSecond( done, spent ) )
+  putStr( addr( sRate ) )
+  newline()
+}
+
+// ---- entry ----
+
+putStr( addr( sIntro ) )
+newline()
+
+putNumber( edCols )
+putStr( addr( sSize ) )
+putNumber( winRows )
+putStr( addr( sTall ) )
+newline()
+
+// Enough lines that the window can scroll for the whole run without reaching the
+// end, because a row past the end renders as blanks and blanks are cheaper.
+textInit()
+
+textBulk {
+  for ( u16 i = 0; i < rounds + winRows + 8; i++ ) {
+    for ( u16 j = 0; j < len( sample ); j++ ) {
+      textLoad( sample[j] )
+    }
+  }
+}
+
+viewSize( winRows, edCols )
+viewHome()
+
+// ---- every cell, every keystroke, which is what §55 shipped ----
+
+start = ticks()
+
+for ( u16 i = 0; i < rounds; i++ ) {
+  viewGotoLine( i + winRows )
+  viewRender()
+}
+
+fullTicks = ticksSince( start )
+
+// ---- the window moved by the BIOS, and only the row that exposed ----
+//
+// The cursor walk is repeated exactly so that what separates the two numbers is
+// the drawing and nothing else.
+
+viewHome()
+
+start = ticks()
+
+for ( u16 i = 0; i < rounds; i++ ) {
+  viewGotoLine( i + winRows )
+  scrollUp( 0, 0, edCols, winRows, 1, attrText )
+  viewRenderRow( winRows - 1 )
+}
+
+oneTicks = ticksSince( start )
+
+// ---- what they cost ----
+
+report( addr( sFull ), rounds, fullTicks )
+report( addr( sOne ), rounds, oneTicks )
+
+// Tick counts rather than the two rates, because both runs draw the same number
+// of times - so the division is exact where a ratio of rounded rates would not
+// be.
+if ( oneTicks == 0 ) {
+  putStr( addr( sQuick ) )
+  newline()
+} else {
+  putStr( addr( sTimes ) )
+  putNumber( fullTicks * 10 / oneTicks )
+  newline()
+}

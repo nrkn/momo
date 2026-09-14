@@ -160,16 +160,27 @@ local sub viewPlace( u16 ln, u16 col ) {
 // it. A row past the end is handed over with a length of 0 rather than skipped,
 // because a window has a fixed shape and the caller is painting a rectangle -
 // leaving those rows out would leave the previous frame's text on screen.
-sub viewRender {
+// One row of the window, which is what `viewRender` was already doing `height`
+// times. It is separate because a caller that has moved the rest of the window
+// by other means needs exactly the row that move exposed: a one-line scroll is
+// one BIOS interrupt and *one* of these, where a full redraw is all of them.
+//
+// The window's own coordinates, like `viewRow`'s - `y` is a screen row, not a
+// document line.
+sub viewRenderRow( u16 y ) {
   u16 ln
   u16 n
 
+  ln = top + y
+  n = 0
+
+  if ( ln < textLines() ) n = lineSlice( ln, left, width, addr( row ) )
+
+  viewRow( y, addr( row ), n )
+}
+
+sub viewRender {
   for ( u16 y = 0; y < height; y++ ) {
-    ln = top + y
-    n = 0
-
-    if ( ln < textLines() ) n = lineSlice( ln, left, width, addr( row ) )
-
-    viewRow( y, addr( row ), n )
+    viewRenderRow( y )
   }
 }

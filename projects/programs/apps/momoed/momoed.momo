@@ -459,10 +459,69 @@ sub placeCursor {
   moveTo( u8( viewCol() - viewLeft() ), u8( viewLine() - viewTop() ) )
 }
 
-sub redraw {
-  viewRender()
+// ---- how much of the screen an action actually owes -------------------------
+//
+// §55 shipped "the redraw is the whole screen, every keystroke" with the claim
+// that 2,000 cells is comfortably inside the gap between two keys. Holding Down
+// on a 286 overflowed the BIOS keyboard buffer after about ten lines and the
+// machine beeped; `edit.com` on the same machine, subject to the same key
+// repeat, managed most of a screen. `drawrate` is the measurement that was owed.
+//
+// Two things were being paid for and neither had to be:
+//
+//   a motion inside the window changes no cell of the text area at all, and was
+//   redrawing every one of them
+//
+//   a one-line scroll changes one row, and §1 has no string instruction - but
+//   the BIOS does, and `scrollUp` is one interrupt where this was 1,920 far
+//   stores
+//
+// `needText` is set by anything that is not a pure motion, which is one line in
+// `apply` rather than a flag at every edit site - conservative on purpose, since
+// the cost of being wrong the safe way is one redraw and the cost of being wrong
+// the other way is a stale screen.
+bool needText
+
+// What the last paint left on screen. A selection or an open prompt paints into
+// the rows themselves, so both ends of either have to force the full path: the
+// frame that clears a highlight has as much to do as the one that drew it.
+u16  lastTop
+u16  lastLeft
+bool lastSel
+bool lastAsk
+bool drawn
+
+sub repaint {
+  u16 h
+  bool sel
+
+  h = rows - 1
+  sel = viewSelected()
+
+  if ( !drawn || needText || sel || lastSel || prompting() || lastAsk ||
+       viewLeft() != lastLeft ) {
+    viewRender()
+  } else if ( viewTop() == lastTop + 1 ) {
+    scrollUp( 0, 0, u8( cols ), u8( h ), 1, attrText )
+    viewRenderRow( h - 1 )
+  } else if ( lastTop == viewTop() + 1 ) {
+    scrollDown( 0, 0, u8( cols ), u8( h ), 1, attrText )
+    viewRenderRow( 0 )
+  } else if ( viewTop() != lastTop ) {
+    // A page, a goto, or a find. More than one row is new and nothing here can
+    // say which, so this is the case the whole-screen redraw is right for.
+    viewRender()
+  }
+
   drawStatus()
   placeCursor()
+
+  needText = false
+  lastTop  = viewTop()
+  lastLeft = viewLeft()
+  lastSel  = sel
+  lastAsk  = prompting()
+  drawn    = true
 }
 
 // ---- what a key does ----
@@ -988,6 +1047,11 @@ sub apply( u8 a, u16 k ) {
   // them are two actions, and §54 cannot tell - only this knows one happened.
   if ( isMotion( a ) || a == actFind || a == actAgain ) undoBreak()
 
+  // Everything that is not a motion may change what the text area shows, and
+  // the list of those is longer and more easily added to than the list of
+  // motions. One place, erring towards redrawing.
+  if ( !isMotion( a ) ) needText = true
+
   // **Shift with a motion extends a selection and the same motion without it
   // collapses one**, which is one rule in one place rather than a shifted twin
   // of every arm below. §56 holds the anchor and has no opinion about when it
@@ -1232,7 +1296,7 @@ if ( haveName && !loadFile() ) {
     running = true
 
     while ( running ) {
-      redraw()
+      repaint()
       step( readKeyNorm() )
     }
   }

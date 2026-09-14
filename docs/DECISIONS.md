@@ -2135,6 +2135,64 @@ cells, comfortably inside the time between two keys, and dirty-row redraw - whic
 §54 and §56 are both shaped for - was not needed and so was not written. The
 first version that is too slow is the one that should have it.
 
+### The first version that was too slow, and the claim above was never measured
+
+It was too slow, and the paragraph above is kept because it is a clean example of
+the thing this file exists to catch. "Comfortably inside the time between two
+keys" reads like a result. **Nothing had timed it**, and the reasoning it rests on
+- two thousand is a small number - skips the part that decides the answer, which
+is what a cell costs. The emitted loop is 24 instructions per cell, one of them an
+`ES` reload §16 will not hoist.
+
+Reported from the 286: holding Down overflows the BIOS keyboard buffer and the
+machine beeps after about ten lines, where `edit.com` on the same machine manages
+most of a screen. **Key repeat is a BIOS setting both programs are subject to**,
+which is what makes that comparison evidence rather than an anecdote - it was the
+one fact needed to place the cost on our side without measuring anything.
+
+### `drawrate`, and the thing it times is the keystroke being held down
+
+`loadrate`'s shape again: one program, both paths, prints the ratio. What it
+times is deliberately narrow - a cursor moving down one line with the window
+already scrolling, which is the key a hand is holding when the beeping starts,
+not drawing in the abstract. Its `viewRow` is `momoed`'s two loops without the
+selection and match overlays, because both are skipped on exactly the keystroke
+being measured and including them would price a different case.
+
+Under DOSBox, 500 draws each: **154 ticks against 7, a factor of 22**, 58 full
+redraws a second against 1,285. That ratio is the one figure here most likely to
+be overstated - DOSBox implements `INT 10h` scroll natively where a real BIOS
+does `rep movsw` over 3,840 bytes, and the emulator already ran 13% high on
+`loadrate`. The 286 is where this becomes a number worth quoting.
+
+### Two fixes, and both of them remove work rather than add cleverness
+
+**A motion inside the window changes no cell of the text area.** It was redrawing
+every one of them. `needText` is set in one place - `apply`, for anything that is
+not a pure motion - rather than at every edit site, because the list of things
+that change the screen is longer and more easily added to than the list of
+motions, and being conservative the safe way costs one redraw.
+
+**A one-line scroll changes one row.** §1 has no string instruction and this is
+the second time that has turned out not to matter, because the BIOS has one:
+`AH=06h` moves the window in a single interrupt and leaves exactly one row to
+draw. 1,920 far stores become 80.
+
+That is the same shape as the two load-time wins: ask DOS for 4 KB instead of
+128, and stop doing ten things per character that only an edit needs. **Three
+times now the answer has been to stop paying for something rather than to pay for
+it faster**, and in all three cases the thing being paid for was invisible until
+somebody ran the program on the slow machine.
+
+### What a selection cost the design, and it is the frame after
+
+A selection and an open prompt both paint into the rows themselves, so both take
+the full path - and so does the frame *after* either ends. That second half is
+the one worth writing down: the paint that clears a highlight has as much to do
+as the one that drew it, and asking only "is something selected now" leaves the
+highlight on screen after Escape. `repaint` keeps `lastSel` and `lastAsk` for
+that one reason.
+
 ---
 
 ## 59. `mofind`

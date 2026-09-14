@@ -2486,35 +2486,26 @@ moview__viewPlace:
         call    moview__viewFollow
         ret
 
-; ============================================== sub viewRender ====
+; ============================================== sub viewRenderRow ====
 
-viewRender:
-; ---- for ( u16 y = 0; y < height; y++ ) {
-        mov     word [viewRender__y], 0
-.L278:
-        mov     ax, [viewRender__y]
-        mov     bx, [moview__height]
-        cmp     ax, bx
-        jb      .L281                       ; unsigned <
-        jmp     .L280
-.L281:
+viewRenderRow:
 ; ---- ln = top + y
         mov     ax, [moview__top]
-        mov     bx, [viewRender__y]
+        mov     bx, [viewRenderRow__y]
         add     ax, bx
-        mov     [viewRender__ln], ax
+        mov     [viewRenderRow__ln], ax
 ; ---- n = 0
-        mov     word [viewRender__n], 0
+        mov     word [viewRenderRow__n], 0
 ; ---- if ( ln < textLines() ) n = lineSlice( ln, left, width, addr( row ) )
-        mov     ax, [viewRender__ln]
+        mov     ax, [viewRenderRow__ln]
         push    ax                          ; save lhs: rhs is not a leaf
         call    textLines
         mov     ax, [textLines__ret]
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jae     .L282                       ; unsigned <
-        mov     ax, [viewRender__ln]
+        jae     .L278                       ; unsigned <
+        mov     ax, [viewRenderRow__ln]
         mov     [lineSlice__ln], ax
         mov     ax, [moview__left]
         mov     [lineSlice__col], ax
@@ -2524,20 +2515,36 @@ viewRender:
         mov     [lineSlice__at], ax
         call    lineSlice
         mov     ax, [lineSlice__ret]
-        mov     [viewRender__n], ax
-.L282:
+        mov     [viewRenderRow__n], ax
+.L278:
 ; ---- viewRow( y, addr( row ), n )
-        mov     ax, [viewRender__y]
+        mov     ax, [viewRenderRow__y]
         mov     [viewRow__y], ax
         mov     ax, moview__row             ; link-time constant
         mov     [viewRow__at], ax
-        mov     ax, [viewRender__n]
+        mov     ax, [viewRenderRow__n]
         mov     [viewRow__n], ax
         call    viewRow
-.L279:
+        ret
+
+; ============================================== sub viewRender ====
+
+viewRender:
+; ---- for ( u16 y = 0; y < height; y++ ) {
+        mov     word [viewRender__y], 0
+.L281:
+        mov     ax, [viewRender__y]
+        mov     bx, [moview__height]
+        cmp     ax, bx
+        jae     .L283                       ; unsigned <
+; ---- viewRenderRow( y )
+        mov     ax, [viewRender__y]
+        mov     [viewRenderRow__y], ax
+        call    viewRenderRow
+.L282:
         inc     word [viewRender__y]
-        jmp     .L278
-.L280:
+        jmp     .L281
+.L283:
         ret
 
 ; ============================================== u8 keyAction ====
@@ -3403,6 +3410,7 @@ viewGoto__col:  dw      0        ; u16
 viewGotoLine__ln: dw      0        ; u16
 moview__viewPlace__ln: dw      0        ; u16
 moview__viewPlace__col: dw      0        ; u16
+viewRenderRow__y: dw      0        ; u16
 pending:        dw      0        ; u16
 keyAction__k:   dw      0        ; u16
 keyAction__ret: db      0        ; u8
@@ -3462,9 +3470,9 @@ lineSlice__n:   dw      0        ; u16
 textInit__room: dw      0        ; u16
 textLoad__d:    dw      0        ; u16
 moview__viewPlace__lines: dw      0        ; u16
+viewRenderRow__ln: dw      0        ; u16
+viewRenderRow__n: dw      0        ; u16
 viewRender__y:  dw      0        ; u16
-viewRender__ln: dw      0        ; u16
-viewRender__n:  dw      0        ; u16
 keyAction__i:   dw      0        ; u16
 keyIsPrefix__i: dw      0        ; u16
 nextKey__k:     dw      0        ; u16

@@ -50,6 +50,37 @@ sub clearScreen(u8 attr) {
   int 0x10
 }
 
+// The same call with AL as a line count, over a window given explicitly rather
+// than taken from the mode - because the caller that wants this has a status
+// line it must not move.
+//
+// **It is the string instruction §1 does not have.** Moving a text window in
+// software is a store per cell; the BIOS does it in one interrupt, and the rows
+// it vacates come back filled with `attr`. A caller then draws only the row the
+// scroll exposed.
+sub scrollUp(u8 col, u8 row, u8 w, u8 h, u8 lines, u8 attr) {
+  _ah = 0x06
+  _al = lines
+  _bh = attr
+  _ch = row
+  _cl = col
+  _dh = row + h - 1
+  _dl = col + w - 1
+  int 0x10
+}
+
+// AH=07, the same window the other way, for a cursor leaving the top.
+sub scrollDown(u8 col, u8 row, u8 w, u8 h, u8 lines, u8 attr) {
+  _ah = 0x07
+  _al = lines
+  _bh = attr
+  _ch = row
+  _cl = col
+  _dh = row + h - 1
+  _dl = col + w - 1
+  int 0x10
+}
+
 sub moveTo(u8 col, u8 row) {
   _ah = 0x02
   _bh = 0                       // page 0
