@@ -232,6 +232,7 @@ const u8[] sSave     = "save as: $"
 const u8[] sNoName   = "(untitled)$"
 const u8[] sTooMany  = "too many files$"
 const u8[] sKb       = "K$"
+const u8[] sHere     = ".$"
 
 
 // ---- the command tail ----
@@ -572,6 +573,25 @@ sub statusClip( u16 x, u16 at, u16 stop ) {
 
 sub statusText( u16 x, u16 at ) => statusClip( x, at, cols )
 
+// The directory the panel is showing. Empty is where the editor was started,
+// which DOS spells as nothing and a person reads as `.`.
+u16 statusPath( u16 x ) {
+  u16 i
+
+  if ( dirPathLen == 0 ) {
+    statusText( x, addr( sHere ) )
+    return 1
+  }
+
+  i = 0
+  while ( i < dirPathLen && x + i < cols ) {
+    cellAt( x + i, rows - 1, dirPath[i], attrStatus )
+    i++
+  }
+
+  return i
+}
+
 // **The name is ASCIZ and everything else here is `$`-terminated.** `statusText`
 // was being handed it anyway and got away with it: the row is filled with spaces
 // first and the zero bytes after the name render as blanks, so eighty cells of
@@ -673,7 +693,13 @@ sub drawStatus {
 
   // A document with nowhere to go yet says so, rather than starting the line
   // with a name-shaped blank.
-  if ( haveName ) {
+  // **While the panel has focus the line says where you are, not what you were
+  // editing.** Twelve columns cannot hold a path, so the one row that can is
+  // the one that says which directory those names are from - which is the
+  // question descending into a subdirectory immediately raises.
+  if ( expFocus ) {
+    x = statusPath( 0 )
+  } else if ( haveName ) {
     x = statusName( 0 )
   } else {
     statusText( 0, addr( sNoName ) )
@@ -752,7 +778,7 @@ bool drawn
 // Rebuilt from nothing, because the directory is not ours and anything may have
 // written to it since - §62 makes that the rule rather than an option.
 sub refreshList {
-  listLoad( addr( dirPat ), dirNormal )
+  listLoad( addr( dirPat ), dirDirectory )
   listSize( rows - 1 )
 
   if ( listOverflowed() ) message = addr( sTooMany )
@@ -792,10 +818,87 @@ sub toggleExplorer {
   needExp  = true
 }
 
+// `..` is the only entry that moves rather than opens.
+bool isUp( u16 at ) => peek8( at ) == '.' && peek8( at + 1 ) == '.' &&
+                      peek8( at + 2 ) == 0
+
+// Another `..\` on the end. **DOS resolves the path and this does not have to**
+// - `..\..\` is a directory like any other, so climbing needs no idea of how
+// deep it started.
+sub addUp {
+  if ( dirPathLen + 3 >= len( dirPath ) ) return
+
+  dirPath[dirPathLen]     = '.'
+  dirPath[dirPathLen + 1] = '.'
+  dirPath[dirPathLen + 2] = 92
+
+  dirPathLen = dirPathLen + 3
+}
+
+sub goUp {
+  u16 n
+
+  // Already climbing, or standing where it started: another `..` either way.
+  if ( dirPathLen == 0 ) {
+    addUp()
+    return
+  }
+
+  if ( dirPathLen >= 3 && dirPath[dirPathLen - 1] == 92 &&
+       dirPath[dirPathLen - 2] == '.' && dirPath[dirPathLen - 3] == '.' ) {
+    addUp()
+    return
+  }
+
+  // Otherwise drop the last component, separator and all. A drive letter counts
+  // as a separator, so `d:sub\` climbs to `d:` and not to nothing.
+  n = dirPathLen - 1
+  while ( n > 0 && dirPath[n - 1] != 92 && dirPath[n - 1] != 58 ) {
+    n--
+  }
+
+  dirPathLen = n
+}
+
+sub goDown( u16 nameAt ) {
+  u16 n
+
+  n = 0
+  while ( peek8( nameAt + n ) != 0 ) {
+    n++
+  }
+
+  if ( dirPathLen + n + 1 >= len( dirPath ) ) return
+
+  memCopy( addr( dirPath ) + dirPathLen, nameAt, n )
+  dirPath[dirPathLen + n] = 92
+
+  dirPathLen = dirPathLen + n + 1
+}
+
+sub descend( u16 nameAt ) {
+  if ( isUp( nameAt ) ) {
+    goUp()
+  } else {
+    goDown( nameAt )
+  }
+
+  buildPattern()
+  refreshList()
+  needExp = true
+}
+
 sub openSelected {
   u16 n
 
   if ( listCursor() >= listCount() ) return
+
+  // Enter means "go there" on a directory and "edit this" on a file, which is
+  // one key doing the obvious thing to whatever it is pointed at.
+  if ( listIsDir( listCursor() ) ) {
+    descend( listName( listCursor() ) )
+    return
+  }
 
   n = buildOpenPath( listName( listCursor() ) )
 
@@ -809,8 +912,29 @@ sub openSelected {
 // there is one place that answers "where did that keystroke go". `^Q` and `^B`
 // are the two that cross the boundary, because leaving the program and putting
 // the panel away should not need a detour through the editor first.
+// Showing it if it is not, because a person reaching for the panel wants the
+// panel rather than a lesson about which key reveals it.
+sub focusExplorer {
+  if ( !expShown ) {
+    toggleExplorer()
+    return
+  }
+
+  expFocus = true
+  needExp  = true
+}
+
 sub explorerKey( u16 k ) {
   needExp = true
+
+  // **Tab moves between panes**, which is what Tab does everywhere else, and
+  // leaves `Ctrl+Tab` free for cycling documents once there is more than one.
+  // Both directions are the same thing while there are two panes and will not
+  // be when there are three.
+  if ( k == keyTab || k == keyExt + keyShiftTab ) {
+    expFocus = false
+    return
+  }
 
   if ( k == keyQuit ) {
     running = false
@@ -1607,6 +1731,14 @@ sub step( u16 k ) {
   // everything else, because a focused panel owns the keyboard.
   if ( expFocus ) {
     explorerKey( k )
+    return
+  }
+
+  // The other half of the pair. Tab used to do nothing here - it is below the
+  // printable range so it never inserted - and the cost of taking it is that it
+  // cannot later insert one.
+  if ( k == keyTab || k == keyExt + keyShiftTab ) {
+    focusExplorer()
     return
   }
 

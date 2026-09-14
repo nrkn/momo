@@ -120,10 +120,14 @@ local sub insertSorted( u16 slot ) {
   listCount_++
 }
 
-// `.` and `..` are skipped. This is a panel showing what is in one directory
-// rather than something to navigate with, so an entry whose only purpose is to
-// go somewhere else would be a control that does nothing.
-local bool isDotted( u16 at ) => peek8( at ) == '.'
+// **`.` is skipped and `..` is not.** `.` can never do anything - it names the
+// directory already being shown - where `..` is the only way out of a
+// subdirectory for a caller that does not take paths. A panel that can be
+// descended into and not left is worse than one with no directories at all.
+//
+// It sorts to the front on its own: it is a directory, and '.' is below every
+// letter.
+local bool isDot( u16 at ) => peek8( at ) == '.' && peek8( at + 1 ) == 0
 
 // Enumerate `pattern` and build the list. `attr` is §38's - `dirNormal` for files
 // alone, `dirDirectory` to include subdirectories, which sort to the front.
@@ -141,7 +145,7 @@ sub listLoad( u16 pattern, u8 attr ) {
   if ( !dirFirst( pattern, attr ) ) return
 
   while ( true ) {
-    if ( !isDotted( dirName() ) ) {
+    if ( !isDot( dirName() ) ) {
       if ( listCount_ >= listMax ) {
         listFull_ = true
         return

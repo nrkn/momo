@@ -18,6 +18,12 @@ const keyPgDn   = 81
 const keyDelete = 83
 const keyInsert = 82
 
+// **Shift+Tab is a scancode and Tab is a character**, which is not symmetry
+// anybody designed: §57 measured `Tab` as `0F09` and `Shift+Tab` as `0F00`, so
+// one arrives with an ASCII value and the other does not. It is the reason the
+// pair cannot be tested as one thing at a call site.
+const keyShiftTab = 15
+
 // Ctrl with a navigation key gets its own scancode rather than needing the shift
 // flags, which is why there is no modifier column anywhere above. Every one of
 // these was reported by `keyprobe`, and the run is a table in DESIGN §57.

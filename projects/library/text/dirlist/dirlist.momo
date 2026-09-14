@@ -41,6 +41,10 @@ const u8[] pattern = "*.QQQ\0"
 // where two were predicted.
 const u8[] zPattern = "Z*.*\0"
 
+// Inside the subdirectory, which is empty - so the only things `*.*` can match
+// there are DOS's own two entries.
+const u8[] subPattern = "ZSUB\\*.*\0"
+
 const u8[] payload = "x"
 
 const u8[] sLoaded = "loaded: $"
@@ -49,6 +53,7 @@ const u8[] sNamed  = "named: $"
 const u8[] sWindow = "window:$"
 const u8[] sThumb  = "thumb:$"
 const u8[] sSorted = "sorted:$"
+const u8[] sDots   = "dots:$"
 
 u16 handle
 
@@ -230,6 +235,28 @@ newline()
 putNumber( listCount() )
 putChar( ' ' )
 putNumber( listCursor() )
+newline()
+
+for ( u16 i = 0; i < listCount(); i++ ) {
+  showName( i )
+}
+
+// ---- `.` is skipped and `..` is not ----
+//
+// An empty subdirectory holds exactly two entries and both of them are DOS's.
+// `.` names the directory already being shown and can never do anything; `..` is
+// the only way out of a subdirectory for a caller that does not take paths, and a
+// panel that can be descended into and not left is worse than one with no
+// directories at all.
+//
+// So the count here is the whole claim: two entries exist, one survives.
+
+listLoad( addr( subPattern ), dirDirectory )
+
+putStr( addr( sDots ) )
+newline()
+
+putNumber( listCount() )
 newline()
 
 for ( u16 i = 0; i < listCount(); i++ ) {

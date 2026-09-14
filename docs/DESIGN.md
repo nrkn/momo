@@ -6126,10 +6126,24 @@ and are not now.
 
 ### The explorer, which is VS Code's shape and not a file manager's
 
-It shows **the directory the editor was opened in** and does not navigate: no
-`.`, no `..`, nothing to get lost in. `^O` still takes a path, which is what
-covers the case this deliberately does not - so the panel is a convenience over
-one directory rather than the only way to reach a file.
+It shows **the directory the editor was opened in**, and Enter on a subdirectory
+goes there - which is what VS Code does, where the tree descends and there is
+no `.` because `.` never meant anything.
+
+It did not navigate at first, and that was wrong for a reason worth keeping:
+**a panel that shows subdirectories and cannot enter them is a list of things
+you are not allowed to have**, and one that hides them cannot reach half the
+files on the disk. `^O` covered it in principle and nobody is going to type a
+path to a file they can see.
+
+So `..` is an entry and `.` is not, and the path grows and shrinks rather than
+being resolved: going up from `sub\` drops a component, and going up from
+nothing adds `..\`. **DOS resolves the path and this does not have to**, which
+is what keeps it to two small routines and no idea of where it started.
+
+**The status line says which directory while the panel has focus.** Twelve
+columns cannot hold a path, and descending immediately raises the question the
+one row that can answer it should.
 
 Which means **`momoed` needs no arguments at all now.** With none, it opens an
 empty document with the panel showing what is here; with a file, the panel stays
@@ -6153,6 +6167,21 @@ there is one place that answers *where did that keystroke go*. `^Q` and `^B`
 cross the boundary because leaving the program and putting the panel away should
 not need a detour through the editor. Escape leaves it on screen and gives the
 keys back; `^B` puts it away - two gestures because they are two intentions.
+
+**Tab moves between the panes**, both ways, which is what Tab does everywhere
+else. Escape on its own was asymmetric - it got you out of the panel and left no
+way back in but `^B` twice - and a pair of keys that only work in one direction
+is a pair somebody has to remember rather than reach for.
+
+`Ctrl+Tab` was the other candidate and is deliberately **left free**: when there
+is more than one document it should cycle those, which is what it does in every
+program that has both. Tab for panes and `Ctrl+Tab` for documents is the
+distinction already in everybody's hands. It is also the one that needed no
+probe - §57 measured `Tab` and `Shift+Tab` and never measured `Ctrl+Tab`.
+
+The cost is that **Tab can no longer insert a tab**. It never did - it is below
+the printable range that `step` inserts from - so nothing was taken, but
+something was spent.
 
 **There is one hardware cursor**, which §55 already noted for multiple cursors
 and which a second pane runs into first. It goes where the keys are going, and
@@ -6399,12 +6428,17 @@ back uppercased, so folding would be a branch nothing could exercise.
 stopped at 256 would hide exactly the file somebody was looking for, and would
 look identical to a complete one.
 
-### `.` and `..` are skipped
+### `.` is skipped and `..` is not
 
-This shows what is in one directory rather than being something to navigate with,
-so an entry whose only purpose is to go elsewhere would be a control that does
-nothing. Subdirectories themselves are the caller's choice through `attr`, and
-sort to the front when asked for.
+Both were skipped at first, on the grounds that this shows one directory rather
+than being something to navigate with. **That was half right.** `.` names the
+directory already on screen and can never do anything; `..` is the only way out
+of a subdirectory for a caller that does not take paths, and a panel that can be
+descended into and not left is worse than one with no directories at all.
+
+It needs no special case to sort: it is a directory, and `.` is below every
+letter, so it lands at the top on its own. Subdirectories are the caller's
+choice through `attr`.
 
 ### The thumb is proportional, and the arithmetic is where it goes wrong
 

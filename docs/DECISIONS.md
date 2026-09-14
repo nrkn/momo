@@ -3217,3 +3217,43 @@ decision is revisited, and unlike code nothing fails. The only defence is readin
 back what was written rather than only what was built, which is how this one was
 caught - and it is the argument for `drift` growing more of these checks rather
 than fewer.
+
+### Three reports, and two of them were the design being wrong rather than broken
+
+Directories were missing from the panel because the editor asked for files alone,
+which was deliberate and was still the wrong call. The argument for it was that an
+entry you cannot enter is a control that does nothing - true, and it makes the
+case for *entering* them rather than for hiding them. Hiding them makes half the
+disk unreachable from a panel whose whole job is reaching files.
+
+`^O` covered it in principle. Nobody is going to type a path to a file they can
+see.
+
+### `.` is not the same question as `..`
+
+They were skipped together and they are not alike. `.` names the directory already
+on screen and can never do anything, in any design. `..` is the only way out of a
+subdirectory for a caller that does not take paths.
+
+**The path grows and shrinks rather than being resolved.** Up from `sub\` drops a
+component; up from nothing appends `..\`; up from `..\` appends another. DOS
+resolves what that means, so this needs no idea of where it started and no
+absolute path anywhere - two small routines and a rule.
+
+### Escape was asymmetric, and Tab is what everybody already presses
+
+Escape left the panel and nothing brought focus back but `^B` twice. A pair of
+gestures that only works one way is a pair somebody has to remember.
+
+Tab both ways, which is what Tab does in every dialog ever written. **`Ctrl+Tab`
+is deliberately left free** for cycling documents once there is more than one -
+that is what it does in every program that has both, and spending it on panes now
+would mean taking it back later.
+
+It also needed no probe. §57 measured `Tab` as `0F09` and `Shift+Tab` as `0F00`
+and never measured `Ctrl+Tab` - so one of the two candidates was a fact and the
+other was a guess, which settles it without any appeal to taste.
+
+**The asymmetry in the pair is worth naming**: `Tab` arrives as a character and
+`Shift+Tab` as a scancode, so the two cannot be tested as one thing at a call
+site. Nobody designed that; it is what the hardware does.
