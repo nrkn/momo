@@ -5206,6 +5206,7 @@ taken again.
 | `Ctrl+P` | 1910 | 0124 |
 | `Alt+0233` keypad | 00E9 | 0020 |
 | `Alt+0165` keypad | 00A5 | 0020 |
+| emoji key (macro) | 3920 | 032E |
 | `Backspace` | 0E08 | 0000 |
 | `Ctrl+Backspace` | 0E7F | 0104 |
 | `Delete` | 53E0 | 0000 |

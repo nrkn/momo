@@ -3369,3 +3369,40 @@ Worth noting where the fault sat: not in the parse, which had a test, and not in
 the run, which was done correctly. In the one line that chose a number, in a
 program whose output is a record, with nothing checking the number against the
 thing it was a number for.
+
+### The emoji key is not a key, and the Windows key is not reachable
+
+`3920 032E`: Space, with left shift, ctrl and alt in the flags. **No trace of
+the Windows key**, which is what the keyboard also sends - the key is a hardware
+macro for Ctrl+Alt+Shift+Win+Space and only four fifths of it survives the trip.
+
+Two things worth separating, because the obvious reading of that is wrong.
+
+**It is not the number of keys.** A keyboard reports make and break per key
+independently and five at once is unremarkable. What fails is one key in
+particular: the Windows key is `E0 5B`, an AT-era BIOS has no entry for it in
+its translation table, and `AH=12h` has no bit for it either. It is not
+*dropped*; it was never in the interface.
+
+**It is reachable, in principle, and the price is the whole input path.** §22's
+`in`/`out` and §24's interrupt handlers are both built, so an `INT 09h` of our
+own reading port 60h would see the raw scancodes - Windows key included. That is
+a keyboard driver, replacing `int 16h` everywhere, for one key on hardware the
+target does not have.
+
+### What it means for the picker, which is that nothing changes
+
+As far as any DOS program is concerned, **the emoji key *is* Ctrl+Alt+Shift+Space**
+- they are the same event. So it is bindable without any driver, and the cost is
+the one §57 was designed to avoid: the key space carries Shift and nothing else,
+on the argument that "folding Shift in costs one comparison and removes the need
+for a modifier column anywhere above". Ctrl and alt would be that column, added
+for one binding.
+
+So `^P` stays the candidate - WordStar and Borland's "take the next character
+literally", free in this key space, and on a keyboard the 286 actually has. The
+emoji key is recorded because the question was asked and the answer is a fact
+about the machine, not because anything is waiting on it.
+
+**The row is in §57 either way**, which is the point of asking: a question asked
+and answered is worth more than a question left open, even when the answer is no.

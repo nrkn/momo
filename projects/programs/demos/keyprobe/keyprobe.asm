@@ -1060,6 +1060,11 @@ addPadded:
 .L134:
         jmp     .L133
 .L135:
+; ---- addChar( ' ' )
+        mov     byte [addChar__c], 32
+        call    addChar
+; ---- i++
+        inc     word [addPadded__i]
 ; ---- while ( i < width ) {
 .L137:
         mov     ax, [addPadded__i]

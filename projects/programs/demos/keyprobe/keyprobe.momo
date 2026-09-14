@@ -228,6 +228,11 @@ sub addStr( u16 at ) {
 }
 
 // The label, then spaces out to `width`, so the file lines up in a column.
+//
+// **At least one space, always.** A label longer than the column used to run
+// straight into the hex - `...if there is none3920 032E` - which is a row that
+// reads as one word and a number. The column is for the common case and the
+// space is for the row that does not fit it.
 sub addPadded( u16 at, u16 width ) {
   u16 i
   i = 0
@@ -236,6 +241,9 @@ sub addPadded( u16 at, u16 width ) {
     addChar( peek8( at + i ) )
     i++
   }
+
+  addChar( ' ' )
+  i++
 
   while ( i < width ) {
     addChar( ' ' )
