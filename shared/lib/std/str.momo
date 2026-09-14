@@ -193,6 +193,11 @@ u16 numText( u16 at, u16 n ) {
 // the return says which happened: `width` when it fitted, more when it did not.
 // A gutter that silently dropped the leading digit of 10,000 would be wrong in
 // exactly the place a person is relying on it to be right.
+//
+// The `>=` is also what keeps `width - used` from wrapping. Neutering it to see
+// the test bite turned a three-column field into 65,534 bytes of padding, which
+// is a wider failure than the one the branch is written for and worth knowing is
+// behind the same comparison.
 u16 numRight( u16 at, u16 n, u16 width, u8 pad ) {
   u16 used
   u16 blank
