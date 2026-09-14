@@ -1,13 +1,12 @@
-docs: 4
+docs: 2
 room shared: 1
 hold:
 1 bravo
 0 alpha
-2 charlie
 undo:
 
-bravo
+alpha
 5 0
 clear:
-0 bravo
-range: 1 1
+0 alpha
+range: 0 0

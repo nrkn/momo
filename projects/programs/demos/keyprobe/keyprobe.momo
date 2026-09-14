@@ -33,6 +33,12 @@ const keyEsc16 = 0x011B
 
 // One prompt per line, in the order they are asked. The count is derived below
 // rather than written down, so adding one here cannot desynchronise anything.
+//
+// **This is the default rather than the list.** `KEYPROBE.CFG` beside the
+// program replaces it, one prompt a line - so probing three keys does not mean
+// pressing thirty-six, and adding a question does not mean a rebuild. That last
+// part is the point: a rebuild is a round trip through another machine, and a
+// text file is something the editor on this one can write.
 const u8[] prompts = "Left$"
                      "Shift+Left$"
                      "Ctrl+Left$"
@@ -83,6 +89,8 @@ const u8[] sSpace  = " $"
 const u8[] sPress  = "  press: $"
 const u8[] sWrote  = "written to KEYS.TXT: $"
 const u8[] sFailed = "could not create KEYS.TXT, DOS error $"
+const u8[] sFromCfg = "list     KEYPROBE.CFG$"
+const u8[] sBuiltIn = "list     built-in$"
 
 // ---- the report ----
 //
@@ -95,6 +103,86 @@ const reportMax = 2048
 
 view u8[reportMax] report = _heap[0]
 u16 reportAt
+
+// ---- the list, which may come from a file --------------------------------
+//
+// Read raw and then **compacted in place into exactly the shape the built-in
+// list has**: one `$` a prompt. The walk below never learns which it got, which
+// is what keeps the config from being a second code path.
+//
+// In place is safe because every byte either survives or is dropped - the
+// output index is never ahead of the input one.
+const cfgMax = 1024
+const u8[] cfgName = "KEYPROBE.CFG\0"
+
+view u8[cfgMax] cfg = _heap[reportMax]
+u16 cfgLen
+
+sub loadConfig {
+  u16 handle
+  u16 got
+  u16 out
+  u8  ch
+  bool atStart
+  bool comment
+
+  cfgLen = 0
+
+  handle = fileOpen( addr( cfgName ), fileReadOnly )
+  if ( fileFailed() ) return
+
+  got = fileRead( handle, addr( cfg ), cfgMax )
+  fileClose( handle )
+
+  out = 0
+  atStart = true
+  comment = false
+
+  for ( u16 i = 0; i < got; i++ ) {
+    ch = cfg[i]
+
+    // A DOS file ends its lines with two bytes and only one of them matters.
+    if ( ch == 13 ) continue
+
+    if ( ch == 10 ) {
+      // A blank line and a comment both produce nothing, so a file may be laid
+      // out to be read by a person.
+      if ( !atStart && !comment ) {
+        cfg[out] = strTerm
+        out++
+      }
+
+      atStart = true
+      comment = false
+      continue
+    }
+
+    if ( atStart && ch == '#' ) {
+      comment = true
+      continue
+    }
+
+    if ( comment ) continue
+    if ( atStart && ch == ' ' ) continue
+
+    atStart = false
+    cfg[out] = ch
+    out++
+  }
+
+  // A last line with no newline after it is still a prompt.
+  if ( !atStart && !comment ) {
+    cfg[out] = strTerm
+    out++
+  }
+
+  cfgLen = out
+}
+
+bool usingConfig() => cfgLen > 0
+
+u16 promptsAt()  => usingConfig() ? addr( cfg ) : addr( prompts )
+u16 promptsLen() => usingConfig() ? cfgLen : len( prompts )
 
 sub addChar( u8 c ) {
   if ( reportAt >= reportMax ) return
@@ -193,6 +281,20 @@ putStr( addr( sIntro2 ) )
 newline()
 putStr( addr( sIntro3 ) )
 newline()
+
+loadConfig()
+
+// **Which list this run asked**, on screen and in the file. A subset run and a
+// full run produce the same shape of file, so a KEYS.TXT that did not say would
+// read as a complete record with rows quietly missing - which is the failure a
+// record exists to prevent.
+if ( usingConfig() ) {
+  putStr( addr( sFromCfg ) )
+} else {
+  putStr( addr( sBuiltIn ) )
+}
+
+newline()
 newline()
 
 // **The toggles as the run starts**, before anybody has pressed anything.
@@ -210,13 +312,21 @@ addStr( addr( sSpace ) )
 addHex( shiftFlags() )
 addLineEnd()
 
+if ( usingConfig() ) {
+  addStr( addr( sFromCfg ) )
+} else {
+  addStr( addr( sBuiltIn ) )
+}
+
+addLineEnd()
+
 addStr( addr( sHeader ) )
 addLineEnd()
 
-total = countStrings( addr( prompts ), len( prompts ) )
+total = countStrings( promptsAt(), promptsLen() )
 
 for ( u16 i = 0; i < total; i++ ) {
-  label = nthStr( addr( prompts ), i )
+  label = nthStr( promptsAt(), i )
 
   putNumber( i + 1 )
   putChar( '/' )

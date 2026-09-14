@@ -10,7 +10,7 @@ motext__chunkSize: equ     16
 motext__halfChunk: equ     8
 motext__maxChunks: equ     32000
 motext__maxUndo: equ     2048
-motext__maxDocs: equ     4
+motext__maxDocs: equ     2
 textUndoMax:    equ     2048
 textMaxLines:   equ     12000
 motext__headParas: equ     1500
@@ -2992,7 +2992,7 @@ textInit:
         sub     ax, bx
         mov     [textInit__avail], ax
 ; ---- if ( avail <= ( headParas + lenParas + logParas ) * maxDocs ) {
-        cmp     ax, 15584
+        cmp     ax, 7792
         ja      .L306                       ; unsigned <=
 ; ---- noRoom = true
         mov     byte [motext__noRoom], 1
@@ -3003,7 +3003,7 @@ textInit:
 .L306:
 ; ---- spare = avail - ( headParas + lenParas + logParas ) * maxDocs
         mov     ax, [textInit__avail]
-        sub     ax, 15584
+        sub     ax, 7792
         mov     [textInit__spare], ax
 ; ---- chunkLimit = spare / 19 * 16 + ( spare % 19 ) * 16 / 19
         mov     bx, 19
@@ -3058,7 +3058,7 @@ textInit:
         mov     word [textInit__d], 0
 .L312:
         mov     ax, [textInit__d]
-        cmp     ax, 4
+        cmp     ax, 2
         jb      .L315                       ; unsigned <
         jmp     .L314
 .L315:
@@ -3169,7 +3169,7 @@ textInit:
         mov     word [textInit__d], 0
 .L325:
         mov     ax, [textInit__d]
-        cmp     ax, 4
+        cmp     ax, 2
         jae     .L327                       ; unsigned <
 ; ---- curDoc = d
         mov     ax, [textInit__d]
@@ -5055,22 +5055,22 @@ showCopy__i:    dw      0        ; u16
 showCopy__n:    dw      0        ; u16
 
 ; ---- arrays ----
-motext__docHeadSeg: times 4 dw 0        ; u16[4]
-motext__docLenSeg: times 4 dw 0        ; u16[4]
-motext__docLogOp: times 4 dw 0        ; u16[4]
-motext__docLogLine: times 4 dw 0        ; u16[4]
-motext__docLogCol: times 4 dw 0        ; u16[4]
-motext__docLogCh: times 4 dw 0        ; u16[4]
-motext__docLogJoin: times 4 dw 0        ; u16[4]
-motext__docLines: times 4 dw 0        ; u16[4]
-motext__docLineLimit: times 4 dw 0        ; u16[4]
-motext__docUndoHead: times 4 dw 0        ; u16[4]
-motext__docUndoCount: times 4 dw 0        ; u16[4]
-motext__docUndoDone: times 4 dw 0        ; u16[4]
-motext__docBreakRun: times 4 db 0        ; u8[4]
-motext__docUndoLost: times 4 db 0        ; u8[4]
-motext__docNoRoom: times 4 db 0        ; u8[4]
-motext__docWhyNoRoom: times 4 db 0        ; u8[4]
+motext__docHeadSeg: times 2 dw 0        ; u16[2]
+motext__docLenSeg: times 2 dw 0        ; u16[2]
+motext__docLogOp: times 2 dw 0        ; u16[2]
+motext__docLogLine: times 2 dw 0        ; u16[2]
+motext__docLogCol: times 2 dw 0        ; u16[2]
+motext__docLogCh: times 2 dw 0        ; u16[2]
+motext__docLogJoin: times 2 dw 0        ; u16[2]
+motext__docLines: times 2 dw 0        ; u16[2]
+motext__docLineLimit: times 2 dw 0        ; u16[2]
+motext__docUndoHead: times 2 dw 0        ; u16[2]
+motext__docUndoCount: times 2 dw 0        ; u16[2]
+motext__docUndoDone: times 2 dw 0        ; u16[2]
+motext__docBreakRun: times 2 db 0        ; u8[2]
+motext__docUndoLost: times 2 db 0        ; u8[2]
+motext__docNoRoom: times 2 db 0        ; u8[2]
+motext__docWhyNoRoom: times 2 db 0        ; u8[2]
 morange__wbuf:  times 128 db 0        ; u8[128]
 mofind__pattern: times 64 db 0        ; u8[64]
 mofind__window: times 128 db 0        ; u8[128]

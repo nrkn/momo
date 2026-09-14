@@ -8,6 +8,13 @@
 // **A switch is not a copy.** The text was never in this segment, so what changes
 // is seven segment numbers and a dozen counters - which is why the thing to check
 // is that the *right* ones are carried and the rest are left alone.
+//
+// **Two documents, because two is what every build has.** The first version used
+// three and then `maxDocs` dropped to two, so `textSwitch( 2 )` did nothing and
+// the third document's text went quietly into the second one. The guard was
+// working; the fixture was assuming. §54 has the rule from the other direction -
+// a fixture that must exceed a library constant should read it - and this is the
+// same rule for a fixture that must stay inside one.
 
 include "lib/std/io.momo"
 include "lib/motext.momo"
@@ -40,7 +47,6 @@ sub put( u16 at, u16 n ) {
 
 const u8[] textA = "alpha"
 const u8[] textB = "bravo"
-const u8[] textC = "charlie"
 
 textInit()
 
@@ -64,9 +70,6 @@ put( addr( textA ), len( textA ) )
 textSwitch( 1 )
 put( addr( textB ), len( textB ) )
 
-textSwitch( 2 )
-put( addr( textC ), len( textC ) )
-
 // **Read back out of order**, because a switch that returned the document it was
 // last on would pass a test that walked them forwards.
 putStr( addr( sHold ) )
@@ -78,11 +81,6 @@ putChar( ' ' )
 showLine( 0 )
 
 textSwitch( 0 )
-putNumber( textDoc() )
-putChar( ' ' )
-showLine( 0 )
-
-textSwitch( 2 )
 putNumber( textDoc() )
 putChar( ' ' )
 showLine( 0 )
@@ -101,19 +99,19 @@ showLine( 0 )
 putStr( addr( sUndo ) )
 newline()
 
-textSwitch( 2 )
+textSwitch( 1 )
 undoOnce()
 showLine( 0 )                       // empty: the run was one step
 
-textSwitch( 1 )
-showLine( 0 )                       // bravo, untouched
+textSwitch( 0 )
+showLine( 0 )                       // alpha, untouched
 
-// Document 1 first, which never had an undo taken, then document 2, which had
+// Document 0 first, which never had an undo taken, then document 1, which had
 // its only step taken back.
 putNumber( textUndos() )
 putChar( ' ' )
 
-textSwitch( 2 )
+textSwitch( 1 )
 putNumber( textUndos() )
 newline()
 
@@ -125,13 +123,13 @@ newline()
 putStr( addr( sClear ) )
 newline()
 
-textSwitch( 0 )
+textSwitch( 1 )
 textClear()
 putNumber( lineLength( 0 ) )
 putChar( ' ' )
 
-textSwitch( 1 )
-showLine( 0 )                       // bravo
+textSwitch( 0 )
+showLine( 0 )                       // alpha
 
 // ---- a document that does not exist is not a document ----
 //

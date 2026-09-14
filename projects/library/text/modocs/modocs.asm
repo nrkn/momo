@@ -10,9 +10,9 @@ motext__chunkSize: equ     16
 motext__halfChunk: equ     8
 motext__maxChunks: equ     32000
 motext__maxUndo: equ     2048
-motext__maxDocs: equ     4
+motext__maxDocs: equ     2
 textMaxLines:   equ     12000
-textMaxDocs:    equ     4
+textMaxDocs:    equ     2
 motext__headParas: equ     1500
 motext__lenParas: equ     1500
 motext__opInsert: equ     1
@@ -37,7 +37,7 @@ __entry:
         mov     [putStr__at], ax
         call    putStr
 ; ---- putNumber( textMaxDocs )
-        mov     word [putNumber__n], 4
+        mov     word [putNumber__n], 2
         call    putNumber
 ; ---- newline()
         call    newline
@@ -71,14 +71,6 @@ __entry:
         mov     ax, textB                   ; link-time constant
         mov     [put__at], ax
         mov     word [put__n], 5
-        call    put
-; ---- textSwitch( 2 )
-        mov     word [textSwitch__d], 2
-        call    textSwitch
-; ---- put( addr( textC ), len( textC ) )
-        mov     ax, textC                   ; link-time constant
-        mov     [put__at], ax
-        mov     word [put__n], 7
         call    put
 ; ---- putStr( addr( sHold ) )
         mov     ax, sHold                   ; link-time constant
@@ -114,38 +106,24 @@ __entry:
 ; ---- showLine( 0 )
         mov     word [showLine__ln], 0
         call    showLine
-; ---- textSwitch( 2 )
-        mov     word [textSwitch__d], 2
-        call    textSwitch
-; ---- putNumber( textDoc() )
-        call    textDoc
-        mov     ax, [textDoc__ret]
-        mov     [putNumber__n], ax
-        call    putNumber
-; ---- putChar( ' ' )
-        mov     byte [putChar__c], 32
-        call    putChar
-; ---- showLine( 0 )
-        mov     word [showLine__ln], 0
-        call    showLine
 ; ---- putStr( addr( sUndo ) )
         mov     ax, sUndo                   ; link-time constant
         mov     [putStr__at], ax
         call    putStr
 ; ---- newline()
         call    newline
-; ---- textSwitch( 2 )
-        mov     word [textSwitch__d], 2
+; ---- textSwitch( 1 )
+        mov     word [textSwitch__d], 1
         call    textSwitch
 ; ---- undoOnce()
         call    undoOnce
 ; ---- showLine( 0 )                       // empty: the run was one step
         mov     word [showLine__ln], 0
         call    showLine
-; ---- textSwitch( 1 )
-        mov     word [textSwitch__d], 1
+; ---- textSwitch( 0 )
+        mov     word [textSwitch__d], 0
         call    textSwitch
-; ---- showLine( 0 )                       // bravo, untouched
+; ---- showLine( 0 )                       // alpha, untouched
         mov     word [showLine__ln], 0
         call    showLine
 ; ---- putNumber( textUndos() )
@@ -156,8 +134,8 @@ __entry:
 ; ---- putChar( ' ' )
         mov     byte [putChar__c], 32
         call    putChar
-; ---- textSwitch( 2 )
-        mov     word [textSwitch__d], 2
+; ---- textSwitch( 1 )
+        mov     word [textSwitch__d], 1
         call    textSwitch
 ; ---- putNumber( textUndos() )
         call    textUndos
@@ -172,8 +150,8 @@ __entry:
         call    putStr
 ; ---- newline()
         call    newline
-; ---- textSwitch( 0 )
-        mov     word [textSwitch__d], 0
+; ---- textSwitch( 1 )
+        mov     word [textSwitch__d], 1
         call    textSwitch
 ; ---- textClear()
         call    textClear
@@ -186,10 +164,10 @@ __entry:
 ; ---- putChar( ' ' )
         mov     byte [putChar__c], 32
         call    putChar
-; ---- textSwitch( 1 )
-        mov     word [textSwitch__d], 1
+; ---- textSwitch( 0 )
+        mov     word [textSwitch__d], 0
         call    textSwitch
-; ---- showLine( 0 )                       // bravo
+; ---- showLine( 0 )                       // alpha
         mov     word [showLine__ln], 0
         call    showLine
 ; ---- putStr( addr( sRange ) )
@@ -197,7 +175,7 @@ __entry:
         mov     [putStr__at], ax
         call    putStr
 ; ---- textSwitch( textMaxDocs )
-        mov     word [textSwitch__d], 4
+        mov     word [textSwitch__d], 2
         call    textSwitch
 ; ---- putNumber( textDoc() )
         call    textDoc
@@ -208,7 +186,7 @@ __entry:
         mov     byte [putChar__c], 32
         call    putChar
 ; ---- textSwitch( textMaxDocs + 10 )
-        mov     word [textSwitch__d], 14
+        mov     word [textSwitch__d], 12
         call    textSwitch
 ; ---- putNumber( textDoc() )
         call    textDoc
@@ -2337,7 +2315,7 @@ textDoc:
 textSwitch:
 ; ---- if ( d >= maxDocs ) return
         mov     ax, [textSwitch__d]
-        cmp     ax, 4
+        cmp     ax, 2
         jb      .L234                       ; unsigned >=
         ret
 .L234:
@@ -2470,7 +2448,7 @@ textInit:
         sub     ax, bx
         mov     [textInit__avail], ax
 ; ---- if ( avail <= ( headParas + lenParas + logParas ) * maxDocs ) {
-        cmp     ax, 15584
+        cmp     ax, 7792
         ja      .L249                       ; unsigned <=
 ; ---- noRoom = true
         mov     byte [motext__noRoom], 1
@@ -2481,7 +2459,7 @@ textInit:
 .L249:
 ; ---- spare = avail - ( headParas + lenParas + logParas ) * maxDocs
         mov     ax, [textInit__avail]
-        sub     ax, 15584
+        sub     ax, 7792
         mov     [textInit__spare], ax
 ; ---- chunkLimit = spare / 19 * 16 + ( spare % 19 ) * 16 / 19
         mov     bx, 19
@@ -2536,7 +2514,7 @@ textInit:
         mov     word [textInit__d], 0
 .L255:
         mov     ax, [textInit__d]
-        cmp     ax, 4
+        cmp     ax, 2
         jb      .L258                       ; unsigned <
         jmp     .L257
 .L258:
@@ -2647,7 +2625,7 @@ textInit:
         mov     word [textInit__d], 0
 .L268:
         mov     ax, [textInit__d]
-        cmp     ax, 4
+        cmp     ax, 2
         jae     .L270                       ; unsigned <
 ; ---- curDoc = d
         mov     ax, [textInit__d]
@@ -2900,22 +2878,22 @@ showLine__n:    dw      0        ; u16
 put__i:         dw      0        ; u16
 
 ; ---- arrays ----
-motext__docHeadSeg: times 4 dw 0        ; u16[4]
-motext__docLenSeg: times 4 dw 0        ; u16[4]
-motext__docLogOp: times 4 dw 0        ; u16[4]
-motext__docLogLine: times 4 dw 0        ; u16[4]
-motext__docLogCol: times 4 dw 0        ; u16[4]
-motext__docLogCh: times 4 dw 0        ; u16[4]
-motext__docLogJoin: times 4 dw 0        ; u16[4]
-motext__docLines: times 4 dw 0        ; u16[4]
-motext__docLineLimit: times 4 dw 0        ; u16[4]
-motext__docUndoHead: times 4 dw 0        ; u16[4]
-motext__docUndoCount: times 4 dw 0        ; u16[4]
-motext__docUndoDone: times 4 dw 0        ; u16[4]
-motext__docBreakRun: times 4 db 0        ; u8[4]
-motext__docUndoLost: times 4 db 0        ; u8[4]
-motext__docNoRoom: times 4 db 0        ; u8[4]
-motext__docWhyNoRoom: times 4 db 0        ; u8[4]
+motext__docHeadSeg: times 2 dw 0        ; u16[2]
+motext__docLenSeg: times 2 dw 0        ; u16[2]
+motext__docLogOp: times 2 dw 0        ; u16[2]
+motext__docLogLine: times 2 dw 0        ; u16[2]
+motext__docLogCol: times 2 dw 0        ; u16[2]
+motext__docLogCh: times 2 dw 0        ; u16[2]
+motext__docLogJoin: times 2 dw 0        ; u16[2]
+motext__docLines: times 2 dw 0        ; u16[2]
+motext__docLineLimit: times 2 dw 0        ; u16[2]
+motext__docUndoHead: times 2 dw 0        ; u16[2]
+motext__docUndoCount: times 2 dw 0        ; u16[2]
+motext__docUndoDone: times 2 dw 0        ; u16[2]
+motext__docBreakRun: times 2 db 0        ; u8[2]
+motext__docUndoLost: times 2 db 0        ; u8[2]
+motext__docNoRoom: times 2 db 0        ; u8[2]
+motext__docWhyNoRoom: times 2 db 0        ; u8[2]
 buf:            times 64 db 0        ; u8[64]
 sRoom:          db      'room shared: $'        ; u8[14] const
 sDocs:          db      'docs: $'        ; u8[7] const
@@ -2925,7 +2903,6 @@ sClear:         db      'clear:$'        ; u8[7] const
 sRange:         db      'range: $'        ; u8[8] const
 textA:          db      'alpha'        ; u8[5] const
 textB:          db      'bravo'        ; u8[5] const
-textC:          db      'charlie'        ; u8[7] const
 putNumber__digits: times 5 db 0        ; u8[5]
 
 ; ============================================================ heap ====

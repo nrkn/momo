@@ -7,9 +7,11 @@
 ioBase:         equ     10
 ioZeroChar:     equ     48
 strEnd:         equ     36
+fileReadOnly:   equ     0
 strTerm:        equ     36
 keyEsc16:       equ     283
 reportMax:      equ     2048
+cfgMax:         equ     1024
 
 ; =========================================================== entry ====
 
@@ -32,6 +34,27 @@ __entry:
         call    putStr
 ; ---- newline()
         call    newline
+; ---- loadConfig()
+        call    loadConfig
+; ---- if ( usingConfig() ) {
+        call    usingConfig
+        mov     al, [usingConfig__ret]
+        xor     ah, ah                      ; bool -> u16
+        test    ax, ax
+        jz      .L1
+; ---- putStr( addr( sFromCfg ) )
+        mov     ax, sFromCfg                ; link-time constant
+        mov     [putStr__at], ax
+        call    putStr
+        jmp     .L2
+.L1:
+; ---- putStr( addr( sBuiltIn ) )
+        mov     ax, sBuiltIn                ; link-time constant
+        mov     [putStr__at], ax
+        call    putStr
+.L2:
+; ---- newline()
+        call    newline
 ; ---- newline()
         call    newline
 ; ---- addStr( addr( sStart ) )
@@ -52,33 +75,60 @@ __entry:
         call    addHex
 ; ---- addLineEnd()
         call    addLineEnd
+; ---- if ( usingConfig() ) {
+        call    usingConfig
+        mov     al, [usingConfig__ret]
+        xor     ah, ah                      ; bool -> u16
+        test    ax, ax
+        jz      .L4
+; ---- addStr( addr( sFromCfg ) )
+        mov     ax, sFromCfg                ; link-time constant
+        mov     [addStr__at], ax
+        call    addStr
+        jmp     .L5
+.L4:
+; ---- addStr( addr( sBuiltIn ) )
+        mov     ax, sBuiltIn                ; link-time constant
+        mov     [addStr__at], ax
+        call    addStr
+.L5:
+; ---- addLineEnd()
+        call    addLineEnd
 ; ---- addStr( addr( sHeader ) )
         mov     ax, sHeader                 ; link-time constant
         mov     [addStr__at], ax
         call    addStr
 ; ---- addLineEnd()
         call    addLineEnd
-; ---- total = countStrings( addr( prompts ), len( prompts ) )
-        mov     ax, prompts                 ; link-time constant
+; ---- total = countStrings( promptsAt(), promptsLen() )
+        call    promptsAt
+        mov     ax, [promptsAt__ret]
+        push    ax                          ; argument evaluated before any is stored
+        call    promptsLen
+        mov     ax, [promptsLen__ret]
+        mov     [countStrings__bytes], ax
+        pop     ax
         mov     [countStrings__at], ax
-        mov     word [countStrings__bytes], 335
         call    countStrings
         mov     ax, [countStrings__ret]
         mov     [total], ax
 ; ---- for ( u16 i = 0; i < total; i++ ) {
         mov     word [i], 0
-.L1:
+.L7:
         mov     ax, [i]
         mov     bx, [total]
         cmp     ax, bx
-        jb      .L4                         ; unsigned <
-        jmp     .L3
-.L4:
-; ---- label = nthStr( addr( prompts ), i )
-        mov     ax, prompts                 ; link-time constant
-        mov     [nthStr__at], ax
+        jb      .L10                        ; unsigned <
+        jmp     .L9
+.L10:
+; ---- label = nthStr( promptsAt(), i )
+        call    promptsAt
+        mov     ax, [promptsAt__ret]
+        push    ax                          ; argument evaluated before any is stored
         mov     ax, [i]
         mov     [nthStr__n], ax
+        pop     ax
+        mov     [nthStr__at], ax
         call    nthStr
         mov     ax, [nthStr__ret]
         mov     [label], ax
@@ -148,17 +198,17 @@ __entry:
 ; ---- if ( code == keyEsc16 ) addStr( addr( sArrow ) )
         mov     ax, [code]
         cmp     ax, 283
-        jne     .L5                         ; unsigned ==
+        jne     .L11                        ; unsigned ==
         mov     ax, sArrow                  ; link-time constant
         mov     [addStr__at], ax
         call    addStr
-.L5:
+.L11:
 ; ---- addLineEnd()
         call    addLineEnd
-.L2:
+.L8:
         inc     word [i]
-        jmp     .L1
-.L3:
+        jmp     .L7
+.L9:
 ; ---- newline()
         call    newline
 ; ---- handle = fileCreate( addr( outName ) )
@@ -172,7 +222,7 @@ __entry:
         mov     al, [fileFailed__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L8
+        jz      .L14
 ; ---- putStr( addr( sFailed ) )
         mov     ax, sFailed                 ; link-time constant
         mov     [putStr__at], ax
@@ -184,8 +234,8 @@ __entry:
         call    putNumber
 ; ---- newline()
         call    newline
-        jmp     .L9
-.L8:
+        jmp     .L15
+.L14:
 ; ---- written = fileWrite( handle, addr( report ), reportAt )
         mov     ax, [handle]
         mov     [fileWrite__handle], ax
@@ -210,7 +260,7 @@ __entry:
         call    putNumber
 ; ---- newline()
         call    newline
-.L9:
+.L15:
 
 ; ---- implicit exit ----
         mov     word [_ax], 0x4C00          ; DOS terminate, exit code 0
@@ -257,19 +307,19 @@ putNumber:
 ; ---- if (n == 0) {
         mov     ax, [putNumber__n]
         test    ax, ax
-        jne     .L11                        ; unsigned ==
+        jne     .L17                        ; unsigned ==
 ; ---- putChar(ioZeroChar)
         mov     byte [putChar__c], 48
         call    putChar
 ; ---- return
         ret
-.L11:
+.L17:
 ; ---- for (i = 0; n > 0; i++) {
         mov     byte [putNumber__i], 0
-.L14:
+.L20:
         mov     ax, [putNumber__n]
         test    ax, ax
-        jbe     .L16                        ; unsigned >
+        jbe     .L22                        ; unsigned >
 ; ---- digits[i] = u8(n % ioBase) + ioZeroChar
         mov     ax, [putNumber__n]
         mov     bx, 10
@@ -287,15 +337,15 @@ putNumber:
         xor     dx, dx                      ; clear high half for div
         div     bx
         mov     [putNumber__n], ax
-.L15:
+.L21:
         inc     byte [putNumber__i]
-        jmp     .L14
-.L16:
+        jmp     .L20
+.L22:
 ; ---- for (; i > 0; i--) {
-.L18:
+.L24:
         mov     al, [putNumber__i]
         test    al, al
-        jbe     .L20                        ; unsigned >
+        jbe     .L26                        ; unsigned >
 ; ---- putChar(digits[i - 1])
         mov     al, [putNumber__i]
         xor     ah, ah                      ; u8 -> u16
@@ -304,10 +354,10 @@ putNumber:
         mov     al, [putNumber__digits + bx]
         mov     [putChar__c], al            ; u8 -> u8, no widening
         call    putChar
-.L19:
+.L25:
         dec     byte [putNumber__i]
-        jmp     .L18
-.L20:
+        jmp     .L24
+.L26:
         ret
 
 ; ============================================== u16 nthStr ====
@@ -318,11 +368,11 @@ nthStr:
 ; ---- seen = 0
         mov     word [nthStr__seen], 0
 ; ---- while ( seen < n ) {
-.L22:
+.L28:
         mov     ax, [nthStr__seen]
         mov     bx, [nthStr__n]
         cmp     ax, bx
-        jae     .L24                        ; unsigned <
+        jae     .L30                        ; unsigned <
 ; ---- if ( peek8( at + i ) == strEnd ) seen++
         mov     ax, [nthStr__at]
         mov     bx, [nthStr__i]
@@ -330,14 +380,14 @@ nthStr:
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
         cmp     al, 36                      ; byte operands, no widening
-        jne     .L26                        ; unsigned ==
+        jne     .L32                        ; unsigned ==
         inc     word [nthStr__seen]
-.L26:
+.L32:
 ; ---- i++
         inc     word [nthStr__i]
-.L23:
-        jmp     .L22
-.L24:
+.L29:
+        jmp     .L28
+.L30:
 ; ---- return at + i
         mov     ax, [nthStr__at]
         mov     bx, [nthStr__i]
@@ -353,12 +403,12 @@ file__fileCapture:
         mov     [file__fileBad], al         ; bool -> bool, no widening
 ; ---- fileErr = fileBad ? _ax : 0
         test    al, al
-        jz      .L29
+        jz      .L35
         mov     ax, [_ax]
-        jmp     .L30
-.L29:
+        jmp     .L36
+.L35:
         xor     ax, ax                      ; 0
-.L30:
+.L36:
         mov     [file__fileErr], ax
         ret
 
@@ -378,6 +428,33 @@ fileError:
         mov     [fileError__ret], ax
         ret
 
+; ============================================== u16 fileOpen ====
+
+fileOpen:
+; ---- _ah = 0x3D
+        mov     byte [_ah], 61
+; ---- _al = mode
+        mov     al, [fileOpen__mode]
+        mov     [_al], al                   ; u8 -> u8, no widening
+; ---- _dx = at
+        mov     ax, [fileOpen__at]
+        mov     [_dx], ax
+; ---- int 0x21
+        call    int21
+; ---- fileCapture()
+        call    file__fileCapture
+; ---- return fileBad ? 0 : _ax
+        mov     al, [file__fileBad]
+        test    al, al
+        jz      .L38
+        xor     ax, ax                      ; 0
+        jmp     .L39
+.L38:
+        mov     ax, [_ax]
+.L39:
+        mov     [fileOpen__ret], ax
+        ret
+
 ; ============================================== u16 fileCreate ====
 
 fileCreate:
@@ -395,12 +472,12 @@ fileCreate:
 ; ---- return fileBad ? 0 : _ax
         mov     al, [file__fileBad]
         test    al, al
-        jz      .L32
+        jz      .L41
         xor     ax, ax                      ; 0
-        jmp     .L33
-.L32:
+        jmp     .L42
+.L41:
         mov     ax, [_ax]
-.L33:
+.L42:
         mov     [fileCreate__ret], ax
         ret
 
@@ -416,6 +493,36 @@ fileClose:
         call    int21
 ; ---- fileCapture()
         call    file__fileCapture
+        ret
+
+; ============================================== u16 fileRead ====
+
+fileRead:
+; ---- _ah = 0x3F
+        mov     byte [_ah], 63
+; ---- _bx = handle
+        mov     ax, [fileRead__handle]
+        mov     [_bx], ax
+; ---- _cx = count
+        mov     ax, [fileRead__count]
+        mov     [_cx], ax
+; ---- _dx = at
+        mov     ax, [fileRead__at]
+        mov     [_dx], ax
+; ---- int 0x21
+        call    int21
+; ---- fileCapture()
+        call    file__fileCapture
+; ---- return fileBad ? 0 : _ax
+        mov     al, [file__fileBad]
+        test    al, al
+        jz      .L44
+        xor     ax, ax                      ; 0
+        jmp     .L45
+.L44:
+        mov     ax, [_ax]
+.L45:
+        mov     [fileRead__ret], ax
         ret
 
 ; ============================================== u16 fileWrite ====
@@ -439,13 +546,203 @@ fileWrite:
 ; ---- return fileBad ? 0 : _ax
         mov     al, [file__fileBad]
         test    al, al
-        jz      .L35
+        jz      .L47
         xor     ax, ax                      ; 0
-        jmp     .L36
-.L35:
+        jmp     .L48
+.L47:
         mov     ax, [_ax]
-.L36:
+.L48:
         mov     [fileWrite__ret], ax
+        ret
+
+; ============================================== sub loadConfig ====
+
+loadConfig:
+; ---- cfgLen = 0
+        mov     word [cfgLen], 0
+; ---- handle = fileOpen( addr( cfgName ), fileReadOnly )
+        mov     ax, cfgName                 ; link-time constant
+        mov     [fileOpen__at], ax
+        mov     byte [fileOpen__mode], 0
+        call    fileOpen
+        mov     ax, [fileOpen__ret]
+        mov     [loadConfig__handle], ax
+; ---- if ( fileFailed() ) return
+        call    fileFailed
+        mov     al, [fileFailed__ret]
+        xor     ah, ah                      ; bool -> u16
+        test    ax, ax
+        jz      .L50
+        ret
+.L50:
+; ---- got = fileRead( handle, addr( cfg ), cfgMax )
+        mov     ax, [loadConfig__handle]
+        mov     [fileRead__handle], ax
+        mov     ax, cfg                     ; link-time constant
+        mov     [fileRead__at], ax
+        mov     word [fileRead__count], 1024
+        call    fileRead
+        mov     ax, [fileRead__ret]
+        mov     [loadConfig__got], ax
+; ---- fileClose( handle )
+        mov     ax, [loadConfig__handle]
+        mov     [fileClose__handle], ax
+        call    fileClose
+; ---- out = 0
+        mov     word [loadConfig__out], 0
+; ---- atStart = true
+        mov     byte [loadConfig__atStart], 1
+; ---- comment = false
+        mov     byte [loadConfig__comment], 0
+; ---- for ( u16 i = 0; i < got; i++ ) {
+        mov     word [loadConfig__i], 0
+.L53:
+        mov     ax, [loadConfig__i]
+        mov     bx, [loadConfig__got]
+        cmp     ax, bx
+        jb      .L56                        ; unsigned <
+        jmp     .L55
+.L56:
+; ---- ch = cfg[i]
+        mov     ax, [loadConfig__i]
+        mov     bx, ax
+        mov     al, [cfg + bx]
+        mov     [loadConfig__ch], al        ; u8 -> u8, no widening
+; ---- if ( ch == 13 ) continue
+        cmp     al, 13                      ; byte operands, no widening
+        jne     .L57                        ; unsigned ==
+        jmp     .L54
+.L57:
+; ---- if ( ch == 10 ) {
+        mov     al, [loadConfig__ch]
+        cmp     al, 10                      ; byte operands, no widening
+        jne     .L60                        ; unsigned ==
+; ---- if ( !atStart && !comment ) {
+        mov     al, [loadConfig__atStart]
+        test    al, al
+        jnz     .L63
+        mov     al, [loadConfig__comment]
+        test    al, al
+        jnz     .L63
+; ---- cfg[out] = strTerm
+        mov     ax, [loadConfig__out]
+        mov     bx, ax
+        mov     byte [cfg + bx], 36
+; ---- out++
+        inc     word [loadConfig__out]
+.L63:
+; ---- atStart = true
+        mov     byte [loadConfig__atStart], 1
+; ---- comment = false
+        mov     byte [loadConfig__comment], 0
+; ---- continue
+        jmp     .L54
+.L60:
+; ---- if ( atStart && ch == '#' ) {
+        mov     al, [loadConfig__atStart]
+        test    al, al
+        jz      .L67
+        mov     al, [loadConfig__ch]
+        cmp     al, 35                      ; byte operands, no widening
+        jne     .L67                        ; unsigned ==
+; ---- comment = true
+        mov     byte [loadConfig__comment], 1
+; ---- continue
+        jmp     .L54
+.L67:
+; ---- if ( comment ) continue
+        mov     al, [loadConfig__comment]
+        test    al, al
+        jz      .L71
+        jmp     .L54
+.L71:
+; ---- if ( atStart && ch == ' ' ) continue
+        mov     al, [loadConfig__atStart]
+        test    al, al
+        jz      .L74
+        mov     al, [loadConfig__ch]
+        cmp     al, 32                      ; byte operands, no widening
+        jne     .L74                        ; unsigned ==
+        jmp     .L54
+.L74:
+; ---- atStart = false
+        mov     byte [loadConfig__atStart], 0
+; ---- cfg[out] = ch
+        mov     al, [loadConfig__ch]
+        mov     bx, [loadConfig__out]
+        mov     [cfg + bx], al
+; ---- out++
+        inc     word [loadConfig__out]
+.L54:
+        inc     word [loadConfig__i]
+        jmp     .L53
+.L55:
+; ---- if ( !atStart && !comment ) {
+        mov     al, [loadConfig__atStart]
+        test    al, al
+        jnz     .L78
+        mov     al, [loadConfig__comment]
+        test    al, al
+        jnz     .L78
+; ---- cfg[out] = strTerm
+        mov     ax, [loadConfig__out]
+        mov     bx, ax
+        mov     byte [cfg + bx], 36
+; ---- out++
+        inc     word [loadConfig__out]
+.L78:
+; ---- cfgLen = out
+        mov     ax, [loadConfig__out]
+        mov     [cfgLen], ax
+        ret
+
+; ============================================== bool usingConfig ====
+
+usingConfig:
+; ---- bool usingConfig() => cfgLen > 0
+        mov     ax, [cfgLen]
+        test    ax, ax
+        jbe     .L82                        ; unsigned >
+        mov     ax, 1
+        jmp     .L83
+.L82:
+        xor     ax, ax
+.L83:
+        mov     [usingConfig__ret], al      ; narrowed to bool
+        ret
+
+; ============================================== u16 promptsAt ====
+
+promptsAt:
+; ---- u16 promptsAt()  => usingConfig() ? addr( cfg ) : addr( prompts )
+        call    usingConfig
+        mov     al, [usingConfig__ret]
+        xor     ah, ah                      ; bool -> u16
+        test    ax, ax
+        jz      .L85
+        mov     ax, cfg                     ; link-time constant
+        jmp     .L86
+.L85:
+        mov     ax, prompts                 ; link-time constant
+.L86:
+        mov     [promptsAt__ret], ax
+        ret
+
+; ============================================== u16 promptsLen ====
+
+promptsLen:
+; ---- u16 promptsLen() => usingConfig() ? cfgLen : len( prompts )
+        call    usingConfig
+        mov     al, [usingConfig__ret]
+        xor     ah, ah                      ; bool -> u16
+        test    ax, ax
+        jz      .L88
+        mov     ax, [cfgLen]
+        jmp     .L89
+.L88:
+        mov     ax, 335
+.L89:
+        mov     [promptsLen__ret], ax
         ret
 
 ; ============================================== sub addChar ====
@@ -454,9 +751,9 @@ addChar:
 ; ---- if ( reportAt >= reportMax ) return
         mov     ax, [reportAt]
         cmp     ax, 2048
-        jb      .L38                        ; unsigned >=
+        jb      .L91                        ; unsigned >=
         ret
-.L38:
+.L91:
 ; ---- report[reportAt] = c
         mov     al, [addChar__c]
         mov     bx, [reportAt]
@@ -471,14 +768,14 @@ addStr:
 ; ---- i = 0
         mov     word [addStr__i], 0
 ; ---- while ( peek8( at + i ) != strTerm ) {
-.L41:
+.L94:
         mov     ax, [addStr__at]
         mov     bx, [addStr__i]
         add     ax, bx
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
         cmp     al, 36                      ; byte operands, no widening
-        je      .L43                        ; unsigned !=
+        je      .L96                        ; unsigned !=
 ; ---- addChar( peek8( at + i ) )
         mov     ax, [addStr__at]
         mov     bx, [addStr__i]
@@ -489,9 +786,9 @@ addStr:
         call    addChar
 ; ---- i++
         inc     word [addStr__i]
-.L42:
-        jmp     .L41
-.L43:
+.L95:
+        jmp     .L94
+.L96:
         ret
 
 ; ============================================== sub addPadded ====
@@ -500,14 +797,14 @@ addPadded:
 ; ---- i = 0
         mov     word [addPadded__i], 0
 ; ---- while ( peek8( at + i ) != strTerm ) {
-.L45:
+.L98:
         mov     ax, [addPadded__at]
         mov     bx, [addPadded__i]
         add     ax, bx
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
         cmp     al, 36                      ; byte operands, no widening
-        je      .L47                        ; unsigned !=
+        je      .L100                       ; unsigned !=
 ; ---- addChar( peek8( at + i ) )
         mov     ax, [addPadded__at]
         mov     bx, [addPadded__i]
@@ -518,23 +815,23 @@ addPadded:
         call    addChar
 ; ---- i++
         inc     word [addPadded__i]
-.L46:
-        jmp     .L45
-.L47:
+.L99:
+        jmp     .L98
+.L100:
 ; ---- while ( i < width ) {
-.L49:
+.L102:
         mov     ax, [addPadded__i]
         mov     bx, [addPadded__width]
         cmp     ax, bx
-        jae     .L51                        ; unsigned <
+        jae     .L104                       ; unsigned <
 ; ---- addChar( ' ' )
         mov     byte [addChar__c], 32
         call    addChar
 ; ---- i++
         inc     word [addPadded__i]
-.L50:
-        jmp     .L49
-.L51:
+.L103:
+        jmp     .L102
+.L104:
         ret
 
 ; ============================================== sub addHex ====
@@ -657,11 +954,11 @@ countStrings:
         mov     word [countStrings__n], 0
 ; ---- for ( u16 i = 0; i < bytes; i++ ) {
         mov     word [countStrings__i], 0
-.L53:
+.L106:
         mov     ax, [countStrings__i]
         mov     bx, [countStrings__bytes]
         cmp     ax, bx
-        jae     .L55                        ; unsigned <
+        jae     .L108                       ; unsigned <
 ; ---- if ( peek8( at + i ) == strTerm ) n++
         mov     ax, [countStrings__at]
         mov     bx, [countStrings__i]
@@ -669,13 +966,13 @@ countStrings:
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
         cmp     al, 36                      ; byte operands, no widening
-        jne     .L57                        ; unsigned ==
+        jne     .L110                       ; unsigned ==
         inc     word [countStrings__n]
-.L57:
-.L54:
+.L110:
+.L107:
         inc     word [countStrings__i]
-        jmp     .L53
-.L55:
+        jmp     .L106
+.L108:
 ; ---- return n
         mov     ax, [countStrings__n]
         mov     [countStrings__ret], ax
@@ -756,14 +1053,25 @@ file__fileBad:  db      0        ; bool
 file__fileErr:  dw      0        ; u16
 fileFailed__ret: db      0        ; bool
 fileError__ret: dw      0        ; u16
+fileOpen__at:   dw      0        ; u16
+fileOpen__mode: db      0        ; u8
+fileOpen__ret:  dw      0        ; u16
 fileCreate__at: dw      0        ; u16
 fileCreate__ret: dw      0        ; u16
 fileClose__handle: dw      0        ; u16
+fileRead__handle: dw      0        ; u16
+fileRead__at:   dw      0        ; u16
+fileRead__count: dw      0        ; u16
+fileRead__ret:  dw      0        ; u16
 fileWrite__handle: dw      0        ; u16
 fileWrite__at:  dw      0        ; u16
 fileWrite__count: dw      0        ; u16
 fileWrite__ret: dw      0        ; u16
 reportAt:       dw      0        ; u16
+cfgLen:         dw      0        ; u16
+usingConfig__ret: db      0        ; bool
+promptsAt__ret: dw      0        ; u16
+promptsLen__ret: dw      0        ; u16
 addChar__c:     db      0        ; u8
 addStr__at:     dw      0        ; u16
 addPadded__at:  dw      0        ; u16
@@ -784,6 +1092,13 @@ written:        dw      0        ; u16
 putNumber__i:   db      0        ; u8
 nthStr__i:      dw      0        ; u16
 nthStr__seen:   dw      0        ; u16
+loadConfig__i:  dw      0        ; u16
+loadConfig__handle: dw      0        ; u16
+loadConfig__got: dw      0        ; u16
+loadConfig__out: dw      0        ; u16
+loadConfig__ch: db      0        ; u8
+loadConfig__atStart: db      0        ; bool
+loadConfig__comment: db      0        ; bool
 addStr__i:      dw      0        ; u16
 addPadded__i:   dw      0        ; u16
 countStrings__i: dw      0        ; u16
@@ -803,13 +1118,16 @@ sSpace:         db      ' $'        ; u8[2] const
 sPress:         db      '  press: $'        ; u8[10] const
 sWrote:         db      'written to KEYS.TXT: $'        ; u8[22] const
 sFailed:        db      'could not create KEYS.TXT, DOS error $'        ; u8[38] const
+sFromCfg:       db      'list     KEYPROBE.CFG$'        ; u8[22] const
+sBuiltIn:       db      'list     built-in$'        ; u8[18] const
+cfgName:        db      'KEYPROBE.CFG', 0        ; u8[13] const
 putNumber__digits: times 5 db 0        ; u8[5]
 
 ; ============================================================ heap ====
 ; No storage is emitted - a .COM owns everything past its image, so
 ; these are addresses and NASM does the arithmetic.
 
-_hstack:        equ     260        ; 4 worst-case + 256 interrupt reserve
+_hstack:        equ     264        ; 8 worst-case + 256 interrupt reserve
 _htop:          equ     0FFFEh - _hstack
 
 _hsize:         dw      _htop - _heap        ; NASM computes this
@@ -821,3 +1139,4 @@ _heapw:         equ     _heap        ; same bytes, u16 view
 ; No storage: each is a name for an offset into something else.
 
 report:         equ     _heap        ; u8[2048]
+cfg:            equ     _heap + 2048        ; u8[1024]

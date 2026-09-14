@@ -77,9 +77,18 @@ local const maxUndo   = 2048
 //
 // **What a document costs even while empty** is its line tables and its log:
 // 3,000 paragraphs for 12,000 lines of each table and 896 for the log, so about
-// 62 KB. On a 577 KB machine that is measurable against the chunks it leaves,
-// and it is why this is a const rather than a generous number nobody counted.
-local const maxDocs = 4
+// 62 KB. That is not free and the number says so - on a 577 KB machine the
+// shared chunk store goes 27,800 for one document, 24,500 for two, 18,000 for
+// four.
+//
+// **Two**, because two is what the feature is for: moving text between a pair of
+// files. The third and fourth are a convenience costing a quarter of the buffer,
+// which is the wrong trade on this machine and may be the right one on a bigger
+// one - so it is a const, and the arithmetic to redo is written above it.
+//
+// The line tables are what dominates, not the log. Anybody raising this should
+// look at `textMaxLines` first.
+local const maxDocs = 2
 
 // **Chunks rather than bytes**, because the byte count no longer fits a `u16` -
 // which is the whole of what moving past the segment bought. A program that
