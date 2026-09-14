@@ -1,9 +1,9 @@
 // momoed.momo - the editor (PLAN §55).
 //
-// A file named on the command line, §54's buffer under it, §56's window onto it,
-// §59 searching it, §60 holding the term, §61 moving spans of it about, §57's
-// keys driving all of them, and cells written straight to the text frame. The
-// first version: one file, and no explorer.
+// A file named on the command line - or none, and the explorer says what is here
+// - with §54's buffer under it, §56's window onto it, §59 searching it, §60
+// holding the term, §61 moving spans of it about, §62 listing the directory,
+// §57's keys driving all of them, and cells written straight to the text frame.
 //
 // **Almost nothing here is new.** The buffer, the window, the search, the field,
 // the spans and the keyboard are libraries with test projects of their own, and
@@ -11,9 +11,9 @@
 // What this file adds is the three things no headless tier can run: a real
 // keyboard, a real screen, and a real file named by a person.
 //
-// It has a `.expected` covering less than it looks: run with no filename it
-// prints a usage line and stops, so tier 2 reaches the command tail and the exit
-// and nothing past them. Everything else here is tested in the libraries below,
+// It has a `.expected` covering less than it looks: run as `momoed /?` it prints
+// a usage line and stops, so tier 2 reaches the command tail and the exit and
+// nothing past them. Everything else here is tested in the libraries below,
 // which is why it was built in that order.
 
 include "lib/std/key.momo"
@@ -24,6 +24,7 @@ include "lib/moview.momo"
 include "lib/mofind.momo"
 include "lib/mofield.momo"
 include "lib/morange.momo"
+include "lib/modir.momo"
 
 // The frame is declared for the largest text mode this supports, because a `far`
 // region takes a constant size (§16) while the geometry is read back from the
@@ -73,11 +74,55 @@ sub useMono {
 u16 cols
 u16 rows
 
+// ---- the explorer ---------------------------------------------------------
+//
+// VS Code's shape rather than a file manager's: it shows the directory the
+// editor was opened in and does not navigate, so there is no `.`, no `..` and
+// nothing to get lost in. `^O` still takes a path, which is what covers the
+// case this deliberately does not.
+//
+// **Fourteen columns, derived rather than picked.** A DOS name is 8.3 and so
+// cannot exceed twelve characters - unlike VS Code, where a name is any length -
+// so a wider panel is permanent blank. One column for a marker, twelve for the
+// name, one for the scrollbar, which doubles as the separator:
+//
+//     * MOMOED  MOMO|
+//
+// That leaves 66 columns of editor at 80, where 20 would leave 60. The source
+// this is used on is 80 columns wide and neither fits, so the six matter.
+const expCols = 14
+const expName = 12
+
+bool expShown
+bool expFocus
+bool needExp
+
+// The directory half of what was named on the command line - everything up to
+// and including the last separator, which is empty for a bare filename. The
+// pattern is that plus `*.*`, and an entry is opened by putting a name back on
+// the end of it.
+u8[80] dirPath
+u16 dirPathLen
+u8[80] dirPat
+u8[80] openPath
+
+// Where the editor starts and how wide it is, which is the one thing showing the
+// panel changes about everything else.
+u16 edLeft()  => expShown ? expCols : 0
+u16 edWidth() => expShown ? cols - expCols : cols
+
 // The name being edited, and the one to go back to when an open is refused.
 u8[80] fileName
 u8[80] wasName
 bool haveName
 bool dirty
+
+// `/?` or `-?`, DOS's convention. **It is also the only thing tier 2 can reach
+// in this program**: every other path opens a screen and waits for a key, and
+// removing the old usage line - which no-arguments used to print - would have
+// taken the whole project out of the e2e tier with it. A help flag is worth
+// having on its own and costs the coverage nothing.
+bool helping
 
 // Whether a load may print. True at startup, where the DOS prompt is still on
 // screen and there is nothing else to look at; false for `^O`, where the
@@ -97,6 +142,7 @@ const askGoto = 2
 const askOpen = 3
 const askTerm = 4
 const askWith = 5
+const askSave = 6
 
 u8  asking
 u16 askLabel
@@ -134,14 +180,14 @@ u16 askCount
 // of a megabyte that way is a lot of calls, and it is also what makes a progress
 // dot per read a sensible unit: fifty-odd dots for a big file, not two thousand.
 const pieceSize = 4096
-view u8[pieceSize] piece = _heap[textHeap]
+view u8[pieceSize] piece = _heap[dirHeap]
 
 // The clipboard, after §54's claim and after the read buffer - §17 static
 // partitioning, with this program's two pieces going after the library's one.
 // **It is where the 64 KB starts to bite**: `npm run memory` is what says how
 // much is left, and PLAN §58 is where the ceiling goes up.
 const clipBytes = 8192
-view u8[clipBytes] clip = _heap[textHeap + pieceSize]
+view u8[clipBytes] clip = _heap[dirHeap + pieceSize]
 u16 clipLen
 
 // Whether the keystroke being handled had Shift on it. §57 folds Shift into the
@@ -156,7 +202,6 @@ u16 spanFromCol
 u16 spanToLine
 u16 spanToCol
 
-const u8[] sUsage   = "usage: momoed FILE$"
 const u8[] sNoFile  = " (new)$"
 const u8[] sSaved   = " saved$"
 const u8[] sFailed  = " WRITE FAILED$"
@@ -182,6 +227,10 @@ const u8[] sNoMatch = "not found$"
 const u8[] sWrapped = "wrapped$"
 const u8[] sNoUndo  = "too big to undo$"
 const u8[] sClipFull = "clipboard full$"
+const u8[] sUsage    = "usage: momoed [FILE]  -  no FILE opens the explorer here$"
+const u8[] sSave     = "save as: $"
+const u8[] sNoName   = "(untitled)$"
+const u8[] sTooMany  = "too many files$"
 
 
 // ---- the command tail ----
@@ -215,7 +264,54 @@ bool takeName() {
   }
 
   fileName[out] = 0
+
+  // **The directory half, for the explorer.** Everything up to and including the
+  // last separator, which is nothing at all for a bare filename - so `momoed x.c`
+  // lists the current directory and `momoed sub\x.c` lists `sub`. A drive letter
+  // counts as a separator: `d:x.c` is a name on `d:`, not a name containing a
+  // colon.
+  //
+  // 92 rather than an escape, because a backslash inside a character literal is
+  // one more thing to get right in a line nobody will read twice.
+  dirPathLen = 0
+  for ( u16 i = 0; fileName[i] != 0; i++ ) {
+    if ( fileName[i] == 92 || fileName[i] == 58 ) dirPathLen = i + 1
+  }
+
+  memCopy( addr( dirPath ), addr( fileName ), dirPathLen )
+
   return out > 0
+}
+
+// The directory plus `*.*`. Built once and rebuilt by nothing, because this
+// editor does not change directory - which is the whole of the decision that
+// there is no `..` in the panel.
+sub buildPattern {
+  memCopy( addr( dirPat ), addr( dirPath ), dirPathLen )
+
+  dirPat[dirPathLen]     = '*'
+  dirPat[dirPathLen + 1] = '.'
+  dirPat[dirPathLen + 2] = '*'
+  dirPat[dirPathLen + 3] = 0
+}
+
+// A name from the panel put back on the end of the directory, so what reaches
+// `fileOpen` is a path and not a name that happens to work from here. Returns
+// the length, because the caller needs it and counting it twice is how the two
+// answers come to differ.
+u16 buildOpenPath( u16 nameAt ) {
+  u16 n
+
+  memCopy( addr( openPath ), addr( dirPath ), dirPathLen )
+
+  n = 0
+  while ( peek8( nameAt + n ) != 0 ) {
+    openPath[ dirPathLen + n ] = peek8( nameAt + n )
+    n++
+  }
+
+  openPath[ dirPathLen + n ] = 0
+  return dirPathLen + n
 }
 
 // ---- the file ----
@@ -314,7 +410,7 @@ sub viewRow( u16 y, u16 at, u16 n ) {
   u16 sx
   u8  ch
 
-  base = y * cols
+  base = y * cols + edLeft()
 
   // The attribute used to be a `const` and folded into the instruction. It is
   // the adapter's now, so it is composed once for the row rather than read per
@@ -325,7 +421,7 @@ sub viewRow( u16 y, u16 at, u16 n ) {
     vram[ base + x ] = u16( peek8( at + x ) ) | hi
   }
 
-  for ( u16 x = n; x < cols; x++ ) {
+  for ( u16 x = n; x < edWidth(); x++ ) {
     vram[ base + x ] = 32 | hi
   }
 
@@ -352,12 +448,12 @@ sub viewRow( u16 y, u16 at, u16 n ) {
       for ( u16 c = c0; c < c1; c++ ) {
         if ( c >= viewLeft() ) {
           sx = c - viewLeft()
-          if ( sx >= cols ) break
+          if ( sx >= edWidth() ) break
 
           ch = 32
           if ( sx < n ) ch = peek8( at + sx )
 
-          cellAt( sx, y, ch, attrSel )
+          cellAt( edLeft() + sx, y, ch, attrSel )
         }
       }
     }
@@ -379,7 +475,72 @@ sub viewRow( u16 y, u16 at, u16 n ) {
     hx = findCol() + x - viewLeft()
     if ( hx >= n ) return
 
-    cellAt( hx, y, peek8( at + hx ), attrMatch )
+    cellAt( edLeft() + hx, y, peek8( at + hx ), attrMatch )
+  }
+}
+
+// The panel. Reverse video like the status line - which is the attribute that
+// survives the mono translation unchanged, `0x70` meaning the same thing on an
+// MDA as on a VGA - with the selected row in *normal*, so it reads as a hole
+// punched in the panel rather than needing a colour mono does not have.
+//
+// The selection only shows while the panel has focus. Where the keys are going
+// is the one thing a two-pane screen has to be unambiguous about, and a
+// highlight that stays put when focus leaves is exactly how that gets lost.
+sub drawExplorer {
+  u16 h
+  u16 i
+  u16 at
+  u16 n
+  u16 thumbTop
+  u16 thumbEnd
+  u8  attr
+  u8  ch
+
+  h = rows - 1
+
+  thumbTop = listThumbAt()
+  thumbEnd = thumbTop + listThumbSize()
+
+  for ( u16 y = 0; y < h; y++ ) {
+    i = listTop() + y
+
+    attr = attrStatus
+    if ( expFocus && i == listCursor() && i < listCount() ) attr = attrText
+
+    // The file being edited, marked rather than coloured - a third attribute is
+    // not available in mono, and a column that is blank for every other row
+    // costs nothing it was using.
+    ch = 32
+    if ( i < listCount() && haveName &&
+         listIsNamed( i, addr( fileName ) + dirPathLen ) ) ch = 42
+
+    cellAt( 0, y, ch, attr )
+
+    // The length is measured before the row is drawn, because `listLoad` writes
+    // a name and its terminator and leaves the rest of the slot alone - reading
+    // past the terminator would put the previous occupant of that slot on
+    // screen.
+    n = 0
+    at = 0
+
+    if ( i < listCount() ) {
+      at = listName( i )
+      while ( n < expName && peek8( at + n ) != 0 ) {
+        n++
+      }
+    }
+
+    for ( u16 x = 0; x < expName; x++ ) {
+      cellAt( 1 + x, y, x < n ? peek8( at + x ) : 32, attr )
+    }
+
+    // The track is always drawn in the panel attribute, so the hole does not
+    // eat the scrollbar on the row the cursor happens to be on.
+    ch = 0xB0
+    if ( y >= thumbTop && y < thumbEnd ) ch = 0xDB
+
+    cellAt( expCols - 1, y, ch, attrStatus )
   }
 }
 
@@ -447,11 +608,21 @@ sub drawStatus {
     return
   }
 
-  statusText( 0, addr( fileName ) )
+  // A document with nowhere to go yet says so, rather than starting the line
+  // with a name-shaped blank.
+  if ( haveName ) {
+    statusText( 0, addr( fileName ) )
+  } else {
+    statusText( 0, addr( sNoName ) )
+  }
 
   x = 0
-  while ( fileName[x] != 0 ) {
-    x++
+  if ( haveName ) {
+    while ( fileName[x] != 0 ) {
+      x++
+    }
+  } else {
+    x = 10
   }
 
   if ( dirty ) statusText( x + 1, addr( sStar ) )
@@ -469,12 +640,22 @@ sub drawStatus {
 // prompt is open the next character lands in the prompt, so that is where it
 // goes - a caret left in the document would be pointing at the wrong thing.
 sub placeCursor {
+  // **There is one hardware cursor**, which §55 already noted for multiple
+  // cursors and which a second pane runs into first. It goes where the keys are
+  // going: the prompt while one is open, the panel while it has focus, the
+  // document otherwise. Anything else and the screen is telling you the wrong
+  // thing about where you are.
+  if ( expFocus && !prompting() ) {
+    moveTo( 1, u8( listCursor() - listTop() ) )
+    return
+  }
+
   if ( prompting() ) {
     moveTo( u8( askAt + fieldCursor() ), u8( rows - 1 ) )
     return
   }
 
-  moveTo( u8( viewCol() - viewLeft() ), u8( viewLine() - viewTop() ) )
+  moveTo( u8( edLeft() + viewCol() - viewLeft() ), u8( viewLine() - viewTop() ) )
 }
 
 // ---- how much of the screen an action actually owes -------------------------
@@ -509,6 +690,100 @@ bool lastSel
 bool lastAsk
 bool drawn
 
+// Rebuilt from nothing, because the directory is not ours and anything may have
+// written to it since - §62 makes that the rule rather than an option.
+sub refreshList {
+  listLoad( addr( dirPat ), dirNormal )
+  listSize( rows - 1 )
+
+  if ( listOverflowed() ) message = addr( sTooMany )
+
+  // The cursor lands on the file being edited, which is the difference between a
+  // panel and a file picker: it says where you are, not only what is here.
+  if ( haveName ) {
+    for ( u16 i = 0; i < listCount(); i++ ) {
+      if ( listIsNamed( i, addr( fileName ) + dirPathLen ) ) {
+        listGoto( i )
+        return
+      }
+    }
+  }
+}
+
+// `^B`, which is VS Code's and was free. Showing it takes fourteen columns off
+// the editor, so the window is resized and **the horizontal scroll re-clamped**:
+// `viewSize` takes a width and has no opinion about a left edge that is now past
+// it, so a document scrolled right would be looking at a column that no longer
+// exists.
+//
+// `viewGoto` rather than a resize-and-follow, which would be a library routine
+// with one caller. It sets the goal column as a side effect - so a Down after a
+// toggle aims at the column the cursor is in rather than one it was remembering,
+// which is the right answer after a layout change anyway.
+sub toggleExplorer {
+  expShown = !expShown
+  expFocus = expShown
+
+  if ( expShown ) refreshList()
+
+  viewSize( rows - 1, edWidth() )
+  viewGoto( viewLine(), viewCol() )
+
+  needText = true
+  needExp  = true
+}
+
+sub openSelected {
+  u16 n
+
+  if ( listCursor() >= listCount() ) return
+
+  n = buildOpenPath( listName( listCursor() ) )
+
+  // Focus follows the file, the way it does in VS Code - Enter in the panel means
+  // "edit this", and leaving the caret in the list would make the next keystroke
+  // go somewhere nobody was looking.
+  if ( openNamed( addr( openPath ), n ) ) expFocus = false
+}
+
+// **The panel takes everything while it has focus**, the way the prompt does, so
+// there is one place that answers "where did that keystroke go". `^Q` and `^B`
+// are the two that cross the boundary, because leaving the program and putting
+// the panel away should not need a detour through the editor first.
+sub explorerKey( u16 k ) {
+  needExp = true
+
+  if ( k == keyQuit ) {
+    running = false
+    return
+  }
+
+  if ( k == 2 ) {
+    toggleExplorer()
+    return
+  }
+
+  // Escape leaves the panel on screen and gives the keys back. `^B` is what puts
+  // it away - two gestures because they are two intentions, and a person who
+  // wanted the columns back will reach for the one that took them.
+  if ( k == keyEsc ) {
+    expFocus = false
+    return
+  }
+
+  if ( k == 13 ) {
+    openSelected()
+    return
+  }
+
+  if ( k == keyExt + keyUp )    listUp()
+  if ( k == keyExt + keyDown )  listDown()
+  if ( k == keyExt + keyPgUp )  listPageUp()
+  if ( k == keyExt + keyPgDn )  listPageDown()
+  if ( k == keyExt + keyHome )  listHome()
+  if ( k == keyExt + keyEnd )   listEnd()
+}
+
 sub repaint {
   u16 h
   bool sel
@@ -520,10 +795,10 @@ sub repaint {
        viewLeft() != lastLeft ) {
     viewRender()
   } else if ( viewTop() == lastTop + 1 ) {
-    scrollUp( 0, 0, u8( cols ), u8( h ), 1, attrText )
+    scrollUp( u8( edLeft() ), 0, u8( edWidth() ), u8( h ), 1, attrText )
     viewRenderRow( h - 1 )
   } else if ( lastTop == viewTop() + 1 ) {
-    scrollDown( 0, 0, u8( cols ), u8( h ), 1, attrText )
+    scrollDown( u8( edLeft() ), 0, u8( edWidth() ), u8( h ), 1, attrText )
     viewRenderRow( 0 )
   } else if ( viewTop() != lastTop ) {
     // A page, a goto, or a find. More than one row is new and nothing here can
@@ -531,9 +806,15 @@ sub repaint {
     viewRender()
   }
 
+  // The panel is 336 cells at 80x25 against the text area's 1,584, so it gets
+  // the same treatment: drawn when something it shows has changed, and not on a
+  // keystroke that only moved the caret about the document.
+  if ( expShown && ( needExp || !drawn ) ) drawExplorer()
+
   drawStatus()
   placeCursor()
 
+  needExp = false
   needText = false
   lastTop  = viewTop()
   lastLeft = viewLeft()
@@ -573,6 +854,7 @@ const actWordR  = 25
 const actGoto   = 26
 const actOpen   = 27
 const actRepl   = 28
+const actExplor = 29
 
 // No chord in this table yet, and the machinery is kept rather than removed:
 // `^K ^C` for a comment toggle is the obvious first one, and `edloop` holds
@@ -607,6 +889,7 @@ const u16[] bindKey = [
   7,                     // ^G
   15,                    // ^O
   18,                    // ^R
+  2,                     // ^B
   keyExt + keyCtrlLeft,
   keyExt + keyCtrlRight,
   keyExt + keyCtrlHome,
@@ -617,7 +900,7 @@ const u8[] bindAction = [
   actLeft, actRight, actUp, actDown, actHome, actEnd, actDelete,
   actPgUp, actPgDn, actBack, actEnter, actUndo, actSave, actRedo,
   actFind, actAgain, actCopy, actCut, actPaste, actAll,
-  actGoto, actOpen, actRepl,
+  actGoto, actOpen, actRepl, actExplor,
   actWordL, actWordR,
   actTop, actBottom
 ]
@@ -722,6 +1005,14 @@ sub doUndo {
 }
 
 sub doSave {
+  // **No name is a question, not a failure.** An editor started with no
+  // arguments has a document and nowhere to put it, and the prompt already
+  // serves five questions - this is the sixth and it needed no new mechanism.
+  if ( !haveName ) {
+    promptOpen( askSave, addr( sSave ) )
+    return
+  }
+
   if ( saveFile() ) {
     dirty = false
     return
@@ -901,31 +1192,48 @@ sub doGoto {
 //
 // The clipboard is deliberately untouched. Cutting from one file and pasting
 // into the next is most of why opening without quitting is worth having.
-sub doOpen {
+// **One open, and both ways in go through it.** `^O` and the panel would
+// otherwise be two copies of two rules that were each bought with a real bug:
+// unsaved changes are refused, and a refusal puts back the file it was showing
+// because `loadFile` empties the buffer before it discovers the new one will not
+// fit. A second open path gets to rediscover both.
+bool openNamed( u16 at, u16 n ) {
   if ( dirty ) {
     message = addr( sDirty )
-    return
+    return false
   }
 
-  if ( fieldLength() == 0 ) return
+  if ( n == 0 ) return false
 
   memCopy( addr( wasName ), addr( fileName ), len( fileName ) )
-  memCopy( addr( fileName ), fieldAddr(), fieldLength() )
-  fileName[ fieldLength() ] = 0
+  memCopy( addr( fileName ), at, n )
+  fileName[n] = 0
+  haveName = true
 
   if ( loadFile() ) {
     viewUnmark()
     viewHome()
     dirty = false
-    return
+    needExp = true
+    return true
   }
 
+  // The name going back may be an empty one, which is the no-file startup. That
+  // needs no special case: `loadFile` opens nothing, fails, and leaves the empty
+  // buffer it had already made.
   message = addr( sTooBig )
   memCopy( addr( fileName ), addr( wasName ), len( fileName ) )
+  haveName = fileName[0] != 0
   loadFile()
   viewUnmark()
   viewHome()
   dirty = false
+  needExp = true
+  return false
+}
+
+sub doOpen {
+  openNamed( fieldAddr(), fieldLength() )
 }
 
 // §61 does the walk, because the way it can be wrong is a span question and not
@@ -1026,6 +1334,21 @@ sub promptDone {
   if ( asking == askOpen ) {
     asking = askNone
     doOpen()
+    return
+  }
+
+  if ( asking == askSave ) {
+    asking = askNone
+    if ( fieldLength() == 0 ) return
+
+    memCopy( addr( fileName ), fieldAddr(), fieldLength() )
+    fileName[ fieldLength() ] = 0
+    haveName = true
+
+    doSave()
+
+    // A file that did not exist a moment ago is in the directory now.
+    if ( expShown ) refreshList()
   }
 }
 
@@ -1157,6 +1480,8 @@ sub apply( u8 a, u16 k ) {
     promptOpen( askGoto, addr( sGoto ) )
   } else if ( a == actOpen ) {
     promptOpen( askOpen, addr( sOpen ) )
+  } else if ( a == actExplor ) {
+    toggleExplorer()
   } else if ( a == actRepl ) {
     promptOpen( askTerm, addr( sTerm ) )
   } else if ( a == actWordL ) {
@@ -1212,6 +1537,13 @@ sub step( u16 k ) {
     k = keyExt + ( k - keyShift )
   }
 
+  // After the fold, so the panel sees a shifted arrow as an arrow, and before
+  // everything else, because a focused panel owns the keyboard.
+  if ( expFocus ) {
+    explorerKey( k )
+    return
+  }
+
   // Escape with nothing to close drops the selection, which is where a hand
   // goes when it wants the highlight to stop being there.
   if ( k == keyEsc ) {
@@ -1242,15 +1574,27 @@ sub step( u16 k ) {
 // ---- entry ----
 
 haveName = takeName()
+buildPattern()
+
+helping = fileName[1] == '?' && fileName[2] == 0 &&
+          ( fileName[0] == '/' || fileName[0] == '-' )
+
+if ( helping ) haveName = false
 
 loud = true
 
-if ( !haveName ) {
-  putStr( addr( sUsage ) )
-  newline()
-} else {
+// **No arguments is a document with nowhere to go**, not an error. It used to be
+// a usage line and an exit, which was right while the only way to name a file was
+// on the command line - the panel is the other way, so an editor started with
+// nothing now opens on the directory it is standing in.
+//
+// That took the usage line off the no-argument path, and with it the only thing
+// tier 2 could reach: every other path here opens a screen and waits for a key,
+// which under the harness is a timeout rather than a test. `/?` is where it went
+// - a DOS convention worth having anyway - and `momoed.args` is how the harness
+// gets to pass it.
+if ( haveName ) {
   putStr( addr( sLoading ) )
-
   // `fileName` is nul-terminated for DOS, not `$`-terminated for the console,
   // so it cannot go through `putStr`.
   for ( u16 i = 0; fileName[i] != 0; i++ ) {
@@ -1260,7 +1604,10 @@ if ( !haveName ) {
   newline()
 }
 
-if ( haveName && !loadFile() ) {
+if ( helping ) {
+  putStr( addr( sUsage ) )
+  newline()
+} else if ( haveName && !loadFile() ) {
   // Refusing to open is the whole point: an editor that shows you part of a file
   // and then writes that part back over the whole is worse than one that will
   // not open it. **Which limit, and what this machine had**, because a file too
@@ -1277,8 +1624,12 @@ if ( haveName && !loadFile() ) {
   putNumber( textRoom() )
   putStr( addr( sChunks ) )
   newline()
-} else if ( haveName ) {
+} else {
   loud = false
+
+  // An empty document, because nothing named one. `loadFile` would have made it
+  // on the way past; with no name there was no way past.
+  if ( !haveName ) textInit()
 
   // `videoMode` is §48's bracket over §43's save and restore, so the display
   // cannot be left in whatever this program set it to - which `simplerl` got
@@ -1315,9 +1666,18 @@ if ( haveName && !loadFile() ) {
     if ( cols > edMaxCols ) cols = edMaxCols
     if ( rows > edMaxRows ) rows = edMaxRows
 
-    // One row goes to the status line, and the window gets the rest.
-    viewSize( rows - 1, cols )
+    // **The panel is open when nothing was named**, because otherwise the screen
+    // is empty and the only way forward is a key nobody has been told about. With
+    // a file on the command line it stays shut: that person said what they came
+    // for, and sixty-six columns is not eighty.
+    expShown = !haveName
+    expFocus = expShown
+
+    // One row goes to the status line, and the window gets what the panel leaves.
+    viewSize( rows - 1, edWidth() )
     viewHome()
+
+    if ( expShown ) refreshList()
 
     running = true
 

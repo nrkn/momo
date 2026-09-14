@@ -1,1 +1,1 @@
-usage: momoed FILE
+usage: momoed [FILE]  -  no FILE opens the explorer here

@@ -18,6 +18,7 @@ import { join } from 'node:path'
 import {
   allProjects,
   asmFor,
+  argsFor,
   buildRoot,
   confPath,
   entryFor,
@@ -95,6 +96,13 @@ const buildAndRun = async (exe: string, project: string): Promise<string> => {
   await mkdir(buildDir, { recursive: true })
   await cp(sourceDir, buildDir, { recursive: true })
 
+  // One line, trimmed, appended to the command. Absent for all but one project,
+  // and a project that grows one is worth a second look first.
+  const argsFile = argsFor(project)
+  const args = existsSync(argsFile)
+    ? ' ' + (await readFile(argsFile, 'utf8')).trim()
+    : ''
+
   const script = [
     '@echo off',
     'd:',
@@ -102,7 +110,7 @@ const buildAndRun = async (exe: string, project: string): Promise<string> => {
     'if errorlevel 1 goto failed',
     'c:',
     'echo ok > c:\\build.ok',
-    `${project}.com > c:\\out.txt`,
+    `${project}.com${args} > c:\\out.txt`,
     ':failed',
     'c:',
     'exit',

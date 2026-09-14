@@ -95,6 +95,14 @@ export const asmFor = (project: string): string =>
 export const expectedFor = (project: string): string =>
   join(projectDir(project), `${project}.expected`)
 
+// The command tail a tier-2 run should give the program, if it wants one. Most
+// do not: a test that needs arguments is usually one that should have been
+// written not to. `momoed` is the exception and the reason this exists - every
+// path through it but one opens a screen and waits for a key, so the only thing
+// tier 2 can reach is `/?`.
+export const argsFor = (project: string): string =>
+  join(projectDir(project), `${project}.args`)
+
 export const fail = (message: string): never => {
   console.error(`error: ${message}`)
   process.exit(1)

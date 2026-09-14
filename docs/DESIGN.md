@@ -6119,10 +6119,59 @@ none of them. Two sets, chosen by the frame segment - which is the honest signal
 because the segment *is* what the difference is. The two sets agree on text and
 status, which is why the status line looked right in mono when nothing else did.
 
-Not in it: the explorer and therefore directory enumeration; more than one file
-open; replace; multiple cursors; syntax colour; and text in a graphics mode.
-Each is a paragraph of its own or a line in §54's, and none was needed for the
-thing to be an editor.
+Not in it: more than one file open; multiple cursors; syntax colour; and text in
+a graphics mode. Each is a paragraph of its own or a line in §54's, and none was
+needed for the thing to be an editor. Replace and the explorer were on this list
+and are not now.
+
+### The explorer, which is VS Code's shape and not a file manager's
+
+It shows **the directory the editor was opened in** and does not navigate: no
+`.`, no `..`, nothing to get lost in. `^O` still takes a path, which is what
+covers the case this deliberately does not - so the panel is a convenience over
+one directory rather than the only way to reach a file.
+
+Which means **`momoed` needs no arguments at all now.** With none, it opens an
+empty document with the panel showing what is here; with a file, the panel stays
+shut because that person said what they came for and sixty-six columns is not
+eighty. §62 is the list underneath it.
+
+**Fourteen columns, derived rather than picked.** A DOS name is 8.3 and cannot
+exceed twelve characters - unlike VS Code, where a name is any length - so a
+wider panel is permanent blank. One column for a marker, twelve for the name,
+one for the scrollbar, which doubles as the separator. That leaves 66 columns of
+editor at 80 where 20 would leave 60, and the source this is used on is 80 wide:
+neither fits, so the six matter.
+
+**`^B`, which is VS Code's and was free.** Showing it takes fourteen columns off
+the editor, so the window is resized and the horizontal scroll re-clamped -
+`viewSize` takes a width and has no opinion about a left edge now past it, so a
+document scrolled right would be looking at a column that no longer exists.
+
+**The panel owns the keyboard while it has focus**, the way the prompt does, so
+there is one place that answers *where did that keystroke go*. `^Q` and `^B`
+cross the boundary because leaving the program and putting the panel away should
+not need a detour through the editor. Escape leaves it on screen and gives the
+keys back; `^B` puts it away - two gestures because they are two intentions.
+
+**There is one hardware cursor**, which §55 already noted for multiple cursors
+and which a second pane runs into first. It goes where the keys are going, and
+the selection highlight only shows while the panel has focus: a highlight that
+stays put when focus leaves is exactly how a two-pane screen stops being able to
+say where you are.
+
+**Reverse video, like the status line**, which is the attribute that survives the
+mono translation unchanged - `0x70` means the same on an MDA as on a VGA. The
+selected row is drawn in *normal*, so it reads as a hole punched in the panel
+rather than needing a third colour mono does not have. The open file is marked
+with a character rather than an attribute for the same reason.
+
+**One open, and both ways in go through it.** `^O` and the panel would otherwise
+be two copies of two rules that were each bought with a real bug: unsaved changes
+are refused, and a refusal puts back the file it was showing.
+
+**Save with no name is a question**, not a failure - the sixth thing the prompt
+asks, and it needed no new mechanism.
 
 ### Selection filled the 64 KB, and §58 emptied it again
 
@@ -6138,9 +6187,15 @@ the ones that followed.
 
 ### What is not settled
 
-The explorer's shape. What the status bar says. Whether selection is a mark and a
-point or a range. And what *finished* means for a first version, which `simplerl`
-answered for a game by being deliberately the smallest thing that counts as one.
+What the status bar says. Whether selection is a mark and a point or a range. And
+what *finished* means for a first version, which `simplerl` answered for a game
+by being deliberately the smallest thing that counts as one.
+
+The explorer's shape was on this list and is settled above. What it opened
+instead: whether subdirectories should be shown when they cannot be entered
+(§62 supports them and the editor asks for files alone, so nothing is a control
+that does nothing), and whether the list should refresh on anything other than
+being shown.
 
 ---
 

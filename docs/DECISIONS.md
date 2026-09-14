@@ -3163,3 +3163,57 @@ One entry where two were predicted, and the reason is DOS: **a pattern with no
 dot in it carries an empty extension**, so `Z*` matches `ZSUB` and not
 `ZED.QQQ`. Not a library question at all, and exactly the kind of thing that
 would have been a puzzling explorer bug rather than a failed prediction.
+
+### The explorer, and what a second pane costs the rest of the program
+
+Built in the order §55 keeps insisting on: §62 first with a headless test, then
+the part no tier can reach. What that split is worth showing up as is the size of
+this entry against §62's - the sort, the window and the thumb are where the
+mistakes were, and they were all found by a test.
+
+**What a second pane touched that was not obvious.** A panel is not only some
+cells at the left; it is a change to what "the screen" means for everything that
+was written when the editor was the whole of it:
+
+- `viewRow` draws into a rectangle now, not a screen - an offset on the base and
+  `edWidth` where it said `cols`, in five places including the selection overlay
+  and the match highlight.
+- **The BIOS scroll would have eaten the panel.** `scrollUp( 0, 0, cols, h )`
+  moves every column, so the one-line scroll from the drawrate work had to be
+  told which rectangle it owns. That is the kind of thing that looks right until
+  somebody holds Down with the panel open.
+- `viewSize` takes a width and has no opinion about a left edge past it, so
+  toggling had to re-clamp the horizontal scroll.
+- The caret. §55 had already noted there is one hardware cursor; the prompt had
+  solved it once and the panel is the second customer, which is what turned a
+  note into a rule.
+
+### No arguments took the last thing tier 2 could reach
+
+The usage line was the no-argument path, and no arguments is now a document with
+nowhere to go. Removing it took `momoed` out of the e2e tier completely: every
+other path opens a screen and waits for a key, which under the harness is a
+timeout rather than a test.
+
+`/?` is where it went - a DOS convention worth having on its own - and the
+harness gained an optional `<project>.args` file to pass it. One line, trimmed,
+appended to the command. **Most projects should not have one**: a test that needs
+arguments is usually one that should have been written not to, and `momoed` is
+the exception because its argument *is* the thing under test.
+
+The test proves itself, which is the nice part: the usage line can only be
+produced by `/?`, so a run that prints it is a run that got its arguments.
+
+### One comment that was true when written and false ten minutes later
+
+The entry block gained a paragraph saying the usage line was gone, tier 2 could
+no longer reach this program, and it was now a `.momo` with no `.expected`.
+Every clause of that was true when it was written and none of it survived adding
+the help flag.
+
+Worth recording because the failure mode is specific to writing the reasoning
+down as you go: prose that explains a decision becomes wrong the moment the
+decision is revisited, and unlike code nothing fails. The only defence is reading
+back what was written rather than only what was built, which is how this one was
+caught - and it is the argument for `drift` growing more of these checks rather
+than fewer.
