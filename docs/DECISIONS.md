@@ -2191,6 +2191,19 @@ side of it: file reads, mode sets, the scroll, the keyboard. Which retrospective
 explains a run of load-time figures that came out strange under DOSBox and sane
 on the 286.
 
+### What it did to the thing the person was complaining about
+
+The rates are the claim; the beeping is the point. On the same 286, with the
+Down arrow held: **no overflow at all**, and the test ended at four hundred
+lines because the person holding the key got bored rather than because the
+machine complained.
+
+Which puts `momoed` ahead of `edit.com` on this machine at both of the two
+things that had been measured against it - loading a file and scrolling through
+one - and neither was won by being cleverer. §58 stopped doing ten things per
+character that only an edit needs; this stopped drawing cells that had not
+changed.
+
 ### Where the fourteen milliseconds go, from the two numbers themselves
 
 A full redraw is 401 ticks for 500 draws of 24 rows: **1.8 ms a row**. A scroll

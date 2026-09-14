@@ -6009,7 +6009,8 @@ of them necessary:
   then exactly one row is new. 1,920 far stores become 80.
 
 Measured by `drawrate` on the 286 that beeped: **22 full redraws a second to
-70**. The same program says 22 *times* under DOSBox against the machine's 3.1,
+70**, and the Down arrow held down no longer overflows the keyboard buffer at
+all - four hundred lines and still ahead of the key repeat. The same program says 22 *times* under DOSBox against the machine's 3.1,
 because that comparison crosses the emulator's native/emulated seam - DECISIONS
 §55 has why that makes the number meaningless rather than merely high.
 
