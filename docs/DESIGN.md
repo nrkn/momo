@@ -4943,6 +4943,40 @@ One extra branch in `chunkTake`, and the loop is gone.
 That the cost was affordable is not the point. It was affordable and it was also
 unnecessary, and the version without it is shorter.
 
+### The log went last, and took the heap claim with it
+
+The undo log stayed in the heap through both earlier moves, on the principle
+they established: capacity lives in the heap and code lives in the image. That
+was right while the heap was where the room was. **It stopped being right when
+the log was the last large thing inside 64 KB** - fourteen kilobytes of near
+memory for something written once a keystroke and read only when somebody
+presses `^Z`.
+
+Five regions rather than one, for the reason the records have four: each is
+reached at a `u16` offset. Their size is fixed by `maxUndo` and not by the
+machine, because a log is a window on history and a bigger one stops being
+better at the point where a person would rather have the text.
+
+**The cost is five `ES` reloads on a push** where there were five near writes -
+against a keystroke `drawrate` measures in tens of milliseconds, which is not a
+trade that needed thinking about.
+
+**What it buys is that `textHeap` is zero.** This library claims no near memory
+at all now, so a program that includes it gets the whole heap: `momoed` went from
+10,778 bytes unclaimed to 24,666. The constant stays and still means *where yours
+starts* - there is simply nothing in front of it any more.
+
+And it is what makes a second document affordable, which is the reason it
+happened now rather than whenever. A log each is fourteen kilobytes each, and
+inside the segment that was the end of the conversation.
+
+### The one thing that changed shape on the way out
+
+`logJoin` was a `view bool[]` and is a `far u8[]`. Everything else moved as it
+was. It is worth a line because the three call sites had to learn it - `joins ? 1
+: 0` going in, `!= 0` coming out - and a `bool` that silently became a byte would
+have been the kind of change that compiles and then behaves.
+
 ### What is still capped, and by what
 
 Conventional memory, which is a better answer than the previous three. The text

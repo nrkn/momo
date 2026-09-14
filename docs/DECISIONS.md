@@ -3287,3 +3287,35 @@ recovers about 104 KB and would fit this file today.
 PLAN §63: a quarter of the work for one file's worth of growth, against a storage
 model that has no limit and a seam that already exists to hold it - `lineSlice`
 and `lineLength` are per line, so nothing above §54 would know.
+
+### The undo log was the last thing inside the segment
+
+It stayed through both earlier moves because the principle they settled said so:
+capacity lives in the heap, code lives in the image. **A principle is only as good
+as the condition it was formed under**, and the condition was that the heap had
+room. By the time the clipboard, the read buffer and §62's directory list were all
+in there, the log's fourteen kilobytes were the largest thing left and the least
+deserving - written once a keystroke, read when somebody presses `^Z`.
+
+Out it went, and `textHeap` is zero: `motext` claims no near memory at all.
+`momoed` went from 10,778 bytes of heap unclaimed to 24,666, and the view count
+fell from nine to four.
+
+The cost was measured before it was paid rather than after: five `ES` reloads on
+a push against a keystroke `drawrate` puts in tens of milliseconds. Not a trade
+that needed thinking about, which is only obvious because the keystroke had
+already been measured for a different reason.
+
+### Doing it first, because the second document is what it is for
+
+This is the prerequisite rather than a tidy-up. A second document needs a second
+log, and inside the segment that was the end of the conversation - fourteen
+kilobytes each, against a heap that had under eleven left.
+
+Which also names the design question the next piece has to answer. Every region
+§54 lays out is either **per document** - the line tables and the log - or
+**shared** - the chunk store and its free list. Splitting the chunks per document
+would halve the capacity of each; sharing them means a chunk belongs to whichever
+document's line points at it, and the free list never learns there is more than
+one. The second is obviously right and is worth writing down before it is
+discovered halfway through.

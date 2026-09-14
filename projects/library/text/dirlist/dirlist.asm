@@ -14,10 +14,12 @@ motext__chunkSize: equ     16
 motext__maxChunks: equ     32000
 motext__maxUndo: equ     2048
 textMaxLines:   equ     12000
-textHeap:       equ     14336
+textHeap:       equ     0
+motext__opParas: equ     128
+motext__lineParas: equ     256
 listNameMax:    equ     13
 listMax:        equ     256
-modir__listAt:  equ     14336
+modir__listAt:  equ     0
 modir__listBytes: equ     3584
 
 ; =========================================================== entry ====
@@ -1674,6 +1676,11 @@ motext__nextSeg: dw      0        ; u16
 motext__usedSeg: dw      0        ; u16
 motext__headSeg: dw      0        ; u16
 motext__lenSeg: dw      0        ; u16
+motext__logOpSeg: dw      0        ; u16
+motext__logLineSeg: dw      0        ; u16
+motext__logColSeg: dw      0        ; u16
+motext__logChSeg: dw      0        ; u16
+motext__logJoinSeg: dw      0        ; u16
 modir__listCount_: dw      0        ; u16
 modir__listFull_: db      0        ; bool
 listCount__ret: dw      0        ; u16
@@ -1778,5 +1785,5 @@ _heapw:         equ     _heap        ; same bytes, u16 view
 ; =========================================================== views ====
 ; No storage: each is a name for an offset into something else.
 
-modir__listNames: equ     _heap + 14336        ; u8[3328]
-modir__listDir: equ     _heap + 17664        ; u8[256]
+modir__listNames: equ     _heap        ; u8[3328]
+modir__listDir: equ     _heap + 3328        ; u8[256]
