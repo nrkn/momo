@@ -156,10 +156,6 @@ local sub viewPlace( u16 ln, u16 col ) {
 
 // ---- rendering ----
 
-// Every row of the window, in order, whether or not the buffer has a line for
-// it. A row past the end is handed over with a length of 0 rather than skipped,
-// because a window has a fixed shape and the caller is painting a rectangle -
-// leaving those rows out would leave the previous frame's text on screen.
 // One row of the window, which is what `viewRender` was already doing `height`
 // times. It is separate because a caller that has moved the rest of the window
 // by other means needs exactly the row that move exposed: a one-line scroll is
@@ -179,6 +175,10 @@ sub viewRenderRow( u16 y ) {
   viewRow( y, addr( row ), n )
 }
 
+// Every row of the window, in order, whether or not the buffer has a line for
+// it. A row past the end is handed over with a length of 0 rather than skipped,
+// because a window has a fixed shape and the caller is painting a rectangle -
+// leaving those rows out would leave the previous frame's text on screen.
 sub viewRender {
   for ( u16 y = 0; y < height; y++ ) {
     viewRenderRow( y )
