@@ -199,6 +199,71 @@ __entry:
         call    listHome
 ; ---- showThumb()                     // 1 0
         call    showThumb
+; ---- putStr( addr( sJump ) )
+        mov     ax, sJump                   ; link-time constant
+        mov     [putStr__at], ax
+        call    putStr
+; ---- newline()
+        call    newline
+; ---- listSize( 4 )
+        mov     word [listSize__h], 4
+        call    listSize
+; ---- listHome()
+        call    listHome
+; ---- listJump( 'M' )
+        mov     byte [listJump__ch], 77
+        call    listJump
+; ---- putNumber( listCursor() )
+        call    listCursor
+        mov     ax, [listCursor__ret]
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- putChar( ' ' )
+        mov     byte [putChar__c], 32
+        call    putChar
+; ---- listJump( 'b' )
+        mov     byte [listJump__ch], 98
+        call    listJump
+; ---- putNumber( listCursor() )
+        call    listCursor
+        mov     ax, [listCursor__ret]
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- putChar( ' ' )
+        mov     byte [putChar__c], 32
+        call    putChar
+; ---- listJump( 'Z' )
+        mov     byte [listJump__ch], 90
+        call    listJump
+; ---- putNumber( listCursor() )
+        call    listCursor
+        mov     ax, [listCursor__ret]
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- putChar( ' ' )
+        mov     byte [putChar__c], 32
+        call    putChar
+; ---- listJump( 'Q' )
+        mov     byte [listJump__ch], 81
+        call    listJump
+; ---- putNumber( listCursor() )
+        call    listCursor
+        mov     ax, [listCursor__ret]
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- putChar( ' ' )
+        mov     byte [putChar__c], 32
+        call    putChar
+; ---- listJump( 'A' )
+        mov     byte [listJump__ch], 65
+        call    listJump
+; ---- putNumber( listCursor() )
+        call    listCursor
+        mov     ax, [listCursor__ret]
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- newline()
+        call    newline
 ; ---- listLoad( addr( zPattern ), dirDirectory )
         mov     ax, zPattern                ; link-time constant
         mov     [listLoad__pattern], ax
@@ -1204,6 +1269,88 @@ listDown:
         call    listGoto
         ret
 
+; ============================================== u8 modir__upper ====
+
+modir__upper:
+; ---- local u8 upper( u8 ch ) => ( ch >= 'a' && ch <= 'z' ) ? ch - 32 : ch
+        mov     al, [modir__upper__ch]
+        cmp     al, 97                      ; byte operands, no widening
+        jb      .L141                       ; unsigned >=
+        mov     al, [modir__upper__ch]
+        cmp     al, 122                     ; byte operands, no widening
+        ja      .L141                       ; unsigned <=
+        mov     al, [modir__upper__ch]
+        xor     ah, ah                      ; u8 -> u16
+        sub     ax, 32
+        jmp     .L142
+.L141:
+        mov     al, [modir__upper__ch]
+        xor     ah, ah                      ; u8 -> u16
+.L142:
+        mov     [modir__upper__ret], al     ; narrowed to u8
+        ret
+
+; ============================================== sub listJump ====
+
+listJump:
+; ---- if ( listCount_ == 0 ) return
+        mov     ax, [modir__listCount_]
+        test    ax, ax
+        jne     .L145                       ; unsigned ==
+        ret
+.L145:
+; ---- want = upper( ch )
+        mov     al, [listJump__ch]
+        mov     [modir__upper__ch], al      ; u8 -> u8, no widening
+        call    modir__upper
+        mov     al, [modir__upper__ret]
+        xor     ah, ah                      ; u8 -> u16
+        mov     [listJump__want], al        ; narrowed to u8
+; ---- for ( u16 n = 1; n <= listCount_; n++ ) {
+        mov     word [listJump__n], 1
+.L148:
+        mov     ax, [listJump__n]
+        mov     bx, [modir__listCount_]
+        cmp     ax, bx
+        jbe     .L151                       ; unsigned <=
+        jmp     .L150
+.L151:
+; ---- i = ( listCur_ + n ) % listCount_
+        mov     ax, [modir__listCur_]
+        mov     bx, [listJump__n]
+        add     ax, bx
+        mov     bx, [modir__listCount_]
+        xor     dx, dx                      ; clear high half for div
+        div     bx
+        mov     ax, dx                      ; remainder
+        mov     [listJump__i], ax
+; ---- if ( upper( peek8( listName( i ) ) ) == want ) {
+        mov     [listName__i], ax
+        call    listName
+        mov     ax, [listName__ret]
+        mov     bx, ax
+        mov     al, [bx]                    ; peek8 - unchecked, by design
+        mov     [modir__upper__ch], al      ; u8 -> u8, no widening
+        call    modir__upper
+        mov     al, [modir__upper__ret]
+        xor     ah, ah                      ; u8 -> u16
+        mov     bl, [listJump__want]
+        xor     bh, bh                      ; u8 -> u16
+        cmp     ax, bx
+        jne     .L152                       ; unsigned ==
+; ---- listGoto( i )
+        mov     ax, [listJump__i]
+        mov     [listGoto__i], ax
+        call    listGoto
+; ---- return
+        ret
+.L152:
+.L149:
+        inc     word [listJump__n]
+        jmp     .L148
+.L150:
+        ret
+
 ; ============================================== u16 listThumbSize ====
 
 listThumbSize:
@@ -1211,15 +1358,15 @@ listThumbSize:
         mov     ax, [modir__listCount_]
         mov     bx, [modir__listRows]
         cmp     ax, bx
-        jbe     .L143                       ; unsigned <=
+        jbe     .L157                       ; unsigned <=
         mov     ax, [modir__listCount_]
         test    ax, ax
-        jne     .L141                       ; unsigned ==
-.L143:
+        jne     .L155                       ; unsigned ==
+.L157:
         mov     ax, [modir__listRows]
         mov     [listThumbSize__ret], ax
         ret
-.L141:
+.L155:
 ; ---- size = listRows * listRows / listCount_
         mov     ax, [modir__listRows]
         mov     bx, [modir__listRows]
@@ -1230,12 +1377,12 @@ listThumbSize:
         mov     [listThumbSize__size], ax
 ; ---- return size < 1 ? 1 : size
         cmp     ax, 1
-        jae     .L146                       ; unsigned <
+        jae     .L160                       ; unsigned <
         mov     ax, 1
-        jmp     .L147
-.L146:
+        jmp     .L161
+.L160:
         mov     ax, [listThumbSize__size]
-.L147:
+.L161:
         mov     [listThumbSize__ret], ax
         ret
 
@@ -1246,10 +1393,10 @@ listThumbAt:
         mov     ax, [modir__listCount_]
         mov     bx, [modir__listRows]
         cmp     ax, bx
-        ja      .L149                       ; unsigned <=
+        ja      .L163                       ; unsigned <=
         mov     word [listThumbAt__ret], 0
         ret
-.L149:
+.L163:
 ; ---- size = listThumbSize()
         call    listThumbSize
         mov     ax, [listThumbSize__ret]
@@ -1267,14 +1414,14 @@ listThumbAt:
 ; ---- if ( span == 0 || room == 0 ) return 0
         mov     ax, [listThumbAt__span]
         test    ax, ax
-        je      .L154                       ; unsigned ==
+        je      .L168                       ; unsigned ==
         mov     ax, [listThumbAt__room]
         test    ax, ax
-        jne     .L152                       ; unsigned ==
-.L154:
+        jne     .L166                       ; unsigned ==
+.L168:
         mov     word [listThumbAt__ret], 0
         ret
-.L152:
+.L166:
 ; ---- return listTop_ / room * span + ( listTop_ % room ) * span / room
         mov     ax, [modir__listTop_]
         mov     bx, [listThumbAt__room]
@@ -1368,14 +1515,14 @@ showName:
 ; ---- n = 0
         mov     word [showName__n], 0
 ; ---- while ( peek8( at + n ) != 0 ) {
-.L157:
+.L171:
         mov     ax, [showName__at]
         mov     bx, [showName__n]
         add     ax, bx
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
         test    al, al
-        je      .L159                       ; unsigned !=
+        je      .L173                       ; unsigned !=
 ; ---- shown[n] = peek8( at + n )
         mov     ax, [showName__at]
         mov     bx, [showName__n]
@@ -1386,9 +1533,9 @@ showName:
         mov     [shown + bx], al
 ; ---- n++
         inc     word [showName__n]
-.L158:
-        jmp     .L157
-.L159:
+.L172:
+        jmp     .L171
+.L173:
 ; ---- shown[n] = '$'
         mov     ax, [showName__n]
         mov     bx, ax
@@ -1553,6 +1700,9 @@ listTop__ret:   dw      0        ; u16
 listCursor__ret: dw      0        ; u16
 listSize__h:    dw      0        ; u16
 listGoto__i:    dw      0        ; u16
+modir__upper__ch: db      0        ; u8
+modir__upper__ret: db      0        ; u8
+listJump__ch:   db      0        ; u8
 listThumbSize__ret: dw      0        ; u16
 listThumbAt__ret: dw      0        ; u16
 handle:         dw      0        ; u16
@@ -1580,6 +1730,9 @@ listIsNamed__k: dw      0        ; u16
 listIsNamed__a: dw      0        ; u16
 listIsNamed__ca: db      0        ; u8
 listIsNamed__cb: db      0        ; u8
+listJump__n:    dw      0        ; u16
+listJump__i:    dw      0        ; u16
+listJump__want: db      0        ; u8
 listThumbSize__size: dw      0        ; u16
 listThumbAt__size: dw      0        ; u16
 listThumbAt__span: dw      0        ; u16
@@ -1606,6 +1759,7 @@ sWindow:        db      'window:$'        ; u8[8] const
 sThumb:         db      'thumb:$'        ; u8[7] const
 sSorted:        db      'sorted:$'        ; u8[8] const
 sDots:          db      'dots:$'        ; u8[6] const
+sJump:          db      'jump:$'        ; u8[6] const
 shown:          times 14 db 0        ; u8[14]
 putNumber__digits: times 5 db 0        ; u8[5]
 

@@ -54,6 +54,7 @@ const u8[] sWindow = "window:$"
 const u8[] sThumb  = "thumb:$"
 const u8[] sSorted = "sorted:$"
 const u8[] sDots   = "dots:$"
+const u8[] sJump   = "jump:$"
 
 u16 handle
 
@@ -219,6 +220,42 @@ showThumb()                     // 2 1
 listSize( 1 )
 listHome()
 showThumb()                     // 1 0
+
+// ---- typing at the list ----
+//
+// Four files whose initials are all different, so which entry a letter means is
+// never in doubt. The last one is the claim that matters: `A` from the end of
+// the list has to wrap, and a search that started at the cursor and ran forward
+// would find nothing.
+
+putStr( addr( sJump ) )
+newline()
+
+listSize( 4 )
+listHome()
+
+listJump( 'M' )
+putNumber( listCursor() )
+putChar( ' ' )
+
+// Lower case, because DOS uppercases the names and a person does not.
+listJump( 'b' )
+putNumber( listCursor() )
+putChar( ' ' )
+
+listJump( 'Z' )
+putNumber( listCursor() )
+putChar( ' ' )
+
+// Nothing starts with Q, and nothing moves.
+listJump( 'Q' )
+putNumber( listCursor() )
+putChar( ' ' )
+
+// From the last entry, wrapping to the first.
+listJump( 'A' )
+putNumber( listCursor() )
+newline()
 
 // ---- the sort, through the one order a filesystem cannot produce ----
 //

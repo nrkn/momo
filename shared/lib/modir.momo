@@ -240,6 +240,38 @@ sub listPageUp {
 
 sub listPageDown => listGoto( listCur_ + listRows )
 
+// ---- typing at it ----
+
+// DOS hands names back uppercased, so only what a person typed needs folding -
+// the same argument `before` makes for not folding at all when both sides come
+// from the directory.
+local u8 upper( u8 ch ) => ( ch >= 'a' && ch <= 'z' ) ? ch - 32 : ch
+
+// The next entry starting with `ch`, **from the one after the cursor and
+// wrapping**. Starting at the cursor would stick on the current entry, so a run
+// of files sharing a letter could not be walked with the letter - which is the
+// whole of what this is for.
+//
+// Nothing happens when nothing matches. A list that jumped somewhere arbitrary
+// on a typo would be worse than one that ignored it.
+sub listJump( u8 ch ) {
+  u16 i
+  u8  want
+
+  if ( listCount_ == 0 ) return
+
+  want = upper( ch )
+
+  for ( u16 n = 1; n <= listCount_; n++ ) {
+    i = ( listCur_ + n ) % listCount_
+
+    if ( upper( peek8( listName( i ) ) ) == want ) {
+      listGoto( i )
+      return
+    }
+  }
+}
+
 // ---- the thumb ----
 //
 // Modern proportions rather than a fixed block: the thumb is as much of the track

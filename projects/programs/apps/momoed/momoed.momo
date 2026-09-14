@@ -365,7 +365,6 @@ bool loadFile() {
       if ( textNoRoom() ) break
 
       got = fileRead( handle, addr( piece ), pieceSize )
-  kb = 0
     }
   }
 
@@ -956,6 +955,16 @@ sub explorerKey( u16 k ) {
 
   if ( k == 13 ) {
     openSelected()
+    return
+  }
+
+  // **A printable key jumps to the next entry starting with it**, which is what
+  // every file list has done since before this machine. It is last, so the keys
+  // above keep their meanings - and it takes the whole printable range rather
+  // than letters alone, because a directory full of `8086*.ASM` is exactly the
+  // case somebody would try it on.
+  if ( k >= 32 && k < 127 ) {
+    listJump( u8( k ) )
     return
   }
 
