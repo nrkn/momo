@@ -3257,3 +3257,33 @@ other was a guess, which settles it without any appeal to taste.
 **The asymmetry in the pair is worth naming**: `Tab` arrives as a character and
 `Shift+Tab` as a scancode, so the two cannot be tested as one thing at a call
 site. Nobody designed that; it is what the hardware does.
+
+### `edit.com` cannot open it either, which was the missing half of the week
+
+`momoed.asm` has been the capacity benchmark since Monday and every refusal was
+read as a limit of ours. It is not: `edit.com` reports *Out of memory* on the
+same file and drops back to DOS.
+
+That reframes three days of numbers. The editor is not behind the thing it is
+measured against on capacity any more than it is on loading or scrolling - **373
+KB of text needs 600 KB with §54's overhead and the machine has 577** - and every
+DOS editor has a ceiling for the same reason. The interesting question stopped
+being *why can ours not open this* and became *what would it take for anything to*,
+which is PLAN §63 and is not urgent.
+
+Worth recording because the fixation was reasonable and still produced a wrong
+frame. The file was the largest text to hand rather than a file anybody needed to
+edit - **the thing actually edited in this editor is `momoed.momo`, at 59 KB and
+135 KB with records** - and a benchmark nobody has to pass is a benchmark that can
+quietly set the agenda.
+
+### The measurement that makes the choice concrete
+
+Chunk fill is 78.2%. A line never shares a chunk, so the last chunk of each is
+part empty, and 373 KB of text occupies 477 KB. Packing lines into an arena
+recovers about 104 KB and would fit this file today.
+
+**It buys headroom and not a ceiling**, which is the whole of the decision in
+PLAN §63: a quarter of the work for one file's worth of growth, against a storage
+model that has no limit and a seam that already exists to hold it - `lineSlice`
+and `lineLength` are per line, so nothing above §54 would know.

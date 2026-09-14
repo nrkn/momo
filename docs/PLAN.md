@@ -2562,3 +2562,117 @@ over the outer array with the address slot, and `len` on a constant index.
 Out: the length spine, mutable leaves, three levels, and `u16[][]`. Each is a
 paragraph of its own above, and none is needed in order to delete `nthStr`.
 ---
+
+---
+
+## 63. A document larger than the memory
+
+**Designed, not built, and deliberately not next.** It is here because the
+question arrived with numbers behind it and the numbers are worth keeping.
+
+### What forced it, and what it turned out not to mean
+
+`momoed.asm` is the largest text on the machine and has been the benchmark all
+week. Measured exactly - `ceil(len/16)` a line, which is what §54 actually costs:
+
+| | |
+|---|---|
+| lines | 11,666 |
+| bytes | 372,992 |
+| chunks needed | 29,800 |
+| chunk fill | 78.2% |
+| total with records | **600 KB** |
+
+The machine has 577 KB. **It does not fit, and this time it is the machine rather
+than the cap** - §54's records were sized from the ceiling until this week and are
+sized from the room now, which bought about 28,500 chunks and one build's worth of
+headroom before the file grew past it again.
+
+**`edit.com` cannot open it either**, and says *Out of memory* before dropping
+back to DOS. That is the fact that changes what this section is for: the editor is
+not behind the thing it has been measured against, and the file is simply past
+what this machine does with 373 KB of text. So the ceiling is not a defect to be
+fixed in a hurry - it is a ceiling, and every DOS editor has one.
+
+It is also worth saying what the benchmark is not. The file being *edited* here is
+`momoed.momo` - 1,905 lines, 59 KB, 135 KB with records, comfortably inside
+anything. The 372 KB file is generated output that happened to be the largest text
+to hand.
+
+### The waste is the per-line rounding, and it is measurable
+
+Chunk fill is **78.2%**: 373 KB of text occupies 477 KB of chunks, because a line
+never shares a chunk with its neighbour and the last chunk of every line is part
+empty. At an average 32 characters a line that is two full chunks and a third
+holding a handful of bytes.
+
+Packing lines contiguously into a byte arena would recover about 104 KB of that,
+and shrink the records with it - **roughly 477 KB where 600 is needed today**,
+which fits. It is a quarter of the work of anything below and it buys one thing:
+headroom. The next fifth that file grows takes it away again.
+
+**That is the choice this section is really about.** Packing raises the ceiling;
+only the rest of it removes one.
+
+### The seam already exists, which is why this is tractable at all
+
+§54's public read interface is **already per line**: `lineLength` and
+`lineSlice`. §56 renders through them a row at a time and §59 searches through
+them a line at a time, and neither has any idea how a line is stored.
+
+That is exactly the interface a store with the text elsewhere can serve. **The
+change is confined inside `motext`** - no caller above it learns anything, which
+is the strongest argument for this shape over any other.
+
+### The design
+
+- **A line index in memory**, already past the segment (§58). Per line: where it
+  is, and whether that is an offset in the original file or a position in the
+  chunk arena. Six bytes a line, so 12,000 lines is 72 KB of far memory.
+- **Unedited lines stay on disk** and are read when something asks for them,
+  behind a read-ahead of a few kilobytes. A window of rows is one or two reads
+  rather than one a row.
+- **Edited lines move into the chunk store**, which stops being the document and
+  becomes a cache of what has been touched. Most editing sessions touch a small
+  fraction of a large file.
+- **Saving streams**: each line in turn, from whichever side holds it, to a
+  temporary and then a rename.
+- **Undo is unchanged.** It already records operations against a line and a
+  column, and has never known where the bytes were.
+
+### What it costs, stated before it is built
+
+- **A full redraw can be up to a window of reads**, mitigated by the read-ahead
+  and by the repaint work that made full redraws rare rather than per keystroke.
+- **A search becomes one pass over the file.** That is what a search over a file
+  larger than memory is, and §59 already measured the scan as cheaper than the
+  copy - the copy becomes a read.
+- **`textBulk` mostly stops mattering**, because there is no bulk load to speed
+  up. The bracket stays: a load into the arena is still a load.
+- **The original file has to stay openable and unchanged for the session**, which
+  is a real constraint and the reason saving goes through a temporary.
+
+### What was considered and is not this
+
+- **Raising the cap again.** `maxChunks` is bounded at 32,767 by addressing -
+  `chunkNext` is a `u16` a chunk in a region reached by a `u16` offset - and
+  the machine runs out before that anyway.
+- **XMS or EMS.** A 286 can have extended memory and it would raise the ceiling by
+  a lot. It is rejected for the hot path rather than in principle: XMS moves
+  blocks rather than mapping them, so every chunk access becomes a copy call, and
+  §54 touches chunks per character. As a home for the *arena* behind a paged
+  design it is a reasonable second implementation of the same seam.
+- **A swap file**, which §13 already names. This is that idea from the other end
+  and with the file already open: the document itself is the backing store until
+  a line is edited, so nothing has to be written to page something out.
+
+### Why not now
+
+Nothing is blocked on it. The file that prompted it is generated output that
+`edit.com` cannot open either, the file actually being edited is a tenth of the
+size, and the editor has just grown an explorer that wants using before it grows a
+new storage model underneath it.
+
+**The condition for building it is a document somebody needs to edit and cannot.**
+That has not happened yet, and PROVENANCE is emphatic about what building for a
+consumer that does not exist costs.
