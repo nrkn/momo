@@ -34,11 +34,20 @@ const keyEsc16 = 0x011B
 // One prompt per line, in the order they are asked. The count is derived below
 // rather than written down, so adding one here cannot desynchronise anything.
 //
-// **This is the default rather than the list.** `KEYPROBE.CFG` beside the
-// program replaces it, one prompt a line - so probing three keys does not mean
-// pressing thirty-six, and adding a question does not mean a rebuild. That last
-// part is the point: a rebuild is a round trip through another machine, and a
-// text file is something the editor on this one can write.
+// **This is the default rather than the list.** A file replaces it, one prompt a
+// line - so probing three keys does not mean pressing thirty-six, and adding a
+// question does not mean a rebuild. That last part is the point: a rebuild is a
+// round trip through another machine, and a text file is something the editor on
+// this one can write.
+//
+// **Named on the command line**, falling back to `KEYPROBE.CFG`:
+//
+//   keyprobe            the list below, or KEYPROBE.CFG if there is one
+//   keyprobe tabs.cfg   whatever that file asks for
+//
+// The argument is why a set can ship with the program. A `KEYPROBE.CFG` on the
+// disk would quietly become the default for every run, so the files that come
+// with this are named for what they ask and are asked for by name.
 const u8[] prompts = "Left$"
                      "Shift+Left$"
                      "Ctrl+Left$"
@@ -89,7 +98,7 @@ const u8[] sSpace  = " $"
 const u8[] sPress  = "  press: $"
 const u8[] sWrote  = "written to KEYS.TXT: $"
 const u8[] sFailed = "could not create KEYS.TXT, DOS error $"
-const u8[] sFromCfg = "list     KEYPROBE.CFG$"
+const u8[] sFromCfg = "list     $"
 const u8[] sBuiltIn = "list     built-in$"
 
 // ---- the report ----
@@ -115,68 +124,72 @@ u16 reportAt
 const cfgMax = 1024
 const u8[] cfgName = "KEYPROBE.CFG\0"
 
+// The command tail, which DOS leaves at PSP:0080h - a length, the text, a
+// carriage return. Same bytes `momoed` reads for its filename and the same
+// handling: skip the spaces, take one word.
+u8[16] cfgArg
+
+bool takeArg() {
+  u16 n
+  u16 at
+  u16 out
+
+  n = peek8( 0x80 )
+  at = 0x81
+  out = 0
+
+  while ( n > 0 && peek8( at ) == ' ' ) {
+    at++
+    n--
+  }
+
+  while ( n > 0 && peek8( at ) != ' ' && peek8( at ) != 13 &&
+          out < len( cfgArg ) - 1 ) {
+    cfgArg[out] = peek8( at )
+    out++
+    at++
+    n--
+  }
+
+  cfgArg[out] = 0
+  return out > 0
+}
+
 view u8[cfgMax] cfg = _heap[reportMax]
 u16 cfgLen
+u8[20] cfgShown
 
 sub loadConfig {
   u16 handle
   u16 got
-  u16 out
-  u8  ch
-  bool atStart
-  bool comment
+  u16 n
+  u16 opened
 
   cfgLen = 0
 
-  handle = fileOpen( addr( cfgName ), fileReadOnly )
+  opened = takeArg() ? addr( cfgArg ) : addr( cfgName )
+
+  handle = fileOpen( opened, fileReadOnly )
   if ( fileFailed() ) return
 
   got = fileRead( handle, addr( cfg ), cfgMax )
   fileClose( handle )
 
-  out = 0
-  atStart = true
-  comment = false
+  // §57 wants to ask a question and `str.momo` knows how to turn a file into a
+  // list of them. It is there rather than here because this program cannot be
+  // tested - it blocks on a keyboard - and the parse is exactly the kind of
+  // thing that has an off-by-one in it.
+  cfgLen = strLines( addr( cfg ), got )
 
-  for ( u16 i = 0; i < got; i++ ) {
-    ch = cfg[i]
-
-    // A DOS file ends its lines with two bytes and only one of them matters.
-    if ( ch == 13 ) continue
-
-    if ( ch == 10 ) {
-      // A blank line and a comment both produce nothing, so a file may be laid
-      // out to be read by a person.
-      if ( !atStart && !comment ) {
-        cfg[out] = strTerm
-        out++
-      }
-
-      atStart = true
-      comment = false
-      continue
-    }
-
-    if ( atStart && ch == '#' ) {
-      comment = true
-      continue
-    }
-
-    if ( comment ) continue
-    if ( atStart && ch == ' ' ) continue
-
-    atStart = false
-    cfg[out] = ch
-    out++
+  // The name that was opened, `$`-terminated for printing - the one on the
+  // command line is ASCIZ because DOS wanted it that way.
+  n = 0
+  while ( peek8( opened + n ) != 0 && n < len( cfgShown ) - 1 ) {
+    cfgShown[n] = peek8( opened + n )
+    n++
   }
 
-  // A last line with no newline after it is still a prompt.
-  if ( !atStart && !comment ) {
-    cfg[out] = strTerm
-    out++
-  }
-
-  cfgLen = out
+  cfgShown[n] = '$'
 }
 
 bool usingConfig() => cfgLen > 0
@@ -290,6 +303,7 @@ loadConfig()
 // record exists to prevent.
 if ( usingConfig() ) {
   putStr( addr( sFromCfg ) )
+  putStr( addr( cfgShown ) )
 } else {
   putStr( addr( sBuiltIn ) )
 }
@@ -314,6 +328,7 @@ addLineEnd()
 
 if ( usingConfig() ) {
   addStr( addr( sFromCfg ) )
+  addStr( addr( cfgShown ) )
 } else {
   addStr( addr( sBuiltIn ) )
 }

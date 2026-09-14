@@ -144,6 +144,75 @@ sub memFill( u16 at, u16 count, u8 value ) {
   }
 }
 
+// ---- a text file as a string table ------------------------------------------
+//
+// Lines in, `$`-terminated strings out, **in the same bytes**. A file read into a
+// buffer becomes exactly what `nthStr` walks, so a program that can take a list
+// as a constant can take one from a file without a second code path anywhere
+// below the read.
+//
+// In place is safe because every byte either survives or is dropped: the output
+// index is never ahead of the input one, and the one byte ever *written* is the
+// terminator that replaces a newline.
+//
+// What it drops, and why each is a line a person would write rather than a case
+// worth configuring: a `\r`, because a DOS line ending is two bytes and one of
+// them means nothing; a blank line, because a file laid out to be read has them;
+// a `#` line, because a file worth keeping wants saying why; and the spaces at
+// the front of a line, because an indented file is still a list.
+//
+// Returns the length of the table, which is what a caller hands to `nthStr`
+// alongside the address it already had.
+u16 strLines( u16 at, u16 bytes ) {
+  u16 out
+  u8  ch
+  bool atStart
+  bool comment
+
+  out = 0
+  atStart = true
+  comment = false
+
+  for ( u16 i = 0; i < bytes; i++ ) {
+    ch = peek8( at + i )
+
+    if ( ch == 13 ) continue
+
+    if ( ch == 10 ) {
+      if ( !atStart && !comment ) {
+        poke8( at + out, strEnd )
+        out++
+      }
+
+      atStart = true
+      comment = false
+      continue
+    }
+
+    if ( atStart && ch == '#' ) {
+      comment = true
+      continue
+    }
+
+    if ( comment ) continue
+    if ( atStart && ch == ' ' ) continue
+
+    atStart = false
+    poke8( at + out, ch )
+    out++
+  }
+
+  // **A last line with no newline after it is still a line.** A file saved by an
+  // editor that does not add one would otherwise lose its final entry, silently
+  // and only sometimes.
+  if ( !atStart && !comment ) {
+    poke8( at + out, strEnd )
+    out++
+  }
+
+  return out
+}
+
 // ---- a number as text -------------------------------------------------------
 //
 // `io.momo` formats a number straight to the console and offers no way to ask for

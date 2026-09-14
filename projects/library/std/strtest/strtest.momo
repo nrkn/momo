@@ -185,3 +185,84 @@ numHex( addr( buf ), 0x000F )
 poke8( addr( buf ) + 4, '$' )
 putStr( addr( buf ) )
 newline()                                   // 000F
+
+// ---- a text file as a string table ------------------------------------------
+//
+// The parse `keyprobe` reads its question list with, tested here because that
+// program blocks on a keyboard and can never be run by a tier. What it does is
+// small and every part of it is an off-by-one waiting to happen: the terminator
+// that replaces a newline, the one that has to be added when there is no final
+// newline, and the three kinds of line that produce nothing.
+//
+// **It rewrites its input**, so the fixture is a writable buffer rather than a
+// `const` - and each case gets a fresh copy, because a parse that consumed its
+// own output would pass the first time and only the first time.
+
+u8[128] lines
+
+sub loadLines( u16 at, u16 n ) {
+  memCopy( addr( lines ), at, n )
+}
+
+// The table, printed as `count: a|b|c`, so a missing terminator and a spurious
+// one look different from each other.
+// **No trailing space on an empty table**, which is why the separator goes
+// before each entry rather than after the count. The harness trims the very end
+// of its output and nowhere else, so a line that stops being last is a line that
+// grows a space - and this file has produced that failure before.
+sub showLines( u16 n ) {
+  u16 total
+  u16 count
+
+  total = strLines( addr( lines ), n )
+  count = countStrs( addr( lines ), total )
+
+  putNumber( count )
+  putStr( addr( sColon ) )
+
+  for ( u16 i = 0; i < count; i++ ) {
+    putChar( i > 0 ? 124 : 32 )
+    putStr( nthStr( addr( lines ), i ) )
+  }
+
+  newline()
+}
+
+u16 countStrs( u16 at, u16 bytes ) {
+  u16 n
+  n = 0
+
+  for ( u16 i = 0; i < bytes; i++ ) {
+    if ( peek8( at + i ) == strEnd ) n++
+  }
+
+  return n
+}
+
+const u8[] sColon = ":$"
+
+// Three lines, DOS endings, and a final newline.
+const u8[] plain = "one\r\ntwo\r\nthree\r\n"
+
+// The same without the last newline, which is what an editor that does not add
+// one produces - and the case that loses an entry if nothing terminates it.
+const u8[] noEnd = "one\r\ntwo\r\nthree"
+
+// Blank lines, a comment, and an indented line: a file laid out to be read.
+const u8[] laidOut = "# what this asks\r\n\r\none\r\n\r\n  two\r\n# and why\r\nthree\r\n"
+
+// Nothing but comments and blanks, which is a file somebody started and did not
+// finish - an empty table rather than one entry of nothing.
+const u8[] allSkip = "# only this\r\n\r\n"
+
+loadLines( addr( plain ), len( plain ) )
+showLines( len( plain ) )               // 3: one|two|three
+
+loadLines( addr( noEnd ), len( noEnd ) )
+showLines( len( noEnd ) )               // 3: one|two|three
+
+loadLines( addr( laidOut ), len( laidOut ) )
+showLines( len( laidOut ) )             // 3: one|two|three
+
+loadLines( addr( allSkip ), len( allSkip ) )
+showLines( len( allSkip ) )               // 0:
