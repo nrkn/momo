@@ -6008,6 +6008,11 @@ of them necessary:
   BIOS does - `scrollUp`'s `AH=06h` moves the window in one interrupt, and
   then exactly one row is new. 1,920 far stores become 80.
 
+Measured by `drawrate` on the 286 that beeped: **22 full redraws a second to
+70**. The same program says 22 *times* under DOSBox against the machine's 3.1,
+because that comparison crosses the emulator's native/emulated seam - DECISIONS
+§55 has why that makes the number meaningless rather than merely high.
+
 **A selection or an open prompt paints into the rows themselves**, so both take
 the full path, and so does the frame *after* either ends - the paint that clears
 a highlight has as much to do as the one that drew it. That is why `repaint`

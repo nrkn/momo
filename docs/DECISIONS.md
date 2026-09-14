@@ -2159,11 +2159,50 @@ not drawing in the abstract. Its `viewRow` is `momoed`'s two loops without the
 selection and match overlays, because both are skipped on exactly the keystroke
 being measured and including them would price a different case.
 
-Under DOSBox, 500 draws each: **154 ticks against 7, a factor of 22**, 58 full
-redraws a second against 1,285. That ratio is the one figure here most likely to
-be overstated - DOSBox implements `INT 10h` scroll natively where a real BIOS
-does `rep movsw` over 3,840 bytes, and the emulator already ran 13% high on
-`loadrate`. The 286 is where this becomes a number worth quoting.
+500 draws each, on the machine that beeped:
+
+| | ticks | redraws/s |
+|---|---|---|
+| full redraw | 401 | 22 |
+| scroll + one row | 128 | 70 |
+
+**3.1 times**, and 22 full redraws a second is the number that explains the
+beeping directly: a 45-millisecond keystroke against a typematic rate that does
+not wait.
+
+### The emulator said 22 times, which was not high - it was meaningless
+
+DOSBox reported 154 ticks against 7. **A factor of 22 where the machine says
+3.1**, so the prediction was seven times out, against the 13% `loadrate` ran
+high by on the same emulator two days earlier.
+
+The difference between those two errors is the lesson, and it is sharper than
+"DOSBox runs fast". **`loadrate` compares our instructions against our
+instructions**; both paths are emulated at the same rate, so the ratio survives
+the translation and only the absolute figures do not. This comparison crosses
+the emulator's own boundary: our store loop is emulated 8086, and `INT 10h`
+scroll is host code DOSBox runs at native speed. The ratio it prints is between
+a 286 and a modern CPU, which is not a quantity that exists on any real machine.
+
+**A ratio that crosses the native/emulated seam is not a measurement of
+anything**, and the seam is invisible from the source - `int 0x10` looks exactly
+like the rest of the program. Anything DOS or the BIOS does for us is on the far
+side of it: file reads, mode sets, the scroll, the keyboard. Which retrospectively
+explains a run of load-time figures that came out strange under DOSBox and sane
+on the 286.
+
+### Where the fourteen milliseconds go, from the two numbers themselves
+
+A full redraw is 401 ticks for 500 draws of 24 rows: **1.8 ms a row**. A scroll
+plus one row is 14 ms, so the row is 1.8 of it and **the BIOS scroll is the
+other 12**.
+
+That is a long time to move 3,840 bytes - `rep movsw` would be about one - so
+the BIOS is doing more than the copy, and waiting for vertical retrace is the
+usual reason. It means the remaining cost of scrolling is no longer ours, and
+that there is a further 7x sitting behind a call we do not control. **Not worth
+reaching for until scrolling is reported as slow again**: 70 a second clears
+typematic, which was the whole complaint.
 
 ### Two fixes, and both of them remove work rather than add cleverness
 
@@ -2903,6 +2942,13 @@ Which is worth a line because every number in this file that was not taken on
 real hardware is one of these. DOSBox is where a change is shown to work and
 the 286 is where it is shown to be worth it, and the two questions have been
 run together in here before.
+
+**13% turned out to be the good case**, and §55 has the bad one: a ratio whose
+two halves are both our own instructions survives the emulator, because both are
+slowed by the same factor. One with DOS or the BIOS on one side of it does not,
+and `drawrate` reported 22 times where the machine said 3.1. This paragraph was
+written as though "overstated" were a single quantity with a size; it is two
+different failures and only one of them has one.
 
 ### The test is equivalence, because a wrong fill still looks like text
 
