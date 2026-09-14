@@ -38,6 +38,7 @@ motext__chunkSize: equ     16
 motext__halfChunk: equ     8
 motext__maxChunks: equ     32000
 motext__maxUndo: equ     2048
+motext__maxDocs: equ     4
 textMaxLines:   equ     12000
 motext__headParas: equ     1500
 motext__lenParas: equ     1500
@@ -3484,6 +3485,238 @@ motext__lineNew:
         inc     word [motext__lineCount]
         ret
 
+; ============================================== sub motext__docSave ====
+
+motext__docSave:
+; ---- docLines[curDoc]      = lineCount
+        mov     ax, [motext__lineCount]
+        mov     bx, [motext__curDoc]
+        shl     bx, 1                       ; word elements
+        mov     [motext__docLines + bx], ax
+; ---- docLineLimit[curDoc]  = lineLimit
+        mov     ax, [motext__lineLimit]
+        mov     bx, [motext__curDoc]
+        shl     bx, 1                       ; word elements
+        mov     [motext__docLineLimit + bx], ax
+; ---- docUndoHead[curDoc]   = undoHead
+        mov     ax, [motext__undoHead]
+        mov     bx, [motext__curDoc]
+        shl     bx, 1                       ; word elements
+        mov     [motext__docUndoHead + bx], ax
+; ---- docUndoCount[curDoc]  = undoCount
+        mov     ax, [motext__undoCount]
+        mov     bx, [motext__curDoc]
+        shl     bx, 1                       ; word elements
+        mov     [motext__docUndoCount + bx], ax
+; ---- docUndoDone[curDoc]   = undoDone
+        mov     ax, [motext__undoDone]
+        mov     bx, [motext__curDoc]
+        shl     bx, 1                       ; word elements
+        mov     [motext__docUndoDone + bx], ax
+; ---- docBreakRun[curDoc]   = breakRun ? 1 : 0
+        mov     al, [motext__breakRun]
+        test    al, al
+        jz      .L400
+        mov     ax, 1
+        jmp     .L401
+.L400:
+        xor     ax, ax                      ; 0
+.L401:
+        mov     bx, [motext__curDoc]
+        mov     [motext__docBreakRun + bx], al
+; ---- docUndoLost[curDoc]   = undoLost ? 1 : 0
+        mov     al, [motext__undoLost]
+        test    al, al
+        jz      .L403
+        mov     ax, 1
+        jmp     .L404
+.L403:
+        xor     ax, ax                      ; 0
+.L404:
+        mov     bx, [motext__curDoc]
+        mov     [motext__docUndoLost + bx], al
+; ---- docNoRoom[curDoc]     = noRoom ? 1 : 0
+        mov     al, [motext__noRoom]
+        test    al, al
+        jz      .L406
+        mov     ax, 1
+        jmp     .L407
+.L406:
+        xor     ax, ax                      ; 0
+.L407:
+        mov     bx, [motext__curDoc]
+        mov     [motext__docNoRoom + bx], al
+; ---- docWhyNoRoom[curDoc]  = whyNoRoom
+        mov     al, [motext__whyNoRoom]
+        mov     bx, [motext__curDoc]
+        mov     [motext__docWhyNoRoom + bx], al
+        ret
+
+; ============================================== sub motext__docLoad ====
+
+motext__docLoad:
+; ---- headSeg    = docHeadSeg[d]
+        mov     ax, [motext__docLoad__d]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [motext__docHeadSeg + bx]
+        mov     [motext__headSeg], ax
+; ---- lenSeg     = docLenSeg[d]
+        mov     ax, [motext__docLoad__d]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [motext__docLenSeg + bx]
+        mov     [motext__lenSeg], ax
+; ---- logOpSeg   = docLogOp[d]
+        mov     ax, [motext__docLoad__d]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [motext__docLogOp + bx]
+        mov     [motext__logOpSeg], ax
+; ---- logLineSeg = docLogLine[d]
+        mov     ax, [motext__docLoad__d]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [motext__docLogLine + bx]
+        mov     [motext__logLineSeg], ax
+; ---- logColSeg  = docLogCol[d]
+        mov     ax, [motext__docLoad__d]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [motext__docLogCol + bx]
+        mov     [motext__logColSeg], ax
+; ---- logChSeg   = docLogCh[d]
+        mov     ax, [motext__docLoad__d]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [motext__docLogCh + bx]
+        mov     [motext__logChSeg], ax
+; ---- logJoinSeg = docLogJoin[d]
+        mov     ax, [motext__docLoad__d]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [motext__docLogJoin + bx]
+        mov     [motext__logJoinSeg], ax
+; ---- lineCount  = docLines[d]
+        mov     ax, [motext__docLoad__d]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [motext__docLines + bx]
+        mov     [motext__lineCount], ax
+; ---- lineLimit  = docLineLimit[d]
+        mov     ax, [motext__docLoad__d]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [motext__docLineLimit + bx]
+        mov     [motext__lineLimit], ax
+; ---- undoHead   = docUndoHead[d]
+        mov     ax, [motext__docLoad__d]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [motext__docUndoHead + bx]
+        mov     [motext__undoHead], ax
+; ---- undoCount  = docUndoCount[d]
+        mov     ax, [motext__docLoad__d]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [motext__docUndoCount + bx]
+        mov     [motext__undoCount], ax
+; ---- undoDone   = docUndoDone[d]
+        mov     ax, [motext__docLoad__d]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [motext__docUndoDone + bx]
+        mov     [motext__undoDone], ax
+; ---- breakRun   = docBreakRun[d] != 0
+        mov     ax, [motext__docLoad__d]
+        mov     bx, ax
+        mov     al, [motext__docBreakRun + bx]
+        test    al, al
+        je      .L409                       ; unsigned !=
+        mov     ax, 1
+        jmp     .L410
+.L409:
+        xor     ax, ax
+.L410:
+        mov     [motext__breakRun], al      ; narrowed to bool
+; ---- undoLost   = docUndoLost[d] != 0
+        mov     ax, [motext__docLoad__d]
+        mov     bx, ax
+        mov     al, [motext__docUndoLost + bx]
+        test    al, al
+        je      .L412                       ; unsigned !=
+        mov     ax, 1
+        jmp     .L413
+.L412:
+        xor     ax, ax
+.L413:
+        mov     [motext__undoLost], al      ; narrowed to bool
+; ---- noRoom     = docNoRoom[d] != 0
+        mov     ax, [motext__docLoad__d]
+        mov     bx, ax
+        mov     al, [motext__docNoRoom + bx]
+        test    al, al
+        je      .L415                       ; unsigned !=
+        mov     ax, 1
+        jmp     .L416
+.L415:
+        xor     ax, ax
+.L416:
+        mov     [motext__noRoom], al        ; narrowed to bool
+; ---- whyNoRoom  = docWhyNoRoom[d]
+        mov     ax, [motext__docLoad__d]
+        mov     bx, ax
+        mov     al, [motext__docWhyNoRoom + bx]
+        mov     [motext__whyNoRoom], al     ; u8 -> u8, no widening
+; ---- undoing   = false
+        mov     byte [motext__undoing], 0
+; ---- bulking   = false
+        mov     byte [motext__bulking], 0
+; ---- stepDepth = 0
+        mov     word [motext__stepDepth], 0
+; ---- stepLost  = false
+        mov     byte [motext__stepLost], 0
+        ret
+
+; ============================================== sub textClear ====
+
+textClear:
+; ---- lineCount = 0
+        mov     word [motext__lineCount], 0
+; ---- undoHead  = 0
+        mov     word [motext__undoHead], 0
+; ---- undoCount = 0
+        mov     word [motext__undoCount], 0
+; ---- undoDone  = 0
+        mov     word [motext__undoDone], 0
+; ---- undoing   = false
+        mov     byte [motext__undoing], 0
+; ---- breakRun  = true
+        mov     byte [motext__breakRun], 1
+; ---- noRoom    = false
+        mov     byte [motext__noRoom], 0
+; ---- whyNoRoom = whyNothing
+        mov     byte [motext__whyNoRoom], 0
+; ---- bulking   = false
+        mov     byte [motext__bulking], 0
+; ---- stepDepth = 0
+        mov     word [motext__stepDepth], 0
+; ---- stepLost  = false
+        mov     byte [motext__stepLost], 0
+; ---- undoLost  = false
+        mov     byte [motext__undoLost], 0
+; ---- if ( chunkLimit == 0 ) return
+        mov     ax, [motext__chunkLimit]
+        test    ax, ax
+        jne     .L418                       ; unsigned ==
+        ret
+.L418:
+; ---- lineLimit = textMaxLines
+        mov     word [motext__lineLimit], 12000
+; ---- lineNew()
+        call    motext__lineNew
+        ret
+
 ; ============================================== sub textInit ====
 
 textInit:
@@ -3528,48 +3761,46 @@ textInit:
 ; ---- if ( recBase == 0 ) {
         mov     ax, [motext__recBase]
         test    ax, ax
-        jne     .L400                       ; unsigned ==
+        jne     .L421                       ; unsigned ==
 ; ---- noRoom = true
         mov     byte [motext__noRoom], 1
 ; ---- whyNoRoom = whyBlock
         mov     byte [motext__whyNoRoom], 3
 ; ---- return
         ret
-.L400:
+.L421:
 ; ---- if ( blockEnd() <= recBase ) {
         call    blockEnd
         mov     ax, [blockEnd__ret]
         mov     bx, [motext__recBase]
         cmp     ax, bx
-        ja      .L403                       ; unsigned <=
+        ja      .L424                       ; unsigned <=
 ; ---- noRoom = true
         mov     byte [motext__noRoom], 1
 ; ---- whyNoRoom = whyBlock
         mov     byte [motext__whyNoRoom], 3
 ; ---- return
         ret
-.L403:
+.L424:
 ; ---- avail = blockEnd() - recBase
         call    blockEnd
         mov     ax, [blockEnd__ret]
         mov     bx, [motext__recBase]
         sub     ax, bx
         mov     [textInit__avail], ax
-; ---- if ( avail <= headParas + lenParas + logParas ) {
-        cmp     ax, 3896
-        ja      .L406                       ; unsigned <=
+; ---- if ( avail <= ( headParas + lenParas + logParas ) * maxDocs ) {
+        cmp     ax, 15584
+        ja      .L427                       ; unsigned <=
 ; ---- noRoom = true
         mov     byte [motext__noRoom], 1
 ; ---- whyNoRoom = whyBlock
         mov     byte [motext__whyNoRoom], 3
 ; ---- return
         ret
-.L406:
-; ---- spare = avail - headParas - lenParas - logParas
+.L427:
+; ---- spare = avail - ( headParas + lenParas + logParas ) * maxDocs
         mov     ax, [textInit__avail]
-        sub     ax, 1500
-        sub     ax, 1500
-        sub     ax, 896
+        sub     ax, 15584
         mov     [textInit__spare], ax
 ; ---- chunkLimit = spare / 19 * 16 + ( spare % 19 ) * 16 / 19
         mov     bx, 19
@@ -3594,9 +3825,9 @@ textInit:
         mov     [motext__chunkLimit], ax
 ; ---- if ( chunkLimit > maxChunks ) chunkLimit = maxChunks
         cmp     ax, 32000
-        jbe     .L409                       ; unsigned >
+        jbe     .L430                       ; unsigned >
         mov     word [motext__chunkLimit], 32000
-.L409:
+.L430:
 ; ---- nextSeg  = recBase
         mov     ax, [motext__recBase]
         mov     [motext__nextSeg], ax
@@ -3610,7 +3841,7 @@ textInit:
         pop     ax
         add     ax, bx
         mov     [motext__usedSeg], ax
-; ---- headSeg  = usedSeg + ( chunkLimit + 15 ) / 16
+; ---- at = usedSeg + ( chunkLimit + 15 ) / 16
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [motext__chunkLimit]
         add     ax, 15
@@ -3619,41 +3850,92 @@ textInit:
         mov     bx, ax
         pop     ax
         add     ax, bx
-        mov     [motext__headSeg], ax
-; ---- lenSeg   = headSeg + headParas
+        mov     [textInit__at], ax
+; ---- for ( u16 d = 0; d < maxDocs; d++ ) {
+        mov     word [textInit__d], 0
+.L433:
+        mov     ax, [textInit__d]
+        cmp     ax, 4
+        jb      .L436                       ; unsigned <
+        jmp     .L435
+.L436:
+; ---- docHeadSeg[d] = at
+        mov     ax, [textInit__at]
+        mov     bx, [textInit__d]
+        shl     bx, 1                       ; word elements
+        mov     [motext__docHeadSeg + bx], ax
+; ---- at = at + headParas
+        mov     ax, [textInit__at]
         add     ax, 1500
-        mov     [motext__lenSeg], ax
-; ---- logOpSeg   = lenSeg + lenParas
+        mov     [textInit__at], ax
+; ---- docLenSeg[d] = at
+        mov     bx, [textInit__d]
+        shl     bx, 1                       ; word elements
+        mov     [motext__docLenSeg + bx], ax
+; ---- at = at + lenParas
+        mov     ax, [textInit__at]
         add     ax, 1500
-        mov     [motext__logOpSeg], ax
-; ---- logLineSeg = logOpSeg + opParas
+        mov     [textInit__at], ax
+; ---- docLogOp[d] = at
+        mov     bx, [textInit__d]
+        shl     bx, 1                       ; word elements
+        mov     [motext__docLogOp + bx], ax
+; ---- at = at + opParas
+        mov     ax, [textInit__at]
         add     ax, 128
-        mov     [motext__logLineSeg], ax
-; ---- logColSeg  = logLineSeg + lineParas
+        mov     [textInit__at], ax
+; ---- docLogLine[d] = at
+        mov     bx, [textInit__d]
+        shl     bx, 1                       ; word elements
+        mov     [motext__docLogLine + bx], ax
+; ---- at = at + lineParas
+        mov     ax, [textInit__at]
         add     ax, 256
-        mov     [motext__logColSeg], ax
-; ---- logChSeg   = logColSeg + lineParas
+        mov     [textInit__at], ax
+; ---- docLogCol[d] = at
+        mov     bx, [textInit__d]
+        shl     bx, 1                       ; word elements
+        mov     [motext__docLogCol + bx], ax
+; ---- at = at + lineParas
+        mov     ax, [textInit__at]
         add     ax, 256
-        mov     [motext__logChSeg], ax
-; ---- logJoinSeg = logChSeg + opParas
+        mov     [textInit__at], ax
+; ---- docLogCh[d] = at
+        mov     bx, [textInit__d]
+        shl     bx, 1                       ; word elements
+        mov     [motext__docLogCh + bx], ax
+; ---- at = at + opParas
+        mov     ax, [textInit__at]
         add     ax, 128
-        mov     [motext__logJoinSeg], ax
-; ---- textBase = logJoinSeg + opParas
+        mov     [textInit__at], ax
+; ---- docLogJoin[d] = at
+        mov     bx, [textInit__d]
+        shl     bx, 1                       ; word elements
+        mov     [motext__docLogJoin + bx], ax
+; ---- at = at + opParas
+        mov     ax, [textInit__at]
         add     ax, 128
+        mov     [textInit__at], ax
+.L434:
+        inc     word [textInit__d]
+        jmp     .L433
+.L435:
+; ---- textBase = at
+        mov     ax, [textInit__at]
         mov     [motext__textBase], ax
 ; ---- if ( blockEnd() <= textBase ) {
         call    blockEnd
         mov     ax, [blockEnd__ret]
         mov     bx, [motext__textBase]
         cmp     ax, bx
-        ja      .L412                       ; unsigned <=
+        ja      .L437                       ; unsigned <=
 ; ---- noRoom = true
         mov     byte [motext__noRoom], 1
 ; ---- whyNoRoom = whyBlock
         mov     byte [motext__whyNoRoom], 3
 ; ---- return
         ret
-.L412:
+.L437:
 ; ---- room = blockEnd() - textBase
         call    blockEnd
         mov     ax, [blockEnd__ret]
@@ -3663,14 +3945,14 @@ textInit:
 ; ---- if ( room < chunkLimit ) chunkLimit = room
         mov     bx, [motext__chunkLimit]
         cmp     ax, bx
-        jae     .L415                       ; unsigned <
+        jae     .L440                       ; unsigned <
         mov     ax, [textInit__room]
         mov     [motext__chunkLimit], ax
-.L415:
+.L440:
 ; ---- if ( chunkLimit < 2 ) {
         mov     ax, [motext__chunkLimit]
         cmp     ax, 2
-        jae     .L418                       ; unsigned <
+        jae     .L443                       ; unsigned <
 ; ---- chunkLimit = 0
         mov     word [motext__chunkLimit], 0
 ; ---- noRoom = true
@@ -3679,11 +3961,33 @@ textInit:
         mov     byte [motext__whyNoRoom], 3
 ; ---- return
         ret
-.L418:
-; ---- lineLimit = textMaxLines
-        mov     word [motext__lineLimit], 12000
-; ---- lineNew()
-        call    motext__lineNew
+.L443:
+; ---- for ( u16 d = 0; d < maxDocs; d++ ) {
+        mov     word [textInit__d], 0
+.L446:
+        mov     ax, [textInit__d]
+        cmp     ax, 4
+        jae     .L448                       ; unsigned <
+; ---- curDoc = d
+        mov     ax, [textInit__d]
+        mov     [motext__curDoc], ax
+; ---- docLoad( d )
+        mov     ax, [textInit__d]
+        mov     [motext__docLoad__d], ax
+        call    motext__docLoad
+; ---- textClear()
+        call    textClear
+; ---- docSave()
+        call    motext__docSave
+.L447:
+        inc     word [textInit__d]
+        jmp     .L446
+.L448:
+; ---- curDoc = 0
+        mov     word [motext__curDoc], 0
+; ---- docLoad( 0 )
+        mov     word [motext__docLoad__d], 0
+        call    motext__docLoad
         ret
 
 ; ============================================== u16 textRoom ====
@@ -3700,21 +4004,21 @@ textLoad:
 ; ---- if ( !bulking ) {
         mov     al, [motext__bulking]
         test    al, al
-        jnz     .L421
+        jnz     .L450
 ; ---- undoing = true
         mov     byte [motext__undoing], 1
 ; ---- if ( ch == '\n' ) {
         mov     al, [textLoad__ch]
         cmp     al, 10                      ; byte operands, no widening
-        jne     .L424                       ; unsigned ==
+        jne     .L453                       ; unsigned ==
 ; ---- lineNew()
         call    motext__lineNew
-        jmp     .L425
-.L424:
+        jmp     .L454
+.L453:
 ; ---- } else if ( ch != '\r' ) {
         mov     al, [textLoad__ch]
         cmp     al, 13                      ; byte operands, no widening
-        je      .L427                       ; unsigned !=
+        je      .L456                       ; unsigned !=
 ; ---- lineAppend( lineCount - 1, ch )
         mov     ax, [motext__lineCount]
         dec     ax
@@ -3722,23 +4026,23 @@ textLoad:
         mov     al, [textLoad__ch]
         mov     [lineAppend__ch], al        ; u8 -> u8, no widening
         call    lineAppend
-.L427:
-.L425:
+.L456:
+.L454:
 ; ---- undoing = false
         mov     byte [motext__undoing], 0
 ; ---- return
         ret
-.L421:
+.L450:
 ; ---- if ( ch == '\r' ) return
         mov     al, [textLoad__ch]
         cmp     al, 13                      ; byte operands, no widening
-        jne     .L430                       ; unsigned ==
+        jne     .L459                       ; unsigned ==
         ret
-.L430:
+.L459:
 ; ---- if ( ch == '\n' ) {
         mov     al, [textLoad__ch]
         cmp     al, 10                      ; byte operands, no widening
-        jne     .L433                       ; unsigned ==
+        jne     .L462                       ; unsigned ==
 ; ---- bulkFlush()
         call    motext__bulkFlush
 ; ---- lineNew()
@@ -3747,13 +4051,13 @@ textLoad:
         call    motext__bulkSeed
 ; ---- return
         ret
-.L433:
+.L462:
 ; ---- if ( loadUsed == chunkSize ) {
         mov     ax, [motext__loadUsed]
         cmp     ax, 16
-        je      .L438                       ; unsigned ==
-        jmp     .L436
-.L438:
+        je      .L467                       ; unsigned ==
+        jmp     .L465
+.L467:
 ; ---- chunkUsed[loadChunk] = chunkSize
         mov     ax, [motext__loadChunk]
         mov     bx, ax
@@ -3766,14 +4070,14 @@ textLoad:
         mov     [textLoad__d], ax
 ; ---- if ( d == 0 ) {
         test    ax, ax
-        jne     .L439                       ; unsigned ==
+        jne     .L468                       ; unsigned ==
 ; ---- noRoom = true
         mov     byte [motext__noRoom], 1
 ; ---- whyNoRoom = whyChunks
         mov     byte [motext__whyNoRoom], 1
 ; ---- return
         ret
-.L439:
+.L468:
 ; ---- chunkNext[loadChunk] = d
         mov     ax, [textLoad__d]
         mov     bx, [motext__loadChunk]
@@ -3790,7 +4094,7 @@ textLoad:
         mov     ax, [motext__loadChunk]
         mov     [motext__atDst__c], ax
         call    motext__atDst
-.L436:
+.L465:
 ; ---- dst[loadUsed] = ch
         mov     al, [textLoad__ch]
         mov     bx, [motext__loadUsed]
@@ -3810,13 +4114,13 @@ textSave:
         mov     word [textSave__total], 0
 ; ---- for ( u16 ln = 0; ln < lineCount; ln++ ) {
         mov     word [textSave__ln], 0
-.L442:
+.L471:
         mov     ax, [textSave__ln]
         mov     bx, [motext__lineCount]
         cmp     ax, bx
-        jb      .L445                       ; unsigned <
-        jmp     .L444
-.L445:
+        jb      .L474                       ; unsigned <
+        jmp     .L473
+.L474:
 ; ---- col = 0
         mov     word [textSave__col], 0
 ; ---- n = lineSlice( ln, col, stageBytes, addr( stage ) )
@@ -3831,12 +4135,12 @@ textSave:
         mov     ax, [lineSlice__ret]
         mov     [textSave__n], ax
 ; ---- while ( n > 0 ) {
-.L446:
+.L475:
         mov     ax, [textSave__n]
         test    ax, ax
-        ja      .L449                       ; unsigned >
-        jmp     .L448
-.L449:
+        ja      .L478                       ; unsigned >
+        jmp     .L477
+.L478:
 ; ---- total += fileWrite( handle, addr( stage ), n )
         mov     ax, [textSave__total]
         push    ax                          ; save lhs: rhs is not a leaf
@@ -3868,15 +4172,15 @@ textSave:
         call    lineSlice
         mov     ax, [lineSlice__ret]
         mov     [textSave__n], ax
-.L447:
-        jmp     .L446
-.L448:
+.L476:
+        jmp     .L475
+.L477:
 ; ---- if ( ln + 1 < lineCount ) total += fileWrite( handle, addr( lineEnd ), 2 )
         mov     ax, [textSave__ln]
         inc     ax
         mov     bx, [motext__lineCount]
         cmp     ax, bx
-        jae     .L450                       ; unsigned <
+        jae     .L479                       ; unsigned <
         mov     ax, [textSave__total]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [textSave__handle]
@@ -3890,11 +4194,11 @@ textSave:
         pop     ax
         add     ax, bx
         mov     [textSave__total], ax
-.L450:
-.L443:
+.L479:
+.L472:
         inc     word [textSave__ln]
-        jmp     .L442
-.L444:
+        jmp     .L471
+.L473:
 ; ---- return total
         mov     ax, [textSave__total]
         mov     [textSave__ret], ax
@@ -3909,12 +4213,12 @@ viewSize:
 ; ---- width = w > viewMaxWidth ? viewMaxWidth : w
         mov     ax, [viewSize__w]
         cmp     ax, 160
-        jbe     .L453                       ; unsigned >
+        jbe     .L482                       ; unsigned >
         mov     ax, 160
-        jmp     .L454
-.L453:
+        jmp     .L483
+.L482:
         mov     ax, [viewSize__w]
-.L454:
+.L483:
         mov     [moview__width], ax
         ret
 
@@ -3971,9 +4275,9 @@ viewMark:
 ; ---- if ( marked ) return
         mov     al, [moview__marked]
         test    al, al
-        jz      .L456
+        jz      .L485
         ret
-.L456:
+.L485:
 ; ---- markLine = curLine
         mov     ax, [moview__curLine]
         mov     [moview__markLine], ax
@@ -3997,21 +4301,21 @@ viewSelected:
 ; ---- bool viewSelected() => marked && ( markLine != curLine || markCol != curCol )
         mov     al, [moview__marked]
         test    al, al
-        jz      .L459
+        jz      .L488
         mov     ax, [moview__markLine]
         mov     bx, [moview__curLine]
         cmp     ax, bx
-        jne     .L462                       ; unsigned !=
+        jne     .L491                       ; unsigned !=
         mov     ax, [moview__markCol]
         mov     bx, [moview__curCol]
         cmp     ax, bx
-        je      .L459                       ; unsigned !=
-.L462:
+        je      .L488                       ; unsigned !=
+.L491:
         mov     ax, 1
-        jmp     .L460
-.L459:
+        jmp     .L489
+.L488:
         xor     ax, ax
-.L460:
+.L489:
         mov     [viewSelected__ret], al     ; narrowed to bool
         ret
 
@@ -4022,21 +4326,21 @@ moview__markFirst:
         mov     ax, [moview__markLine]
         mov     bx, [moview__curLine]
         cmp     ax, bx
-        jb      .L467                       ; unsigned <
+        jb      .L496                       ; unsigned <
         mov     ax, [moview__markLine]
         mov     bx, [moview__curLine]
         cmp     ax, bx
-        jne     .L465                       ; unsigned ==
+        jne     .L494                       ; unsigned ==
         mov     ax, [moview__markCol]
         mov     bx, [moview__curCol]
         cmp     ax, bx
-        jae     .L465                       ; unsigned <
-.L467:
+        jae     .L494                       ; unsigned <
+.L496:
         mov     ax, 1
-        jmp     .L466
-.L465:
+        jmp     .L495
+.L494:
         xor     ax, ax
-.L466:
+.L495:
         mov     [moview__markFirst__ret], al; narrowed to bool
         ret
 
@@ -4048,12 +4352,12 @@ viewFromLine:
         mov     al, [moview__markFirst__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L471
+        jz      .L500
         mov     ax, [moview__markLine]
-        jmp     .L472
-.L471:
+        jmp     .L501
+.L500:
         mov     ax, [moview__curLine]
-.L472:
+.L501:
         mov     [viewFromLine__ret], ax
         ret
 
@@ -4065,12 +4369,12 @@ viewFromCol:
         mov     al, [moview__markFirst__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L474
+        jz      .L503
         mov     ax, [moview__markCol]
-        jmp     .L475
-.L474:
+        jmp     .L504
+.L503:
         mov     ax, [moview__curCol]
-.L475:
+.L504:
         mov     [viewFromCol__ret], ax
         ret
 
@@ -4082,12 +4386,12 @@ viewToLine:
         mov     al, [moview__markFirst__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L477
+        jz      .L506
         mov     ax, [moview__curLine]
-        jmp     .L478
-.L477:
+        jmp     .L507
+.L506:
         mov     ax, [moview__markLine]
-.L478:
+.L507:
         mov     [viewToLine__ret], ax
         ret
 
@@ -4099,12 +4403,12 @@ viewToCol:
         mov     al, [moview__markFirst__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L480
+        jz      .L509
         mov     ax, [moview__curCol]
-        jmp     .L481
-.L480:
+        jmp     .L510
+.L509:
         mov     ax, [moview__markCol]
-.L481:
+.L510:
         mov     [viewToCol__ret], ax
         ret
 
@@ -4115,10 +4419,10 @@ moview__viewFollow:
         mov     ax, [moview__curLine]
         mov     bx, [moview__top]
         cmp     ax, bx
-        jae     .L483                       ; unsigned <
+        jae     .L512                       ; unsigned <
         mov     ax, [moview__curLine]
         mov     [moview__top], ax
-.L483:
+.L512:
 ; ---- if ( curLine >= top + height ) top = curLine - height + 1
         mov     ax, [moview__curLine]
         push    ax                          ; save lhs: rhs is not a leaf
@@ -4128,21 +4432,21 @@ moview__viewFollow:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L486                       ; unsigned >=
+        jb      .L515                       ; unsigned >=
         mov     ax, [moview__curLine]
         mov     bx, [moview__height]
         sub     ax, bx
         inc     ax
         mov     [moview__top], ax
-.L486:
+.L515:
 ; ---- if ( curCol < left ) left = curCol
         mov     ax, [moview__curCol]
         mov     bx, [moview__left]
         cmp     ax, bx
-        jae     .L489                       ; unsigned <
+        jae     .L518                       ; unsigned <
         mov     ax, [moview__curCol]
         mov     [moview__left], ax
-.L489:
+.L518:
 ; ---- if ( curCol >= left + width ) left = curCol - width + 1
         mov     ax, [moview__curCol]
         push    ax                          ; save lhs: rhs is not a leaf
@@ -4152,13 +4456,13 @@ moview__viewFollow:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L492                       ; unsigned >=
+        jb      .L521                       ; unsigned >=
         mov     ax, [moview__curCol]
         mov     bx, [moview__width]
         sub     ax, bx
         inc     ax
         mov     [moview__left], ax
-.L492:
+.L521:
         ret
 
 ; ============================================== sub viewGoto ====
@@ -4199,15 +4503,15 @@ moview__viewPlace:
 ; ---- if ( lines > 0 && curLine >= lines ) curLine = lines - 1
         mov     ax, [moview__viewPlace__lines]
         test    ax, ax
-        jbe     .L495                       ; unsigned >
+        jbe     .L524                       ; unsigned >
         mov     ax, [moview__curLine]
         mov     bx, [moview__viewPlace__lines]
         cmp     ax, bx
-        jb      .L495                       ; unsigned >=
+        jb      .L524                       ; unsigned >=
         mov     ax, [moview__viewPlace__lines]
         dec     ax
         mov     [moview__curLine], ax
-.L495:
+.L524:
 ; ---- curCol = col
         mov     ax, [moview__viewPlace__col]
         mov     [moview__curCol], ax
@@ -4220,13 +4524,13 @@ moview__viewPlace:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jbe     .L499                       ; unsigned >
+        jbe     .L528                       ; unsigned >
         mov     ax, [moview__curLine]
         mov     [lineLength__ln], ax
         call    lineLength
         mov     ax, [lineLength__ret]
         mov     [moview__curCol], ax
-.L499:
+.L528:
 ; ---- viewFollow()
         call    moview__viewFollow
         ret
@@ -4249,7 +4553,7 @@ viewRenderRow:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jae     .L502                       ; unsigned <
+        jae     .L531                       ; unsigned <
         mov     ax, [viewRenderRow__ln]
         mov     [lineSlice__ln], ax
         mov     ax, [moview__left]
@@ -4261,7 +4565,7 @@ viewRenderRow:
         call    lineSlice
         mov     ax, [lineSlice__ret]
         mov     [viewRenderRow__n], ax
-.L502:
+.L531:
 ; ---- viewRow( y, addr( row ), n )
         mov     ax, [viewRenderRow__y]
         mov     [viewRow__y], ax
@@ -4277,19 +4581,19 @@ viewRenderRow:
 viewRender:
 ; ---- for ( u16 y = 0; y < height; y++ ) {
         mov     word [viewRender__y], 0
-.L505:
+.L534:
         mov     ax, [viewRender__y]
         mov     bx, [moview__height]
         cmp     ax, bx
-        jae     .L507                       ; unsigned <
+        jae     .L536                       ; unsigned <
 ; ---- viewRenderRow( y )
         mov     ax, [viewRender__y]
         mov     [viewRenderRow__y], ax
         call    viewRenderRow
-.L506:
+.L535:
         inc     word [viewRender__y]
-        jmp     .L505
-.L507:
+        jmp     .L534
+.L536:
         ret
 
 ; ============================================== u8 mofind__fold ====
@@ -4298,18 +4602,18 @@ mofind__fold:
 ; ---- local u8 fold( u8 ch ) => ( ch >= 'a' && ch <= 'z' ) ? ch - 32 : ch
         mov     al, [mofind__fold__ch]
         cmp     al, 97                      ; byte operands, no widening
-        jb      .L509                       ; unsigned >=
+        jb      .L538                       ; unsigned >=
         mov     al, [mofind__fold__ch]
         cmp     al, 122                     ; byte operands, no widening
-        ja      .L509                       ; unsigned <=
+        ja      .L538                       ; unsigned <=
         mov     al, [mofind__fold__ch]
         xor     ah, ah                      ; u8 -> u16
         sub     ax, 32
-        jmp     .L510
-.L509:
+        jmp     .L539
+.L538:
         mov     al, [mofind__fold__ch]
         xor     ah, ah                      ; u8 -> u16
-.L510:
+.L539:
         mov     [mofind__fold__ret], al     ; narrowed to u8
         ret
 
@@ -4319,19 +4623,19 @@ findSet:
 ; ---- if ( n > findMax ) n = findMax
         mov     ax, [findSet__n]
         cmp     ax, 64
-        jbe     .L513                       ; unsigned >
+        jbe     .L542                       ; unsigned >
         mov     word [findSet__n], 64
-.L513:
+.L542:
 ; ---- patLen = n
         mov     ax, [findSet__n]
         mov     [mofind__patLen], ax
 ; ---- for ( u16 i = 0; i < n; i++ ) {
         mov     word [findSet__i], 0
-.L516:
+.L545:
         mov     ax, [findSet__i]
         mov     bx, [findSet__n]
         cmp     ax, bx
-        jae     .L518                       ; unsigned <
+        jae     .L547                       ; unsigned <
 ; ---- pattern[i] = fold( peek8( at + i ) )
         mov     ax, [findSet__at]
         mov     bx, [findSet__i]
@@ -4344,10 +4648,10 @@ findSet:
         xor     ah, ah                      ; u8 -> u16
         mov     bx, [findSet__i]
         mov     [mofind__pattern + bx], al
-.L517:
+.L546:
         inc     word [findSet__i]
-        jmp     .L516
-.L518:
+        jmp     .L545
+.L547:
         ret
 
 ; ============================================== u16 findLength ====
@@ -4382,10 +4686,10 @@ mofind__scanLine:
 ; ---- if ( patLen == 0 ) return false
         mov     ax, [mofind__patLen]
         test    ax, ax
-        jne     .L520                       ; unsigned ==
+        jne     .L549                       ; unsigned ==
         mov     byte [mofind__scanLine__ret], 0
         ret
-.L520:
+.L549:
 ; ---- length = lineLength( ln )
         mov     ax, [mofind__scanLine__ln]
         mov     [lineLength__ln], ax
@@ -4395,10 +4699,10 @@ mofind__scanLine:
 ; ---- if ( length < patLen ) return false
         mov     bx, [mofind__patLen]
         cmp     ax, bx
-        jae     .L523                       ; unsigned <
+        jae     .L552                       ; unsigned <
         mov     byte [mofind__scanLine__ret], 0
         ret
-.L523:
+.L552:
 ; ---- last = length - patLen
         mov     ax, [mofind__scanLine__length]
         mov     bx, [mofind__patLen]
@@ -4407,18 +4711,18 @@ mofind__scanLine:
 ; ---- if ( last > to ) last = to
         mov     bx, [mofind__scanLine__to]
         cmp     ax, bx
-        jbe     .L526                       ; unsigned >
+        jbe     .L555                       ; unsigned >
         mov     ax, [mofind__scanLine__to]
         mov     [mofind__scanLine__last], ax
-.L526:
+.L555:
 ; ---- if ( from > last ) return false
         mov     ax, [mofind__scanLine__from]
         mov     bx, [mofind__scanLine__last]
         cmp     ax, bx
-        jbe     .L529                       ; unsigned >
+        jbe     .L558                       ; unsigned >
         mov     byte [mofind__scanLine__ret], 0
         ret
-.L529:
+.L558:
 ; ---- first = pattern[0]
         mov     al, [mofind__pattern]
         mov     [mofind__scanLine__first], al; u8 -> u8, no widening
@@ -4426,13 +4730,13 @@ mofind__scanLine:
         mov     ax, [mofind__scanLine__from]
         mov     [mofind__scanLine__base], ax
 ; ---- while ( base <= last ) {
-.L532:
+.L561:
         mov     ax, [mofind__scanLine__base]
         mov     bx, [mofind__scanLine__last]
         cmp     ax, bx
-        jbe     .L535                       ; unsigned <=
-        jmp     .L534
-.L535:
+        jbe     .L564                       ; unsigned <=
+        jmp     .L563
+.L564:
 ; ---- got = lineSlice( ln, base, findWindow, addr( window ) )
         mov     ax, [mofind__scanLine__ln]
         mov     [lineSlice__ln], ax
@@ -4447,9 +4751,9 @@ mofind__scanLine:
 ; ---- if ( got < patLen ) break
         mov     bx, [mofind__patLen]
         cmp     ax, bx
-        jae     .L536                       ; unsigned <
-        jmp     .L534
-.L536:
+        jae     .L565                       ; unsigned <
+        jmp     .L563
+.L565:
 ; ---- lim = got - patLen
         mov     ax, [mofind__scanLine__got]
         mov     bx, [mofind__patLen]
@@ -4461,22 +4765,22 @@ mofind__scanLine:
         add     ax, bx
         mov     bx, [mofind__scanLine__last]
         cmp     ax, bx
-        jbe     .L539                       ; unsigned >
+        jbe     .L568                       ; unsigned >
         mov     ax, [mofind__scanLine__last]
         mov     bx, [mofind__scanLine__base]
         sub     ax, bx
         mov     [mofind__scanLine__lim], ax
-.L539:
+.L568:
 ; ---- i = 0
         mov     word [mofind__scanLine__i], 0
 ; ---- while ( i <= lim ) {
-.L542:
+.L571:
         mov     ax, [mofind__scanLine__i]
         mov     bx, [mofind__scanLine__lim]
         cmp     ax, bx
-        jbe     .L545                       ; unsigned <=
-        jmp     .L544
-.L545:
+        jbe     .L574                       ; unsigned <=
+        jmp     .L573
+.L574:
 ; ---- c = window[i]
         mov     ax, [mofind__scanLine__i]
         mov     bx, ax
@@ -4484,31 +4788,31 @@ mofind__scanLine:
         mov     [mofind__scanLine__c], al   ; u8 -> u8, no widening
 ; ---- if ( c >= 'a' && c <= 'z' ) c -= 32
         cmp     al, 97                      ; byte operands, no widening
-        jb      .L546                       ; unsigned >=
+        jb      .L575                       ; unsigned >=
         mov     al, [mofind__scanLine__c]
         cmp     al, 122                     ; byte operands, no widening
-        ja      .L546                       ; unsigned <=
+        ja      .L575                       ; unsigned <=
         mov     al, [mofind__scanLine__c]
         xor     ah, ah                      ; u8 -> u16
         sub     ax, 32
         mov     [mofind__scanLine__c], al   ; narrowed to u8
-.L546:
+.L575:
 ; ---- if ( c == first ) {
         mov     al, [mofind__scanLine__c]
         cmp     al, [mofind__scanLine__first]; byte operands, no widening
-        je      .L552                       ; unsigned ==
-        jmp     .L550
-.L552:
+        je      .L581                       ; unsigned ==
+        jmp     .L579
+.L581:
 ; ---- j = 1
         mov     word [mofind__scanLine__j], 1
 ; ---- while ( j < patLen ) {
-.L553:
+.L582:
         mov     ax, [mofind__scanLine__j]
         mov     bx, [mofind__patLen]
         cmp     ax, bx
-        jb      .L556                       ; unsigned <
-        jmp     .L555
-.L556:
+        jb      .L585                       ; unsigned <
+        jmp     .L584
+.L585:
 ; ---- c = window[i + j]
         mov     ax, [mofind__scanLine__i]
         mov     bx, [mofind__scanLine__j]
@@ -4518,15 +4822,15 @@ mofind__scanLine:
         mov     [mofind__scanLine__c], al   ; u8 -> u8, no widening
 ; ---- if ( c >= 'a' && c <= 'z' ) c -= 32
         cmp     al, 97                      ; byte operands, no widening
-        jb      .L557                       ; unsigned >=
+        jb      .L586                       ; unsigned >=
         mov     al, [mofind__scanLine__c]
         cmp     al, 122                     ; byte operands, no widening
-        ja      .L557                       ; unsigned <=
+        ja      .L586                       ; unsigned <=
         mov     al, [mofind__scanLine__c]
         xor     ah, ah                      ; u8 -> u16
         sub     ax, 32
         mov     [mofind__scanLine__c], al   ; narrowed to u8
-.L557:
+.L586:
 ; ---- if ( c != pattern[j] ) break
         mov     al, [mofind__scanLine__c]
         xor     ah, ah                      ; u8 -> u16
@@ -4538,19 +4842,19 @@ mofind__scanLine:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        je      .L561                       ; unsigned !=
-        jmp     .L555
-.L561:
+        je      .L590                       ; unsigned !=
+        jmp     .L584
+.L590:
 ; ---- j++
         inc     word [mofind__scanLine__j]
-.L554:
-        jmp     .L553
-.L555:
+.L583:
+        jmp     .L582
+.L584:
 ; ---- if ( j == patLen ) {
         mov     ax, [mofind__scanLine__j]
         mov     bx, [mofind__patLen]
         cmp     ax, bx
-        jne     .L564                       ; unsigned ==
+        jne     .L593                       ; unsigned ==
 ; ---- hitCol = base + i
         mov     ax, [mofind__scanLine__base]
         mov     bx, [mofind__scanLine__i]
@@ -4561,23 +4865,23 @@ mofind__scanLine:
 ; ---- if ( !wantLast ) return true
         mov     al, [mofind__scanLine__wantLast]
         test    al, al
-        jnz     .L567
+        jnz     .L596
         mov     byte [mofind__scanLine__ret], 1
         ret
-.L567:
-.L564:
-.L550:
+.L596:
+.L593:
+.L579:
 ; ---- i++
         inc     word [mofind__scanLine__i]
-.L543:
-        jmp     .L542
-.L544:
+.L572:
+        jmp     .L571
+.L573:
 ; ---- if ( got < findWindow ) break
         mov     ax, [mofind__scanLine__got]
         cmp     ax, 128
-        jae     .L570                       ; unsigned <
-        jmp     .L534
-.L570:
+        jae     .L599                       ; unsigned <
+        jmp     .L563
+.L599:
 ; ---- base += findWindow - patLen + 1
         mov     ax, [mofind__scanLine__base]
         push    ax                          ; save lhs: rhs is not a leaf
@@ -4589,9 +4893,9 @@ mofind__scanLine:
         pop     ax
         add     ax, bx
         mov     [mofind__scanLine__base], ax
-.L533:
-        jmp     .L532
-.L534:
+.L562:
+        jmp     .L561
+.L563:
 ; ---- return hitAny
         mov     al, [mofind__hitAny]
         mov     [mofind__scanLine__ret], al ; bool -> bool, no widening
@@ -4603,7 +4907,7 @@ findNext:
 ; ---- for ( u16 i = ln; i < textLines(); i++ ) {
         mov     ax, [findNext__ln]
         mov     [findNext__i], ax
-.L573:
+.L602:
         mov     ax, [findNext__i]
         push    ax                          ; save lhs: rhs is not a leaf
         call    textLines
@@ -4611,19 +4915,19 @@ findNext:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L576                       ; unsigned <
-        jmp     .L575
-.L576:
+        jb      .L605                       ; unsigned <
+        jmp     .L604
+.L605:
 ; ---- from = 0
         mov     word [findNext__from], 0
 ; ---- if ( i == ln ) from = col
         mov     ax, [findNext__i]
         mov     bx, [findNext__ln]
         cmp     ax, bx
-        jne     .L577                       ; unsigned ==
+        jne     .L606                       ; unsigned ==
         mov     ax, [findNext__col]
         mov     [findNext__from], ax
-.L577:
+.L606:
 ; ---- if ( scanLine( i, from, 0xFFFF, false ) ) {
         mov     ax, [findNext__i]
         mov     [mofind__scanLine__ln], ax
@@ -4635,7 +4939,7 @@ findNext:
         mov     al, [mofind__scanLine__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L580
+        jz      .L609
 ; ---- findAtLine = i
         mov     ax, [findNext__i]
         mov     [mofind__findAtLine], ax
@@ -4645,11 +4949,11 @@ findNext:
 ; ---- return true
         mov     byte [findNext__ret], 1
         ret
-.L580:
-.L574:
+.L609:
+.L603:
         inc     word [findNext__i]
-        jmp     .L573
-.L575:
+        jmp     .L602
+.L604:
 ; ---- return false
         mov     byte [findNext__ret], 0
         ret
@@ -4662,12 +4966,12 @@ findPrev:
         inc     ax
         mov     [findPrev__i], ax
 ; ---- while ( i > 0 ) {
-.L583:
+.L612:
         mov     ax, [findPrev__i]
         test    ax, ax
-        ja      .L586                       ; unsigned >
-        jmp     .L585
-.L586:
+        ja      .L615                       ; unsigned >
+        jmp     .L614
+.L615:
 ; ---- i--
         dec     word [findPrev__i]
 ; ---- if ( i >= textLines() ) continue
@@ -4678,27 +4982,27 @@ findPrev:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L587                       ; unsigned >=
-        jmp     .L584
-.L587:
+        jb      .L616                       ; unsigned >=
+        jmp     .L613
+.L616:
 ; ---- to = 0xFFFF
         mov     word [findPrev__to], 65535
 ; ---- if ( i == ln ) {
         mov     ax, [findPrev__i]
         mov     bx, [findPrev__ln]
         cmp     ax, bx
-        jne     .L590                       ; unsigned ==
+        jne     .L619                       ; unsigned ==
 ; ---- if ( col == 0 ) continue
         mov     ax, [findPrev__col]
         test    ax, ax
-        jne     .L593                       ; unsigned ==
-        jmp     .L584
-.L593:
+        jne     .L622                       ; unsigned ==
+        jmp     .L613
+.L622:
 ; ---- to = col - 1
         mov     ax, [findPrev__col]
         dec     ax
         mov     [findPrev__to], ax
-.L590:
+.L619:
 ; ---- if ( scanLine( i, 0, to, true ) ) {
         mov     ax, [findPrev__i]
         mov     [mofind__scanLine__ln], ax
@@ -4710,7 +5014,7 @@ findPrev:
         mov     al, [mofind__scanLine__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L596
+        jz      .L625
 ; ---- findAtLine = i
         mov     ax, [findPrev__i]
         mov     [mofind__findAtLine], ax
@@ -4720,10 +5024,10 @@ findPrev:
 ; ---- return true
         mov     byte [findPrev__ret], 1
         ret
-.L596:
-.L584:
-        jmp     .L583
-.L585:
+.L625:
+.L613:
+        jmp     .L612
+.L614:
 ; ---- return false
         mov     byte [findPrev__ret], 0
         ret
@@ -4767,18 +5071,18 @@ mofield__fieldInsert:
 ; ---- if ( fieldLen >= fieldMax ) return
         mov     ax, [mofield__fieldLen]
         cmp     ax, 64
-        jb      .L599                       ; unsigned >=
+        jb      .L628                       ; unsigned >=
         ret
-.L599:
+.L628:
 ; ---- i = fieldLen
         mov     ax, [mofield__fieldLen]
         mov     [mofield__fieldInsert__i], ax
 ; ---- while ( i > fieldCur ) {
-.L602:
+.L631:
         mov     ax, [mofield__fieldInsert__i]
         mov     bx, [mofield__fieldCur]
         cmp     ax, bx
-        jbe     .L604                       ; unsigned >
+        jbe     .L633                       ; unsigned >
 ; ---- fieldBuf[i] = fieldBuf[i - 1]
         mov     ax, [mofield__fieldInsert__i]
         dec     ax
@@ -4788,9 +5092,9 @@ mofield__fieldInsert:
         mov     [mofield__fieldBuf + bx], al
 ; ---- i--
         dec     word [mofield__fieldInsert__i]
-.L603:
-        jmp     .L602
-.L604:
+.L632:
+        jmp     .L631
+.L633:
 ; ---- fieldBuf[fieldCur] = ch
         mov     al, [mofield__fieldInsert__ch]
         mov     bx, [mofield__fieldCur]
@@ -4808,18 +5112,18 @@ mofield__fieldRemove:
         mov     ax, [mofield__fieldRemove__at]
         mov     bx, [mofield__fieldLen]
         cmp     ax, bx
-        jb      .L606                       ; unsigned >=
+        jb      .L635                       ; unsigned >=
         ret
-.L606:
+.L635:
 ; ---- for ( u16 i = at; i + 1 < fieldLen; i++ ) {
         mov     ax, [mofield__fieldRemove__at]
         mov     [mofield__fieldRemove__i], ax
-.L609:
+.L638:
         mov     ax, [mofield__fieldRemove__i]
         inc     ax
         mov     bx, [mofield__fieldLen]
         cmp     ax, bx
-        jae     .L611                       ; unsigned <
+        jae     .L640                       ; unsigned <
 ; ---- fieldBuf[i] = fieldBuf[i + 1]
         mov     ax, [mofield__fieldRemove__i]
         inc     ax
@@ -4827,10 +5131,10 @@ mofield__fieldRemove:
         mov     al, [mofield__fieldBuf + bx]
         mov     bx, [mofield__fieldRemove__i]
         mov     [mofield__fieldBuf + bx], al
-.L610:
+.L639:
         inc     word [mofield__fieldRemove__i]
-        jmp     .L609
-.L611:
+        jmp     .L638
+.L640:
 ; ---- fieldLen--
         dec     word [mofield__fieldLen]
         ret
@@ -4841,104 +5145,104 @@ fieldKey:
 ; ---- if ( k == 13 ) return fieldAccept
         mov     ax, [fieldKey__k]
         cmp     ax, 13
-        jne     .L613                       ; unsigned ==
+        jne     .L642                       ; unsigned ==
         mov     byte [fieldKey__ret], 1
         ret
-.L613:
+.L642:
 ; ---- if ( k == 27 ) return fieldCancel
         mov     ax, [fieldKey__k]
         cmp     ax, 27
-        jne     .L616                       ; unsigned ==
+        jne     .L645                       ; unsigned ==
         mov     byte [fieldKey__ret], 2
         ret
-.L616:
+.L645:
 ; ---- if ( k == 8 ) {
         mov     ax, [fieldKey__k]
         cmp     ax, 8
-        jne     .L619                       ; unsigned ==
+        jne     .L648                       ; unsigned ==
 ; ---- if ( fieldCur > 0 ) {
         mov     ax, [mofield__fieldCur]
         test    ax, ax
-        jbe     .L622                       ; unsigned >
+        jbe     .L651                       ; unsigned >
 ; ---- fieldCur--
         dec     word [mofield__fieldCur]
 ; ---- fieldRemove( fieldCur )
         mov     ax, [mofield__fieldCur]
         mov     [mofield__fieldRemove__at], ax
         call    mofield__fieldRemove
-.L622:
-        jmp     .L620
-.L619:
+.L651:
+        jmp     .L649
+.L648:
 ; ---- } else if ( k == keyExt + keyDelete ) {
         mov     ax, [fieldKey__k]
         cmp     ax, 339
-        jne     .L625                       ; unsigned ==
+        jne     .L654                       ; unsigned ==
 ; ---- fieldRemove( fieldCur )
         mov     ax, [mofield__fieldCur]
         mov     [mofield__fieldRemove__at], ax
         call    mofield__fieldRemove
-        jmp     .L626
-.L625:
+        jmp     .L655
+.L654:
 ; ---- } else if ( k == keyExt + keyLeft ) {
         mov     ax, [fieldKey__k]
         cmp     ax, 331
-        jne     .L628                       ; unsigned ==
+        jne     .L657                       ; unsigned ==
 ; ---- if ( fieldCur > 0 ) fieldCur--
         mov     ax, [mofield__fieldCur]
         test    ax, ax
-        jbe     .L631                       ; unsigned >
+        jbe     .L660                       ; unsigned >
         dec     word [mofield__fieldCur]
-.L631:
-        jmp     .L629
-.L628:
+.L660:
+        jmp     .L658
+.L657:
 ; ---- } else if ( k == keyExt + keyRight ) {
         mov     ax, [fieldKey__k]
         cmp     ax, 333
-        jne     .L634                       ; unsigned ==
+        jne     .L663                       ; unsigned ==
 ; ---- if ( fieldCur < fieldLen ) fieldCur++
         mov     ax, [mofield__fieldCur]
         mov     bx, [mofield__fieldLen]
         cmp     ax, bx
-        jae     .L637                       ; unsigned <
+        jae     .L666                       ; unsigned <
         inc     word [mofield__fieldCur]
-.L637:
-        jmp     .L635
-.L634:
+.L666:
+        jmp     .L664
+.L663:
 ; ---- } else if ( k == keyExt + keyHome ) {
         mov     ax, [fieldKey__k]
         cmp     ax, 327
-        jne     .L640                       ; unsigned ==
+        jne     .L669                       ; unsigned ==
 ; ---- fieldCur = 0
         mov     word [mofield__fieldCur], 0
-        jmp     .L641
-.L640:
+        jmp     .L670
+.L669:
 ; ---- } else if ( k == keyExt + keyEnd ) {
         mov     ax, [fieldKey__k]
         cmp     ax, 335
-        jne     .L643                       ; unsigned ==
+        jne     .L672                       ; unsigned ==
 ; ---- fieldCur = fieldLen
         mov     ax, [mofield__fieldLen]
         mov     [mofield__fieldCur], ax
-        jmp     .L644
-.L643:
+        jmp     .L673
+.L672:
 ; ---- } else if ( k >= 32 && k < 127 ) {
         mov     ax, [fieldKey__k]
         cmp     ax, 32
-        jb      .L646                       ; unsigned >=
+        jb      .L675                       ; unsigned >=
         mov     ax, [fieldKey__k]
         cmp     ax, 127
-        jae     .L646                       ; unsigned <
+        jae     .L675                       ; unsigned <
 ; ---- fieldInsert( u8( k ) )
         mov     ax, [fieldKey__k]
         mov     [mofield__fieldInsert__ch], al; u16 -> u8, no widening
         call    mofield__fieldInsert
-.L646:
-.L644:
-.L641:
-.L635:
-.L629:
-.L626:
-.L620:
+.L675:
+.L673:
+.L670:
+.L664:
+.L658:
+.L655:
+.L649:
 ; ---- return fieldGoing
         mov     byte [fieldKey__ret], 0
         ret
@@ -4978,10 +5282,10 @@ rangeCopy:
         call    textLines
         mov     ax, [textLines__ret]
         test    ax, ax
-        jne     .L650                       ; unsigned ==
+        jne     .L679                       ; unsigned ==
         mov     word [rangeCopy__ret], 0
         ret
-.L650:
+.L679:
 ; ---- last = toLn
         mov     ax, [rangeCopy__toLn]
         mov     [rangeCopy__last], ax
@@ -4992,32 +5296,32 @@ rangeCopy:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L653                       ; unsigned >=
+        jb      .L682                       ; unsigned >=
         call    textLines
         mov     ax, [textLines__ret]
         dec     ax
         mov     [rangeCopy__last], ax
-.L653:
+.L682:
 ; ---- for ( u16 ln = fromLn; ln <= last; ln++ ) {
         mov     ax, [rangeCopy__fromLn]
         mov     [rangeCopy__ln], ax
-.L656:
+.L685:
         mov     ax, [rangeCopy__ln]
         mov     bx, [rangeCopy__last]
         cmp     ax, bx
-        jbe     .L659                       ; unsigned <=
-        jmp     .L658
-.L659:
+        jbe     .L688                       ; unsigned <=
+        jmp     .L687
+.L688:
 ; ---- c0 = 0
         mov     word [rangeCopy__c0], 0
 ; ---- if ( ln == fromLn ) c0 = fromCol
         mov     ax, [rangeCopy__ln]
         mov     bx, [rangeCopy__fromLn]
         cmp     ax, bx
-        jne     .L660                       ; unsigned ==
+        jne     .L689                       ; unsigned ==
         mov     ax, [rangeCopy__fromCol]
         mov     [rangeCopy__c0], ax
-.L660:
+.L689:
 ; ---- c1 = lineLength( ln )
         mov     ax, [rangeCopy__ln]
         mov     [lineLength__ln], ax
@@ -5028,21 +5332,21 @@ rangeCopy:
         mov     ax, [rangeCopy__ln]
         mov     bx, [rangeCopy__last]
         cmp     ax, bx
-        jne     .L663                       ; unsigned ==
+        jne     .L692                       ; unsigned ==
         mov     ax, [rangeCopy__toCol]
         mov     bx, [rangeCopy__c1]
         cmp     ax, bx
-        jae     .L663                       ; unsigned <
+        jae     .L692                       ; unsigned <
         mov     ax, [rangeCopy__toCol]
         mov     [rangeCopy__c1], ax
-.L663:
+.L692:
 ; ---- if ( c1 > c0 ) {
         mov     ax, [rangeCopy__c1]
         mov     bx, [rangeCopy__c0]
         cmp     ax, bx
-        ja      .L669                       ; unsigned >
-        jmp     .L667
-.L669:
+        ja      .L698                       ; unsigned >
+        jmp     .L696
+.L698:
 ; ---- want = c1 - c0
         mov     ax, [rangeCopy__c1]
         mov     bx, [rangeCopy__c0]
@@ -5056,7 +5360,7 @@ rangeCopy:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jbe     .L670                       ; unsigned >
+        jbe     .L699                       ; unsigned >
 ; ---- want = max - done
         mov     ax, [rangeCopy__max]
         mov     bx, [rangeCopy__done]
@@ -5064,11 +5368,11 @@ rangeCopy:
         mov     [rangeCopy__want], ax
 ; ---- copyFit = false
         mov     byte [morange__copyFit], 0
-.L670:
+.L699:
 ; ---- if ( want > 0 ) done += lineSlice( ln, c0, want, at + done )
         mov     ax, [rangeCopy__want]
         test    ax, ax
-        jbe     .L673                       ; unsigned >
+        jbe     .L702                       ; unsigned >
         mov     ax, [rangeCopy__done]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [rangeCopy__ln]
@@ -5087,18 +5391,18 @@ rangeCopy:
         pop     ax
         add     ax, bx
         mov     [rangeCopy__done], ax
-.L673:
-.L667:
+.L702:
+.L696:
 ; ---- if ( ln < last ) {
         mov     ax, [rangeCopy__ln]
         mov     bx, [rangeCopy__last]
         cmp     ax, bx
-        jae     .L676                       ; unsigned <
+        jae     .L705                       ; unsigned <
 ; ---- if ( done < max ) {
         mov     ax, [rangeCopy__done]
         mov     bx, [rangeCopy__max]
         cmp     ax, bx
-        jae     .L679                       ; unsigned <
+        jae     .L708                       ; unsigned <
 ; ---- poke8( at + done, '\n' )
         mov     ax, [rangeCopy__at]
         mov     bx, [rangeCopy__done]
@@ -5107,16 +5411,16 @@ rangeCopy:
         mov     byte [bx], 10
 ; ---- done++
         inc     word [rangeCopy__done]
-        jmp     .L680
-.L679:
+        jmp     .L709
+.L708:
 ; ---- copyFit = false
         mov     byte [morange__copyFit], 0
-.L680:
-.L676:
-.L657:
+.L709:
+.L705:
+.L686:
         inc     word [rangeCopy__ln]
-        jmp     .L656
-.L658:
+        jmp     .L685
+.L687:
 ; ---- return done
         mov     ax, [rangeCopy__done]
         mov     [rangeCopy__ret], ax
@@ -5129,9 +5433,9 @@ rangeDelete:
         call    textLines
         mov     ax, [textLines__ret]
         test    ax, ax
-        jne     .L682                       ; unsigned ==
+        jne     .L711                       ; unsigned ==
         ret
-.L682:
+.L711:
 ; ---- last = toLn
         mov     ax, [rangeDelete__toLn]
         mov     [rangeDelete__last], ax
@@ -5142,28 +5446,28 @@ rangeDelete:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L685                       ; unsigned >=
+        jb      .L714                       ; unsigned >=
         call    textLines
         mov     ax, [textLines__ret]
         dec     ax
         mov     [rangeDelete__last], ax
-.L685:
+.L714:
 ; ---- if ( fromLn > last ) return
         mov     ax, [rangeDelete__fromLn]
         mov     bx, [rangeDelete__last]
         cmp     ax, bx
-        jbe     .L688                       ; unsigned >
+        jbe     .L717                       ; unsigned >
         ret
-.L688:
+.L717:
 ; ---- undoStep {
         call    undoOpen
 ; ---- if ( fromLn == last ) {
         mov     ax, [rangeDelete__fromLn]
         mov     bx, [rangeDelete__last]
         cmp     ax, bx
-        je      .L693                       ; unsigned ==
-        jmp     .L691
-.L693:
+        je      .L722                       ; unsigned ==
+        jmp     .L720
+.L722:
 ; ---- n = toCol
         mov     ax, [rangeDelete__toCol]
         mov     [rangeDelete__n], ax
@@ -5176,19 +5480,19 @@ rangeDelete:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jbe     .L694                       ; unsigned >
+        jbe     .L723                       ; unsigned >
         mov     ax, [rangeDelete__fromLn]
         mov     [lineLength__ln], ax
         call    lineLength
         mov     ax, [lineLength__ret]
         mov     [rangeDelete__n], ax
-.L694:
+.L723:
 ; ---- while ( n > fromCol ) {
-.L697:
+.L726:
         mov     ax, [rangeDelete__n]
         mov     bx, [rangeDelete__fromCol]
         cmp     ax, bx
-        jbe     .L699                       ; unsigned >
+        jbe     .L728                       ; unsigned >
 ; ---- lineDelete( fromLn, fromCol )
         mov     ax, [rangeDelete__fromLn]
         mov     [lineDelete__ln], ax
@@ -5197,11 +5501,11 @@ rangeDelete:
         call    lineDelete
 ; ---- n--
         dec     word [rangeDelete__n]
-.L698:
-        jmp     .L697
-.L699:
-        jmp     .L692
-.L691:
+.L727:
+        jmp     .L726
+.L728:
+        jmp     .L721
+.L720:
 ; ---- tail = toCol
         mov     ax, [rangeDelete__toCol]
         mov     [rangeDelete__tail], ax
@@ -5214,13 +5518,13 @@ rangeDelete:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jbe     .L701                       ; unsigned >
+        jbe     .L730                       ; unsigned >
         mov     ax, [rangeDelete__last]
         mov     [lineLength__ln], ax
         call    lineLength
         mov     ax, [lineLength__ret]
         mov     [rangeDelete__tail], ax
-.L701:
+.L730:
 ; ---- n = tail
         mov     ax, [rangeDelete__tail]
         mov     [rangeDelete__n], ax
@@ -5228,11 +5532,11 @@ rangeDelete:
         mov     ax, [rangeDelete__fromLn]
         inc     ax
         mov     [rangeDelete__ln], ax
-.L704:
+.L733:
         mov     ax, [rangeDelete__ln]
         mov     bx, [rangeDelete__last]
         cmp     ax, bx
-        jae     .L706                       ; unsigned <
+        jae     .L735                       ; unsigned <
 ; ---- n += lineLength( ln )
         mov     ax, [rangeDelete__n]
         push    ax                          ; save lhs: rhs is not a leaf
@@ -5244,49 +5548,49 @@ rangeDelete:
         pop     ax
         add     ax, bx
         mov     [rangeDelete__n], ax
-.L705:
+.L734:
         inc     word [rangeDelete__ln]
-        jmp     .L704
-.L706:
+        jmp     .L733
+.L735:
 ; ---- while ( lineLength( fromLn ) > fromCol ) {
-.L708:
+.L737:
         mov     ax, [rangeDelete__fromLn]
         mov     [lineLength__ln], ax
         call    lineLength
         mov     ax, [lineLength__ret]
         mov     bx, [rangeDelete__fromCol]
         cmp     ax, bx
-        jbe     .L710                       ; unsigned >
+        jbe     .L739                       ; unsigned >
 ; ---- lineDelete( fromLn, fromCol )
         mov     ax, [rangeDelete__fromLn]
         mov     [lineDelete__ln], ax
         mov     ax, [rangeDelete__fromCol]
         mov     [lineDelete__col], ax
         call    lineDelete
-.L709:
-        jmp     .L708
-.L710:
+.L738:
+        jmp     .L737
+.L739:
 ; ---- for ( u16 j = fromLn; j < last; j++ ) {
         mov     ax, [rangeDelete__fromLn]
         mov     [rangeDelete__j], ax
-.L712:
+.L741:
         mov     ax, [rangeDelete__j]
         mov     bx, [rangeDelete__last]
         cmp     ax, bx
-        jae     .L714                       ; unsigned <
+        jae     .L743                       ; unsigned <
 ; ---- lineJoin( fromLn )
         mov     ax, [rangeDelete__fromLn]
         mov     [lineJoin__ln], ax
         call    lineJoin
-.L713:
+.L742:
         inc     word [rangeDelete__j]
-        jmp     .L712
-.L714:
+        jmp     .L741
+.L743:
 ; ---- while ( n > 0 ) {
-.L716:
+.L745:
         mov     ax, [rangeDelete__n]
         test    ax, ax
-        jbe     .L718                       ; unsigned >
+        jbe     .L747                       ; unsigned >
 ; ---- lineDelete( fromLn, fromCol )
         mov     ax, [rangeDelete__fromLn]
         mov     [lineDelete__ln], ax
@@ -5295,10 +5599,10 @@ rangeDelete:
         call    lineDelete
 ; ---- n--
         dec     word [rangeDelete__n]
-.L717:
-        jmp     .L716
-.L718:
-.L692:
+.L746:
+        jmp     .L745
+.L747:
+.L721:
 ; ---- }
         call    undoClose
         ret
@@ -5310,13 +5614,13 @@ rangeInsert:
         call    undoOpen
 ; ---- for ( u16 i = 0; i < n; i++ ) {
         mov     word [rangeInsert__i], 0
-.L720:
+.L749:
         mov     ax, [rangeInsert__i]
         mov     bx, [rangeInsert__n]
         cmp     ax, bx
-        jb      .L723                       ; unsigned <
-        jmp     .L722
-.L723:
+        jb      .L752                       ; unsigned <
+        jmp     .L751
+.L752:
 ; ---- ch = peek8( at + i )
         mov     ax, [rangeInsert__at]
         mov     bx, [rangeInsert__i]
@@ -5326,7 +5630,7 @@ rangeInsert:
         mov     [rangeInsert__ch], al       ; u8 -> u8, no widening
 ; ---- if ( ch == '\n' ) {
         cmp     al, 10                      ; byte operands, no widening
-        jne     .L724                       ; unsigned ==
+        jne     .L753                       ; unsigned ==
 ; ---- lineSplit( ln, col )
         mov     ax, [rangeInsert__ln]
         mov     [lineSplit__ln], ax
@@ -5337,12 +5641,12 @@ rangeInsert:
         inc     word [rangeInsert__ln]
 ; ---- col = 0
         mov     word [rangeInsert__col], 0
-        jmp     .L725
-.L724:
+        jmp     .L754
+.L753:
 ; ---- } else if ( ch != '\r' ) {
         mov     al, [rangeInsert__ch]
         cmp     al, 13                      ; byte operands, no widening
-        je      .L727                       ; unsigned !=
+        je      .L756                       ; unsigned !=
 ; ---- lineInsert( ln, col, ch )
         mov     ax, [rangeInsert__ln]
         mov     [lineInsert__ln], ax
@@ -5353,12 +5657,12 @@ rangeInsert:
         call    lineInsert
 ; ---- col++
         inc     word [rangeInsert__col]
-.L727:
-.L725:
-.L721:
+.L756:
+.L754:
+.L750:
         inc     word [rangeInsert__i]
-        jmp     .L720
-.L722:
+        jmp     .L749
+.L751:
 ; ---- }
         call    undoClose
 ; ---- endLine = ln
@@ -5375,51 +5679,51 @@ morange__classOf:
 ; ---- if ( ch == ' ' || ch == 9 ) return clsSpace
         mov     al, [morange__classOf__ch]
         cmp     al, 32                      ; byte operands, no widening
-        je      .L732                       ; unsigned ==
+        je      .L761                       ; unsigned ==
         mov     al, [morange__classOf__ch]
         cmp     al, 9                       ; byte operands, no widening
-        jne     .L730                       ; unsigned ==
-.L732:
+        jne     .L759                       ; unsigned ==
+.L761:
         mov     byte [morange__classOf__ret], 0
         ret
-.L730:
+.L759:
 ; ---- if ( ch >= '0' && ch <= '9' ) return clsWord
         mov     al, [morange__classOf__ch]
         cmp     al, 48                      ; byte operands, no widening
-        jb      .L735                       ; unsigned >=
+        jb      .L764                       ; unsigned >=
         mov     al, [morange__classOf__ch]
         cmp     al, 57                      ; byte operands, no widening
-        ja      .L735                       ; unsigned <=
+        ja      .L764                       ; unsigned <=
         mov     byte [morange__classOf__ret], 1
         ret
-.L735:
+.L764:
 ; ---- if ( ch >= 'A' && ch <= 'Z' ) return clsWord
         mov     al, [morange__classOf__ch]
         cmp     al, 65                      ; byte operands, no widening
-        jb      .L739                       ; unsigned >=
+        jb      .L768                       ; unsigned >=
         mov     al, [morange__classOf__ch]
         cmp     al, 90                      ; byte operands, no widening
-        ja      .L739                       ; unsigned <=
+        ja      .L768                       ; unsigned <=
         mov     byte [morange__classOf__ret], 1
         ret
-.L739:
+.L768:
 ; ---- if ( ch >= 'a' && ch <= 'z' ) return clsWord
         mov     al, [morange__classOf__ch]
         cmp     al, 97                      ; byte operands, no widening
-        jb      .L743                       ; unsigned >=
+        jb      .L772                       ; unsigned >=
         mov     al, [morange__classOf__ch]
         cmp     al, 122                     ; byte operands, no widening
-        ja      .L743                       ; unsigned <=
+        ja      .L772                       ; unsigned <=
         mov     byte [morange__classOf__ret], 1
         ret
-.L743:
+.L772:
 ; ---- if ( ch == '_' ) return clsWord
         mov     al, [morange__classOf__ch]
         cmp     al, 95                      ; byte operands, no widening
-        jne     .L747                       ; unsigned ==
+        jne     .L776                       ; unsigned ==
         mov     byte [morange__classOf__ret], 1
         ret
-.L747:
+.L776:
 ; ---- return clsPunct
         mov     byte [morange__classOf__ret], 2
         ret
@@ -5446,15 +5750,15 @@ morange__charAt:
 ; ---- if ( !winHeld || ln != winLine || col < winFrom || col >= winFrom + winLen ) {
         mov     al, [morange__winHeld]
         test    al, al
-        jz      .L752
+        jz      .L781
         mov     ax, [morange__charAt__ln]
         mov     bx, [morange__winLine]
         cmp     ax, bx
-        jne     .L752                       ; unsigned !=
+        jne     .L781                       ; unsigned !=
         mov     ax, [morange__charAt__col]
         mov     bx, [morange__winFrom]
         cmp     ax, bx
-        jb      .L752                       ; unsigned <
+        jb      .L781                       ; unsigned <
         mov     ax, [morange__charAt__col]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [morange__winFrom]
@@ -5463,20 +5767,20 @@ morange__charAt:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jae     .L756                       ; unsigned >=
-        jmp     .L750
-.L756:
-.L752:
+        jae     .L785                       ; unsigned >=
+        jmp     .L779
+.L785:
+.L781:
 ; ---- from = 0
         mov     word [morange__charAt__from], 0
 ; ---- if ( col > wordWindow / 2 ) from = col - wordWindow / 2
         mov     ax, [morange__charAt__col]
         cmp     ax, 64
-        jbe     .L757                       ; unsigned >
+        jbe     .L786                       ; unsigned >
         mov     ax, [morange__charAt__col]
         sub     ax, 64
         mov     [morange__charAt__from], ax
-.L757:
+.L786:
 ; ---- winLen  = lineSlice( ln, from, wordWindow, addr( wbuf ) )
         mov     ax, [morange__charAt__ln]
         mov     [lineSlice__ln], ax
@@ -5496,12 +5800,12 @@ morange__charAt:
         mov     [morange__winFrom], ax
 ; ---- winHeld = true
         mov     byte [morange__winHeld], 1
-.L750:
+.L779:
 ; ---- if ( col < winFrom || col >= winFrom + winLen ) return 0
         mov     ax, [morange__charAt__col]
         mov     bx, [morange__winFrom]
         cmp     ax, bx
-        jb      .L762                       ; unsigned <
+        jb      .L791                       ; unsigned <
         mov     ax, [morange__charAt__col]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [morange__winFrom]
@@ -5510,11 +5814,11 @@ morange__charAt:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L760                       ; unsigned >=
-.L762:
+        jb      .L789                       ; unsigned >=
+.L791:
         mov     byte [morange__charAt__ret], 0
         ret
-.L760:
+.L789:
 ; ---- return wbuf[ col - winFrom ]
         mov     ax, [morange__charAt__col]
         mov     bx, [morange__winFrom]
@@ -5546,7 +5850,7 @@ wordNext:
         mov     ax, [wordNext__col]
         mov     bx, [wordNext__length]
         cmp     ax, bx
-        jb      .L765                       ; unsigned >=
+        jb      .L794                       ; unsigned >=
 ; ---- atLine = ln
         mov     ax, [wordNext__ln]
         mov     [morange__atLine], ax
@@ -5562,17 +5866,17 @@ wordNext:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jae     .L768                       ; unsigned <
+        jae     .L797                       ; unsigned <
 ; ---- atLine = ln + 1
         mov     ax, [wordNext__ln]
         inc     ax
         mov     [morange__atLine], ax
 ; ---- atCol  = 0
         mov     word [morange__atCol], 0
-.L768:
+.L797:
 ; ---- return
         ret
-.L765:
+.L794:
 ; ---- cls = classOf( charAt( ln, col ) )
         mov     ax, [wordNext__ln]
         mov     [morange__charAt__ln], ax
@@ -5588,13 +5892,13 @@ wordNext:
         mov     [wordNext__cls], al         ; narrowed to u8
 ; ---- if ( cls != clsSpace ) {
         test    al, al
-        je      .L771                       ; unsigned !=
+        je      .L800                       ; unsigned !=
 ; ---- while ( col < length && classOf( charAt( ln, col ) ) == cls ) {
-.L774:
+.L803:
         mov     ax, [wordNext__col]
         mov     bx, [wordNext__length]
         cmp     ax, bx
-        jae     .L776                       ; unsigned <
+        jae     .L805                       ; unsigned <
         mov     ax, [wordNext__ln]
         mov     [morange__charAt__ln], ax
         mov     ax, [wordNext__col]
@@ -5609,19 +5913,19 @@ wordNext:
         mov     bl, [wordNext__cls]
         xor     bh, bh                      ; u8 -> u16
         cmp     ax, bx
-        jne     .L776                       ; unsigned ==
+        jne     .L805                       ; unsigned ==
 ; ---- col++
         inc     word [wordNext__col]
-.L775:
-        jmp     .L774
-.L776:
-.L771:
+.L804:
+        jmp     .L803
+.L805:
+.L800:
 ; ---- while ( col < length && classOf( charAt( ln, col ) ) == clsSpace ) {
-.L779:
+.L808:
         mov     ax, [wordNext__col]
         mov     bx, [wordNext__length]
         cmp     ax, bx
-        jae     .L781                       ; unsigned <
+        jae     .L810                       ; unsigned <
         mov     ax, [wordNext__ln]
         mov     [morange__charAt__ln], ax
         mov     ax, [wordNext__col]
@@ -5634,12 +5938,12 @@ wordNext:
         mov     al, [morange__classOf__ret]
         xor     ah, ah                      ; u8 -> u16
         test    ax, ax
-        jne     .L781                       ; unsigned ==
+        jne     .L810                       ; unsigned ==
 ; ---- col++
         inc     word [wordNext__col]
-.L780:
-        jmp     .L779
-.L781:
+.L809:
+        jmp     .L808
+.L810:
 ; ---- atLine = ln
         mov     ax, [wordNext__ln]
         mov     [morange__atLine], ax
@@ -5656,7 +5960,7 @@ wordPrev:
 ; ---- if ( col == 0 ) {
         mov     ax, [wordPrev__col]
         test    ax, ax
-        jne     .L784                       ; unsigned ==
+        jne     .L813                       ; unsigned ==
 ; ---- atLine = 0
         mov     word [morange__atLine], 0
 ; ---- atCol  = 0
@@ -5664,7 +5968,7 @@ wordPrev:
 ; ---- if ( ln > 0 ) {
         mov     ax, [wordPrev__ln]
         test    ax, ax
-        jbe     .L787                       ; unsigned >
+        jbe     .L816                       ; unsigned >
 ; ---- atLine = ln - 1
         mov     ax, [wordPrev__ln]
         dec     ax
@@ -5676,17 +5980,17 @@ wordPrev:
         call    lineLength
         mov     ax, [lineLength__ret]
         mov     [morange__atCol], ax
-.L787:
+.L816:
 ; ---- return
         ret
-.L784:
+.L813:
 ; ---- col--
         dec     word [wordPrev__col]
 ; ---- while ( col > 0 && classOf( charAt( ln, col ) ) == clsSpace ) {
-.L790:
+.L819:
         mov     ax, [wordPrev__col]
         test    ax, ax
-        jbe     .L792                       ; unsigned >
+        jbe     .L821                       ; unsigned >
         mov     ax, [wordPrev__ln]
         mov     [morange__charAt__ln], ax
         mov     ax, [wordPrev__col]
@@ -5699,12 +6003,12 @@ wordPrev:
         mov     al, [morange__classOf__ret]
         xor     ah, ah                      ; u8 -> u16
         test    ax, ax
-        jne     .L792                       ; unsigned ==
+        jne     .L821                       ; unsigned ==
 ; ---- col--
         dec     word [wordPrev__col]
-.L791:
-        jmp     .L790
-.L792:
+.L820:
+        jmp     .L819
+.L821:
 ; ---- cls = classOf( charAt( ln, col ) )
         mov     ax, [wordPrev__ln]
         mov     [morange__charAt__ln], ax
@@ -5719,10 +6023,10 @@ wordPrev:
         xor     ah, ah                      ; u8 -> u16
         mov     [wordPrev__cls], al         ; narrowed to u8
 ; ---- while ( col > 0 && classOf( charAt( ln, col - 1 ) ) == cls ) {
-.L795:
+.L824:
         mov     ax, [wordPrev__col]
         test    ax, ax
-        jbe     .L797                       ; unsigned >
+        jbe     .L826                       ; unsigned >
         mov     ax, [wordPrev__ln]
         mov     [morange__charAt__ln], ax
         mov     ax, [wordPrev__col]
@@ -5738,12 +6042,12 @@ wordPrev:
         mov     bl, [wordPrev__cls]
         xor     bh, bh                      ; u8 -> u16
         cmp     ax, bx
-        jne     .L797                       ; unsigned ==
+        jne     .L826                       ; unsigned ==
 ; ---- col--
         dec     word [wordPrev__col]
-.L796:
-        jmp     .L795
-.L797:
+.L825:
+        jmp     .L824
+.L826:
 ; ---- atLine = ln
         mov     ax, [wordPrev__ln]
         mov     [morange__atLine], ax
@@ -5761,10 +6065,10 @@ rangeReplaceAll:
         call    findLength
         mov     ax, [findLength__ret]
         test    ax, ax
-        jne     .L800                       ; unsigned ==
+        jne     .L829                       ; unsigned ==
         mov     word [rangeReplaceAll__ret], 0
         ret
-.L800:
+.L829:
 ; ---- undoStep {
         call    undoOpen
 ; ---- ln  = 0
@@ -5772,7 +6076,7 @@ rangeReplaceAll:
 ; ---- col = 0
         mov     word [rangeReplaceAll__col], 0
 ; ---- while ( findNext( ln, col ) ) {
-.L803:
+.L832:
         mov     ax, [rangeReplaceAll__ln]
         mov     [findNext__ln], ax
         mov     ax, [rangeReplaceAll__col]
@@ -5781,9 +6085,9 @@ rangeReplaceAll:
         mov     al, [findNext__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jnz     .L806
-        jmp     .L805
-.L806:
+        jnz     .L835
+        jmp     .L834
+.L835:
 ; ---- ln  = findLine()
         call    findLine
         mov     ax, [findLine__ret]
@@ -5834,9 +6138,9 @@ rangeReplaceAll:
         mov     [rangeReplaceAll__col], ax
 ; ---- count++
         inc     word [rangeReplaceAll__count]
-.L804:
-        jmp     .L803
-.L805:
+.L833:
+        jmp     .L832
+.L834:
 ; ---- }
         call    undoClose
 ; ---- endLine = ln
@@ -5858,12 +6162,12 @@ dir__dirCapture:
         mov     [dir__dirBad], al           ; bool -> bool, no widening
 ; ---- dirErr = dirBad ? _ax : 0
         test    al, al
-        jz      .L807
+        jz      .L836
         mov     ax, [_ax]
-        jmp     .L808
-.L807:
+        jmp     .L837
+.L836:
         xor     ax, ax                      ; 0
-.L808:
+.L837:
         mov     [dir__dirErr], ax
         ret
 
@@ -5900,12 +6204,12 @@ dirFirst:
 ; ---- return !dirBad
         mov     al, [dir__dirBad]
         test    al, al
-        jnz     .L810
+        jnz     .L839
         mov     ax, 1
-        jmp     .L811
-.L810:
+        jmp     .L840
+.L839:
         xor     ax, ax
-.L811:
+.L840:
         mov     [dirFirst__ret], al         ; narrowed to bool
         ret
 
@@ -5923,12 +6227,12 @@ dirNext:
 ; ---- return !dirBad
         mov     al, [dir__dirBad]
         test    al, al
-        jnz     .L813
+        jnz     .L842
         mov     ax, 1
-        jmp     .L814
-.L813:
+        jmp     .L843
+.L842:
         xor     ax, ax
-.L814:
+.L843:
         mov     [dirNext__ret], al          ; narrowed to bool
         ret
 
@@ -5947,7 +6251,7 @@ dirNameLen:
 ; ---- n = 0
         mov     word [dirNameLen__n], 0
 ; ---- while ( peek8( dirName() + n ) != 0 ) {
-.L816:
+.L845:
         call    dirName
         mov     ax, [dirName__ret]
         mov     bx, [dirNameLen__n]
@@ -5955,12 +6259,12 @@ dirNameLen:
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
         test    al, al
-        je      .L818                       ; unsigned !=
+        je      .L847                       ; unsigned !=
 ; ---- n++
         inc     word [dirNameLen__n]
-.L817:
-        jmp     .L816
-.L818:
+.L846:
+        jmp     .L845
+.L847:
 ; ---- return n
         mov     ax, [dirNameLen__n]
         mov     [dirNameLen__ret], ax
@@ -5974,12 +6278,12 @@ dirIsDir:
         xor     ah, ah                      ; u8 -> u16
         and     ax, 16
         test    ax, ax
-        je      .L820                       ; unsigned !=
+        je      .L849                       ; unsigned !=
         mov     ax, 1
-        jmp     .L821
-.L820:
+        jmp     .L850
+.L849:
         xor     ax, ax
-.L821:
+.L850:
         mov     [dirIsDir__ret], al         ; narrowed to bool
         ret
 
@@ -6028,12 +6332,12 @@ listIsDir:
         mov     bx, ax
         mov     al, [modir__listDir + bx]
         test    al, al
-        je      .L823                       ; unsigned !=
+        je      .L852                       ; unsigned !=
         mov     ax, 1
-        jmp     .L824
-.L823:
+        jmp     .L853
+.L852:
         xor     ax, ax
-.L824:
+.L853:
         mov     [listIsDir__ret], al        ; narrowed to bool
         ret
 
@@ -6053,20 +6357,20 @@ modir__before:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        je      .L826                       ; unsigned !=
+        je      .L855                       ; unsigned !=
         mov     ax, [modir__before__slot]
         mov     bx, ax
         mov     al, [modir__listDir + bx]
         test    al, al
-        je      .L829                       ; unsigned !=
+        je      .L858                       ; unsigned !=
         mov     ax, 1
-        jmp     .L830
-.L829:
+        jmp     .L859
+.L858:
         xor     ax, ax
-.L830:
+.L859:
         mov     [modir__before__ret], al    ; narrowed to bool
         ret
-.L826:
+.L855:
 ; ---- a = addr( listNames ) + slot * listNameMax
         mov     ax, modir__listNames        ; link-time constant
         push    ax                          ; save lhs: rhs is not a leaf
@@ -6089,12 +6393,12 @@ modir__before:
         mov     [modir__before__b], ax
 ; ---- for ( u16 i = 0; i < listNameMax; i++ ) {
         mov     word [modir__before__i], 0
-.L832:
+.L861:
         mov     ax, [modir__before__i]
         cmp     ax, 13
-        jb      .L835                       ; unsigned <
-        jmp     .L834
-.L835:
+        jb      .L864                       ; unsigned <
+        jmp     .L863
+.L864:
 ; ---- ca = peek8( a + i )
         mov     ax, [modir__before__a]
         mov     bx, [modir__before__i]
@@ -6112,29 +6416,29 @@ modir__before:
 ; ---- if ( ca != cb ) return ca < cb
         mov     al, [modir__before__ca]
         cmp     al, [modir__before__cb]     ; byte operands, no widening
-        je      .L836                       ; unsigned !=
+        je      .L865                       ; unsigned !=
         mov     al, [modir__before__ca]
         cmp     al, [modir__before__cb]     ; byte operands, no widening
-        jae     .L839                       ; unsigned <
+        jae     .L868                       ; unsigned <
         mov     ax, 1
-        jmp     .L840
-.L839:
+        jmp     .L869
+.L868:
         xor     ax, ax
-.L840:
+.L869:
         mov     [modir__before__ret], al    ; narrowed to bool
         ret
-.L836:
+.L865:
 ; ---- if ( ca == 0 ) return false
         mov     al, [modir__before__ca]
         test    al, al
-        jne     .L842                       ; unsigned ==
+        jne     .L871                       ; unsigned ==
         mov     byte [modir__before__ret], 0
         ret
-.L842:
-.L833:
+.L871:
+.L862:
         inc     word [modir__before__i]
-        jmp     .L832
-.L834:
+        jmp     .L861
+.L863:
 ; ---- return false
         mov     byte [modir__before__ret], 0
         ret
@@ -6148,13 +6452,13 @@ modir__insertSorted:
         mov     ax, [modir__listCount_]
         mov     [modir__insertSorted__hi], ax
 ; ---- while ( lo < hi ) {
-.L845:
+.L874:
         mov     ax, [modir__insertSorted__lo]
         mov     bx, [modir__insertSorted__hi]
         cmp     ax, bx
-        jb      .L848                       ; unsigned <
-        jmp     .L847
-.L848:
+        jb      .L877                       ; unsigned <
+        jmp     .L876
+.L877:
 ; ---- mid = ( lo + hi ) / 2
         mov     ax, [modir__insertSorted__lo]
         mov     bx, [modir__insertSorted__hi]
@@ -6173,28 +6477,28 @@ modir__insertSorted:
         mov     al, [modir__before__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L849
+        jz      .L878
 ; ---- hi = mid
         mov     ax, [modir__insertSorted__mid]
         mov     [modir__insertSorted__hi], ax
-        jmp     .L850
-.L849:
+        jmp     .L879
+.L878:
 ; ---- lo = mid + 1
         mov     ax, [modir__insertSorted__mid]
         inc     ax
         mov     [modir__insertSorted__lo], ax
-.L850:
-.L846:
-        jmp     .L845
-.L847:
+.L879:
+.L875:
+        jmp     .L874
+.L876:
 ; ---- for ( u16 i = listCount_; i > lo; i-- ) {
         mov     ax, [modir__listCount_]
         mov     [modir__insertSorted__i], ax
-.L852:
+.L881:
         mov     ax, [modir__insertSorted__i]
         mov     bx, [modir__insertSorted__lo]
         cmp     ax, bx
-        jbe     .L854                       ; unsigned >
+        jbe     .L883                       ; unsigned >
 ; ---- order[i] = order[i - 1]
         mov     ax, [modir__insertSorted__i]
         dec     ax
@@ -6204,10 +6508,10 @@ modir__insertSorted:
         mov     bx, [modir__insertSorted__i]
         shl     bx, 1                       ; word elements
         mov     [modir__order + bx], ax
-.L853:
+.L882:
         dec     word [modir__insertSorted__i]
-        jmp     .L852
-.L854:
+        jmp     .L881
+.L883:
 ; ---- order[lo] = slot
         mov     ax, [modir__insertSorted__slot]
         mov     bx, [modir__insertSorted__lo]
@@ -6225,18 +6529,18 @@ modir__isDot:
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
         cmp     al, 46                      ; byte operands, no widening
-        jne     .L856                       ; unsigned ==
+        jne     .L885                       ; unsigned ==
         mov     ax, [modir__isDot__at]
         inc     ax
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
         test    al, al
-        jne     .L856                       ; unsigned ==
+        jne     .L885                       ; unsigned ==
         mov     ax, 1
-        jmp     .L857
-.L856:
+        jmp     .L886
+.L885:
         xor     ax, ax
-.L857:
+.L886:
         mov     [modir__isDot__ret], al     ; narrowed to bool
         ret
 
@@ -6256,11 +6560,11 @@ listLoad:
         mov     al, [dirFirst__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jnz     .L860
+        jnz     .L889
         ret
-.L860:
+.L889:
 ; ---- while ( true ) {
-.L863:
+.L892:
 ; ---- if ( !isDot( dirName() ) ) {
         call    dirName
         mov     ax, [dirName__ret]
@@ -6269,18 +6573,18 @@ listLoad:
         mov     al, [modir__isDot__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L868
-        jmp     .L866
-.L868:
+        jz      .L897
+        jmp     .L895
+.L897:
 ; ---- if ( listCount_ >= listMax ) {
         mov     ax, [modir__listCount_]
         cmp     ax, 256
-        jb      .L869                       ; unsigned >=
+        jb      .L898                       ; unsigned >=
 ; ---- listFull_ = true
         mov     byte [modir__listFull_], 1
 ; ---- return
         ret
-.L869:
+.L898:
 ; ---- slot = listCount_
         mov     ax, [modir__listCount_]
         mov     [listLoad__slot], ax
@@ -6300,9 +6604,9 @@ listLoad:
         mov     [listLoad__n], ax
 ; ---- if ( n > listNameMax - 1 ) n = listNameMax - 1
         cmp     ax, 12
-        jbe     .L872                       ; unsigned >
+        jbe     .L901                       ; unsigned >
         mov     word [listLoad__n], 12
-.L872:
+.L901:
 ; ---- memCopy( to, dirName(), n )
         mov     ax, [listLoad__to]
         push    ax                          ; argument evaluated before any is stored
@@ -6327,30 +6631,30 @@ listLoad:
         mov     al, [dirIsDir__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L875
+        jz      .L904
         mov     ax, 1
-        jmp     .L876
-.L875:
+        jmp     .L905
+.L904:
         xor     ax, ax                      ; 0
-.L876:
+.L905:
         mov     bx, [listLoad__slot]
         mov     [modir__listDir + bx], al
 ; ---- insertSorted( slot )
         mov     ax, [listLoad__slot]
         mov     [modir__insertSorted__slot], ax
         call    modir__insertSorted
-.L866:
+.L895:
 ; ---- if ( !dirNext() ) return
         call    dirNext
         mov     al, [dirNext__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jnz     .L878
+        jnz     .L907
         ret
-.L878:
-.L864:
-        jmp     .L863
-.L865:
+.L907:
+.L893:
+        jmp     .L892
+.L894:
         ret
 
 ; ============================================== bool listIsNamed ====
@@ -6364,12 +6668,12 @@ listIsNamed:
         mov     [listIsNamed__a], ax
 ; ---- for ( u16 k = 0; k < listNameMax; k++ ) {
         mov     word [listIsNamed__k], 0
-.L881:
+.L910:
         mov     ax, [listIsNamed__k]
         cmp     ax, 13
-        jb      .L884                       ; unsigned <
-        jmp     .L883
-.L884:
+        jb      .L913                       ; unsigned <
+        jmp     .L912
+.L913:
 ; ---- ca = peek8( a + k )
         mov     ax, [listIsNamed__a]
         mov     bx, [listIsNamed__k]
@@ -6387,21 +6691,21 @@ listIsNamed:
 ; ---- if ( ca != cb ) return false
         mov     al, [listIsNamed__ca]
         cmp     al, [listIsNamed__cb]       ; byte operands, no widening
-        je      .L885                       ; unsigned !=
+        je      .L914                       ; unsigned !=
         mov     byte [listIsNamed__ret], 0
         ret
-.L885:
+.L914:
 ; ---- if ( ca == 0 ) return true
         mov     al, [listIsNamed__ca]
         test    al, al
-        jne     .L888                       ; unsigned ==
+        jne     .L917                       ; unsigned ==
         mov     byte [listIsNamed__ret], 1
         ret
-.L888:
-.L882:
+.L917:
+.L911:
         inc     word [listIsNamed__k]
-        jmp     .L881
-.L883:
+        jmp     .L910
+.L912:
 ; ---- return true
         mov     byte [listIsNamed__ret], 1
         ret
@@ -6437,14 +6741,14 @@ modir__listFollow:
         mov     ax, [modir__listCur_]
         mov     bx, [modir__listTop_]
         cmp     ax, bx
-        jae     .L891                       ; unsigned <
+        jae     .L920                       ; unsigned <
         mov     ax, [modir__listCur_]
         mov     [modir__listTop_], ax
-.L891:
+.L920:
 ; ---- if ( listRows > 0 && listCur_ >= listTop_ + listRows ) listTop_ = listCur_ - listRows + 1
         mov     ax, [modir__listRows]
         test    ax, ax
-        jbe     .L894                       ; unsigned >
+        jbe     .L923                       ; unsigned >
         mov     ax, [modir__listCur_]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [modir__listTop_]
@@ -6453,13 +6757,13 @@ modir__listFollow:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L894                       ; unsigned >=
+        jb      .L923                       ; unsigned >=
         mov     ax, [modir__listCur_]
         mov     bx, [modir__listRows]
         sub     ax, bx
         inc     ax
         mov     [modir__listTop_], ax
-.L894:
+.L923:
         ret
 
 ; ============================================== sub listGoto ====
@@ -6471,21 +6775,21 @@ listGoto:
 ; ---- if ( listCount_ > 0 && listCur_ >= listCount_ ) listCur_ = listCount_ - 1
         mov     ax, [modir__listCount_]
         test    ax, ax
-        jbe     .L898                       ; unsigned >
+        jbe     .L927                       ; unsigned >
         mov     ax, [modir__listCur_]
         mov     bx, [modir__listCount_]
         cmp     ax, bx
-        jb      .L898                       ; unsigned >=
+        jb      .L927                       ; unsigned >=
         mov     ax, [modir__listCount_]
         dec     ax
         mov     [modir__listCur_], ax
-.L898:
+.L927:
 ; ---- if ( listCount_ == 0 ) listCur_ = 0
         mov     ax, [modir__listCount_]
         test    ax, ax
-        jne     .L902                       ; unsigned ==
+        jne     .L931                       ; unsigned ==
         mov     word [modir__listCur_], 0
-.L902:
+.L931:
 ; ---- listFollow()
         call    modir__listFollow
         ret
@@ -6504,13 +6808,13 @@ listEnd:
 ; ---- sub listEnd  => listGoto( listCount_ > 0 ? listCount_ - 1 : 0 )
         mov     ax, [modir__listCount_]
         test    ax, ax
-        jbe     .L905                       ; unsigned >
+        jbe     .L934                       ; unsigned >
         mov     ax, [modir__listCount_]
         dec     ax
-        jmp     .L906
-.L905:
+        jmp     .L935
+.L934:
         xor     ax, ax                      ; 0
-.L906:
+.L935:
         mov     [listGoto__i], ax
         call    listGoto
         ret
@@ -6521,12 +6825,12 @@ listUp:
 ; ---- if ( listCur_ > 0 ) listGoto( listCur_ - 1 )
         mov     ax, [modir__listCur_]
         test    ax, ax
-        jbe     .L908                       ; unsigned >
+        jbe     .L937                       ; unsigned >
         mov     ax, [modir__listCur_]
         dec     ax
         mov     [listGoto__i], ax
         call    listGoto
-.L908:
+.L937:
         ret
 
 ; ============================================== sub listDown ====
@@ -6546,19 +6850,19 @@ listPageUp:
         mov     ax, [modir__listCur_]
         mov     bx, [modir__listRows]
         cmp     ax, bx
-        jbe     .L911                       ; unsigned >
+        jbe     .L940                       ; unsigned >
 ; ---- listGoto( listCur_ - listRows )
         mov     ax, [modir__listCur_]
         mov     bx, [modir__listRows]
         sub     ax, bx
         mov     [listGoto__i], ax
         call    listGoto
-        jmp     .L912
-.L911:
+        jmp     .L941
+.L940:
 ; ---- listGoto( 0 )
         mov     word [listGoto__i], 0
         call    listGoto
-.L912:
+.L941:
         ret
 
 ; ============================================== sub listPageDown ====
@@ -6578,18 +6882,18 @@ modir__upper:
 ; ---- local u8 upper( u8 ch ) => ( ch >= 'a' && ch <= 'z' ) ? ch - 32 : ch
         mov     al, [modir__upper__ch]
         cmp     al, 97                      ; byte operands, no widening
-        jb      .L914                       ; unsigned >=
+        jb      .L943                       ; unsigned >=
         mov     al, [modir__upper__ch]
         cmp     al, 122                     ; byte operands, no widening
-        ja      .L914                       ; unsigned <=
+        ja      .L943                       ; unsigned <=
         mov     al, [modir__upper__ch]
         xor     ah, ah                      ; u8 -> u16
         sub     ax, 32
-        jmp     .L915
-.L914:
+        jmp     .L944
+.L943:
         mov     al, [modir__upper__ch]
         xor     ah, ah                      ; u8 -> u16
-.L915:
+.L944:
         mov     [modir__upper__ret], al     ; narrowed to u8
         ret
 
@@ -6599,9 +6903,9 @@ listJump:
 ; ---- if ( listCount_ == 0 ) return
         mov     ax, [modir__listCount_]
         test    ax, ax
-        jne     .L918                       ; unsigned ==
+        jne     .L947                       ; unsigned ==
         ret
-.L918:
+.L947:
 ; ---- want = upper( ch )
         mov     al, [listJump__ch]
         mov     [modir__upper__ch], al      ; u8 -> u8, no widening
@@ -6611,13 +6915,13 @@ listJump:
         mov     [listJump__want], al        ; narrowed to u8
 ; ---- for ( u16 n = 1; n <= listCount_; n++ ) {
         mov     word [listJump__n], 1
-.L921:
+.L950:
         mov     ax, [listJump__n]
         mov     bx, [modir__listCount_]
         cmp     ax, bx
-        jbe     .L924                       ; unsigned <=
-        jmp     .L923
-.L924:
+        jbe     .L953                       ; unsigned <=
+        jmp     .L952
+.L953:
 ; ---- i = ( listCur_ + n ) % listCount_
         mov     ax, [modir__listCur_]
         mov     bx, [listJump__n]
@@ -6640,18 +6944,18 @@ listJump:
         mov     bl, [listJump__want]
         xor     bh, bh                      ; u8 -> u16
         cmp     ax, bx
-        jne     .L925                       ; unsigned ==
+        jne     .L954                       ; unsigned ==
 ; ---- listGoto( i )
         mov     ax, [listJump__i]
         mov     [listGoto__i], ax
         call    listGoto
 ; ---- return
         ret
-.L925:
-.L922:
+.L954:
+.L951:
         inc     word [listJump__n]
-        jmp     .L921
-.L923:
+        jmp     .L950
+.L952:
         ret
 
 ; ============================================== u16 listThumbSize ====
@@ -6661,15 +6965,15 @@ listThumbSize:
         mov     ax, [modir__listCount_]
         mov     bx, [modir__listRows]
         cmp     ax, bx
-        jbe     .L930                       ; unsigned <=
+        jbe     .L959                       ; unsigned <=
         mov     ax, [modir__listCount_]
         test    ax, ax
-        jne     .L928                       ; unsigned ==
-.L930:
+        jne     .L957                       ; unsigned ==
+.L959:
         mov     ax, [modir__listRows]
         mov     [listThumbSize__ret], ax
         ret
-.L928:
+.L957:
 ; ---- size = listRows * listRows / listCount_
         mov     ax, [modir__listRows]
         mov     bx, [modir__listRows]
@@ -6680,12 +6984,12 @@ listThumbSize:
         mov     [listThumbSize__size], ax
 ; ---- return size < 1 ? 1 : size
         cmp     ax, 1
-        jae     .L933                       ; unsigned <
+        jae     .L962                       ; unsigned <
         mov     ax, 1
-        jmp     .L934
-.L933:
+        jmp     .L963
+.L962:
         mov     ax, [listThumbSize__size]
-.L934:
+.L963:
         mov     [listThumbSize__ret], ax
         ret
 
@@ -6696,10 +7000,10 @@ listThumbAt:
         mov     ax, [modir__listCount_]
         mov     bx, [modir__listRows]
         cmp     ax, bx
-        ja      .L936                       ; unsigned <=
+        ja      .L965                       ; unsigned <=
         mov     word [listThumbAt__ret], 0
         ret
-.L936:
+.L965:
 ; ---- size = listThumbSize()
         call    listThumbSize
         mov     ax, [listThumbSize__ret]
@@ -6717,14 +7021,14 @@ listThumbAt:
 ; ---- if ( span == 0 || room == 0 ) return 0
         mov     ax, [listThumbAt__span]
         test    ax, ax
-        je      .L941                       ; unsigned ==
+        je      .L970                       ; unsigned ==
         mov     ax, [listThumbAt__room]
         test    ax, ax
-        jne     .L939                       ; unsigned ==
-.L941:
+        jne     .L968                       ; unsigned ==
+.L970:
         mov     word [listThumbAt__ret], 0
         ret
-.L939:
+.L968:
 ; ---- return listTop_ / room * span + ( listTop_ % room ) * span / room
         mov     ax, [modir__listTop_]
         mov     bx, [listThumbAt__room]
@@ -6781,12 +7085,12 @@ edLeft:
 ; ---- u16 edLeft()  => expShown ? expCols : 0
         mov     al, [expShown]
         test    al, al
-        jz      .L944
+        jz      .L973
         mov     ax, 14
-        jmp     .L945
-.L944:
+        jmp     .L974
+.L973:
         xor     ax, ax                      ; 0
-.L945:
+.L974:
         mov     [edLeft__ret], ax
         ret
 
@@ -6796,13 +7100,13 @@ edWidth:
 ; ---- u16 edWidth() => expShown ? cols - expCols : cols
         mov     al, [expShown]
         test    al, al
-        jz      .L947
+        jz      .L976
         mov     ax, [cols]
         sub     ax, 14
-        jmp     .L948
-.L947:
+        jmp     .L977
+.L976:
         mov     ax, [cols]
-.L948:
+.L977:
         mov     [edWidth__ret], ax
         ret
 
@@ -6812,12 +7116,12 @@ prompting:
 ; ---- bool prompting() => asking != askNone
         mov     al, [asking]
         test    al, al
-        je      .L950                       ; unsigned !=
+        je      .L979                       ; unsigned !=
         mov     ax, 1
-        jmp     .L951
-.L950:
+        jmp     .L980
+.L979:
         xor     ax, ax
-.L951:
+.L980:
         mov     [prompting__ret], al        ; narrowed to bool
         ret
 
@@ -6835,40 +7139,40 @@ takeName:
 ; ---- out = 0
         mov     word [takeName__out], 0
 ; ---- while ( n > 0 && peek8( at ) == ' ' ) {
-.L953:
+.L982:
         mov     ax, [takeName__n]
         test    ax, ax
-        jbe     .L955                       ; unsigned >
+        jbe     .L984                       ; unsigned >
         mov     ax, [takeName__at]
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
         cmp     al, 32                      ; byte operands, no widening
-        jne     .L955                       ; unsigned ==
+        jne     .L984                       ; unsigned ==
 ; ---- at++
         inc     word [takeName__at]
 ; ---- n--
         dec     word [takeName__n]
-.L954:
-        jmp     .L953
-.L955:
+.L983:
+        jmp     .L982
+.L984:
 ; ---- while ( n > 0 && peek8( at ) != ' ' && peek8( at ) != 13 && out < len( fileName ) - 1 ) {
-.L958:
+.L987:
         mov     ax, [takeName__n]
         test    ax, ax
-        jbe     .L960                       ; unsigned >
+        jbe     .L989                       ; unsigned >
         mov     ax, [takeName__at]
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
         cmp     al, 32                      ; byte operands, no widening
-        je      .L960                       ; unsigned !=
+        je      .L989                       ; unsigned !=
         mov     ax, [takeName__at]
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
         cmp     al, 13                      ; byte operands, no widening
-        je      .L960                       ; unsigned !=
+        je      .L989                       ; unsigned !=
         mov     ax, [takeName__out]
         cmp     ax, 79
-        jae     .L960                       ; unsigned <
+        jae     .L989                       ; unsigned <
 ; ---- fileName[out] = peek8( at )
         mov     ax, [takeName__at]
         mov     bx, ax
@@ -6881,9 +7185,9 @@ takeName:
         inc     word [takeName__at]
 ; ---- n--
         dec     word [takeName__n]
-.L959:
-        jmp     .L958
-.L960:
+.L988:
+        jmp     .L987
+.L989:
 ; ---- fileName[out] = 0
         mov     ax, [takeName__out]
         mov     bx, ax
@@ -6892,32 +7196,32 @@ takeName:
         mov     word [dirPathLen], 0
 ; ---- for ( u16 i = 0; fileName[i] != 0; i++ ) {
         mov     word [takeName__i], 0
-.L965:
+.L994:
         mov     ax, [takeName__i]
         mov     bx, ax
         mov     al, [fileName + bx]
         test    al, al
-        je      .L967                       ; unsigned !=
+        je      .L996                       ; unsigned !=
 ; ---- if ( fileName[i] == 92 || fileName[i] == 58 ) dirPathLen = i + 1
         mov     ax, [takeName__i]
         mov     bx, ax
         mov     al, [fileName + bx]
         cmp     al, 92                      ; byte operands, no widening
-        je      .L971                       ; unsigned ==
+        je      .L1000                      ; unsigned ==
         mov     ax, [takeName__i]
         mov     bx, ax
         mov     al, [fileName + bx]
         cmp     al, 58                      ; byte operands, no widening
-        jne     .L969                       ; unsigned ==
-.L971:
+        jne     .L998                       ; unsigned ==
+.L1000:
         mov     ax, [takeName__i]
         inc     ax
         mov     [dirPathLen], ax
-.L969:
-.L966:
+.L998:
+.L995:
         inc     word [takeName__i]
-        jmp     .L965
-.L967:
+        jmp     .L994
+.L996:
 ; ---- memCopy( addr( dirPath ), addr( fileName ), dirPathLen )
         mov     ax, dirPath                 ; link-time constant
         mov     [memCopy__to], ax
@@ -6929,12 +7233,12 @@ takeName:
 ; ---- return out > 0
         mov     ax, [takeName__out]
         test    ax, ax
-        jbe     .L974                       ; unsigned >
+        jbe     .L1003                      ; unsigned >
         mov     ax, 1
-        jmp     .L975
-.L974:
+        jmp     .L1004
+.L1003:
         xor     ax, ax
-.L975:
+.L1004:
         mov     [takeName__ret], al         ; narrowed to bool
         ret
 
@@ -6984,14 +7288,14 @@ buildOpenPath:
 ; ---- n = 0
         mov     word [buildOpenPath__n], 0
 ; ---- while ( peek8( nameAt + n ) != 0 ) {
-.L977:
+.L1006:
         mov     ax, [buildOpenPath__nameAt]
         mov     bx, [buildOpenPath__n]
         add     ax, bx
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
         test    al, al
-        je      .L979                       ; unsigned !=
+        je      .L1008                      ; unsigned !=
 ; ---- openPath[ dirPathLen + n ] = peek8( nameAt + n )
         mov     ax, [buildOpenPath__nameAt]
         mov     bx, [buildOpenPath__n]
@@ -7007,9 +7311,9 @@ buildOpenPath:
         mov     [openPath + bx], al
 ; ---- n++
         inc     word [buildOpenPath__n]
-.L978:
-        jmp     .L977
-.L979:
+.L1007:
+        jmp     .L1006
+.L1008:
 ; ---- openPath[ dirPathLen + n ] = 0
         mov     ax, [dirPathLen]
         mov     bx, [buildOpenPath__n]
@@ -7040,10 +7344,10 @@ loadFile:
         mov     al, [fileFailed__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L981
+        jz      .L1010
         mov     byte [loadFile__ret], 1
         ret
-.L981:
+.L1010:
 ; ---- got = fileRead( handle, addr( piece ), pieceSize )
         mov     ax, [loadFile__handle]
         mov     [fileRead__handle], ax
@@ -7058,26 +7362,26 @@ loadFile:
 ; ---- textBulk {
         call    bulkOpen
 ; ---- while ( got > 0 ) {
-.L984:
+.L1013:
         mov     ax, [loadFile__got]
         test    ax, ax
-        ja      .L987                       ; unsigned >
-        jmp     .L986
-.L987:
+        ja      .L1016                      ; unsigned >
+        jmp     .L1015
+.L1016:
 ; ---- if ( loud ) {
         mov     al, [loud]
         test    al, al
-        jz      .L988
+        jz      .L1017
 ; ---- putChar( '.' )
         mov     byte [putChar__c], 46
         call    putChar
-        jmp     .L989
-.L988:
+        jmp     .L1018
+.L1017:
 ; ---- showLoading( kb )
         mov     ax, [loadFile__kb]
         mov     [showLoading__kb], ax
         call    showLoading
-.L989:
+.L1018:
 ; ---- kb = kb + got / 1024
         mov     ax, [loadFile__kb]
         push    ax                          ; save lhs: rhs is not a leaf
@@ -7090,29 +7394,29 @@ loadFile:
         mov     [loadFile__kb], ax
 ; ---- for ( u16 i = 0; i < got; i++ ) {
         mov     word [loadFile__i], 0
-.L991:
+.L1020:
         mov     ax, [loadFile__i]
         mov     bx, [loadFile__got]
         cmp     ax, bx
-        jae     .L993                       ; unsigned <
+        jae     .L1022                      ; unsigned <
 ; ---- textLoad( piece[i] )
         mov     ax, [loadFile__i]
         mov     bx, ax
         mov     al, [piece + bx]
         mov     [textLoad__ch], al          ; u8 -> u8, no widening
         call    textLoad
-.L992:
+.L1021:
         inc     word [loadFile__i]
-        jmp     .L991
-.L993:
+        jmp     .L1020
+.L1022:
 ; ---- if ( textNoRoom() ) break
         call    textNoRoom
         mov     al, [textNoRoom__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L995
-        jmp     .L986
-.L995:
+        jz      .L1024
+        jmp     .L1015
+.L1024:
 ; ---- got = fileRead( handle, addr( piece ), pieceSize )
         mov     ax, [loadFile__handle]
         mov     [fileRead__handle], ax
@@ -7122,9 +7426,9 @@ loadFile:
         call    fileRead
         mov     ax, [fileRead__ret]
         mov     [loadFile__got], ax
-.L985:
-        jmp     .L984
-.L986:
+.L1014:
+        jmp     .L1013
+.L1015:
 ; ---- }
         call    bulkClose
 ; ---- fileClose( handle )
@@ -7136,12 +7440,12 @@ loadFile:
         mov     al, [textNoRoom__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jnz     .L998
+        jnz     .L1027
         mov     ax, 1
-        jmp     .L999
-.L998:
+        jmp     .L1028
+.L1027:
         xor     ax, ax
-.L999:
+.L1028:
         mov     [loadFile__ret], al         ; narrowed to bool
         ret
 
@@ -7159,10 +7463,10 @@ saveFile:
         mov     al, [fileFailed__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L1001
+        jz      .L1030
         mov     byte [saveFile__ret], 0
         ret
-.L1001:
+.L1030:
 ; ---- textSave( handle )
         mov     ax, [saveFile__handle]
         mov     [textSave__handle], ax
@@ -7183,31 +7487,31 @@ whyNotOpened:
         mov     al, [textWhyNoRoom__ret]
         xor     ah, ah                      ; u8 -> u16
         cmp     ax, 2
-        jne     .L1004                      ; unsigned ==
+        jne     .L1033                      ; unsigned ==
         mov     ax, sNoLines                ; link-time constant
         mov     [whyNotOpened__ret], ax
         ret
-.L1004:
+.L1033:
 ; ---- if ( textWhyNoRoom() == whyChunks ) return addr( sNoChunk )
         call    textWhyNoRoom
         mov     al, [textWhyNoRoom__ret]
         xor     ah, ah                      ; u8 -> u16
         cmp     ax, 1
-        jne     .L1007                      ; unsigned ==
+        jne     .L1036                      ; unsigned ==
         mov     ax, sNoChunk                ; link-time constant
         mov     [whyNotOpened__ret], ax
         ret
-.L1007:
+.L1036:
 ; ---- if ( textWhyNoRoom() == whyBlock ) return addr( sNoMem )
         call    textWhyNoRoom
         mov     al, [textWhyNoRoom__ret]
         xor     ah, ah                      ; u8 -> u16
         cmp     ax, 3
-        jne     .L1010                      ; unsigned ==
+        jne     .L1039                      ; unsigned ==
         mov     ax, sNoMem                  ; link-time constant
         mov     [whyNotOpened__ret], ax
         ret
-.L1010:
+.L1039:
 ; ---- return addr( sTooBig )
         mov     ax, sTooBig                 ; link-time constant
         mov     [whyNotOpened__ret], ax
@@ -7263,11 +7567,11 @@ viewRow:
         mov     [viewRow__hi], ax
 ; ---- for ( u16 x = 0; x < n; x++ ) {
         mov     word [viewRow__x], 0
-.L1013:
+.L1042:
         mov     ax, [viewRow__x]
         mov     bx, [viewRow__n]
         cmp     ax, bx
-        jae     .L1015                      ; unsigned <
+        jae     .L1044                      ; unsigned <
 ; ---- vram[ base + x ] = u16( peek8( at + x ) ) | hi
         mov     ax, [viewRow__at]
         mov     bx, [viewRow__x]
@@ -7287,14 +7591,14 @@ viewRow:
         mov     es, dx
         pop     ax
         mov     [es:bx], ax
-.L1014:
+.L1043:
         inc     word [viewRow__x]
-        jmp     .L1013
-.L1015:
+        jmp     .L1042
+.L1044:
 ; ---- for ( u16 x = n; x < edWidth(); x++ ) {
         mov     ax, [viewRow__n]
         mov     [viewRow__x], ax
-.L1017:
+.L1046:
         mov     ax, [viewRow__x]
         push    ax                          ; save lhs: rhs is not a leaf
         call    edWidth
@@ -7302,7 +7606,7 @@ viewRow:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jae     .L1019                      ; unsigned <
+        jae     .L1048                      ; unsigned <
 ; ---- vram[ base + x ] = 32 | hi
         mov     ax, 32
         mov     bx, [viewRow__hi]
@@ -7317,18 +7621,18 @@ viewRow:
         mov     es, dx
         pop     ax
         mov     [es:bx], ax
-.L1018:
+.L1047:
         inc     word [viewRow__x]
-        jmp     .L1017
-.L1019:
+        jmp     .L1046
+.L1048:
 ; ---- if ( viewSelected() ) {
         call    viewSelected
         mov     al, [viewSelected__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jnz     .L1023
-        jmp     .L1021
-.L1023:
+        jnz     .L1052
+        jmp     .L1050
+.L1052:
 ; ---- ln = viewTop() + y
         call    viewTop
         mov     ax, [viewTop__ret]
@@ -7342,9 +7646,9 @@ viewRow:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jae     .L1026                      ; unsigned >=
-        jmp     .L1024
-.L1026:
+        jae     .L1055                      ; unsigned >=
+        jmp     .L1053
+.L1055:
         mov     ax, [viewRow__ln]
         push    ax                          ; save lhs: rhs is not a leaf
         call    viewToLine
@@ -7352,9 +7656,9 @@ viewRow:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jbe     .L1027                      ; unsigned <=
-        jmp     .L1024
-.L1027:
+        jbe     .L1056                      ; unsigned <=
+        jmp     .L1053
+.L1056:
 ; ---- c0 = 0
         mov     word [viewRow__c0], 0
 ; ---- if ( ln == viewFromLine() ) c0 = viewFromCol()
@@ -7365,11 +7669,11 @@ viewRow:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jne     .L1028                      ; unsigned ==
+        jne     .L1057                      ; unsigned ==
         call    viewFromCol
         mov     ax, [viewFromCol__ret]
         mov     [viewRow__c0], ax
-.L1028:
+.L1057:
 ; ---- c1 = lineLength( ln )
         mov     ax, [viewRow__ln]
         mov     [lineLength__ln], ax
@@ -7384,26 +7688,26 @@ viewRow:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jne     .L1031                      ; unsigned ==
+        jne     .L1060                      ; unsigned ==
 ; ---- c1 = viewToCol()
         call    viewToCol
         mov     ax, [viewToCol__ret]
         mov     [viewRow__c1], ax
-        jmp     .L1032
-.L1031:
+        jmp     .L1061
+.L1060:
 ; ---- c1++
         inc     word [viewRow__c1]
-.L1032:
+.L1061:
 ; ---- for ( u16 c = c0; c < c1; c++ ) {
         mov     ax, [viewRow__c0]
         mov     [viewRow__c], ax
-.L1034:
+.L1063:
         mov     ax, [viewRow__c]
         mov     bx, [viewRow__c1]
         cmp     ax, bx
-        jb      .L1037                      ; unsigned <
-        jmp     .L1036
-.L1037:
+        jb      .L1066                      ; unsigned <
+        jmp     .L1065
+.L1066:
 ; ---- if ( c >= viewLeft() ) {
         mov     ax, [viewRow__c]
         push    ax                          ; save lhs: rhs is not a leaf
@@ -7412,9 +7716,9 @@ viewRow:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jae     .L1040                      ; unsigned >=
-        jmp     .L1038
-.L1040:
+        jae     .L1069                      ; unsigned >=
+        jmp     .L1067
+.L1069:
 ; ---- sx = c - viewLeft()
         mov     ax, [viewRow__c]
         push    ax                          ; save lhs: rhs is not a leaf
@@ -7431,23 +7735,23 @@ viewRow:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L1041                      ; unsigned >=
-        jmp     .L1036
-.L1041:
+        jb      .L1070                      ; unsigned >=
+        jmp     .L1065
+.L1070:
 ; ---- ch = 32
         mov     byte [viewRow__ch], 32
 ; ---- if ( sx < n ) ch = peek8( at + sx )
         mov     ax, [viewRow__sx]
         mov     bx, [viewRow__n]
         cmp     ax, bx
-        jae     .L1044                      ; unsigned <
+        jae     .L1073                      ; unsigned <
         mov     ax, [viewRow__at]
         mov     bx, [viewRow__sx]
         add     ax, bx
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
         mov     [viewRow__ch], al           ; u8 -> u8, no widening
-.L1044:
+.L1073:
 ; ---- cellAt( edLeft() + sx, y, ch, attrSel )
         call    edLeft
         mov     ax, [edLeft__ret]
@@ -7468,25 +7772,25 @@ viewRow:
         pop     ax
         mov     [cellAt__x], ax
         call    cellAt
-.L1038:
-.L1035:
+.L1067:
+.L1064:
         inc     word [viewRow__c]
-        jmp     .L1034
-.L1036:
-.L1024:
-.L1021:
+        jmp     .L1063
+.L1065:
+.L1053:
+.L1050:
 ; ---- if ( !prompting() || !onMatch ) return
         call    prompting
         mov     al, [prompting__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L1049
+        jz      .L1078
         mov     al, [onMatch]
         test    al, al
-        jnz     .L1047
-.L1049:
+        jnz     .L1076
+.L1078:
         ret
-.L1047:
+.L1076:
 ; ---- if ( viewTop() + y != findLine() ) return
         call    viewTop
         mov     ax, [viewTop__ret]
@@ -7498,12 +7802,12 @@ viewRow:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        je      .L1052                      ; unsigned !=
+        je      .L1081                      ; unsigned !=
         ret
-.L1052:
+.L1081:
 ; ---- for ( u16 x = 0; x < findLength(); x++ ) {
         mov     word [viewRow__x], 0
-.L1055:
+.L1084:
         mov     ax, [viewRow__x]
         push    ax                          ; save lhs: rhs is not a leaf
         call    findLength
@@ -7511,9 +7815,9 @@ viewRow:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L1058                      ; unsigned <
-        jmp     .L1057
-.L1058:
+        jb      .L1087                      ; unsigned <
+        jmp     .L1086
+.L1087:
 ; ---- if ( findCol() + x < viewLeft() ) continue
         call    findCol
         mov     ax, [findCol__ret]
@@ -7525,9 +7829,9 @@ viewRow:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jae     .L1059                      ; unsigned <
-        jmp     .L1056
-.L1059:
+        jae     .L1088                      ; unsigned <
+        jmp     .L1085
+.L1088:
 ; ---- hx = findCol() + x - viewLeft()
         call    findCol
         mov     ax, [findCol__ret]
@@ -7543,9 +7847,9 @@ viewRow:
 ; ---- if ( hx >= n ) return
         mov     bx, [viewRow__n]
         cmp     ax, bx
-        jb      .L1062                      ; unsigned >=
+        jb      .L1091                      ; unsigned >=
         ret
-.L1062:
+.L1091:
 ; ---- cellAt( edLeft() + hx, y, peek8( at + hx ), attrMatch )
         call    edLeft
         mov     ax, [edLeft__ret]
@@ -7570,10 +7874,10 @@ viewRow:
         pop     ax
         mov     [cellAt__x], ax
         call    cellAt
-.L1056:
+.L1085:
         inc     word [viewRow__x]
-        jmp     .L1055
-.L1057:
+        jmp     .L1084
+.L1086:
         ret
 
 ; ============================================== sub drawExplorer ====
@@ -7597,13 +7901,13 @@ drawExplorer:
         mov     [drawExplorer__thumbEnd], ax
 ; ---- for ( u16 y = 0; y < h; y++ ) {
         mov     word [drawExplorer__y], 0
-.L1065:
+.L1094:
         mov     ax, [drawExplorer__y]
         mov     bx, [drawExplorer__h]
         cmp     ax, bx
-        jb      .L1068                      ; unsigned <
-        jmp     .L1067
-.L1068:
+        jb      .L1097                      ; unsigned <
+        jmp     .L1096
+.L1097:
 ; ---- i = listTop() + y
         call    listTop
         mov     ax, [listTop__ret]
@@ -7616,7 +7920,7 @@ drawExplorer:
 ; ---- if ( expFocus && i == listCursor() && i < listCount() ) attr = attrText
         mov     al, [expFocus]
         test    al, al
-        jz      .L1069
+        jz      .L1098
         mov     ax, [drawExplorer__i]
         push    ax                          ; save lhs: rhs is not a leaf
         call    listCursor
@@ -7624,7 +7928,7 @@ drawExplorer:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jne     .L1069                      ; unsigned ==
+        jne     .L1098                      ; unsigned ==
         mov     ax, [drawExplorer__i]
         push    ax                          ; save lhs: rhs is not a leaf
         call    listCount
@@ -7632,10 +7936,10 @@ drawExplorer:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jae     .L1069                      ; unsigned <
+        jae     .L1098                      ; unsigned <
         mov     al, [attrText]
         mov     [drawExplorer__attr], al    ; u8 -> u8, no widening
-.L1069:
+.L1098:
 ; ---- ch = 32
         mov     byte [drawExplorer__ch], 32
 ; ---- if ( i < listCount() && haveName &&
@@ -7646,10 +7950,10 @@ drawExplorer:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jae     .L1074                      ; unsigned <
+        jae     .L1103                      ; unsigned <
         mov     al, [haveName]
         test    al, al
-        jz      .L1074
+        jz      .L1103
         mov     ax, [drawExplorer__i]
         mov     [listIsNamed__i], ax
         mov     ax, fileName                ; link-time constant
@@ -7660,10 +7964,10 @@ drawExplorer:
         mov     al, [listIsNamed__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L1074
+        jz      .L1103
 ; ---- listIsNamed( i, addr( fileName ) + dirPathLen ) ) ch = 42
         mov     byte [drawExplorer__ch], 42
-.L1074:
+.L1103:
 ; ---- cellAt( 0, y, ch, attr )
         mov     word [cellAt__x], 0
         mov     ax, [drawExplorer__y]
@@ -7685,7 +7989,7 @@ drawExplorer:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jae     .L1079                      ; unsigned <
+        jae     .L1108                      ; unsigned <
 ; ---- at = listName( i )
         mov     ax, [drawExplorer__i]
         mov     [listName__i], ax
@@ -7693,31 +7997,31 @@ drawExplorer:
         mov     ax, [listName__ret]
         mov     [drawExplorer__at], ax
 ; ---- while ( n < expName && peek8( at + n ) != 0 ) {
-.L1082:
+.L1111:
         mov     ax, [drawExplorer__n]
         cmp     ax, 12
-        jae     .L1084                      ; unsigned <
+        jae     .L1113                      ; unsigned <
         mov     ax, [drawExplorer__at]
         mov     bx, [drawExplorer__n]
         add     ax, bx
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
         test    al, al
-        je      .L1084                      ; unsigned !=
+        je      .L1113                      ; unsigned !=
 ; ---- n++
         inc     word [drawExplorer__n]
-.L1083:
-        jmp     .L1082
-.L1084:
-.L1079:
+.L1112:
+        jmp     .L1111
+.L1113:
+.L1108:
 ; ---- for ( u16 x = 0; x < expName; x++ ) {
         mov     word [drawExplorer__x], 0
-.L1087:
+.L1116:
         mov     ax, [drawExplorer__x]
         cmp     ax, 12
-        jb      .L1090                      ; unsigned <
-        jmp     .L1089
-.L1090:
+        jb      .L1119                      ; unsigned <
+        jmp     .L1118
+.L1119:
 ; ---- cellAt( 1 + x, y, x < n ? peek8( at + x ) : 32, attr )
         mov     ax, 1
         mov     bx, [drawExplorer__x]
@@ -7728,38 +8032,38 @@ drawExplorer:
         mov     ax, [drawExplorer__x]
         mov     bx, [drawExplorer__n]
         cmp     ax, bx
-        jae     .L1091                      ; unsigned <
+        jae     .L1120                      ; unsigned <
         mov     ax, [drawExplorer__at]
         mov     bx, [drawExplorer__x]
         add     ax, bx
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
         xor     ah, ah                      ; u8 -> u16
-        jmp     .L1092
-.L1091:
+        jmp     .L1121
+.L1120:
         mov     ax, 32
-.L1092:
+.L1121:
         mov     [cellAt__ch], al            ; narrowed to u8
         mov     al, [drawExplorer__attr]
         mov     [cellAt__attr], al          ; u8 -> u8, no widening
         call    cellAt
-.L1088:
+.L1117:
         inc     word [drawExplorer__x]
-        jmp     .L1087
-.L1089:
+        jmp     .L1116
+.L1118:
 ; ---- ch = 0xB0
         mov     byte [drawExplorer__ch], 176
 ; ---- if ( y >= thumbTop && y < thumbEnd ) ch = 0xDB
         mov     ax, [drawExplorer__y]
         mov     bx, [drawExplorer__thumbTop]
         cmp     ax, bx
-        jb      .L1094                      ; unsigned >=
+        jb      .L1123                      ; unsigned >=
         mov     ax, [drawExplorer__y]
         mov     bx, [drawExplorer__thumbEnd]
         cmp     ax, bx
-        jae     .L1094                      ; unsigned <
+        jae     .L1123                      ; unsigned <
         mov     byte [drawExplorer__ch], 219
-.L1094:
+.L1123:
 ; ---- cellAt( expCols - 1, y, ch, attrStatus )
         mov     word [cellAt__x], 13
         mov     ax, [drawExplorer__y]
@@ -7769,10 +8073,10 @@ drawExplorer:
         mov     al, [attrStatus]
         mov     [cellAt__attr], al          ; u8 -> u8, no widening
         call    cellAt
-.L1066:
+.L1095:
         inc     word [drawExplorer__y]
-        jmp     .L1065
-.L1067:
+        jmp     .L1094
+.L1096:
         ret
 
 ; ============================================== sub statusClip ====
@@ -7781,22 +8085,22 @@ statusClip:
 ; ---- i = 0
         mov     word [statusClip__i], 0
 ; ---- while ( peek8( at + i ) != '$' && x + i < stop ) {
-.L1098:
+.L1127:
         mov     ax, [statusClip__at]
         mov     bx, [statusClip__i]
         add     ax, bx
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
         cmp     al, 36                      ; byte operands, no widening
-        jne     .L1101                      ; unsigned !=
-        jmp     .L1100
-.L1101:
+        jne     .L1130                      ; unsigned !=
+        jmp     .L1129
+.L1130:
         mov     ax, [statusClip__x]
         mov     bx, [statusClip__i]
         add     ax, bx
         mov     bx, [statusClip__stop]
         cmp     ax, bx
-        jae     .L1100                      ; unsigned <
+        jae     .L1129                      ; unsigned <
 ; ---- cellAt( x + i, rows - 1, peek8( at + i ), attrStatus )
         mov     ax, [statusClip__x]
         mov     bx, [statusClip__i]
@@ -7816,9 +8120,9 @@ statusClip:
         call    cellAt
 ; ---- i++
         inc     word [statusClip__i]
-.L1099:
-        jmp     .L1098
-.L1100:
+.L1128:
+        jmp     .L1127
+.L1129:
         ret
 
 ; ============================================== sub statusText ====
@@ -7840,7 +8144,7 @@ statusPath:
 ; ---- if ( dirPathLen == 0 ) {
         mov     ax, [dirPathLen]
         test    ax, ax
-        jne     .L1103                      ; unsigned ==
+        jne     .L1132                      ; unsigned ==
 ; ---- statusText( x, addr( sHere ) )
         mov     ax, [statusPath__x]
         mov     [statusText__x], ax
@@ -7850,23 +8154,23 @@ statusPath:
 ; ---- return 1
         mov     word [statusPath__ret], 1
         ret
-.L1103:
+.L1132:
 ; ---- i = 0
         mov     word [statusPath__i], 0
 ; ---- while ( i < dirPathLen && x + i < cols ) {
-.L1106:
+.L1135:
         mov     ax, [statusPath__i]
         mov     bx, [dirPathLen]
         cmp     ax, bx
-        jb      .L1109                      ; unsigned <
-        jmp     .L1108
-.L1109:
+        jb      .L1138                      ; unsigned <
+        jmp     .L1137
+.L1138:
         mov     ax, [statusPath__x]
         mov     bx, [statusPath__i]
         add     ax, bx
         mov     bx, [cols]
         cmp     ax, bx
-        jae     .L1108                      ; unsigned <
+        jae     .L1137                      ; unsigned <
 ; ---- cellAt( x + i, rows - 1, dirPath[i], attrStatus )
         mov     ax, [statusPath__x]
         mov     bx, [statusPath__i]
@@ -7884,9 +8188,9 @@ statusPath:
         call    cellAt
 ; ---- i++
         inc     word [statusPath__i]
-.L1107:
-        jmp     .L1106
-.L1108:
+.L1136:
+        jmp     .L1135
+.L1137:
 ; ---- return i
         mov     ax, [statusPath__i]
         mov     [statusPath__ret], ax
@@ -7898,20 +8202,20 @@ statusName:
 ; ---- i = 0
         mov     word [statusName__i], 0
 ; ---- while ( fileName[i] != 0 && x + i < cols ) {
-.L1111:
+.L1140:
         mov     ax, [statusName__i]
         mov     bx, ax
         mov     al, [fileName + bx]
         test    al, al
-        jne     .L1114                      ; unsigned !=
-        jmp     .L1113
-.L1114:
+        jne     .L1143                      ; unsigned !=
+        jmp     .L1142
+.L1143:
         mov     ax, [statusName__x]
         mov     bx, [statusName__i]
         add     ax, bx
         mov     bx, [cols]
         cmp     ax, bx
-        jae     .L1113                      ; unsigned <
+        jae     .L1142                      ; unsigned <
 ; ---- cellAt( x + i, rows - 1, fileName[i], attrStatus )
         mov     ax, [statusName__x]
         mov     bx, [statusName__i]
@@ -7929,9 +8233,9 @@ statusName:
         call    cellAt
 ; ---- i++
         inc     word [statusName__i]
-.L1112:
-        jmp     .L1111
-.L1113:
+.L1141:
+        jmp     .L1140
+.L1142:
 ; ---- return i
         mov     ax, [statusName__i]
         mov     [statusName__ret], ax
@@ -7950,11 +8254,11 @@ statusNumber:
         mov     [statusNumber__used], ax
 ; ---- for ( u16 i = 0; i < used; i++ ) {
         mov     word [statusNumber__i], 0
-.L1116:
+.L1145:
         mov     ax, [statusNumber__i]
         mov     bx, [statusNumber__used]
         cmp     ax, bx
-        jae     .L1118                      ; unsigned <
+        jae     .L1147                      ; unsigned <
 ; ---- cellAt( x + i, rows - 1, numBuf[i], attrStatus )
         mov     ax, [statusNumber__x]
         mov     bx, [statusNumber__i]
@@ -7970,10 +8274,10 @@ statusNumber:
         mov     al, [attrStatus]
         mov     [cellAt__attr], al          ; u8 -> u8, no widening
         call    cellAt
-.L1117:
+.L1146:
         inc     word [statusNumber__i]
-        jmp     .L1116
-.L1118:
+        jmp     .L1145
+.L1147:
         ret
 
 ; ============================================== sub statusField ====
@@ -7985,7 +8289,7 @@ statusField:
         mov     [statusField__at], ax
 ; ---- for ( u16 i = 0; i < fieldLength() && x + i < cols; i++ ) {
         mov     word [statusField__i], 0
-.L1120:
+.L1149:
         mov     ax, [statusField__i]
         push    ax                          ; save lhs: rhs is not a leaf
         call    fieldLength
@@ -7993,15 +8297,15 @@ statusField:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L1123                      ; unsigned <
-        jmp     .L1122
-.L1123:
+        jb      .L1152                      ; unsigned <
+        jmp     .L1151
+.L1152:
         mov     ax, [statusField__x]
         mov     bx, [statusField__i]
         add     ax, bx
         mov     bx, [cols]
         cmp     ax, bx
-        jae     .L1122                      ; unsigned <
+        jae     .L1151                      ; unsigned <
 ; ---- cellAt( x + i, rows - 1, peek8( at + i ), attrStatus )
         mov     ax, [statusField__x]
         mov     bx, [statusField__i]
@@ -8019,10 +8323,10 @@ statusField:
         mov     al, [attrStatus]
         mov     [cellAt__attr], al          ; u8 -> u8, no widening
         call    cellAt
-.L1121:
+.L1150:
         inc     word [statusField__i]
-        jmp     .L1120
-.L1122:
+        jmp     .L1149
+.L1151:
         ret
 
 ; ============================================== sub showLoading ====
@@ -8030,11 +8334,11 @@ statusField:
 showLoading:
 ; ---- for ( x = 0; x < cols; x++ ) {
         mov     word [showLoading__x], 0
-.L1125:
+.L1154:
         mov     ax, [showLoading__x]
         mov     bx, [cols]
         cmp     ax, bx
-        jae     .L1127                      ; unsigned <
+        jae     .L1156                      ; unsigned <
 ; ---- cellAt( x, rows - 1, 32, attrStatus )
         mov     ax, [showLoading__x]
         mov     [cellAt__x], ax
@@ -8045,10 +8349,10 @@ showLoading:
         mov     al, [attrStatus]
         mov     [cellAt__attr], al          ; u8 -> u8, no widening
         call    cellAt
-.L1126:
+.L1155:
         inc     word [showLoading__x]
-        jmp     .L1125
-.L1127:
+        jmp     .L1154
+.L1156:
 ; ---- statusText( 0, addr( sLoading ) )
         mov     word [statusText__x], 0
         mov     ax, sLoading                ; link-time constant
@@ -8100,11 +8404,11 @@ showLoading:
 drawStatus:
 ; ---- for ( x = 0; x < cols; x++ ) {
         mov     word [drawStatus__x], 0
-.L1129:
+.L1158:
         mov     ax, [drawStatus__x]
         mov     bx, [cols]
         cmp     ax, bx
-        jae     .L1131                      ; unsigned <
+        jae     .L1160                      ; unsigned <
 ; ---- cellAt( x, rows - 1, ' ', attrStatus )
         mov     ax, [drawStatus__x]
         mov     [cellAt__x], ax
@@ -8115,18 +8419,18 @@ drawStatus:
         mov     al, [attrStatus]
         mov     [cellAt__attr], al          ; u8 -> u8, no widening
         call    cellAt
-.L1130:
+.L1159:
         inc     word [drawStatus__x]
-        jmp     .L1129
-.L1131:
+        jmp     .L1158
+.L1160:
 ; ---- if ( prompting() ) {
         call    prompting
         mov     al, [prompting__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jnz     .L1135
-        jmp     .L1133
-.L1135:
+        jnz     .L1164
+        jmp     .L1162
+.L1164:
 ; ---- statusText( 0, askLabel )
         mov     word [statusText__x], 0
         mov     ax, [askLabel]
@@ -8139,9 +8443,9 @@ drawStatus:
 ; ---- if ( message != 0 ) {
         mov     ax, [message]
         test    ax, ax
-        jne     .L1138                      ; unsigned !=
-        jmp     .L1136
-.L1138:
+        jne     .L1167                      ; unsigned !=
+        jmp     .L1165
+.L1167:
 ; ---- statusText( askAt + fieldLength() + 2, message )
         mov     ax, [askAt]
         push    ax                          ; save lhs: rhs is not a leaf
@@ -8164,7 +8468,7 @@ drawStatus:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jne     .L1139                      ; unsigned ==
+        jne     .L1168                      ; unsigned ==
 ; ---- statusNumber( askAt + fieldLength() + 2 + strLen( message ), askCount )
         mov     ax, [askAt]
         push    ax                          ; save lhs: rhs is not a leaf
@@ -8188,33 +8492,33 @@ drawStatus:
         pop     ax
         mov     [statusNumber__x], ax
         call    statusNumber
-.L1139:
-.L1136:
+.L1168:
+.L1165:
 ; ---- return
         ret
-.L1133:
+.L1162:
 ; ---- if ( expFocus ) {
         mov     al, [expFocus]
         test    al, al
-        jz      .L1142
+        jz      .L1171
 ; ---- x = statusPath( 0 )
         mov     word [statusPath__x], 0
         call    statusPath
         mov     ax, [statusPath__ret]
         mov     [drawStatus__x], ax
-        jmp     .L1143
-.L1142:
+        jmp     .L1172
+.L1171:
 ; ---- } else if ( haveName ) {
         mov     al, [haveName]
         test    al, al
-        jz      .L1145
+        jz      .L1174
 ; ---- x = statusName( 0 )
         mov     word [statusName__x], 0
         call    statusName
         mov     ax, [statusName__ret]
         mov     [drawStatus__x], ax
-        jmp     .L1146
-.L1145:
+        jmp     .L1175
+.L1174:
 ; ---- statusText( 0, addr( sNoName ) )
         mov     word [statusText__x], 0
         mov     ax, sNoName                 ; link-time constant
@@ -8226,26 +8530,26 @@ drawStatus:
         call    strLen
         mov     ax, [strLen__ret]
         mov     [drawStatus__x], ax
-.L1146:
-.L1143:
+.L1175:
+.L1172:
 ; ---- if ( dirty ) statusText( x + 1, addr( sStar ) )
         mov     al, [dirty]
         test    al, al
-        jz      .L1148
+        jz      .L1177
         mov     ax, [drawStatus__x]
         inc     ax
         mov     [statusText__x], ax
         mov     ax, sStar                   ; link-time constant
         mov     [statusText__at], ax
         call    statusText
-.L1148:
+.L1177:
 ; ---- if ( message != 0 && cols > 40 ) statusClip( x + 3, message, cols - 13 )
         mov     ax, [message]
         test    ax, ax
-        je      .L1151                      ; unsigned !=
+        je      .L1180                      ; unsigned !=
         mov     ax, [cols]
         cmp     ax, 40
-        jbe     .L1151                      ; unsigned >
+        jbe     .L1180                      ; unsigned >
         mov     ax, [drawStatus__x]
         add     ax, 3
         mov     [statusClip__x], ax
@@ -8255,7 +8559,7 @@ drawStatus:
         sub     ax, 13
         mov     [statusClip__stop], ax
         call    statusClip
-.L1151:
+.L1180:
 ; ---- statusNumber( cols - 12, viewLine() + 1 )
         mov     ax, [cols]
         sub     ax, 12
@@ -8297,12 +8601,12 @@ placeCursor:
 ; ---- if ( expFocus && !prompting() ) {
         mov     al, [expFocus]
         test    al, al
-        jz      .L1155
+        jz      .L1184
         call    prompting
         mov     al, [prompting__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jnz     .L1155
+        jnz     .L1184
 ; ---- moveTo( 1, u8( listCursor() - listTop() ) )
         mov     ax, 1
         push    ax                          ; argument evaluated before any is stored
@@ -8320,13 +8624,13 @@ placeCursor:
         call    moveTo
 ; ---- return
         ret
-.L1155:
+.L1184:
 ; ---- if ( prompting() ) {
         call    prompting
         mov     al, [prompting__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L1159
+        jz      .L1188
 ; ---- moveTo( u8( askAt + fieldCursor() ), u8( rows - 1 ) )
         mov     ax, [askAt]
         push    ax                          ; save lhs: rhs is not a leaf
@@ -8345,7 +8649,7 @@ placeCursor:
         call    moveTo
 ; ---- return
         ret
-.L1159:
+.L1188:
 ; ---- moveTo( u8( edLeft() + viewCol() - viewLeft() ), u8( viewLine() - viewTop() ) )
         call    edLeft
         mov     ax, [edLeft__ret]
@@ -8395,19 +8699,19 @@ refreshList:
         mov     al, [listOverflowed__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L1162
+        jz      .L1191
         mov     ax, sTooMany                ; link-time constant
         mov     [message], ax
-.L1162:
+.L1191:
 ; ---- if ( haveName ) {
         mov     al, [haveName]
         test    al, al
-        jnz     .L1167
-        jmp     .L1165
-.L1167:
+        jnz     .L1196
+        jmp     .L1194
+.L1196:
 ; ---- for ( u16 i = 0; i < listCount(); i++ ) {
         mov     word [refreshList__i], 0
-.L1168:
+.L1197:
         mov     ax, [refreshList__i]
         push    ax                          ; save lhs: rhs is not a leaf
         call    listCount
@@ -8415,7 +8719,7 @@ refreshList:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jae     .L1170                      ; unsigned <
+        jae     .L1199                      ; unsigned <
 ; ---- if ( listIsNamed( i, addr( fileName ) + dirPathLen ) ) {
         mov     ax, [refreshList__i]
         mov     [listIsNamed__i], ax
@@ -8427,19 +8731,19 @@ refreshList:
         mov     al, [listIsNamed__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L1172
+        jz      .L1201
 ; ---- listGoto( i )
         mov     ax, [refreshList__i]
         mov     [listGoto__i], ax
         call    listGoto
 ; ---- return
         ret
-.L1172:
-.L1169:
+.L1201:
+.L1198:
         inc     word [refreshList__i]
-        jmp     .L1168
-.L1170:
-.L1165:
+        jmp     .L1197
+.L1199:
+.L1194:
         ret
 
 ; ============================================== sub toggleExplorer ====
@@ -8448,21 +8752,21 @@ toggleExplorer:
 ; ---- expShown = !expShown
         mov     al, [expShown]
         test    al, al
-        jnz     .L1175
+        jnz     .L1204
         mov     ax, 1
-        jmp     .L1176
-.L1175:
+        jmp     .L1205
+.L1204:
         xor     ax, ax
-.L1176:
+.L1205:
         mov     [expShown], al              ; narrowed to bool
 ; ---- expFocus = expShown
         mov     [expFocus], al              ; bool -> bool, no widening
 ; ---- if ( expShown ) refreshList()
         mov     al, [expShown]
         test    al, al
-        jz      .L1178
+        jz      .L1207
         call    refreshList
-.L1178:
+.L1207:
 ; ---- viewSize( rows - 1, edWidth() )
         mov     ax, [rows]
         dec     ax
@@ -8498,24 +8802,24 @@ isUp:
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
         cmp     al, 46                      ; byte operands, no widening
-        jne     .L1181                      ; unsigned ==
+        jne     .L1210                      ; unsigned ==
         mov     ax, [isUp__at]
         inc     ax
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
         cmp     al, 46                      ; byte operands, no widening
-        jne     .L1181                      ; unsigned ==
+        jne     .L1210                      ; unsigned ==
         mov     ax, [isUp__at]
         add     ax, 2
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
         test    al, al
-        jne     .L1181                      ; unsigned ==
+        jne     .L1210                      ; unsigned ==
         mov     ax, 1
-        jmp     .L1182
-.L1181:
+        jmp     .L1211
+.L1210:
         xor     ax, ax
-.L1182:
+.L1211:
         mov     [isUp__ret], al             ; narrowed to bool
         ret
 
@@ -8526,9 +8830,9 @@ addUp:
         mov     ax, [dirPathLen]
         add     ax, 3
         cmp     ax, 80
-        jb      .L1186                      ; unsigned >=
+        jb      .L1215                      ; unsigned >=
         ret
-.L1186:
+.L1215:
 ; ---- dirPath[dirPathLen]     = '.'
         mov     ax, [dirPathLen]
         mov     bx, ax
@@ -8555,65 +8859,65 @@ goUp:
 ; ---- if ( dirPathLen == 0 ) {
         mov     ax, [dirPathLen]
         test    ax, ax
-        jne     .L1189                      ; unsigned ==
+        jne     .L1218                      ; unsigned ==
 ; ---- addUp()
         call    addUp
 ; ---- return
         ret
-.L1189:
+.L1218:
 ; ---- if ( dirPathLen >= 3 && dirPath[dirPathLen - 1] == 92 &&
         mov     ax, [dirPathLen]
         cmp     ax, 3
-        jb      .L1192                      ; unsigned >=
+        jb      .L1221                      ; unsigned >=
         mov     ax, [dirPathLen]
         dec     ax
         mov     bx, ax
         mov     al, [dirPath + bx]
         cmp     al, 92                      ; byte operands, no widening
-        jne     .L1192                      ; unsigned ==
+        jne     .L1221                      ; unsigned ==
         mov     ax, [dirPathLen]
         sub     ax, 2
         mov     bx, ax
         mov     al, [dirPath + bx]
         cmp     al, 46                      ; byte operands, no widening
-        jne     .L1192                      ; unsigned ==
+        jne     .L1221                      ; unsigned ==
         mov     ax, [dirPathLen]
         sub     ax, 3
         mov     bx, ax
         mov     al, [dirPath + bx]
         cmp     al, 46                      ; byte operands, no widening
-        jne     .L1192                      ; unsigned ==
+        jne     .L1221                      ; unsigned ==
 ; ---- addUp()
         call    addUp
 ; ---- return
         ret
-.L1192:
+.L1221:
 ; ---- n = dirPathLen - 1
         mov     ax, [dirPathLen]
         dec     ax
         mov     [goUp__n], ax
 ; ---- while ( n > 0 && dirPath[n - 1] != 92 && dirPath[n - 1] != 58 ) {
-.L1198:
+.L1227:
         mov     ax, [goUp__n]
         test    ax, ax
-        jbe     .L1200                      ; unsigned >
+        jbe     .L1229                      ; unsigned >
         mov     ax, [goUp__n]
         dec     ax
         mov     bx, ax
         mov     al, [dirPath + bx]
         cmp     al, 92                      ; byte operands, no widening
-        je      .L1200                      ; unsigned !=
+        je      .L1229                      ; unsigned !=
         mov     ax, [goUp__n]
         dec     ax
         mov     bx, ax
         mov     al, [dirPath + bx]
         cmp     al, 58                      ; byte operands, no widening
-        je      .L1200                      ; unsigned !=
+        je      .L1229                      ; unsigned !=
 ; ---- n--
         dec     word [goUp__n]
-.L1199:
-        jmp     .L1198
-.L1200:
+.L1228:
+        jmp     .L1227
+.L1229:
 ; ---- dirPathLen = n
         mov     ax, [goUp__n]
         mov     [dirPathLen], ax
@@ -8625,28 +8929,28 @@ goDown:
 ; ---- n = 0
         mov     word [goDown__n], 0
 ; ---- while ( peek8( nameAt + n ) != 0 ) {
-.L1204:
+.L1233:
         mov     ax, [goDown__nameAt]
         mov     bx, [goDown__n]
         add     ax, bx
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
         test    al, al
-        je      .L1206                      ; unsigned !=
+        je      .L1235                      ; unsigned !=
 ; ---- n++
         inc     word [goDown__n]
-.L1205:
-        jmp     .L1204
-.L1206:
+.L1234:
+        jmp     .L1233
+.L1235:
 ; ---- if ( dirPathLen + n + 1 >= len( dirPath ) ) return
         mov     ax, [dirPathLen]
         mov     bx, [goDown__n]
         add     ax, bx
         inc     ax
         cmp     ax, 80
-        jb      .L1208                      ; unsigned >=
+        jb      .L1237                      ; unsigned >=
         ret
-.L1208:
+.L1237:
 ; ---- memCopy( addr( dirPath ) + dirPathLen, nameAt, n )
         mov     ax, dirPath                 ; link-time constant
         mov     bx, [dirPathLen]
@@ -8681,16 +8985,16 @@ descend:
         mov     al, [isUp__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L1211
+        jz      .L1240
 ; ---- goUp()
         call    goUp
-        jmp     .L1212
-.L1211:
+        jmp     .L1241
+.L1240:
 ; ---- goDown( nameAt )
         mov     ax, [descend__nameAt]
         mov     [goDown__nameAt], ax
         call    goDown
-.L1212:
+.L1241:
 ; ---- buildPattern()
         call    buildPattern
 ; ---- refreshList()
@@ -8711,9 +9015,9 @@ openSelected:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L1214                      ; unsigned >=
+        jb      .L1243                      ; unsigned >=
         ret
-.L1214:
+.L1243:
 ; ---- if ( listIsDir( listCursor() ) ) {
         call    listCursor
         mov     ax, [listCursor__ret]
@@ -8722,7 +9026,7 @@ openSelected:
         mov     al, [listIsDir__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L1217
+        jz      .L1246
 ; ---- descend( listName( listCursor() ) )
         call    listCursor
         mov     ax, [listCursor__ret]
@@ -8733,7 +9037,7 @@ openSelected:
         call    descend
 ; ---- return
         ret
-.L1217:
+.L1246:
 ; ---- n = buildOpenPath( listName( listCursor() ) )
         call    listCursor
         mov     ax, [listCursor__ret]
@@ -8753,9 +9057,9 @@ openSelected:
         mov     al, [openNamed__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L1220
+        jz      .L1249
         mov     byte [expFocus], 0
-.L1220:
+.L1249:
         ret
 
 ; ============================================== sub focusExplorer ====
@@ -8764,12 +9068,12 @@ focusExplorer:
 ; ---- if ( !expShown ) {
         mov     al, [expShown]
         test    al, al
-        jnz     .L1223
+        jnz     .L1252
 ; ---- toggleExplorer()
         call    toggleExplorer
 ; ---- return
         ret
-.L1223:
+.L1252:
 ; ---- expFocus = true
         mov     byte [expFocus], 1
 ; ---- needExp  = true
@@ -8784,102 +9088,102 @@ explorerKey:
 ; ---- if ( k == keyTab || k == keyExt + keyShiftTab ) {
         mov     ax, [explorerKey__k]
         cmp     ax, 9
-        je      .L1228                      ; unsigned ==
+        je      .L1257                      ; unsigned ==
         mov     ax, [explorerKey__k]
         cmp     ax, 271
-        jne     .L1226                      ; unsigned ==
-.L1228:
+        jne     .L1255                      ; unsigned ==
+.L1257:
 ; ---- expFocus = false
         mov     byte [expFocus], 0
 ; ---- return
         ret
-.L1226:
+.L1255:
 ; ---- if ( k == keyQuit ) {
         mov     ax, [explorerKey__k]
         cmp     ax, 17
-        jne     .L1231                      ; unsigned ==
+        jne     .L1260                      ; unsigned ==
 ; ---- running = false
         mov     byte [running], 0
 ; ---- return
         ret
-.L1231:
+.L1260:
 ; ---- if ( k == 2 ) {
         mov     ax, [explorerKey__k]
         cmp     ax, 2
-        jne     .L1234                      ; unsigned ==
+        jne     .L1263                      ; unsigned ==
 ; ---- toggleExplorer()
         call    toggleExplorer
 ; ---- return
         ret
-.L1234:
+.L1263:
 ; ---- if ( k == keyEsc ) {
         mov     ax, [explorerKey__k]
         cmp     ax, 27
-        jne     .L1237                      ; unsigned ==
+        jne     .L1266                      ; unsigned ==
 ; ---- expFocus = false
         mov     byte [expFocus], 0
 ; ---- return
         ret
-.L1237:
+.L1266:
 ; ---- if ( k == 13 ) {
         mov     ax, [explorerKey__k]
         cmp     ax, 13
-        jne     .L1240                      ; unsigned ==
+        jne     .L1269                      ; unsigned ==
 ; ---- openSelected()
         call    openSelected
 ; ---- return
         ret
-.L1240:
+.L1269:
 ; ---- if ( k >= 32 && k < 127 ) {
         mov     ax, [explorerKey__k]
         cmp     ax, 32
-        jb      .L1243                      ; unsigned >=
+        jb      .L1272                      ; unsigned >=
         mov     ax, [explorerKey__k]
         cmp     ax, 127
-        jae     .L1243                      ; unsigned <
+        jae     .L1272                      ; unsigned <
 ; ---- listJump( u8( k ) )
         mov     ax, [explorerKey__k]
         mov     [listJump__ch], al          ; u16 -> u8, no widening
         call    listJump
 ; ---- return
         ret
-.L1243:
+.L1272:
 ; ---- if ( k == keyExt + keyUp )    listUp()
         mov     ax, [explorerKey__k]
         cmp     ax, 328
-        jne     .L1247                      ; unsigned ==
+        jne     .L1276                      ; unsigned ==
         call    listUp
-.L1247:
+.L1276:
 ; ---- if ( k == keyExt + keyDown )  listDown()
         mov     ax, [explorerKey__k]
         cmp     ax, 336
-        jne     .L1250                      ; unsigned ==
+        jne     .L1279                      ; unsigned ==
         call    listDown
-.L1250:
+.L1279:
 ; ---- if ( k == keyExt + keyPgUp )  listPageUp()
         mov     ax, [explorerKey__k]
         cmp     ax, 329
-        jne     .L1253                      ; unsigned ==
+        jne     .L1282                      ; unsigned ==
         call    listPageUp
-.L1253:
+.L1282:
 ; ---- if ( k == keyExt + keyPgDn )  listPageDown()
         mov     ax, [explorerKey__k]
         cmp     ax, 337
-        jne     .L1256                      ; unsigned ==
+        jne     .L1285                      ; unsigned ==
         call    listPageDown
-.L1256:
+.L1285:
 ; ---- if ( k == keyExt + keyHome )  listHome()
         mov     ax, [explorerKey__k]
         cmp     ax, 327
-        jne     .L1259                      ; unsigned ==
+        jne     .L1288                      ; unsigned ==
         call    listHome
-.L1259:
+.L1288:
 ; ---- if ( k == keyExt + keyEnd )   listEnd()
         mov     ax, [explorerKey__k]
         cmp     ax, 335
-        jne     .L1262                      ; unsigned ==
+        jne     .L1291                      ; unsigned ==
         call    listEnd
-.L1262:
+.L1291:
         ret
 
 ; ============================================== sub repaint ====
@@ -8897,34 +9201,34 @@ repaint:
 ; ---- if ( !drawn || needText || sel || lastSel || prompting() || lastAsk ||
         mov     al, [drawn]
         test    al, al
-        jz      .L1267
+        jz      .L1296
         mov     al, [needText]
         test    al, al
-        jnz     .L1267
+        jnz     .L1296
         mov     al, [repaint__sel]
         test    al, al
-        jnz     .L1267
+        jnz     .L1296
         mov     al, [lastSel]
         test    al, al
-        jnz     .L1267
+        jnz     .L1296
         call    prompting
         mov     al, [prompting__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jnz     .L1267
+        jnz     .L1296
         mov     al, [lastAsk]
         test    al, al
-        jnz     .L1267
+        jnz     .L1296
         call    viewLeft
         mov     ax, [viewLeft__ret]
         mov     bx, [lastLeft]
         cmp     ax, bx
-        je      .L1265                      ; unsigned !=
-.L1267:
+        je      .L1294                      ; unsigned !=
+.L1296:
 ; ---- viewRender()
         call    viewRender
-        jmp     .L1266
-.L1265:
+        jmp     .L1295
+.L1294:
 ; ---- } else if ( viewTop() == lastTop + 1 ) {
         call    viewTop
         mov     ax, [viewTop__ret]
@@ -8934,9 +9238,9 @@ repaint:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        je      .L1277                      ; unsigned ==
-        jmp     .L1275
-.L1277:
+        je      .L1306                      ; unsigned ==
+        jmp     .L1304
+.L1306:
 ; ---- scrollUp( u8( edLeft() ), 0, u8( edWidth() ), u8( h ), 1, attrText )
         call    edLeft
         mov     ax, [edLeft__ret]
@@ -8971,8 +9275,8 @@ repaint:
         dec     ax
         mov     [viewRenderRow__y], ax
         call    viewRenderRow
-        jmp     .L1276
-.L1275:
+        jmp     .L1305
+.L1304:
 ; ---- } else if ( lastTop == viewTop() + 1 ) {
         mov     ax, [lastTop]
         push    ax                          ; save lhs: rhs is not a leaf
@@ -8982,9 +9286,9 @@ repaint:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        je      .L1280                      ; unsigned ==
-        jmp     .L1278
-.L1280:
+        je      .L1309                      ; unsigned ==
+        jmp     .L1307
+.L1309:
 ; ---- scrollDown( u8( edLeft() ), 0, u8( edWidth() ), u8( h ), 1, attrText )
         call    edLeft
         mov     ax, [edLeft__ret]
@@ -9017,33 +9321,33 @@ repaint:
 ; ---- viewRenderRow( 0 )
         mov     word [viewRenderRow__y], 0
         call    viewRenderRow
-        jmp     .L1279
-.L1278:
+        jmp     .L1308
+.L1307:
 ; ---- } else if ( viewTop() != lastTop ) {
         call    viewTop
         mov     ax, [viewTop__ret]
         mov     bx, [lastTop]
         cmp     ax, bx
-        je      .L1281                      ; unsigned !=
+        je      .L1310                      ; unsigned !=
 ; ---- viewRender()
         call    viewRender
-.L1281:
-.L1279:
-.L1276:
-.L1266:
+.L1310:
+.L1308:
+.L1305:
+.L1295:
 ; ---- if ( expShown && ( needExp || !drawn ) ) drawExplorer()
         mov     al, [expShown]
         test    al, al
-        jz      .L1284
+        jz      .L1313
         mov     al, [needExp]
         test    al, al
-        jnz     .L1287
+        jnz     .L1316
         mov     al, [drawn]
         test    al, al
-        jnz     .L1284
-.L1287:
+        jnz     .L1313
+.L1316:
         call    drawExplorer
-.L1284:
+.L1313:
 ; ---- drawStatus()
         call    drawStatus
 ; ---- placeCursor()
@@ -9077,10 +9381,10 @@ repaint:
 keyAction:
 ; ---- for ( u16 i = 0; i < len( bindKey ); i++ ) {
         mov     word [keyAction__i], 0
-.L1290:
+.L1319:
         mov     ax, [keyAction__i]
         cmp     ax, 28
-        jae     .L1292                      ; unsigned <
+        jae     .L1321                      ; unsigned <
 ; ---- if ( bindKey[i] == k && bindPrefix[i] == pending ) return bindAction[i]
         mov     ax, [keyAction__i]
         shl     ax, 1                       ; word elements
@@ -9088,24 +9392,24 @@ keyAction:
         mov     ax, [bindKey + bx]
         mov     bx, [keyAction__k]
         cmp     ax, bx
-        jne     .L1294                      ; unsigned ==
+        jne     .L1323                      ; unsigned ==
         mov     ax, [keyAction__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [bindPrefix + bx]
         mov     bx, [pending]
         cmp     ax, bx
-        jne     .L1294                      ; unsigned ==
+        jne     .L1323                      ; unsigned ==
         mov     ax, [keyAction__i]
         mov     bx, ax
         mov     al, [bindAction + bx]
         mov     [keyAction__ret], al        ; u8 -> u8, no widening
         ret
-.L1294:
-.L1291:
+.L1323:
+.L1320:
         inc     word [keyAction__i]
-        jmp     .L1290
-.L1292:
+        jmp     .L1319
+.L1321:
 ; ---- return actNone
         mov     byte [keyAction__ret], 0
         ret
@@ -9115,10 +9419,10 @@ keyAction:
 keyIsPrefix:
 ; ---- for ( u16 i = 0; i < len( bindPrefix ); i++ ) {
         mov     word [keyIsPrefix__i], 0
-.L1298:
+.L1327:
         mov     ax, [keyIsPrefix__i]
         cmp     ax, 27
-        jae     .L1300                      ; unsigned <
+        jae     .L1329                      ; unsigned <
 ; ---- if ( bindPrefix[i] == k ) return true
         mov     ax, [keyIsPrefix__i]
         shl     ax, 1                       ; word elements
@@ -9126,14 +9430,14 @@ keyIsPrefix:
         mov     ax, [bindPrefix + bx]
         mov     bx, [keyIsPrefix__k]
         cmp     ax, bx
-        jne     .L1302                      ; unsigned ==
+        jne     .L1331                      ; unsigned ==
         mov     byte [keyIsPrefix__ret], 1
         ret
-.L1302:
-.L1299:
+.L1331:
+.L1328:
         inc     word [keyIsPrefix__i]
-        jmp     .L1298
-.L1300:
+        jmp     .L1327
+.L1329:
 ; ---- return false
         mov     byte [keyIsPrefix__ret], 0
         ret
@@ -9176,7 +9480,7 @@ doInsert:
         mov     al, [viewSelected__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L1305
+        jz      .L1334
 ; ---- undoStep {
         call    undoOpen
 ; ---- killSelection()
@@ -9187,13 +9491,13 @@ doInsert:
         call    insertOne
 ; ---- }
         call    undoClose
-        jmp     .L1306
-.L1305:
+        jmp     .L1335
+.L1334:
 ; ---- insertOne( ch )
         mov     al, [doInsert__ch]
         mov     [insertOne__ch], al         ; u8 -> u8, no widening
         call    insertOne
-.L1306:
+.L1335:
 ; ---- dirty = true
         mov     byte [dirty], 1
         ret
@@ -9230,7 +9534,7 @@ doEnter:
         mov     al, [viewSelected__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L1308
+        jz      .L1337
 ; ---- undoStep {
         call    undoOpen
 ; ---- killSelection()
@@ -9239,11 +9543,11 @@ doEnter:
         call    splitOne
 ; ---- }
         call    undoClose
-        jmp     .L1309
-.L1308:
+        jmp     .L1338
+.L1337:
 ; ---- splitOne()
         call    splitOne
-.L1309:
+.L1338:
 ; ---- dirty = true
         mov     byte [dirty], 1
         ret
@@ -9256,9 +9560,9 @@ doBack:
         mov     al, [killSelection__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L1311
+        jz      .L1340
         ret
-.L1311:
+.L1340:
 ; ---- ln = viewLine()
         call    viewLine
         mov     ax, [viewLine__ret]
@@ -9269,7 +9573,7 @@ doBack:
         mov     [doBack__col], ax
 ; ---- if ( col > 0 ) {
         test    ax, ax
-        jbe     .L1314                      ; unsigned >
+        jbe     .L1343                      ; unsigned >
 ; ---- lineDelete( ln, col - 1 )
         mov     ax, [doBack__ln]
         mov     [lineDelete__ln], ax
@@ -9288,13 +9592,13 @@ doBack:
         mov     byte [dirty], 1
 ; ---- return
         ret
-.L1314:
+.L1343:
 ; ---- if ( ln == 0 ) return
         mov     ax, [doBack__ln]
         test    ax, ax
-        jne     .L1317                      ; unsigned ==
+        jne     .L1346                      ; unsigned ==
         ret
-.L1317:
+.L1346:
 ; ---- prevLen = lineLength( ln - 1 )
         mov     ax, [doBack__ln]
         dec     ax
@@ -9343,7 +9647,7 @@ doSave:
 ; ---- if ( !haveName ) {
         mov     al, [haveName]
         test    al, al
-        jnz     .L1320
+        jnz     .L1349
 ; ---- promptOpen( askSave, addr( sSave ) )
         mov     byte [promptOpen__what], 6
         mov     ax, sSave                   ; link-time constant
@@ -9351,18 +9655,18 @@ doSave:
         call    promptOpen
 ; ---- return
         ret
-.L1320:
+.L1349:
 ; ---- if ( saveFile() ) {
         call    saveFile
         mov     al, [saveFile__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L1323
+        jz      .L1352
 ; ---- dirty = false
         mov     byte [dirty], 0
 ; ---- return
         ret
-.L1323:
+.L1352:
 ; ---- message = addr( sFailed )
         mov     ax, sFailed                 ; link-time constant
         mov     [message], ax
@@ -9376,10 +9680,10 @@ killSelection:
         mov     al, [viewSelected__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jnz     .L1326
+        jnz     .L1355
         mov     byte [killSelection__ret], 0
         ret
-.L1326:
+.L1355:
 ; ---- ln  = viewFromLine()
         call    viewFromLine
         mov     ax, [viewFromLine__ret]
@@ -9439,7 +9743,7 @@ lineSpan:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jae     .L1329                      ; unsigned <
+        jae     .L1358                      ; unsigned <
 ; ---- spanToLine = viewLine() + 1
         call    viewLine
         mov     ax, [viewLine__ret]
@@ -9447,8 +9751,8 @@ lineSpan:
         mov     [spanToLine], ax
 ; ---- spanToCol  = 0
         mov     word [spanToCol], 0
-        jmp     .L1330
-.L1329:
+        jmp     .L1359
+.L1358:
 ; ---- spanToLine = viewLine()
         call    viewLine
         mov     ax, [viewLine__ret]
@@ -9460,7 +9764,7 @@ lineSpan:
         call    lineLength
         mov     ax, [lineLength__ret]
         mov     [spanToCol], ax
-.L1330:
+.L1359:
         ret
 
 ; ============================================== sub actSpan ====
@@ -9471,7 +9775,7 @@ actSpan:
         mov     al, [viewSelected__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L1332
+        jz      .L1361
 ; ---- spanFromLine = viewFromLine()
         call    viewFromLine
         mov     ax, [viewFromLine__ret]
@@ -9490,7 +9794,7 @@ actSpan:
         mov     [spanToCol], ax
 ; ---- return
         ret
-.L1332:
+.L1361:
 ; ---- lineSpan()
         call    lineSpan
         ret
@@ -9521,10 +9825,10 @@ doCopy:
         mov     al, [rangeCopied__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jnz     .L1335
+        jnz     .L1364
         mov     ax, sClipFull               ; link-time constant
         mov     [message], ax
-.L1335:
+.L1364:
         ret
 
 ; ============================================== sub doCut ====
@@ -9537,9 +9841,9 @@ doCut:
         mov     al, [rangeCopied__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jnz     .L1338
+        jnz     .L1367
         ret
-.L1338:
+.L1367:
 ; ---- undoStep {
         call    undoOpen
 ; ---- rangeDelete( spanFromLine, spanFromCol, spanToLine, spanToCol )
@@ -9567,10 +9871,10 @@ doCut:
         mov     al, [textUndoLost__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L1341
+        jz      .L1370
         mov     ax, sNoUndo                 ; link-time constant
         mov     [message], ax
-.L1341:
+.L1370:
 ; ---- dirty = true
         mov     byte [dirty], 1
         ret
@@ -9581,9 +9885,9 @@ doPaste:
 ; ---- if ( clipLen == 0 ) return
         mov     ax, [clipLen]
         test    ax, ax
-        jne     .L1344                      ; unsigned ==
+        jne     .L1373                      ; unsigned ==
         ret
-.L1344:
+.L1373:
 ; ---- undoStep {
         call    undoOpen
 ; ---- killSelection()
@@ -9623,10 +9927,10 @@ doPaste:
         mov     al, [textUndoLost__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L1347
+        jz      .L1376
         mov     ax, sNoUndo                 ; link-time constant
         mov     [message], ax
-.L1347:
+.L1376:
 ; ---- dirty = true
         mov     byte [dirty], 1
         ret
@@ -9665,19 +9969,19 @@ promptOpen:
 ; ---- i = 0
         mov     word [promptOpen__i], 0
 ; ---- while ( peek8( label + i ) != '$' ) {
-.L1350:
+.L1379:
         mov     ax, [promptOpen__label]
         mov     bx, [promptOpen__i]
         add     ax, bx
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
         cmp     al, 36                      ; byte operands, no widening
-        je      .L1352                      ; unsigned !=
+        je      .L1381                      ; unsigned !=
 ; ---- i++
         inc     word [promptOpen__i]
-.L1351:
-        jmp     .L1350
-.L1352:
+.L1380:
+        jmp     .L1379
+.L1381:
 ; ---- asking   = what
         mov     al, [promptOpen__what]
         mov     [asking], al                ; u8 -> u8, no widening
@@ -9720,20 +10024,20 @@ doGoto:
         mov     al, [strNumber__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jnz     .L1354
+        jnz     .L1383
 ; ---- message = addr( sNoLine )
         mov     ax, sNoLine                 ; link-time constant
         mov     [message], ax
 ; ---- return
         ret
-.L1354:
+.L1383:
 ; ---- askValue = strValue()
         call    strValue
         mov     ax, [strValue__ret]
         mov     [askValue], ax
 ; ---- if ( askValue == 0 || askValue > textLines() ) {
         test    ax, ax
-        je      .L1359                      ; unsigned ==
+        je      .L1388                      ; unsigned ==
         mov     ax, [askValue]
         push    ax                          ; save lhs: rhs is not a leaf
         call    textLines
@@ -9741,14 +10045,14 @@ doGoto:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jbe     .L1357                      ; unsigned >
-.L1359:
+        jbe     .L1386                      ; unsigned >
+.L1388:
 ; ---- message = addr( sNoLine )
         mov     ax, sNoLine                 ; link-time constant
         mov     [message], ax
 ; ---- return
         ret
-.L1357:
+.L1386:
 ; ---- undoBreak()
         call    undoBreak
 ; ---- viewUnmark()
@@ -9767,21 +10071,21 @@ openNamed:
 ; ---- if ( dirty ) {
         mov     al, [dirty]
         test    al, al
-        jz      .L1362
+        jz      .L1391
 ; ---- message = addr( sDirty )
         mov     ax, sDirty                  ; link-time constant
         mov     [message], ax
 ; ---- return false
         mov     byte [openNamed__ret], 0
         ret
-.L1362:
+.L1391:
 ; ---- if ( n == 0 ) return false
         mov     ax, [openNamed__n]
         test    ax, ax
-        jne     .L1365                      ; unsigned ==
+        jne     .L1394                      ; unsigned ==
         mov     byte [openNamed__ret], 0
         ret
-.L1365:
+.L1394:
 ; ---- memCopy( addr( wasName ), addr( fileName ), len( fileName ) )
         mov     ax, wasName                 ; link-time constant
         mov     [memCopy__to], ax
@@ -9808,7 +10112,7 @@ openNamed:
         mov     al, [loadFile__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L1368
+        jz      .L1397
 ; ---- viewUnmark()
         call    viewUnmark
 ; ---- viewHome()
@@ -9822,7 +10126,7 @@ openNamed:
 ; ---- return true
         mov     byte [openNamed__ret], 1
         ret
-.L1368:
+.L1397:
 ; ---- message = addr( sTooBig )
         mov     ax, sTooBig                 ; link-time constant
         mov     [message], ax
@@ -9836,12 +10140,12 @@ openNamed:
 ; ---- haveName = fileName[0] != 0
         mov     al, [fileName]
         test    al, al
-        je      .L1371                      ; unsigned !=
+        je      .L1400                      ; unsigned !=
         mov     ax, 1
-        jmp     .L1372
-.L1371:
+        jmp     .L1401
+.L1400:
         xor     ax, ax
-.L1372:
+.L1401:
         mov     [haveName], al              ; narrowed to bool
 ; ---- loadFile()
         call    loadFile
@@ -9881,9 +10185,9 @@ doReplaceAll:
         call    findLength
         mov     ax, [findLength__ret]
         test    ax, ax
-        jne     .L1374                      ; unsigned ==
+        jne     .L1403                      ; unsigned ==
         ret
-.L1374:
+.L1403:
 ; ---- askCount = rangeReplaceAll( addr( replText ), replLen )
         mov     ax, replText                ; link-time constant
         mov     [rangeReplaceAll__at], ax
@@ -9894,7 +10198,7 @@ doReplaceAll:
         mov     [askCount], ax
 ; ---- if ( askCount > 0 ) {
         test    ax, ax
-        jbe     .L1377                      ; unsigned >
+        jbe     .L1406                      ; unsigned >
 ; ---- dirty = true
         mov     byte [dirty], 1
 ; ---- viewUnmark()
@@ -9909,7 +10213,7 @@ doReplaceAll:
         pop     ax
         mov     [viewGoto__ln], ax
         call    viewGoto
-.L1377:
+.L1406:
 ; ---- message = addr( sDone )
         mov     ax, sDone                   ; link-time constant
         mov     [message], ax
@@ -9918,10 +10222,10 @@ doReplaceAll:
         mov     al, [textUndoLost__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L1380
+        jz      .L1409
         mov     ax, sNoUndo                 ; link-time constant
         mov     [message], ax
-.L1380:
+.L1409:
         ret
 
 ; ============================================== sub doFind ====
@@ -9937,15 +10241,15 @@ doFind:
         call    findLength
         mov     ax, [findLength__ret]
         test    ax, ax
-        jne     .L1383                      ; unsigned ==
+        jne     .L1412                      ; unsigned ==
         ret
-.L1383:
+.L1412:
 ; ---- if ( forward ) {
         mov     al, [doFind__forward]
         test    al, al
-        jnz     .L1388
-        jmp     .L1386
-.L1388:
+        jnz     .L1417
+        jmp     .L1415
+.L1417:
 ; ---- got = findNext( viewLine(), viewCol() + 1 )
         call    viewLine
         mov     ax, [viewLine__ret]
@@ -9962,7 +10266,7 @@ doFind:
         mov     [doFind__got], al           ; narrowed to bool
 ; ---- if ( !got ) {
         test    al, al
-        jnz     .L1389
+        jnz     .L1418
 ; ---- got = findNext( 0, 0 )
         mov     word [findNext__ln], 0
         mov     word [findNext__col], 0
@@ -9972,13 +10276,13 @@ doFind:
         mov     [doFind__got], al           ; narrowed to bool
 ; ---- if ( got ) message = addr( sWrapped )
         test    al, al
-        jz      .L1392
+        jz      .L1421
         mov     ax, sWrapped                ; link-time constant
         mov     [message], ax
-.L1392:
-.L1389:
-        jmp     .L1387
-.L1386:
+.L1421:
+.L1418:
+        jmp     .L1416
+.L1415:
 ; ---- got = findPrev( viewLine(), viewCol() )
         call    viewLine
         mov     ax, [viewLine__ret]
@@ -9994,7 +10298,7 @@ doFind:
         mov     [doFind__got], al           ; narrowed to bool
 ; ---- if ( !got ) {
         test    al, al
-        jnz     .L1395
+        jnz     .L1424
 ; ---- got = findPrev( textLines() - 1, 0xFFFF )
         call    textLines
         mov     ax, [textLines__ret]
@@ -10009,22 +10313,22 @@ doFind:
         mov     [doFind__got], al           ; narrowed to bool
 ; ---- if ( got ) message = addr( sWrapped )
         test    al, al
-        jz      .L1398
+        jz      .L1427
         mov     ax, sWrapped                ; link-time constant
         mov     [message], ax
-.L1398:
-.L1395:
-.L1387:
+.L1427:
+.L1424:
+.L1416:
 ; ---- if ( !got ) {
         mov     al, [doFind__got]
         test    al, al
-        jnz     .L1401
+        jnz     .L1430
 ; ---- message = addr( sNoMatch )
         mov     ax, sNoMatch                ; link-time constant
         mov     [message], ax
 ; ---- return
         ret
-.L1401:
+.L1430:
 ; ---- onMatch = true
         mov     byte [onMatch], 1
 ; ---- viewGoto( findLine(), findCol() )
@@ -10045,7 +10349,7 @@ promptDone:
 ; ---- if ( asking == askFind ) {
         mov     al, [asking]
         cmp     al, 1                       ; byte operands, no widening
-        jne     .L1404                      ; unsigned ==
+        jne     .L1433                      ; unsigned ==
 ; ---- findSet( fieldAddr(), fieldLength() )
         call    fieldAddr
         mov     ax, [fieldAddr__ret]
@@ -10061,11 +10365,11 @@ promptDone:
         call    doFind
 ; ---- return
         ret
-.L1404:
+.L1433:
 ; ---- if ( asking == askTerm ) {
         mov     al, [asking]
         cmp     al, 4                       ; byte operands, no widening
-        jne     .L1407                      ; unsigned ==
+        jne     .L1436                      ; unsigned ==
 ; ---- findSet( fieldAddr(), fieldLength() )
         call    fieldAddr
         mov     ax, [fieldAddr__ret]
@@ -10083,11 +10387,11 @@ promptDone:
         call    promptOpen
 ; ---- return
         ret
-.L1407:
+.L1436:
 ; ---- if ( asking == askWith ) {
         mov     al, [asking]
         cmp     al, 5                       ; byte operands, no widening
-        jne     .L1410                      ; unsigned ==
+        jne     .L1439                      ; unsigned ==
 ; ---- replLen = fieldLength()
         call    fieldLength
         mov     ax, [fieldLength__ret]
@@ -10111,44 +10415,44 @@ promptDone:
         call    doReplaceAll
 ; ---- return
         ret
-.L1410:
+.L1439:
 ; ---- if ( asking == askGoto ) {
         mov     al, [asking]
         cmp     al, 2                       ; byte operands, no widening
-        jne     .L1413                      ; unsigned ==
+        jne     .L1442                      ; unsigned ==
 ; ---- asking = askNone
         mov     byte [asking], 0
 ; ---- doGoto()
         call    doGoto
 ; ---- return
         ret
-.L1413:
+.L1442:
 ; ---- if ( asking == askOpen ) {
         mov     al, [asking]
         cmp     al, 3                       ; byte operands, no widening
-        jne     .L1416                      ; unsigned ==
+        jne     .L1445                      ; unsigned ==
 ; ---- asking = askNone
         mov     byte [asking], 0
 ; ---- doOpen()
         call    doOpen
 ; ---- return
         ret
-.L1416:
+.L1445:
 ; ---- if ( asking == askSave ) {
         mov     al, [asking]
         cmp     al, 6                       ; byte operands, no widening
-        je      .L1421                      ; unsigned ==
-        jmp     .L1419
-.L1421:
+        je      .L1450                      ; unsigned ==
+        jmp     .L1448
+.L1450:
 ; ---- asking = askNone
         mov     byte [asking], 0
 ; ---- if ( fieldLength() == 0 ) return
         call    fieldLength
         mov     ax, [fieldLength__ret]
         test    ax, ax
-        jne     .L1422                      ; unsigned ==
+        jne     .L1451                      ; unsigned ==
         ret
-.L1422:
+.L1451:
 ; ---- memCopy( addr( fileName ), fieldAddr(), fieldLength() )
         mov     ax, fileName                ; link-time constant
         push    ax                          ; argument evaluated before any is stored
@@ -10175,10 +10479,10 @@ promptDone:
 ; ---- if ( expShown ) refreshList()
         mov     al, [expShown]
         test    al, al
-        jz      .L1425
+        jz      .L1454
         call    refreshList
-.L1425:
-.L1419:
+.L1454:
+.L1448:
         ret
 
 ; ============================================== sub promptKey ====
@@ -10189,14 +10493,14 @@ promptKey:
 ; ---- if ( asking == askFind && ( k == keyExt + keyUp || k == keyExt + keyDown ) ) {
         mov     al, [asking]
         cmp     al, 1                       ; byte operands, no widening
-        jne     .L1428                      ; unsigned ==
+        jne     .L1457                      ; unsigned ==
         mov     ax, [promptKey__k]
         cmp     ax, 328
-        je      .L1431                      ; unsigned ==
+        je      .L1460                      ; unsigned ==
         mov     ax, [promptKey__k]
         cmp     ax, 336
-        jne     .L1428                      ; unsigned ==
-.L1431:
+        jne     .L1457                      ; unsigned ==
+.L1460:
 ; ---- findSet( fieldAddr(), fieldLength() )
         call    fieldAddr
         mov     ax, [fieldAddr__ret]
@@ -10210,17 +10514,17 @@ promptKey:
 ; ---- doFind( k == keyExt + keyDown )
         mov     ax, [promptKey__k]
         cmp     ax, 336
-        jne     .L1434                      ; unsigned ==
+        jne     .L1463                      ; unsigned ==
         mov     ax, 1
-        jmp     .L1435
-.L1434:
+        jmp     .L1464
+.L1463:
         xor     ax, ax
-.L1435:
+.L1464:
         mov     [doFind__forward], al       ; narrowed to bool
         call    doFind
 ; ---- return
         ret
-.L1428:
+.L1457:
 ; ---- r = fieldKey( k )
         mov     ax, [promptKey__k]
         mov     [fieldKey__k], ax
@@ -10230,19 +10534,19 @@ promptKey:
         mov     [promptKey__r], al          ; narrowed to u8
 ; ---- if ( r == fieldAccept ) {
         cmp     al, 1                       ; byte operands, no widening
-        jne     .L1437                      ; unsigned ==
+        jne     .L1466                      ; unsigned ==
 ; ---- promptDone()
         call    promptDone
-        jmp     .L1438
-.L1437:
+        jmp     .L1467
+.L1466:
 ; ---- } else if ( r == fieldCancel ) {
         mov     al, [promptKey__r]
         cmp     al, 2                       ; byte operands, no widening
-        jne     .L1440                      ; unsigned ==
+        jne     .L1469                      ; unsigned ==
 ; ---- promptClose()
         call    promptClose
-.L1440:
-.L1438:
+.L1469:
+.L1467:
         ret
 
 ; ============================================== bool isMotion ====
@@ -10255,52 +10559,52 @@ isMotion:
 ; ---- a == actWordL || a == actWordR
         mov     al, [isMotion__a]
         cmp     al, 2                       ; byte operands, no widening
-        jne     .L1446                      ; unsigned ==
-        jmp     .L1445
-.L1446:
+        jne     .L1475                      ; unsigned ==
+        jmp     .L1474
+.L1475:
         mov     al, [isMotion__a]
         cmp     al, 3                       ; byte operands, no widening
-        jne     .L1447                      ; unsigned ==
-        jmp     .L1445
-.L1447:
+        jne     .L1476                      ; unsigned ==
+        jmp     .L1474
+.L1476:
         mov     al, [isMotion__a]
         cmp     al, 4                       ; byte operands, no widening
-        jne     .L1448                      ; unsigned ==
-        jmp     .L1445
-.L1448:
+        jne     .L1477                      ; unsigned ==
+        jmp     .L1474
+.L1477:
         mov     al, [isMotion__a]
         cmp     al, 5                       ; byte operands, no widening
-        je      .L1445                      ; unsigned ==
+        je      .L1474                      ; unsigned ==
         mov     al, [isMotion__a]
         cmp     al, 6                       ; byte operands, no widening
-        je      .L1445                      ; unsigned ==
+        je      .L1474                      ; unsigned ==
         mov     al, [isMotion__a]
         cmp     al, 7                       ; byte operands, no widening
-        je      .L1445                      ; unsigned ==
+        je      .L1474                      ; unsigned ==
         mov     al, [isMotion__a]
         cmp     al, 13                      ; byte operands, no widening
-        je      .L1445                      ; unsigned ==
+        je      .L1474                      ; unsigned ==
         mov     al, [isMotion__a]
         cmp     al, 14                      ; byte operands, no widening
-        je      .L1445                      ; unsigned ==
+        je      .L1474                      ; unsigned ==
         mov     al, [isMotion__a]
         cmp     al, 15                      ; byte operands, no widening
-        je      .L1445                      ; unsigned ==
+        je      .L1474                      ; unsigned ==
         mov     al, [isMotion__a]
         cmp     al, 16                      ; byte operands, no widening
-        je      .L1445                      ; unsigned ==
+        je      .L1474                      ; unsigned ==
         mov     al, [isMotion__a]
         cmp     al, 24                      ; byte operands, no widening
-        je      .L1445                      ; unsigned ==
+        je      .L1474                      ; unsigned ==
         mov     al, [isMotion__a]
         cmp     al, 25                      ; byte operands, no widening
-        jne     .L1443                      ; unsigned ==
-.L1445:
+        jne     .L1472                      ; unsigned ==
+.L1474:
         mov     ax, 1
-        jmp     .L1444
-.L1443:
+        jmp     .L1473
+.L1472:
         xor     ax, ax
-.L1444:
+.L1473:
         mov     [isMotion__ret], al         ; narrowed to bool
         ret
 
@@ -10314,16 +10618,16 @@ apply:
         mov     al, [isMotion__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jnz     .L1460
+        jnz     .L1489
         mov     al, [apply__a]
         cmp     al, 18                      ; byte operands, no widening
-        je      .L1460                      ; unsigned ==
+        je      .L1489                      ; unsigned ==
         mov     al, [apply__a]
         cmp     al, 19                      ; byte operands, no widening
-        jne     .L1458                      ; unsigned ==
-.L1460:
+        jne     .L1487                      ; unsigned ==
+.L1489:
         call    undoBreak
-.L1458:
+.L1487:
 ; ---- if ( !isMotion( a ) ) needText = true
         mov     al, [apply__a]
         mov     [isMotion__a], al           ; u8 -> u8, no widening
@@ -10331,9 +10635,9 @@ apply:
         mov     al, [isMotion__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jnz     .L1464
+        jnz     .L1493
         mov     byte [needText], 1
-.L1464:
+.L1493:
 ; ---- if ( isMotion( a ) ) {
         mov     al, [apply__a]
         mov     [isMotion__a], al           ; u8 -> u8, no widening
@@ -10341,40 +10645,40 @@ apply:
         mov     al, [isMotion__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L1467
+        jz      .L1496
 ; ---- if ( selecting ) {
         mov     al, [selecting]
         test    al, al
-        jz      .L1470
+        jz      .L1499
 ; ---- viewMark()
         call    viewMark
-        jmp     .L1471
-.L1470:
+        jmp     .L1500
+.L1499:
 ; ---- viewUnmark()
         call    viewUnmark
-.L1471:
-.L1467:
+.L1500:
+.L1496:
 ; ---- if ( a == actInsert ) {
         mov     al, [apply__a]
         cmp     al, 1                       ; byte operands, no widening
-        jne     .L1473                      ; unsigned ==
+        jne     .L1502                      ; unsigned ==
 ; ---- doInsert( u8( k ) )
         mov     ax, [apply__k]
         mov     [doInsert__ch], al          ; u16 -> u8, no widening
         call    doInsert
-        jmp     .L1474
-.L1473:
+        jmp     .L1503
+.L1502:
 ; ---- } else if ( a == actLeft ) {
         mov     al, [apply__a]
         cmp     al, 2                       ; byte operands, no widening
-        je      .L1478                      ; unsigned ==
-        jmp     .L1476
-.L1478:
+        je      .L1507                      ; unsigned ==
+        jmp     .L1505
+.L1507:
 ; ---- if ( viewCol() > 0 ) {
         call    viewCol
         mov     ax, [viewCol__ret]
         test    ax, ax
-        jbe     .L1479                      ; unsigned >
+        jbe     .L1508                      ; unsigned >
 ; ---- viewGoto( viewLine(), viewCol() - 1 )
         call    viewLine
         mov     ax, [viewLine__ret]
@@ -10386,13 +10690,13 @@ apply:
         pop     ax
         mov     [viewGoto__ln], ax
         call    viewGoto
-        jmp     .L1480
-.L1479:
+        jmp     .L1509
+.L1508:
 ; ---- } else if ( viewLine() > 0 ) {
         call    viewLine
         mov     ax, [viewLine__ret]
         test    ax, ax
-        jbe     .L1482                      ; unsigned >
+        jbe     .L1511                      ; unsigned >
 ; ---- viewGoto( viewLine() - 1, lineLength( viewLine() - 1 ) )
         call    viewLine
         mov     ax, [viewLine__ret]
@@ -10408,16 +10712,16 @@ apply:
         pop     ax
         mov     [viewGoto__ln], ax
         call    viewGoto
-.L1482:
-.L1480:
-        jmp     .L1477
-.L1476:
+.L1511:
+.L1509:
+        jmp     .L1506
+.L1505:
 ; ---- } else if ( a == actRight ) {
         mov     al, [apply__a]
         cmp     al, 3                       ; byte operands, no widening
-        je      .L1487                      ; unsigned ==
-        jmp     .L1485
-.L1487:
+        je      .L1516                      ; unsigned ==
+        jmp     .L1514
+.L1516:
 ; ---- if ( viewCol() < lineLength( viewLine() ) ) {
         call    viewCol
         mov     ax, [viewCol__ret]
@@ -10430,7 +10734,7 @@ apply:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jae     .L1488                      ; unsigned <
+        jae     .L1517                      ; unsigned <
 ; ---- viewGoto( viewLine(), viewCol() + 1 )
         call    viewLine
         mov     ax, [viewLine__ret]
@@ -10442,8 +10746,8 @@ apply:
         pop     ax
         mov     [viewGoto__ln], ax
         call    viewGoto
-        jmp     .L1489
-.L1488:
+        jmp     .L1518
+.L1517:
 ; ---- } else if ( viewLine() + 1 < textLines() ) {
         call    viewLine
         mov     ax, [viewLine__ret]
@@ -10454,7 +10758,7 @@ apply:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jae     .L1491                      ; unsigned <
+        jae     .L1520                      ; unsigned <
 ; ---- viewGoto( viewLine() + 1, 0 )
         call    viewLine
         mov     ax, [viewLine__ret]
@@ -10464,43 +10768,43 @@ apply:
         pop     ax
         mov     [viewGoto__ln], ax
         call    viewGoto
-.L1491:
-.L1489:
-        jmp     .L1486
-.L1485:
+.L1520:
+.L1518:
+        jmp     .L1515
+.L1514:
 ; ---- } else if ( a == actUp ) {
         mov     al, [apply__a]
         cmp     al, 4                       ; byte operands, no widening
-        jne     .L1494                      ; unsigned ==
+        jne     .L1523                      ; unsigned ==
 ; ---- if ( viewLine() > 0 ) viewGotoLine( viewLine() - 1 )
         call    viewLine
         mov     ax, [viewLine__ret]
         test    ax, ax
-        jbe     .L1497                      ; unsigned >
+        jbe     .L1526                      ; unsigned >
         call    viewLine
         mov     ax, [viewLine__ret]
         dec     ax
         mov     [viewGotoLine__ln], ax
         call    viewGotoLine
-.L1497:
-        jmp     .L1495
-.L1494:
+.L1526:
+        jmp     .L1524
+.L1523:
 ; ---- } else if ( a == actDown ) {
         mov     al, [apply__a]
         cmp     al, 5                       ; byte operands, no widening
-        jne     .L1500                      ; unsigned ==
+        jne     .L1529                      ; unsigned ==
 ; ---- viewGotoLine( viewLine() + 1 )
         call    viewLine
         mov     ax, [viewLine__ret]
         inc     ax
         mov     [viewGotoLine__ln], ax
         call    viewGotoLine
-        jmp     .L1501
-.L1500:
+        jmp     .L1530
+.L1529:
 ; ---- } else if ( a == actHome ) {
         mov     al, [apply__a]
         cmp     al, 6                       ; byte operands, no widening
-        jne     .L1503                      ; unsigned ==
+        jne     .L1532                      ; unsigned ==
 ; ---- viewGoto( viewLine(), 0 )
         call    viewLine
         mov     ax, [viewLine__ret]
@@ -10509,12 +10813,12 @@ apply:
         pop     ax
         mov     [viewGoto__ln], ax
         call    viewGoto
-        jmp     .L1504
-.L1503:
+        jmp     .L1533
+.L1532:
 ; ---- } else if ( a == actEnd ) {
         mov     al, [apply__a]
         cmp     al, 7                       ; byte operands, no widening
-        jne     .L1506                      ; unsigned ==
+        jne     .L1535                      ; unsigned ==
 ; ---- viewGoto( viewLine(), lineLength( viewLine() ) )
         call    viewLine
         mov     ax, [viewLine__ret]
@@ -10528,12 +10832,12 @@ apply:
         pop     ax
         mov     [viewGoto__ln], ax
         call    viewGoto
-        jmp     .L1507
-.L1506:
+        jmp     .L1536
+.L1535:
 ; ---- } else if ( a == actPgUp ) {
         mov     al, [apply__a]
         cmp     al, 15                      ; byte operands, no widening
-        jne     .L1509                      ; unsigned ==
+        jne     .L1538                      ; unsigned ==
 ; ---- if ( viewLine() > rows - 1 ) {
         call    viewLine
         mov     ax, [viewLine__ret]
@@ -10543,7 +10847,7 @@ apply:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jbe     .L1512                      ; unsigned >
+        jbe     .L1541                      ; unsigned >
 ; ---- viewGotoLine( viewLine() - ( rows - 1 ) )
         call    viewLine
         mov     ax, [viewLine__ret]
@@ -10555,18 +10859,18 @@ apply:
         sub     ax, bx
         mov     [viewGotoLine__ln], ax
         call    viewGotoLine
-        jmp     .L1513
-.L1512:
+        jmp     .L1542
+.L1541:
 ; ---- viewGotoLine( 0 )
         mov     word [viewGotoLine__ln], 0
         call    viewGotoLine
-.L1513:
-        jmp     .L1510
-.L1509:
+.L1542:
+        jmp     .L1539
+.L1538:
 ; ---- } else if ( a == actPgDn ) {
         mov     al, [apply__a]
         cmp     al, 16                      ; byte operands, no widening
-        jne     .L1515                      ; unsigned ==
+        jne     .L1544                      ; unsigned ==
 ; ---- viewGotoLine( viewLine() + ( rows - 1 ) )
         call    viewLine
         mov     ax, [viewLine__ret]
@@ -10578,32 +10882,32 @@ apply:
         add     ax, bx
         mov     [viewGotoLine__ln], ax
         call    viewGotoLine
-        jmp     .L1516
-.L1515:
+        jmp     .L1545
+.L1544:
 ; ---- } else if ( a == actBack ) {
         mov     al, [apply__a]
         cmp     al, 8                       ; byte operands, no widening
-        jne     .L1518                      ; unsigned ==
+        jne     .L1547                      ; unsigned ==
 ; ---- doBack()
         call    doBack
-        jmp     .L1519
-.L1518:
+        jmp     .L1548
+.L1547:
 ; ---- } else if ( a == actDelete ) {
         mov     al, [apply__a]
         cmp     al, 9                       ; byte operands, no widening
-        je      .L1523                      ; unsigned ==
-        jmp     .L1521
-.L1523:
+        je      .L1552                      ; unsigned ==
+        jmp     .L1550
+.L1552:
 ; ---- if ( killSelection() ) {
         call    killSelection
         mov     al, [killSelection__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L1524
+        jz      .L1553
 ; ---- dirty = true
         mov     byte [dirty], 1
-        jmp     .L1525
-.L1524:
+        jmp     .L1554
+.L1553:
 ; ---- } else if ( viewCol() < lineLength( viewLine() ) ) {
         call    viewCol
         mov     ax, [viewCol__ret]
@@ -10616,7 +10920,7 @@ apply:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jae     .L1527                      ; unsigned <
+        jae     .L1556                      ; unsigned <
 ; ---- lineDelete( viewLine(), viewCol() )
         call    viewLine
         mov     ax, [viewLine__ret]
@@ -10629,8 +10933,8 @@ apply:
         call    lineDelete
 ; ---- dirty = true
         mov     byte [dirty], 1
-        jmp     .L1528
-.L1527:
+        jmp     .L1557
+.L1556:
 ; ---- } else if ( viewLine() + 1 < textLines() ) {
         call    viewLine
         mov     ax, [viewLine__ret]
@@ -10641,7 +10945,7 @@ apply:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jae     .L1530                      ; unsigned <
+        jae     .L1559                      ; unsigned <
 ; ---- lineJoin( viewLine() )
         call    viewLine
         mov     ax, [viewLine__ret]
@@ -10649,31 +10953,31 @@ apply:
         call    lineJoin
 ; ---- dirty = true
         mov     byte [dirty], 1
-.L1530:
-.L1528:
-.L1525:
-        jmp     .L1522
-.L1521:
+.L1559:
+.L1557:
+.L1554:
+        jmp     .L1551
+.L1550:
 ; ---- } else if ( a == actEnter ) {
         mov     al, [apply__a]
         cmp     al, 10                      ; byte operands, no widening
-        jne     .L1533                      ; unsigned ==
+        jne     .L1562                      ; unsigned ==
 ; ---- doEnter()
         call    doEnter
-        jmp     .L1534
-.L1533:
+        jmp     .L1563
+.L1562:
 ; ---- } else if ( a == actUndo ) {
         mov     al, [apply__a]
         cmp     al, 11                      ; byte operands, no widening
-        jne     .L1536                      ; unsigned ==
+        jne     .L1565                      ; unsigned ==
 ; ---- doUndo()
         call    doUndo
-        jmp     .L1537
-.L1536:
+        jmp     .L1566
+.L1565:
 ; ---- } else if ( a == actRedo ) {
         mov     al, [apply__a]
         cmp     al, 17                      ; byte operands, no widening
-        jne     .L1539                      ; unsigned ==
+        jne     .L1568                      ; unsigned ==
 ; ---- redoOnce()
         call    redoOnce
 ; ---- viewGoto( undoLine(), undoCol() )
@@ -10688,22 +10992,22 @@ apply:
         call    viewGoto
 ; ---- dirty = true
         mov     byte [dirty], 1
-        jmp     .L1540
-.L1539:
+        jmp     .L1569
+.L1568:
 ; ---- } else if ( a == actTop ) {
         mov     al, [apply__a]
         cmp     al, 13                      ; byte operands, no widening
-        jne     .L1542                      ; unsigned ==
+        jne     .L1571                      ; unsigned ==
 ; ---- viewGoto( 0, 0 )
         mov     word [viewGoto__ln], 0
         mov     word [viewGoto__col], 0
         call    viewGoto
-        jmp     .L1543
-.L1542:
+        jmp     .L1572
+.L1571:
 ; ---- } else if ( a == actBottom ) {
         mov     al, [apply__a]
         cmp     al, 14                      ; byte operands, no widening
-        jne     .L1545                      ; unsigned ==
+        jne     .L1574                      ; unsigned ==
 ; ---- viewGoto( textLines() - 1, 0 )
         call    textLines
         mov     ax, [textLines__ret]
@@ -10713,72 +11017,72 @@ apply:
         pop     ax
         mov     [viewGoto__ln], ax
         call    viewGoto
-        jmp     .L1546
-.L1545:
+        jmp     .L1575
+.L1574:
 ; ---- } else if ( a == actSave ) {
         mov     al, [apply__a]
         cmp     al, 12                      ; byte operands, no widening
-        jne     .L1548                      ; unsigned ==
+        jne     .L1577                      ; unsigned ==
 ; ---- doSave()
         call    doSave
-        jmp     .L1549
-.L1548:
+        jmp     .L1578
+.L1577:
 ; ---- } else if ( a == actFind ) {
         mov     al, [apply__a]
         cmp     al, 18                      ; byte operands, no widening
-        jne     .L1551                      ; unsigned ==
+        jne     .L1580                      ; unsigned ==
 ; ---- promptOpen( askFind, addr( sFind ) )
         mov     byte [promptOpen__what], 1
         mov     ax, sFind                   ; link-time constant
         mov     [promptOpen__label], ax
         call    promptOpen
-        jmp     .L1552
-.L1551:
+        jmp     .L1581
+.L1580:
 ; ---- } else if ( a == actGoto ) {
         mov     al, [apply__a]
         cmp     al, 26                      ; byte operands, no widening
-        jne     .L1554                      ; unsigned ==
+        jne     .L1583                      ; unsigned ==
 ; ---- promptOpen( askGoto, addr( sGoto ) )
         mov     byte [promptOpen__what], 2
         mov     ax, sGoto                   ; link-time constant
         mov     [promptOpen__label], ax
         call    promptOpen
-        jmp     .L1555
-.L1554:
+        jmp     .L1584
+.L1583:
 ; ---- } else if ( a == actOpen ) {
         mov     al, [apply__a]
         cmp     al, 27                      ; byte operands, no widening
-        jne     .L1557                      ; unsigned ==
+        jne     .L1586                      ; unsigned ==
 ; ---- promptOpen( askOpen, addr( sOpen ) )
         mov     byte [promptOpen__what], 3
         mov     ax, sOpen                   ; link-time constant
         mov     [promptOpen__label], ax
         call    promptOpen
-        jmp     .L1558
-.L1557:
+        jmp     .L1587
+.L1586:
 ; ---- } else if ( a == actExplor ) {
         mov     al, [apply__a]
         cmp     al, 29                      ; byte operands, no widening
-        jne     .L1560                      ; unsigned ==
+        jne     .L1589                      ; unsigned ==
 ; ---- toggleExplorer()
         call    toggleExplorer
-        jmp     .L1561
-.L1560:
+        jmp     .L1590
+.L1589:
 ; ---- } else if ( a == actRepl ) {
         mov     al, [apply__a]
         cmp     al, 28                      ; byte operands, no widening
-        jne     .L1563                      ; unsigned ==
+        jne     .L1592                      ; unsigned ==
 ; ---- promptOpen( askTerm, addr( sTerm ) )
         mov     byte [promptOpen__what], 4
         mov     ax, sTerm                   ; link-time constant
         mov     [promptOpen__label], ax
         call    promptOpen
-        jmp     .L1564
-.L1563:
+        jmp     .L1593
+.L1592:
 ; ---- } else if ( a == actWordL ) {
         mov     al, [apply__a]
         cmp     al, 24                      ; byte operands, no widening
-        jne     .L1566                      ; unsigned ==
+        jne     .L1595                      ; unsigned ==
 ; ---- wordPrev( viewLine(), viewCol() )
         call    viewLine
         mov     ax, [viewLine__ret]
@@ -10799,12 +11103,12 @@ apply:
         pop     ax
         mov     [viewGoto__ln], ax
         call    viewGoto
-        jmp     .L1567
-.L1566:
+        jmp     .L1596
+.L1595:
 ; ---- } else if ( a == actWordR ) {
         mov     al, [apply__a]
         cmp     al, 25                      ; byte operands, no widening
-        jne     .L1569                      ; unsigned ==
+        jne     .L1598                      ; unsigned ==
 ; ---- wordNext( viewLine(), viewCol() )
         call    viewLine
         mov     ax, [viewLine__ret]
@@ -10825,89 +11129,89 @@ apply:
         pop     ax
         mov     [viewGoto__ln], ax
         call    viewGoto
-        jmp     .L1570
-.L1569:
+        jmp     .L1599
+.L1598:
 ; ---- } else if ( a == actCopy ) {
         mov     al, [apply__a]
         cmp     al, 20                      ; byte operands, no widening
-        jne     .L1572                      ; unsigned ==
+        jne     .L1601                      ; unsigned ==
 ; ---- doCopy()
         call    doCopy
-        jmp     .L1573
-.L1572:
+        jmp     .L1602
+.L1601:
 ; ---- } else if ( a == actCut ) {
         mov     al, [apply__a]
         cmp     al, 21                      ; byte operands, no widening
-        jne     .L1575                      ; unsigned ==
+        jne     .L1604                      ; unsigned ==
 ; ---- doCut()
         call    doCut
-        jmp     .L1576
-.L1575:
+        jmp     .L1605
+.L1604:
 ; ---- } else if ( a == actPaste ) {
         mov     al, [apply__a]
         cmp     al, 22                      ; byte operands, no widening
-        jne     .L1578                      ; unsigned ==
+        jne     .L1607                      ; unsigned ==
 ; ---- doPaste()
         call    doPaste
-        jmp     .L1579
-.L1578:
+        jmp     .L1608
+.L1607:
 ; ---- } else if ( a == actAll ) {
         mov     al, [apply__a]
         cmp     al, 23                      ; byte operands, no widening
-        jne     .L1581                      ; unsigned ==
+        jne     .L1610                      ; unsigned ==
 ; ---- doSelectAll()
         call    doSelectAll
-        jmp     .L1582
-.L1581:
+        jmp     .L1611
+.L1610:
 ; ---- } else if ( a == actAgain ) {
         mov     al, [apply__a]
         cmp     al, 19                      ; byte operands, no widening
-        jne     .L1584                      ; unsigned ==
+        jne     .L1613                      ; unsigned ==
 ; ---- if ( findLength() == 0 ) {
         call    findLength
         mov     ax, [findLength__ret]
         test    ax, ax
-        jne     .L1587                      ; unsigned ==
+        jne     .L1616                      ; unsigned ==
 ; ---- promptOpen( askFind, addr( sFind ) )
         mov     byte [promptOpen__what], 1
         mov     ax, sFind                   ; link-time constant
         mov     [promptOpen__label], ax
         call    promptOpen
-        jmp     .L1588
-.L1587:
+        jmp     .L1617
+.L1616:
 ; ---- doFind( true )
         mov     byte [doFind__forward], 1
         call    doFind
-.L1588:
+.L1617:
+.L1613:
+.L1611:
+.L1608:
+.L1605:
+.L1602:
+.L1599:
+.L1596:
+.L1593:
+.L1590:
+.L1587:
 .L1584:
-.L1582:
-.L1579:
-.L1576:
-.L1573:
-.L1570:
-.L1567:
-.L1564:
-.L1561:
-.L1558:
-.L1555:
-.L1552:
-.L1549:
-.L1546:
-.L1543:
-.L1540:
-.L1537:
-.L1534:
-.L1522:
-.L1519:
-.L1516:
-.L1510:
-.L1507:
-.L1504:
-.L1501:
-.L1495:
-.L1486:
-.L1477:
-.L1474:
+.L1581:
+.L1578:
+.L1575:
+.L1572:
+.L1569:
+.L1566:
+.L1563:
+.L1551:
+.L1548:
+.L1545:
+.L1539:
+.L1536:
+.L1533:
+.L1530:
+.L1524:
+.L1515:
+.L1506:
+.L1503:
         ret
 
 ; ============================================== sub step ====
@@ -10918,14 +11222,14 @@ step:
         mov     al, [prompting__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L1590
+        jz      .L1619
 ; ---- promptKey( k )
         mov     ax, [step__k]
         mov     [promptKey__k], ax
         call    promptKey
 ; ---- return
         ret
-.L1590:
+.L1619:
 ; ---- message = 0
         mov     word [message], 0
 ; ---- selecting = false
@@ -10933,7 +11237,7 @@ step:
 ; ---- if ( k >= keyShift ) {
         mov     ax, [step__k]
         cmp     ax, 512
-        jb      .L1593                      ; unsigned >=
+        jb      .L1622                      ; unsigned >=
 ; ---- selecting = true
         mov     byte [selecting], 1
 ; ---- k = keyExt + ( k - keyShift )
@@ -10945,40 +11249,40 @@ step:
         pop     ax
         add     ax, bx
         mov     [step__k], ax
-.L1593:
+.L1622:
 ; ---- if ( expFocus ) {
         mov     al, [expFocus]
         test    al, al
-        jz      .L1596
+        jz      .L1625
 ; ---- explorerKey( k )
         mov     ax, [step__k]
         mov     [explorerKey__k], ax
         call    explorerKey
 ; ---- return
         ret
-.L1596:
+.L1625:
 ; ---- if ( k == keyTab || k == keyExt + keyShiftTab ) {
         mov     ax, [step__k]
         cmp     ax, 9
-        je      .L1601                      ; unsigned ==
+        je      .L1630                      ; unsigned ==
         mov     ax, [step__k]
         cmp     ax, 271
-        jne     .L1599                      ; unsigned ==
-.L1601:
+        jne     .L1628                      ; unsigned ==
+.L1630:
 ; ---- focusExplorer()
         call    focusExplorer
 ; ---- return
         ret
-.L1599:
+.L1628:
 ; ---- if ( k == keyEsc ) {
         mov     ax, [step__k]
         cmp     ax, 27
-        jne     .L1604                      ; unsigned ==
+        jne     .L1633                      ; unsigned ==
 ; ---- viewUnmark()
         call    viewUnmark
 ; ---- return
         ret
-.L1604:
+.L1633:
 ; ---- had = pending
         mov     ax, [pending]
         mov     [step__had], ax
@@ -10991,49 +11295,49 @@ step:
         mov     [step__a], al               ; narrowed to u8
 ; ---- if ( a == actNone && had == 0 && keyIsPrefix( k ) ) {
         test    al, al
-        jne     .L1607                      ; unsigned ==
+        jne     .L1636                      ; unsigned ==
         mov     ax, [step__had]
         test    ax, ax
-        jne     .L1607                      ; unsigned ==
+        jne     .L1636                      ; unsigned ==
         mov     ax, [step__k]
         mov     [keyIsPrefix__k], ax
         call    keyIsPrefix
         mov     al, [keyIsPrefix__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L1607
+        jz      .L1636
 ; ---- pending = k
         mov     ax, [step__k]
         mov     [pending], ax
 ; ---- return
         ret
-.L1607:
+.L1636:
 ; ---- pending = 0
         mov     word [pending], 0
 ; ---- if ( k == keyQuit ) {
         mov     ax, [step__k]
         cmp     ax, 17
-        jne     .L1612                      ; unsigned ==
+        jne     .L1641                      ; unsigned ==
 ; ---- running = false
         mov     byte [running], 0
 ; ---- return
         ret
-.L1612:
+.L1641:
 ; ---- if ( a == actNone && had == 0 && k >= 32 && k < 127 ) a = actInsert
         mov     al, [step__a]
         test    al, al
-        jne     .L1615                      ; unsigned ==
+        jne     .L1644                      ; unsigned ==
         mov     ax, [step__had]
         test    ax, ax
-        jne     .L1615                      ; unsigned ==
+        jne     .L1644                      ; unsigned ==
         mov     ax, [step__k]
         cmp     ax, 32
-        jb      .L1615                      ; unsigned >=
+        jb      .L1644                      ; unsigned >=
         mov     ax, [step__k]
         cmp     ax, 127
-        jae     .L1615                      ; unsigned <
+        jae     .L1644                      ; unsigned <
         mov     byte [step__a], 1
-.L1615:
+.L1644:
 ; ---- apply( a, k )
         mov     al, [step__a]
         mov     [apply__a], al              ; u8 -> u8, no widening
@@ -11213,6 +11517,7 @@ motext__nextSeg: dw      0        ; u16
 motext__usedSeg: dw      0        ; u16
 motext__headSeg: dw      0        ; u16
 motext__lenSeg: dw      0        ; u16
+motext__curDoc: dw      0        ; u16
 motext__atDst__c: dw      0        ; u16
 motext__atSrc__c: dw      0        ; u16
 motext__chunkHigh: dw      0        ; u16
@@ -11287,6 +11592,7 @@ motext__loadChunk: dw      0        ; u16
 motext__loadUsed: dw      0        ; u16
 motext__loadLine: dw      0        ; u16
 motext__loadLen: dw      0        ; u16
+motext__docLoad__d: dw      0        ; u16
 textRoom__ret:  dw      0        ; u16
 textLoad__ch:   db      0        ; u8
 textSave__handle: dw      0        ; u16
@@ -11573,9 +11879,11 @@ lineSlice__c:   dw      0        ; u16
 lineSlice__left: dw      0        ; u16
 lineSlice__done: dw      0        ; u16
 lineSlice__n:   dw      0        ; u16
+textInit__d:    dw      0        ; u16
 textInit__room: dw      0        ; u16
 textInit__avail: dw      0        ; u16
 textInit__spare: dw      0        ; u16
+textInit__at:   dw      0        ; u16
 textLoad__d:    dw      0        ; u16
 textSave__ln:   dw      0        ; u16
 textSave__total: dw      0        ; u16
@@ -11710,6 +12018,22 @@ screenMode__nomW: dw      0, 0, 320        ; u16[3]
 screenMode__nomH: dw      0, 0, 200        ; u16[3]
 screenMode__seg: dw      47104, 47104, 40960        ; u16[3]
 screenMode__elemBytes: db      2, 2, 1        ; u8[3]
+motext__docHeadSeg: times 4 dw 0        ; u16[4]
+motext__docLenSeg: times 4 dw 0        ; u16[4]
+motext__docLogOp: times 4 dw 0        ; u16[4]
+motext__docLogLine: times 4 dw 0        ; u16[4]
+motext__docLogCol: times 4 dw 0        ; u16[4]
+motext__docLogCh: times 4 dw 0        ; u16[4]
+motext__docLogJoin: times 4 dw 0        ; u16[4]
+motext__docLines: times 4 dw 0        ; u16[4]
+motext__docLineLimit: times 4 dw 0        ; u16[4]
+motext__docUndoHead: times 4 dw 0        ; u16[4]
+motext__docUndoCount: times 4 dw 0        ; u16[4]
+motext__docUndoDone: times 4 dw 0        ; u16[4]
+motext__docBreakRun: times 4 db 0        ; u8[4]
+motext__docUndoLost: times 4 db 0        ; u8[4]
+motext__docNoRoom: times 4 db 0        ; u8[4]
+motext__docWhyNoRoom: times 4 db 0        ; u8[4]
 motext__lineEnd: db      13, 10        ; u8[2] const
 motext__stage:  times 512 db 0        ; u8[512]
 moview__row:    times 160 db 0        ; u8[160]

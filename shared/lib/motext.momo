@@ -67,6 +67,20 @@ local const halfChunk = chunkSize / 2
 local const maxChunks = 32000
 local const maxUndo   = 2048
 
+// **More than one document, sharing one chunk store.**
+//
+// Every region here is either *per document* - the line tables and the undo log
+// - or *shared* - the chunks, their links and the free list. Splitting the chunks
+// would divide the capacity between documents whether they were using it or not;
+// sharing means a chunk belongs to whichever line points at it and the free list
+// never learns there is more than one.
+//
+// **What a document costs even while empty** is its line tables and its log:
+// 3,000 paragraphs for 12,000 lines of each table and 896 for the log, so about
+// 62 KB. On a 577 KB machine that is measurable against the chunks it leaves,
+// and it is why this is a const rather than a generous number nobody counted.
+local const maxDocs = 4
+
 // **Chunks rather than bytes**, because the byte count no longer fits a `u16` -
 // which is the whole of what moving past the segment bought. A program that
 // wants to know the capacity in bytes multiplies, in whatever width it likes.
@@ -75,6 +89,7 @@ local const maxUndo   = 2048
 // against this number, so the number is readable rather than copied.
 const textUndoMax  = maxUndo
 const textMaxLines = 12000
+const textMaxDocs  = maxDocs
 const textChunks   = maxChunks
 const textChunkSize = chunkSize
 
@@ -118,6 +133,34 @@ local u16 nextSeg
 local u16 usedSeg
 local u16 headSeg
 local u16 lenSeg
+
+// **A document is these variables**, and switching is copying them out and the
+// next one in. The alternative - indexing every access by a document number -
+// would put an add on the hot path of a buffer whose whole design is about what
+// an edit costs, to save about forty bytes of copying on a keystroke nobody
+// presses in a loop.
+//
+// Seven segments and a dozen scalars, which is the whole of what a document is.
+// Everything not in here is shared on purpose.
+local u16[maxDocs] docHeadSeg
+local u16[maxDocs] docLenSeg
+local u16[maxDocs] docLogOp
+local u16[maxDocs] docLogLine
+local u16[maxDocs] docLogCol
+local u16[maxDocs] docLogCh
+local u16[maxDocs] docLogJoin
+
+local u16[maxDocs] docLines
+local u16[maxDocs] docLineLimit
+local u16[maxDocs] docUndoHead
+local u16[maxDocs] docUndoCount
+local u16[maxDocs] docUndoDone
+local u8[maxDocs]  docBreakRun
+local u8[maxDocs]  docUndoLost
+local u8[maxDocs]  docNoRoom
+local u8[maxDocs]  docWhyNoRoom
+
+local u16 curDoc
 
 local far u8[chunkSize] src = srcSeg
 local far u8[chunkSize] dst = dstSeg
@@ -995,10 +1038,92 @@ local sub lineNew {
 
 // A library has no top-level statements to run, so this is explicit - the same
 // reason §43's row table is filled by a call rather than by setting a mode.
+// Out, and in. Written as two halves rather than one swap because `textInit` has
+// to load a document it never saved.
+local sub docSave {
+  docLines[curDoc]      = lineCount
+  docLineLimit[curDoc]  = lineLimit
+  docUndoHead[curDoc]   = undoHead
+  docUndoCount[curDoc]  = undoCount
+  docUndoDone[curDoc]   = undoDone
+  docBreakRun[curDoc]   = breakRun ? 1 : 0
+  docUndoLost[curDoc]   = undoLost ? 1 : 0
+  docNoRoom[curDoc]     = noRoom ? 1 : 0
+  docWhyNoRoom[curDoc]  = whyNoRoom
+}
+
+local sub docLoad( u16 d ) {
+  headSeg    = docHeadSeg[d]
+  lenSeg     = docLenSeg[d]
+  logOpSeg   = docLogOp[d]
+  logLineSeg = docLogLine[d]
+  logColSeg  = docLogCol[d]
+  logChSeg   = docLogCh[d]
+  logJoinSeg = docLogJoin[d]
+
+  lineCount  = docLines[d]
+  lineLimit  = docLineLimit[d]
+  undoHead   = docUndoHead[d]
+  undoCount  = docUndoCount[d]
+  undoDone   = docUndoDone[d]
+  breakRun   = docBreakRun[d] != 0
+  undoLost   = docUndoLost[d] != 0
+  noRoom     = docNoRoom[d] != 0
+  whyNoRoom  = docWhyNoRoom[d]
+
+  // **Not saved and not restored**, because none of them may be live across a
+  // switch: a group is closed before a command ends, a bulk load is closed by
+  // its bracket, and `undoing` is only true inside a step. A document caught
+  // mid-anything would be a caller doing something this cannot make safe, so
+  // they are reset rather than carried.
+  undoing   = false
+  bulking   = false
+  stepDepth = 0
+  stepLost  = false
+}
+
+u16 textDoc() => curDoc
+
+// The document `d` becomes the one every other routine here is about. Nothing
+// is copied and nothing is reloaded - the text was never in this segment, so a
+// switch is seven segment registers worth of numbers and a dozen counters.
+sub textSwitch( u16 d ) {
+  if ( d >= maxDocs ) return
+  if ( d == curDoc ) return
+
+  docSave()
+  curDoc = d
+  docLoad( d )
+}
+
+// Empty the document in front of us, leaving every other one alone. **This is
+// what a file open wants** - `textInit` lays out the machine and is called once,
+// where this happens per file and must not touch the others.
+sub textClear {
+  lineCount = 0
+  undoHead  = 0
+  undoCount = 0
+  undoDone  = 0
+  undoing   = false
+  breakRun  = true
+  noRoom    = false
+  whyNoRoom = whyNothing
+  bulking   = false
+  stepDepth = 0
+  stepLost  = false
+  undoLost  = false
+
+  if ( chunkLimit == 0 ) return
+
+  lineLimit = textMaxLines
+  lineNew()
+}
+
 sub textInit {
   u16 room
   u16 avail
   u16 spare
+  u16 at
 
   lineCount  = 0
   chunkFree  = 0
@@ -1047,7 +1172,7 @@ sub textInit {
 
   avail = blockEnd() - recBase
 
-  if ( avail <= headParas + lenParas + logParas ) {
+  if ( avail <= ( headParas + lenParas + logParas ) * maxDocs ) {
     noRoom = true
     whyNoRoom = whyBlock
     return
@@ -1061,28 +1186,47 @@ sub textInit {
   // leaves a `u16` at four thousand paragraphs and the machine this was measured
   // on has thirty-six thousand. Third time that exact shape has been needed;
   // `loadrate` was the first.
-  spare = avail - headParas - lenParas - logParas
+  spare = avail - ( headParas + lenParas + logParas ) * maxDocs
   chunkLimit = spare / 19 * 16 + ( spare % 19 ) * 16 / 19
 
   if ( chunkLimit > maxChunks ) chunkLimit = maxChunks
 
   // Rounded up, because a region that stops one paragraph short of its last
   // entry is a region whose last entry is somebody else.
+  // **The shared half first**: the chunk links and their fill, which every
+  // document draws from.
   nextSeg  = recBase
   usedSeg  = nextSeg + ( chunkLimit + 7 ) / 8
-  headSeg  = usedSeg + ( chunkLimit + 15 ) / 16
-  lenSeg   = headSeg + headParas
 
-  // The log, whose size is fixed by `maxUndo` rather than by the machine - it is
-  // a window on history and a bigger one is not better past the point where a
-  // person would rather have the text.
-  logOpSeg   = lenSeg + lenParas
-  logLineSeg = logOpSeg + opParas
-  logColSeg  = logLineSeg + lineParas
-  logChSeg   = logColSeg + lineParas
-  logJoinSeg = logChSeg + opParas
+  // Then a set of per-document regions apiece. The log is fixed by `maxUndo`
+  // rather than by the machine - a log is a window on history and a bigger one
+  // stops being better where a person would rather have the text.
+  at = usedSeg + ( chunkLimit + 15 ) / 16
 
-  textBase = logJoinSeg + opParas
+  for ( u16 d = 0; d < maxDocs; d++ ) {
+    docHeadSeg[d] = at
+    at = at + headParas
+
+    docLenSeg[d] = at
+    at = at + lenParas
+
+    docLogOp[d] = at
+    at = at + opParas
+
+    docLogLine[d] = at
+    at = at + lineParas
+
+    docLogCol[d] = at
+    at = at + lineParas
+
+    docLogCh[d] = at
+    at = at + opParas
+
+    docLogJoin[d] = at
+    at = at + opParas
+  }
+
+  textBase = at
 
   // Compared rather than added, so a high base cannot wrap past the end and
   // come back looking like room - the same care `blockFits` takes.
@@ -1106,9 +1250,18 @@ sub textInit {
     return
   }
 
-  lineLimit = textMaxLines
+  // **Every document, not only the first.** They share the chunk store, so an
+  // empty one costs a line and its terminator; leaving them uninitialised would
+  // mean a switch landing in whatever the records held.
+  for ( u16 d = 0; d < maxDocs; d++ ) {
+    curDoc = d
+    docLoad( d )
+    textClear()
+    docSave()
+  }
 
-  lineNew()
+  curDoc = 0
+  docLoad( 0 )
 }
 
 // Whether there is a buffer at all. `textNoRoom` says the same thing and more,

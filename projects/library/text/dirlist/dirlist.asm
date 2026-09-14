@@ -13,6 +13,7 @@ dir__dirNameAt: equ     30
 motext__chunkSize: equ     16
 motext__maxChunks: equ     32000
 motext__maxUndo: equ     2048
+motext__maxDocs: equ     4
 textMaxLines:   equ     12000
 textHeap:       equ     0
 motext__opParas: equ     128

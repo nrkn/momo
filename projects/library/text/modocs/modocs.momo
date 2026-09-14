@@ -1,0 +1,149 @@
+// modocs.momo - more than one document in one buffer (DESIGN §54, §58).
+//
+// Every region §54 lays out is either **per document** - the line tables and the
+// undo log - or **shared** - the chunks, their links and the free list. This is
+// the test of that sentence, and the halves need opposite claims: the per-document
+// ones must not leak between documents, and the shared one must.
+//
+// **A switch is not a copy.** The text was never in this segment, so what changes
+// is seven segment numbers and a dozen counters - which is why the thing to check
+// is that the *right* ones are carried and the rest are left alone.
+
+include "lib/std/io.momo"
+include "lib/motext.momo"
+
+u8[64] buf
+
+const u8[] sRoom  = "room shared: $"
+const u8[] sDocs  = "docs: $"
+const u8[] sHold  = "hold:$"
+const u8[] sUndo  = "undo:$"
+const u8[] sClear = "clear:$"
+const u8[] sRange = "range: $"
+
+// A line's text, `$`-terminated here because §54 hands back a count.
+sub showLine( u16 ln ) {
+  u16 n
+
+  n = lineSlice( ln, 0, len( buf ) - 1, addr( buf ) )
+  buf[n] = '$'
+
+  putStr( addr( buf ) )
+  newline()
+}
+
+sub put( u16 at, u16 n ) {
+  for ( u16 i = 0; i < n; i++ ) {
+    lineAppend( 0, peek8( at + i ) )
+  }
+}
+
+const u8[] textA = "alpha"
+const u8[] textB = "bravo"
+const u8[] textC = "charlie"
+
+textInit()
+
+// ---- what the store costs with this many documents ----
+//
+// Printed rather than asserted: it is a fact about the machine and the const,
+// and the reason to have it here is that raising `textMaxDocs` moves it.
+
+putStr( addr( sDocs ) )
+putNumber( textMaxDocs )
+newline()
+
+putStr( addr( sRoom ) )
+putNumber( u16( textRoom() > 0 ) )
+newline()
+
+// ---- three documents, holding three different things ----
+
+put( addr( textA ), len( textA ) )
+
+textSwitch( 1 )
+put( addr( textB ), len( textB ) )
+
+textSwitch( 2 )
+put( addr( textC ), len( textC ) )
+
+// **Read back out of order**, because a switch that returned the document it was
+// last on would pass a test that walked them forwards.
+putStr( addr( sHold ) )
+newline()
+
+textSwitch( 1 )
+putNumber( textDoc() )
+putChar( ' ' )
+showLine( 0 )
+
+textSwitch( 0 )
+putNumber( textDoc() )
+putChar( ' ' )
+showLine( 0 )
+
+textSwitch( 2 )
+putNumber( textDoc() )
+putChar( ' ' )
+showLine( 0 )
+
+// ---- the undo log is per document ----
+//
+// The claim that is easiest to get wrong: the log segments are switched with the
+// rest, so an undo in one document has to leave the others where they were.
+//
+// **One step takes the whole word**, because §54 coalesces a run of typing into
+// one action - which is better evidence than a character would have been. The
+// counts are the sharper half: five entries still applied in the document that
+// was not touched, none in the one that was. A shared log could not produce that
+// pair.
+
+putStr( addr( sUndo ) )
+newline()
+
+textSwitch( 2 )
+undoOnce()
+showLine( 0 )                       // empty: the run was one step
+
+textSwitch( 1 )
+showLine( 0 )                       // bravo, untouched
+
+// Document 1 first, which never had an undo taken, then document 2, which had
+// its only step taken back.
+putNumber( textUndos() )
+putChar( ' ' )
+
+textSwitch( 2 )
+putNumber( textUndos() )
+newline()
+
+// ---- clearing one leaves the others ----
+//
+// `textInit` lays out the machine and `textClear` empties a document. A file open
+// wants the second, and the difference is what this checks.
+
+putStr( addr( sClear ) )
+newline()
+
+textSwitch( 0 )
+textClear()
+putNumber( lineLength( 0 ) )
+putChar( ' ' )
+
+textSwitch( 1 )
+showLine( 0 )                       // bravo
+
+// ---- a document that does not exist is not a document ----
+//
+// Out of range does nothing rather than wrapping or trusting the caller, because
+// the caller is a program with tabs and an off-by-one in it is a document full of
+// somebody else's records.
+
+putStr( addr( sRange ) )
+textSwitch( textMaxDocs )
+putNumber( textDoc() )
+putChar( ' ' )
+
+textSwitch( textMaxDocs + 10 )
+putNumber( textDoc() )
+newline()
