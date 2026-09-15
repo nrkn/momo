@@ -185,6 +185,19 @@ local sub fieldRemove( u16 at ) {
   fieldLen--
 }
 
+// **A byte, put in as if it had been typed.** `fieldKey` below answers a
+// different question - what a *keystroke* meant - and its range stops short of
+// the control codes on purpose, because a stray function key must not put one
+// into a filename. A character picker has already decided the answer is a
+// character, and that range is most of what it exists to reach.
+//
+// It kills a selection first, exactly as a typed character does, so a pre-filled
+// prompt behaves the same way whichever of the two put the character in.
+sub fieldPut( u8 ch ) {
+  fieldKill()
+  fieldInsert( ch )
+}
+
 // ---- one keystroke ----
 //
 // The same normalised `u16` §57 hands the editor, so a prompt and a document

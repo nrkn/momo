@@ -76,6 +76,20 @@ sub show {
   newline()
 }
 
+// The bytes as numbers, because what the section below puts in the field is
+// exactly the set a terminal would not show and a `.expected` could not hold.
+sub showBytes {
+  u16 at
+  at = fieldAddr()
+
+  for ( u16 i = 0; i < fieldLength(); i++ ) {
+    if ( i > 0 ) putChar( ' ' )
+    putNumber( u16( peek8( at + i ) ) )
+  }
+
+  newline()
+}
+
 // ---- typing and moving ----
 
 fieldClear()
@@ -259,3 +273,34 @@ press( 233 )
 press( 127 )
 putNumber( fieldLength() )
 newline()                               // 1
+
+// ---- a byte the keyboard cannot send (§64) ----------------------------------
+//
+// `fieldPut` is the other question. `fieldKey` asks what a *keystroke* meant and
+// stops short of the control codes on purpose, because a stray function key must
+// not put one into a filename; a character picker has already decided that its
+// answer is a character.
+//
+// **127 is the case that tells the two apart**, and it is not a contrived one: as
+// a keystroke it is `Ctrl+Backspace` and must not be typed, and as a character it
+// is a glyph somebody chose off a grid. Zero goes in for the same reason it goes
+// into §54 - nothing here is terminated, a field is a length and a buffer.
+
+fieldClear()
+press( 127 )
+putNumber( fieldLength() )
+newline()                               // 0
+
+fieldPut( 127 )
+fieldPut( 1 )
+fieldPut( 0 )
+showBytes()                             // 127 1 0
+
+// A selection goes first, exactly as it does for a typed character - so a
+// pre-filled prompt behaves the same way whichever of the two filled it.
+fieldClear()
+setClip( addr( pAbc ), len( pAbc ) )
+press( 22 )
+press( 1 )
+fieldPut( 7 )
+showBytes()                             // 7

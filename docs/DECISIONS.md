@@ -3457,3 +3457,54 @@ range that means nothing is a range somebody will eventually use.
 They answer with the cursor now, so `from == to` is the whole definition of an
 empty selection. §56 has the same property and the same callers; it is worth a
 look there too.
+
+### The screen picked the grid, and the chart convention agreed
+
+Four rows of 64 and eight of 32 were the two shapes on the table, and the answer
+was neither. 40-column mode is the narrowest this can be launched into, and 64
+glyphs do not fit in it at all; 32 fit only with no space between them, and the
+space is load-bearing, because box-drawing characters butted together form one
+continuous line with no seam to see.
+
+16x16 fits with the space, and then turns out to be the shape a codepage is
+always drawn in anyway: row is the high nibble, column is the low one, and the
+cursor's position is the code. **A constraint and a convention pointing the same
+way is worth noticing** - the constraint is what decided it, and the convention is
+why it reads well.
+
+### What the picker cost, measured after it was built
+
+1,597 bytes of code and 1,782 of image, which comes off §54's chunk store since
+that is what the heap is. Fourteen routines and seven strings for a grid, a
+frame, an information line and eight keys.
+
+Worth saying plainly because §58's ceiling is the live constraint on this program
+and every feature is now priced against it. This one is a feature somebody asked
+for; the next one gets the same arithmetic.
+
+### Type-ahead was cut twice, on the same argument
+
+Both kinds were considered and neither survives contact with what the picker is
+for. Typing a letter to jump to it helps nobody, because a character you can type
+is a character you did not need a picker for. Typing a decimal code is worse:
+somebody who knows the code already has `Alt`+code, which is fewer keystrokes
+than opening a grid at all.
+
+**The picker is for not knowing**, and that is what the information line answers -
+decimal, hex and the `Alt` sequence, so browsing teaches the shortcut that makes
+browsing unnecessary. A feature that competes with the faster path is not a
+feature.
+
+### §54's storage decided which characters the picker may offer
+
+The question was which of 256 bytes actually survive being inserted, saved and
+loaded back, and it was answered by reading §54 rather than by guessing.
+
+Nothing in that library is terminated - a line is a length and a chain of chunks,
+and `textSave` writes by length - so **zero is an ordinary character**. But
+`textLoad` drops a carriage return and starts a line at a newline, which makes 10
+and 13 the two bytes a text file's lines are *made of*. Those are refused.
+
+Both halves matter. Blocking zero as well would have been the cautious-looking
+choice and would have been wrong, and it is the kind of wrong nobody ever finds,
+because the feature simply does less than it could and says nothing about it.

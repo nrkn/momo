@@ -6532,3 +6532,91 @@ arithmetic and the interesting sizes are ratios.
   anything may have written to it.
 - **Capacity is in the heap** (§17), continuing §54's chain: a program that
   includes this puts its own claims at `dirHeap`.
+
+## 64. The character picker
+
+**Built**, inside `momoed` rather than under it.
+
+Codepage 437 has 256 glyphs and a keyboard sends about ninety of them. The rest -
+0-31 and 127-255, which is the smileys, the arrows, the box drawing and every
+accented letter - are reachable with `Alt`+decimal for somebody who knows the
+number, and not at all for anybody else. §55 took `Alt`+decimal in one comparison
+because the BIOS composes it; this is the other half, which is how you find out
+what the number *is*.
+
+`^P` opens it, in the document and in any prompt alike. WordStar and Borland used
+`^P` for "take the next character literally", which is the nearest thing to a
+precedent there is and is the same job: how a character the keyboard cannot send
+gets into the text.
+
+### Sixteen by sixteen, and 40-column mode picked it
+
+The row is the high nibble and the column is the low one, so the cursor's
+position **is** the character's code and the axes are how it is read off. That is
+how every codepage chart has ever been printed, and the alternative is
+`row * 32 + col`, which is arithmetic nobody does by eye.
+
+The shapes considered were four rows of 64 and eight of 32, and the narrowest
+mode this can be launched into settled both. 64 glyphs do not fit in 40 columns
+at all. 32 fit only edge to edge, with no room for a border, a row label or the
+space between glyphs - and that space is not decoration: **box-drawing characters
+butted together form continuous lines with no seam to see**, which is unreadable
+exactly where a picker is most useful.
+
+Sixteen wide with a space between is 31 columns, and the frame around it is 37 by
+21 - three inside a 40-column screen and four inside a 25-row one. Both are
+derived from the grid rather than written down.
+
+### There is nothing to scroll, which is most of the design
+
+The whole set is on screen at once, so there is no window, no paging and no
+thumb. The keys are the four arrows, the two ends of a row, the two ends of the
+set, Enter and Escape. Left and right are one less and one more and up and down
+are sixteen, each masked back into the byte - so the wrap at either end is free
+and there is no edge case to get wrong.
+
+**Type-ahead was considered and cut**, both kinds. Typing a letter to jump to it
+helps nobody: a character you can type is a character you did not need this for.
+Typing a decimal code is worse than useless, because somebody who knows the code
+already has `Alt`+code, which is fewer keystrokes than opening a grid. What the
+picker is for is not knowing, and the information line is what fixes that for
+next time: it shows the decimal, the hex and the `Alt` sequence, so browsing
+teaches the shortcut that makes browsing unnecessary.
+
+### Ten and thirteen are refused, and §54 is why
+
+Every byte survives the round trip except two. §54 stores a line as a length and
+a chain of chunks, with nothing terminated, so zero is an ordinary character -
+but `textLoad` drops a carriage return and starts a new line at a newline, which
+makes 10 and 13 the bytes a text file's **lines are made of**. Inserted, saved
+and read back they would not be the characters that went in.
+
+They are refused where the cursor lands rather than where Enter is pressed, so
+the information line says so before the question is asked.
+
+### It is in `momoed`, and that is not an exception to §55
+
+§55's rule is that everything a headless tier can run lives below the editor, and
+what stays is "a real keyboard, a real screen, and a real file named by a person".
+A picker is the first two. The screen-independent part is a masked byte and two
+comparisons, which is not behaviour a test project could hold against an answer.
+
+The one piece that **did** go into a library is the seam it needed: §60 gained
+`fieldPut`, because `fieldKey` answers what a *keystroke* meant and its range
+stops short of the control codes on purpose. A picker has already decided that
+its answer is a character, and that range is most of what it exists to reach.
+
+### Rules
+
+- **The box is refused, not clipped.** Every text mode this can be launched into
+  is at least 40x25 against a box of 37x21, so the guard is against a mode nobody
+  has - and the alternative is a bounds test on each of four hundred cells.
+- **Reverse video for the frame and normal for the cell under the cursor**, the
+  explorer's trick for the explorer's reason: it reads as a hole punched in the
+  panel, and 0x70 against 0x07 means the same thing on an MDA as on a VGA.
+- **The frame skips what is behind the box** while it is up. The picker can be
+  opened from a prompt, and an open prompt is one of the conditions that forces a
+  whole-screen redraw - without this, arrowing around the grid would cost 1,584
+  cells a keystroke to paint something the box is standing on.
+- **`drawn` going false is the whole of putting the screen back.** The box covers
+  the text and the panel and nothing else, and both redraw on `!drawn`.

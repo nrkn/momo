@@ -441,3 +441,28 @@ afternoon could go into. What settled it in a minute was counting the arrays.
 `npm run drift` holds the three lengths against each other now. §55's rule keeps
 them as arrays rather than a `group`, for a scan cost it measured - so if the
 form cannot make the mistake impossible, something has to make it loud.
+
+## The build assembled a fixture, and said ok
+
+`npm run build -- momoed` copies the project directory into `build/` and runs
+NASM on the `.asm` it finds there. That `.asm` is the **golden file** - the
+committed output that `npm test` compares against - so editing a `.momo` and
+building produced the previous program, silently, with an `ok:` at the end.
+
+It took four tool calls to see, and the reason it took four is instructive: the
+program built, the tests passed, and the `.COM` was the same size twice running.
+None of those is a symptom. What gave it away was grepping the generated assembly
+for a routine that was definitely in the source and finding nothing.
+
+Two things to keep.
+
+**A generated artifact that is also a test fixture has two masters.** As a fixture
+it must not be rewritten casually, and as a build input it must never be stale.
+The build was treating a fixture as an input, which is the whole bug - tier 2 had
+it right all along and compiles before it assembles.
+
+**`npm test` catches this and is not what anybody runs between an edit and a trip
+to the machine under the desk.** The loop that matters here is edit, build,
+`npm run image`, walk the floppy over to the 286 - and a stale binary at the end
+of that costs somebody else's afternoon, not mine. The fix is in `run.ts`: compile
+first, exactly as tier 2 does, so the fixture cannot be assembled by accident.

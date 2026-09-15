@@ -234,6 +234,14 @@ const u8[] sTooMany  = "too many files$"
 const u8[] sKb       = "K$"
 const u8[] sHere     = ".$"
 
+const u8[] sPickTitle = " pick a character $"
+const u8[] sPickKeys  = " Enter inserts  Esc cancels $"
+const u8[] sPickDec   = "dec $"
+const u8[] sPickHex   = "  hex $"
+const u8[] sPickAlt   = "  Alt+$"
+const u8[] sPickEol   = "  no - ends a line$"
+const u8[] sPickSmall = "screen too small for the picker$"
+
 
 // ---- the command tail ----
 
@@ -729,6 +737,12 @@ sub placeCursor {
   // going: the prompt while one is open, the panel while it has focus, the
   // document otherwise. Anything else and the screen is telling you the wrong
   // thing about where you are.
+  if ( picking ) {
+    moveTo( u8( pickX + pickGridX + ( pickCode & 15 ) * 2 ),
+            u8( pickY + pickGridY + ( pickCode >> 4 ) ) )
+    return
+  }
+
   if ( expFocus && !prompting() ) {
     moveTo( 1, u8( listCursor() - listTop() ) )
     return
@@ -772,6 +786,7 @@ u16  lastTop
 u16  lastLeft
 bool lastSel
 bool lastAsk
+bool lastPick
 bool drawn
 
 // Rebuilt from nothing, because the directory is not ours and anything may have
@@ -976,9 +991,278 @@ sub explorerKey( u16 k ) {
   if ( k == keyExt + keyEnd )   listEnd()
 }
 
+// ---- the character picker (§64) ---------------------------------------------
+//
+// Sixteen by sixteen, because that is how a codepage is drawn: the row is the
+// high nibble and the column is the low one, so the cursor's position **is** the
+// character's code and the axes are how you read it off. The alternative shapes
+// were four rows of 64 and eight of 32, and 40-column mode answered both - 64
+// does not fit at all, and 32 fits only with the glyphs jammed edge to edge,
+// which is unreadable exactly where it matters, since box-drawing characters
+// butted together form continuous lines with no seam to see.
+//
+// **The whole grid is on screen at once**, which is what the shape buys: there
+// is nothing to scroll and nothing to page, so the keys are the arrows, the ends
+// of a row, the ends of the set, and Enter. That is the entire interface.
+//
+// What it is *for* is the range no keyboard sends: 0-31 and 127-255 are real
+// glyphs in codepage 437 - smileys, arrows, box drawing, the accented letters -
+// and cells are written straight to the frame, so all 256 draw. `Alt`+decimal
+// already reaches the same characters for somebody who knows the number, which
+// is why the information line says what the number is: this is the way in, and
+// it teaches the faster way out.
+const pickGridX = 4
+const pickGridY = 2
+
+// Derived rather than picked, the same rule the prompt label follows. A border, a
+// space, a row label, a space, then sixteen glyphs one apart, a space and a
+// border: 37 columns, which is three inside a 40-column screen. Down the side:
+// a border, the column header, sixteen rows, a rule, the information line and a
+// border - 21 rows, four inside 25.
+const pickW = pickGridX + 16 * 2 - 1 + 2
+const pickH = pickGridY + 16 + 3
+
+// Codepage 437's box, which the MDA font has as well as the VGA's - so the frame
+// draws in `mode mono` for the same reason the rest of this does.
+const boxH  = 196
+const boxV  = 179
+const boxTL = 218
+const boxTR = 191
+const boxBL = 192
+const boxBR = 217
+const boxML = 195
+const boxMR = 180
+
+bool picking
+u16  pickCode
+u16  pickX
+u16  pickY
+
+// **Ten and thirteen are refused, and the reason is §54's rather than a taste.**
+// `textLoad` drops a carriage return and starts a line at a newline, so those two
+// bytes are what a text file's lines are *made of*: inserted, saved and read back
+// they would not be the characters that went in. Every other byte survives the
+// round trip, zero included, because nothing in §54 is terminated - a line is a
+// length and a chain of chunks.
+//
+// They are refused where the cursor lands rather than where Enter is pressed, so
+// the answer is on screen before the question is asked.
+bool pickEnds( u16 c ) => c == 10 || c == 13
+
+u8 hexDigit( u16 n ) {
+  if ( n < 10 ) return u8( n + '0' )
+  return u8( n - 10 + 'A' )
+}
+
+sub pickCell( u16 x, u16 y, u8 ch ) {
+  cellAt( pickX + x, pickY + y, ch, attrStatus )
+}
+
+sub pickText( u16 x, u16 y, u16 at ) {
+  u16 i
+  i = 0
+
+  while ( peek8( at + i ) != '$' ) {
+    pickCell( x + i, y, peek8( at + i ) )
+    i++
+  }
+}
+
+sub pickNumber( u16 x, u16 y, u16 n ) {
+  u16 used
+
+  used = numText( addr( numBuf ), n )
+
+  for ( u16 i = 0; i < used; i++ ) {
+    pickCell( x + i, y, numBuf[i] )
+  }
+}
+
+sub pickRule( u16 y, u8 left, u8 right ) {
+  pickCell( 0, y, left )
+
+  for ( u16 x = 1; x < pickW - 1; x++ ) {
+    pickCell( x, y, boxH )
+  }
+
+  pickCell( pickW - 1, y, right )
+}
+
+sub pickBlank( u16 y ) {
+  pickCell( 0, y, boxV )
+
+  for ( u16 x = 1; x < pickW - 1; x++ ) {
+    pickCell( x, y, ' ' )
+  }
+
+  pickCell( pickW - 1, y, boxV )
+}
+
+// Reverse video for the box and *normal* for the cell under the cursor, which is
+// the explorer's trick and is here for the explorer's reason: it reads as a hole
+// punched in the panel, and 0x70 against 0x07 means the same thing on an MDA as
+// on a VGA. A colour would not.
+sub pickGridRow( u16 r ) {
+  u16 y
+  u16 code
+  u8  attr
+
+  y = pickGridY + r
+
+  pickBlank( y )
+  pickCell( 2, y, hexDigit( r ) )
+
+  for ( u16 c = 0; c < 16; c++ ) {
+    code = r * 16 + c
+
+    attr = attrStatus
+    if ( code == pickCode ) attr = attrText
+
+    cellAt( pickX + pickGridX + c * 2, pickY + y, u8( code ), attr )
+  }
+}
+
+// Decimal, hex and the `Alt` sequence. The decimal is in the hint already and is
+// labelled separately anyway, because the two are read for different things: one
+// is what to press next time and the other is what to look up in a table.
+sub pickInfo {
+  u16 x
+  u16 y
+
+  y = pickH - 2
+  pickBlank( y )
+
+  x = 2
+
+  pickText( x, y, addr( sPickDec ) )
+  x = x + strLen( addr( sPickDec ) )
+
+  pickNumber( x, y, pickCode )
+  x = x + numWidth( pickCode )
+
+  pickText( x, y, addr( sPickHex ) )
+  x = x + strLen( addr( sPickHex ) )
+
+  pickCell( x, y, hexDigit( pickCode >> 4 ) )
+  pickCell( x + 1, y, hexDigit( pickCode & 15 ) )
+  x = x + 2
+
+  if ( pickEnds( pickCode ) ) {
+    pickText( x, y, addr( sPickEol ) )
+    return
+  }
+
+  pickText( x, y, addr( sPickAlt ) )
+  x = x + strLen( addr( sPickAlt ) )
+
+  pickNumber( x, y, pickCode )
+}
+
+sub drawPicker {
+  pickRule( 0, boxTL, boxTR )
+  pickText( 2, 0, addr( sPickTitle ) )
+
+  pickBlank( pickGridY - 1 )
+  for ( u16 c = 0; c < 16; c++ ) {
+    pickCell( pickGridX + c * 2, pickGridY - 1, hexDigit( c ) )
+  }
+
+  for ( u16 r = 0; r < 16; r++ ) {
+    pickGridRow( r )
+  }
+
+  pickRule( pickH - 3, boxML, boxMR )
+  pickInfo()
+
+  pickRule( pickH - 1, boxBL, boxBR )
+  pickText( 2, pickH - 1, addr( sPickKeys ) )
+}
+
+// **The box is never clipped**, it is refused. Every text mode this can be
+// launched into is at least 40x25 and the box is 37x21, so the guard is against
+// a mode nobody has rather than a screen somebody has - and the alternative is a
+// bounds test on each of four hundred cells to protect against nothing.
+sub openPicker {
+  message = 0
+
+  if ( cols < pickW || rows < pickH ) {
+    message = addr( sPickSmall )
+    return
+  }
+
+  picking = true
+  pickX = ( cols - pickW ) / 2
+  pickY = ( rows - pickH ) / 2
+}
+
+// `drawn` going false is the whole of putting the screen back: the box covered
+// the text, the panel and nothing else, and both of those redraw on `!drawn`.
+sub closePicker {
+  picking = false
+  drawn = false
+}
+
+sub pickTake {
+  if ( pickEnds( pickCode ) ) return
+
+  closePicker()
+
+  // The same character either way, and **the two insert paths are different
+  // questions**. `doInsert` takes a byte already; `fieldKey` takes a *keystroke*
+  // and has a range that stops short of the control codes on purpose, which is
+  // exactly the range this exists to reach - so §60 grew `fieldPut` for the
+  // caller that has already decided the answer is a character.
+  if ( prompting() ) {
+    fieldPut( u8( pickCode ) )
+  } else {
+    doInsert( u8( pickCode ) )
+  }
+}
+
+// The grid is a strip of 256 codes shown sixteen wide, so left and right are one
+// less and one more and up and down are sixteen - each masked back into the byte,
+// which makes the wrap at either end free and leaves no edge case to get wrong.
+sub pickerKey( u16 k ) {
+  // Shift means nothing in here, so it is folded out rather than ignored: a
+  // shifted arrow is still an arrow, and a hand coming off a selection should
+  // not find the picker inert.
+  if ( k >= keyShift ) k = keyExt + ( k - keyShift )
+
+  if ( k == keyEsc || k == 16 ) {
+    closePicker()
+    return
+  }
+
+  if ( k == 13 ) {
+    pickTake()
+    return
+  }
+
+  if ( k == keyExt + keyLeft )     pickCode = ( pickCode + 255 ) & 255
+  if ( k == keyExt + keyRight )    pickCode = ( pickCode + 1 ) & 255
+  if ( k == keyExt + keyUp )       pickCode = ( pickCode + 240 ) & 255
+  if ( k == keyExt + keyDown )     pickCode = ( pickCode + 16 ) & 255
+  if ( k == keyExt + keyHome )     pickCode = pickCode & 0xF0
+  if ( k == keyExt + keyEnd )      pickCode = pickCode | 0x0F
+  if ( k == keyExt + keyCtrlHome ) pickCode = 0
+  if ( k == keyExt + keyCtrlEnd )  pickCode = 255
+}
+
 sub repaint {
   u16 h
   bool sel
+
+  // **The box covers what it is over**, so a frame that already had it up has
+  // nothing behind it worth drawing - which matters because the picker can be
+  // opened from a prompt, and an open prompt is one of the conditions below that
+  // forces a whole-screen redraw. Without this, arrowing around the grid would
+  // cost 1,584 cells a keystroke to paint something the box is standing on.
+  if ( picking && lastPick ) {
+    drawPicker()
+    drawStatus()
+    placeCursor()
+    return
+  }
 
   h = rows - 1
   sel = viewSelected()
@@ -1003,6 +1287,8 @@ sub repaint {
   // keystroke that only moved the caret about the document.
   if ( expShown && ( needExp || !drawn ) ) drawExplorer()
 
+  if ( picking ) drawPicker()
+
   drawStatus()
   placeCursor()
 
@@ -1012,6 +1298,7 @@ sub repaint {
   lastLeft = viewLeft()
   lastSel  = sel
   lastAsk  = prompting()
+  lastPick = picking
   drawn    = true
 }
 
@@ -1793,6 +2080,23 @@ sub step( u16 k ) {
   // The prompt takes everything, including `^Q` - a door out of a mode is `Esc`
   // and putting a second one in would mean a keystroke meant for the field
   // could close the program instead.
+  // **The picker owns the keyboard while it is up**, ahead of the prompt,
+  // because it may well have been opened from one.
+  if ( picking ) {
+    pickerKey( k )
+    return
+  }
+
+  // `^P` is WordStar's and Borland's, where it means "take the next character
+  // literally" - the nearest thing to a precedent there is, and the same job:
+  // how a character the keyboard cannot send gets into the text. Ahead of the
+  // prompt so that it serves both, and dead in the panel, where there is no
+  // caret for the answer to land at.
+  if ( k == 16 && ( prompting() || !expFocus ) ) {
+    openPicker()
+    return
+  }
+
   if ( prompting() ) {
     promptKey( k )
     return

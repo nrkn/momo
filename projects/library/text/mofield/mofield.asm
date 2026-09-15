@@ -294,6 +294,47 @@ __entry:
         call    putNumber
 ; ---- newline()                               // 1
         call    newline
+; ---- fieldClear()
+        call    fieldClear
+; ---- press( 127 )
+        mov     word [press__k], 127
+        call    press
+; ---- putNumber( fieldLength() )
+        call    fieldLength
+        mov     ax, [fieldLength__ret]
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- newline()                               // 0
+        call    newline
+; ---- fieldPut( 127 )
+        mov     byte [fieldPut__ch], 127
+        call    fieldPut
+; ---- fieldPut( 1 )
+        mov     byte [fieldPut__ch], 1
+        call    fieldPut
+; ---- fieldPut( 0 )
+        mov     byte [fieldPut__ch], 0
+        call    fieldPut
+; ---- showBytes()                             // 127 1 0
+        call    showBytes
+; ---- fieldClear()
+        call    fieldClear
+; ---- setClip( addr( pAbc ), len( pAbc ) )
+        mov     ax, pAbc                    ; link-time constant
+        mov     [setClip__at], ax
+        mov     word [setClip__n], 3
+        call    setClip
+; ---- press( 22 )
+        mov     word [press__k], 22
+        call    press
+; ---- press( 1 )
+        mov     word [press__k], 1
+        call    press
+; ---- fieldPut( 7 )
+        mov     byte [fieldPut__ch], 7
+        call    fieldPut
+; ---- showBytes()                             // 7
+        call    showBytes
 
 ; ---- implicit exit ----
         mov     word [_ax], 0x4C00          ; DOS terminate, exit code 0
@@ -751,6 +792,17 @@ mofield__fieldRemove:
         dec     word [mofield__fieldLen]
         ret
 
+; ============================================== sub fieldPut ====
+
+fieldPut:
+; ---- fieldKill()
+        call    mofield__fieldKill
+; ---- fieldInsert( ch )
+        mov     al, [fieldPut__ch]
+        mov     [mofield__fieldInsert__ch], al; u8 -> u8, no widening
+        call    mofield__fieldInsert
+        ret
+
 ; ============================================== u8 fieldKey ====
 
 fieldKey:
@@ -1162,6 +1214,48 @@ show:
         call    newline
         ret
 
+; ============================================== sub showBytes ====
+
+showBytes:
+; ---- at = fieldAddr()
+        call    fieldAddr
+        mov     ax, [fieldAddr__ret]
+        mov     [showBytes__at], ax
+; ---- for ( u16 i = 0; i < fieldLength(); i++ ) {
+        mov     word [showBytes__i], 0
+.L164:
+        mov     ax, [showBytes__i]
+        push    ax                          ; save lhs: rhs is not a leaf
+        call    fieldLength
+        mov     ax, [fieldLength__ret]
+        mov     bx, ax
+        pop     ax
+        cmp     ax, bx
+        jae     .L166                       ; unsigned <
+; ---- if ( i > 0 ) putChar( ' ' )
+        mov     ax, [showBytes__i]
+        test    ax, ax
+        jbe     .L168                       ; unsigned >
+        mov     byte [putChar__c], 32
+        call    putChar
+.L168:
+; ---- putNumber( u16( peek8( at + i ) ) )
+        mov     ax, [showBytes__at]
+        mov     bx, [showBytes__i]
+        add     ax, bx
+        mov     bx, ax
+        mov     al, [bx]                    ; peek8 - unchecked, by design
+        xor     ah, ah                      ; u8 -> u16
+        mov     [putNumber__n], ax
+        call    putNumber
+.L165:
+        inc     word [showBytes__i]
+        jmp     .L164
+.L166:
+; ---- newline()
+        call    newline
+        ret
+
 ; ============================================== sub showSel ====
 
 showSel:
@@ -1196,21 +1290,21 @@ showSel:
 showClip:
 ; ---- for ( u16 i = 0; i < clipLen; i++ ) {
         mov     word [showClip__i], 0
-.L164:
+.L171:
         mov     ax, [showClip__i]
         mov     bx, [clipLen]
         cmp     ax, bx
-        jae     .L166                       ; unsigned <
+        jae     .L173                       ; unsigned <
 ; ---- putChar( clip[i] )
         mov     ax, [showClip__i]
         mov     bx, ax
         mov     al, [clip + bx]
         mov     [putChar__c], al            ; u8 -> u8, no widening
         call    putChar
-.L165:
+.L172:
         inc     word [showClip__i]
-        jmp     .L164
-.L166:
+        jmp     .L171
+.L173:
 ; ---- newline()
         call    newline
         ret
@@ -1276,6 +1370,7 @@ fieldTo__ret:   dw      0        ; u16
 mofield__fieldKill__ret: db      0        ; bool
 mofield__fieldInsert__ch: db      0        ; u8
 mofield__fieldRemove__at: dw      0        ; u16
+fieldPut__ch:   db      0        ; u8
 fieldKey__k:    dw      0        ; u16
 fieldKey__ret:  db      0        ; u8
 clipLen:        dw      0        ; u16
@@ -1301,6 +1396,8 @@ fieldKey__extend: db      0        ; bool
 fieldPasteIn__n: dw      0        ; u16
 show__i:        dw      0        ; u16
 show__at:       dw      0        ; u16
+showBytes__i:   dw      0        ; u16
+showBytes__at:  dw      0        ; u16
 showClip__i:    dw      0        ; u16
 
 ; ---- arrays ----

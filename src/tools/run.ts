@@ -14,9 +14,12 @@ import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import {
-  allProjects, asmFor, buildRoot, confPath, fail, nasmDir, projectDir, root,
+  allProjects, asmFor, buildRoot, confPath, entryFor, fail, nasmDir, projectDir,
+  root, sharedRoot,
 } from './cli.js'
 import { loadToolchain } from './toolchain.js'
+import { compile } from '../momo/compile.js'
+import { formatError, isMomoError } from '../momo/diagnostics.js'
 
 type Mode = 'run' | 'build'
 
@@ -144,6 +147,32 @@ const main = async () => {
   const sourceDir = projectDir(options.project)
   const entryPath = asmFor(options.project)
   const buildDir = join(buildRoot, options.project)
+
+  // **The `.asm` beside a source is a test fixture, not a build input.** This
+  // used to assemble whatever was committed there, so editing a `.momo` and
+  // building gave you the *previous* program - silently, with an `ok:` at the
+  // end - and `npm run image` then put that on the floppy. What catches a stale
+  // fixture is `npm test`, and `npm test` is not what somebody runs between an
+  // edit and a trip to the machine under the desk.
+  //
+  // Compiled first and written back, which is what tier 2 already does with the
+  // same few lines: one behaviour across both tools, and a golden that has
+  // diverged stays `npm test`'s to report rather than this tool's to assemble.
+  //
+  // A project with no `.momo` is hand-written assembly and is left alone.
+  const entryMomo = entryFor(options.project)
+
+  if (existsSync(entryMomo)) {
+    const sources = new Map<string, string>()
+
+    try {
+      const { assembly } = compile(entryMomo, sharedRoot, sources)
+      await writeFile(asmFor(options.project), assembly, 'ascii')
+    } catch (error) {
+      if (!isMomoError(error)) throw error
+      fail(`\n${formatError(sources, error)}`)
+    }
+  }
 
   if (!existsSync(confPath)) fail(`dosbox config not found at "${confPath}"`)
   if (!existsSync(entryPath)) fail(`project entry not found: "${entryPath}"`)

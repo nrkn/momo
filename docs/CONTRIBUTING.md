@@ -183,7 +183,7 @@ error: no toolchain.json - copy toolchain.example.json to toolchain.json and set
 ```bash
 npm run momoc -- <project>    # .momo -> .asm
 npm run momoc:all             # every project; drives the VS Code build task
-npm run build -- <project>    # assemble in DOSBox
+npm run build -- <project>    # compile, then assemble in DOSBox
 npm start <project> [args]    # assemble and run, with a DOS command tail
 npm run image                 # build/*.COM -> build/momo.ima, for 86Box
 
