@@ -428,11 +428,23 @@ const sceneCount = (): number => {
 // §55's rule keeps them as arrays rather than a `group`, for a scan cost it
 // measured. This is the other half of that decision: if the form cannot make the
 // mistake impossible, something has to make it loud.
-const parallelTables: [string, string[]][] = [
-  ['projects/programs/apps/momoed/momoed.momo', ['bindPrefix', 'bindKey', 'bindAction']],
+// The third name, where there is one, is the column whose entries must all
+// differ. A repeated binding is the same class of silence as a short table: the
+// scan takes the first match and the second row simply never runs.
+//
+// **It compares the text, not the value.** `9` and `keyTab` are the same key and
+// this would not say so, which is worth knowing rather than working around -
+// copy-and-paste is the way these actually arrive, and copy-and-paste repeats the
+// spelling too.
+const parallelTables: [string, string[], string?][] = [
+  [
+    'projects/programs/apps/momoed/momoed.momo',
+    ['bindPrefix', 'bindKey', 'bindAction'],
+    'bindKey',
+  ],
 ]
 
-const entriesOf = (text: string, name: string): number | null => {
+const entryTextOf = (text: string, name: string): string[] | null => {
   const at = text.indexOf(`] ${name} = [`)
   if (at < 0) return null
 
@@ -445,8 +457,11 @@ const entriesOf = (text: string, name: string): number | null => {
     .replace(/\/\/[^\n]*/g, '')
     .split(',')
     .map((entry) => entry.trim())
-    .filter((entry) => entry.length > 0).length
+    .filter((entry) => entry.length > 0)
 }
+
+const entriesOf = (text: string, name: string): number | null =>
+  entryTextOf(text, name)?.length ?? null
 
 const checkParallelTables = () => {
   for (const [file, names] of parallelTables) {
@@ -473,6 +488,28 @@ const checkParallelTables = () => {
       `parallel tables disagree: ${found.map(([name, n]) => `${name} ${n}`).join(
 )}`,
     )
+  }
+}
+
+// A key bound twice is the same silence as a table one row short: the scan
+// takes the first match and the second row never runs at all. That is how
+// these arrive - a row copied, pasted and half edited.
+const checkDuplicateBindings = () => {
+  for (const [file, , unique] of parallelTables) {
+    if (!unique) continue
+
+    const path = join(root, file)
+    if (!existsSync(path)) continue
+
+    const entries = entryTextOf(readText(path), unique)
+    if (entries === null) continue
+
+    const seen = new Set<string>()
+
+    for (const entry of entries) {
+      if (seen.has(entry)) report(path, 1, `"${unique}" binds "${entry}" twice`)
+      seen.add(entry)
+    }
   }
 }
 
@@ -681,6 +718,7 @@ if (args[0] === '--since') {
   checkCounts()
   checkScenes()
   checkParallelTables()
+  checkDuplicateBindings()
   checkHeadings()
 
   findings.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line)

@@ -214,6 +214,12 @@ local far u8[maxChunks]  chunkUsed = usedSeg
 local u16 chunkHigh
 local u16 chunkFree
 
+// How many are out on loan. Two instructions, and it makes the invariant this
+// file most depends on into something a test can read: **what a document gives
+// back has to equal what it took**. Nothing could see that before, which is how
+// `textClear` came to keep the chunks it emptied.
+local u16 chunkLive
+
 // What the machine actually had room for, which is not what the consts above
 // declare. Set by `textInit` from the block DOS gave us.
 local u16 chunkLimit
@@ -370,6 +376,7 @@ local u16 chunkTake() {
 
   chunkNext[c] = 0
   chunkUsed[c] = 0
+  chunkLive++
   return c
 }
 
@@ -377,6 +384,30 @@ local sub chunkGive( u16 c ) {
   chunkUsed[c] = 0
   chunkNext[c] = chunkFree
   chunkFree = c
+  chunkLive--
+}
+
+// Every chunk of a line back, head included. **This did not exist while
+// `textClear` was only ever reached from `textInit`**, where the allocator is
+// reset wholesale a few lines later and a walk would have been invisible - so a
+// clear that kept its chunks looked exactly like one that gave them up.
+//
+// A file open calls `textClear` now, and without this an editor would lose the
+// store one file at a time: open a large file twice and the second one has
+// nowhere to go, with nothing on screen to say why.
+local sub lineDrop( u16 ln ) {
+  u16 c
+  u16 next
+
+  c = lineHead[ln]
+
+  while ( c != 0 ) {
+    next = chunkNext[c]
+    chunkGive( c )
+    c = next
+  }
+
+  lineHead[ln] = 0
 }
 
 // Whether the last operation had a chunk to work with. An edit that could not
@@ -1109,6 +1140,13 @@ sub textSwitch( u16 d ) {
 // what a file open wants** - `textInit` lays out the machine and is called once,
 // where this happens per file and must not touch the others.
 sub textClear {
+  // **The chunks go back before the counters do**, since the line table is the
+  // only record of where they are: reset `lineCount` first and they are lost
+  // rather than freed.
+  for ( u16 ln = 0; ln < lineCount; ln++ ) {
+    lineDrop( ln )
+  }
+
   lineCount = 0
   undoHead  = 0
   undoCount = 0
@@ -1137,6 +1175,7 @@ sub textInit {
   lineCount  = 0
   chunkFree  = 0
   chunkHigh  = 1
+  chunkLive  = 0
   chunkLimit = 0
   lineLimit  = 0
   undoHead   = 0
@@ -1264,6 +1303,12 @@ sub textInit {
   // mean a switch landing in whatever the records held.
   for ( u16 d = 0; d < maxDocs; d++ ) {
     curDoc = d
+
+    // **Nothing is in any of them yet**, whatever these arrays remember from a
+    // previous layout. The allocator was reset a few lines up, so a `textClear`
+    // that believed a stale line count would hand the same chunks out twice.
+    docLines[d] = 0
+
     docLoad( d )
     textClear()
     docSave()
@@ -1282,6 +1327,10 @@ bool textHasBuffer() => textBase != 0
 // on anything with a normal amount of conventional memory and less on the
 // rest. A program showing a capacity should show this one.
 u16 textRoom() => chunkLimit
+
+// And how many of them are in use, across every document - they share the store,
+// so there is one answer and not one per document.
+u16 textUsed() => chunkLive
 
 // One character of a file being read in. A newline starts a line, anything else
 // appends. **Records no undo**: reading a file in is not an edit anybody wants

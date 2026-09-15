@@ -127,3 +127,67 @@ showAt()
 
 viewGotoLine( 1 )
 showAt()
+
+// ---- one window, two documents ----------------------------------------------
+//
+// `viewSwitch` moves §54 as well, from inside, which is the whole reason it
+// exists: two switches a caller has to remember to make together are two that
+// will one day be made apart, and the symptom is one document's cursor over
+// another document's text.
+//
+// **The offsets come back, not only the cursor.** `viewFollow` scrolls the least
+// that brings the cursor into view, so restoring a line without the top around
+// it would put the window somewhere it had never been - which is the difference
+// between coming back to a file and having to find your place in it again.
+
+const u8[] second = "alpha\nbravo\ncharlie\ndelta\necho\nfoxtrot\ngolf\nhotel\0"
+
+sub typeIn( u16 at ) {
+  while ( peek8( at ) != 0 ) {
+    textLoad( peek8( at ) )
+    at++
+  }
+}
+
+sub showDoc {
+  putNumber( textDoc() )
+  putChar( ' ' )
+  putNumber( viewDoc() )
+  putChar( ' ' )
+  putNumber( textLines() )
+  newline()
+}
+
+viewSize( 3, 20 )
+viewGoto( 6, 2 )
+showWhere()                             // 4 2
+showAt()                                // 6 2
+
+// A document nothing has been put in yet is one empty line, which is what
+// `textClear` leaves and what an editor opening a new tab shows.
+viewSwitch( 1 )
+showDoc()                               // 1 1 1
+
+typeIn( addr( second ) )
+viewGoto( 1, 3 )
+showWhere()                             // 0 0
+showAt()                                // 1 3
+viewRender()
+
+// Back, and the window is where it was left - four down and two across, which is
+// not where following a cursor from the top would have put it.
+viewSwitch( 0 )
+showDoc()                               // 0 0 9
+showWhere()                             // 4 2
+showAt()                                // 6 2
+viewRender()
+
+viewSwitch( 1 )
+showDoc()                               // 1 1 8
+showWhere()                             // 0 0
+showAt()                                // 1 3
+
+// Out of range does nothing at all, rather than switching to a slot that is not
+// there - §54's rule at the layer above it.
+viewSwitch( 9 )
+showDoc()                               // 1 1 8

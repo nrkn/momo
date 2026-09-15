@@ -6620,3 +6620,90 @@ its answer is a character, and that range is most of what it exists to reach.
   cells a keystroke to paint something the box is standing on.
 - **`drawn` going false is the whole of putting the screen back.** The box covers
   the text and the panel and nothing else, and both redraw on `!drawn`.
+
+## 65. Several files open, and one way between them
+
+**Built.** `viewSwitch` in `shared/lib/moview.momo`, the rest in `momoed`.
+
+§54 already held two buffers and §58 paid for them. What was missing was every
+part above that: a window that remembers where you were in each, a name and a
+dirty flag per document, and a key.
+
+`Ctrl+Tab` and `Ctrl+Shift+Tab` cycle forward and back, `^T` opens a document in
+the first free slot and `^W` closes one.
+
+### Tab went back to the document, which was the whole argument
+
+Tab used to move focus to the explorer. That is a reasonable binding and it costs
+the one key a person indenting a line reaches for - so the trade was made the
+other way: **browser-style cycling on `Ctrl+Tab`, and Tab is the document's
+again.**
+
+It types spaces to the next stop rather than a literal tab, which is what gives
+the key back without §56 learning about display columns. A literal tab is one
+byte and the arithmetic of a whole editor: a document column would stop being a
+screen column, and the cursor, the selection and the match highlight all measure
+in screen columns today. **That gap already exists** - a file containing tabs
+renders one to a column right now - so it is a piece of work in its own right
+rather than a consequence of this one.
+
+### The explorer is a slot in the ring
+
+It rides past the documents as one more index, so `Ctrl+Tab` reaches it and there
+is no second key to learn for a screen with two panes on it. It is a pane and not
+a tab, and that is impure - the alternative was a third shortcut.
+
+A slot that is not live is skipped rather than shown empty, which is the whole of
+"an unused tab is invisible": nothing to look at and nothing to land on. Hiding
+the explorer with `^B` takes it out of the ring the same way.
+
+### One call switches the window and the buffer
+
+`viewSwitch` calls `textSwitch` **from inside itself**, and that is the reason it
+exists rather than a convenience. Two switches a caller has to remember to make
+together are two that will one day be made apart, and the symptom is one
+document's cursor over another document's text - which reads as a corrupt buffer
+rather than as a missed call.
+
+What comes back is not only the cursor but the offsets around it. `viewFollow`
+scrolls the least that brings the cursor into view, so restoring a line without
+its top would put the window somewhere it had never been - which is the
+difference between coming back to a file and having to find your place in it
+again.
+
+### The program keeps the half neither library can know
+
+The name, whether there is one, and whether it has changed since it was read.
+Saved and reloaded around a switch rather than indexed at every use, which is
+§54's own shape one layer down and keeps `fileName` the single thing the rest of
+the editor reads. Two hundred and forty bytes to avoid touching every reference
+to a name in the program.
+
+`docOpen` is a flag per slot rather than a count, because closing the *first* of
+two leaves the second open and a count cannot say that.
+
+### What this makes sharper, and has not answered
+
+`^Q` does not check whether anything is unsaved, and never has. `^O` and `^W` both
+refuse a dirty document; the door does not. With one file that was one file's
+work; with two it is two, and one of them may not be the one on screen.
+
+The fix is not obvious enough to make quietly: refusing needs a way through, and
+"press it again" is a second kind of answer to a question this program has
+already decided how to answer once. It is written down here rather than guessed
+at.
+
+### Rules
+
+- **`textClear`, not `textInit`, for a file open.** §54 lays out the machine for
+  every slot in one and empties one document in the other. This mattered to
+  nobody until there was a second document to take down with the first.
+- **A switch goes through `viewSwitch`.** Calling `textSwitch` beside it is the
+  bug this is shaped to prevent.
+- **`^W` refuses a modified document** rather than asking, which is `^O`'s rule at
+  the other end of the same problem.
+- **The last document does not close.** An editor with no document in it has
+  nothing to draw and no way out except quitting.
+- **The status line shows `2/2` only when more than one is open**, because one
+  file is the common case and should not pay three columns for a feature it is
+  not using.

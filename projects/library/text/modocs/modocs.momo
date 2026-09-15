@@ -27,6 +27,7 @@ const u8[] sHold  = "hold:$"
 const u8[] sUndo  = "undo:$"
 const u8[] sClear = "clear:$"
 const u8[] sRange = "range: $"
+const u8[] sUsed  = "used:$"
 
 // A line's text, `$`-terminated here because §54 hands back a count.
 sub showLine( u16 ln ) {
@@ -144,4 +145,40 @@ putChar( ' ' )
 
 textSwitch( textMaxDocs + 10 )
 putNumber( textDoc() )
+newline()
+
+// ---- what a document gives back -------------------------------------------
+//
+// The shared half of this file's first sentence, checked rather than stated.
+// `textClear` is what a file open calls, and one that kept its chunks would lose
+// the store a file at a time - open a large file twice and the second one has
+// nowhere to go, with nothing on screen to say why.
+//
+// It went unseen because `textClear` was only ever reached from `textInit`, which
+// resets the allocator a few lines later: keeping the chunks and giving them up
+// looked identical from out here until `textUsed` existed.
+
+putStr( addr( sUsed ) )
+newline()
+
+textSwitch( 1 )
+textClear()
+textSwitch( 0 )
+textClear()
+
+// One chunk per document, each holding the empty line `textClear` leaves behind.
+putNumber( textUsed() )
+newline()
+
+// **Read from the constant**, which is this file's own rule from the other
+// direction: three chunks exactly, whatever a chunk turns out to be.
+for ( u16 i = 0; i < textChunkSize * 3; i++ ) {
+  lineAppend( 0, 'x' )
+}
+
+putNumber( textUsed() )
+newline()
+
+textClear()
+putNumber( textUsed() )
 newline()

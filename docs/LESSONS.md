@@ -466,3 +466,35 @@ to the machine under the desk.** The loop that matters here is edit, build,
 `npm run image`, walk the floppy over to the 286 - and a stale binary at the end
 of that costs somebody else's afternoon, not mine. The fix is in `run.ts`: compile
 first, exactly as tier 2 does, so the fixture cannot be assembled by accident.
+
+## A routine that was only ever called from the place its bug did not matter
+
+`textClear` empties one document and leaves the others alone, and its header says
+in as many words that this is what a file open wants. It did not return the
+document's chunks to the free list. It never had.
+
+That was invisible because the only caller was `textInit`, which resets the
+allocator a few lines later - so keeping the chunks and giving them up produced
+identical results from outside. The bug was real from the day it was written and
+could not be observed until a second caller existed.
+
+Pointing `loadFile` at it would have shipped an editor that lost its buffer one
+file at a time: open a large file twice and the second one has nowhere to go,
+with nothing on screen to say why.
+
+Three things to take.
+
+**A routine written for a caller that does not exist yet has not been tested by
+the caller it does have.** `textInit` was exercising the name, not the behaviour.
+
+**The fix needed an observer before it needed a fix.** Nothing could count what
+was out on loan, so nothing could tell the two behaviours apart. `chunkLive` is
+two instructions - an increment in `chunkTake` and a decrement in `chunkGive` -
+and it turns the invariant this file most depends on into a number a test can
+read. The test then failed on the real bug with 5, 7, 8 where it wanted 2, 4, 2:
+climbing, and never coming back.
+
+**It was found by asking what a call did, not by a failing test.** The change that
+exposed it - `textInit` to `textClear` in `loadFile` - was one line, and the
+reason to look was that the line was about memory and nothing had asked where the
+old document's memory went.

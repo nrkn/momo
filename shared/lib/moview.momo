@@ -72,6 +72,65 @@ u16 viewLeft() => left
 u16 viewLine() => curLine
 u16 viewCol() => curCol
 
+// ---- one window, several documents ------------------------------------------
+//
+// §54 holds the buffers; this holds **where you were looking at each of them**,
+// which is the half a person notices. A document you come back to at a different
+// scroll offset is a document you have to find your place in again, and a cursor
+// restored without the offset around it is exactly that: `viewFollow` scrolls the
+// least that brings the cursor back in view, so putting the line back without
+// the top puts the window somewhere it has never been.
+//
+// **The size is not here.** There is one screen and it is the same screen
+// whichever document is in front of it.
+//
+// `textSwitch` is called from in here rather than beside it, which is the whole
+// reason this routine exists at all. Two switches a caller has to remember to
+// make together are two switches that will one day be made apart - and the
+// symptom of that is a window showing one document's position over another
+// document's text, which looks like a corrupt buffer rather than a missed call.
+local const viewDocs = textMaxDocs
+
+local u16[viewDocs] docTop
+local u16[viewDocs] docLeft
+local u16[viewDocs] docLine
+local u16[viewDocs] docCol
+local u16[viewDocs] docMarkLine
+local u16[viewDocs] docMarkCol
+local u16[viewDocs] docGoal
+local u8[viewDocs]  docMarked
+
+local u16 curView
+
+u16 viewDoc() => curView
+const viewMaxDocs = viewDocs
+
+sub viewSwitch( u16 d ) {
+  if ( d >= viewDocs ) return
+  if ( d == curView ) return
+
+  docTop[curView]      = top
+  docLeft[curView]     = left
+  docLine[curView]     = curLine
+  docCol[curView]      = curCol
+  docMarkLine[curView] = markLine
+  docMarkCol[curView]  = markCol
+  docGoal[curView]     = goalCol
+  docMarked[curView]   = marked ? 1 : 0
+
+  curView = d
+  textSwitch( d )
+
+  top      = docTop[d]
+  left     = docLeft[d]
+  curLine  = docLine[d]
+  curCol   = docCol[d]
+  markLine = docMarkLine[d]
+  markCol  = docMarkCol[d]
+  goalCol  = docGoal[d]
+  marked   = docMarked[d] != 0
+}
+
 // ---- the selection ----
 //
 // **Nothing here decides when a selection starts or ends**, which is the same

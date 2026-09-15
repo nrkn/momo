@@ -112,10 +112,39 @@ u16 edLeft()  => expShown ? expCols : 0
 u16 edWidth() => expShown ? cols - expCols : cols
 
 // The name being edited, and the one to go back to when an open is refused.
-u8[80] fileName
-u8[80] wasName
+const nameMax = 80
+
+u8[nameMax] fileName
+u8[nameMax] wasName
 bool haveName
 bool dirty
+
+// ---- several files open at once (§65) ---------------------------------------
+//
+// §54 holds the buffers and §56 holds a window onto each, so what is left here is
+// the half neither library can know: the name, whether there is one, and whether
+// it has been changed since it was read.
+//
+// **Saved and reloaded around a switch** rather than indexed at every use, which
+// is §54's own shape one layer down and keeps `fileName` the single thing the
+// rest of this file reads. Two hundred and forty bytes to avoid touching every
+// reference to a name in the program.
+//
+// `docOpen` is a flag per slot rather than a count, because closing the *first*
+// of two leaves the second one open and a count cannot say that.
+const edMaxDocs = viewMaxDocs
+
+u8[edMaxDocs * nameMax] docNames
+u8[edMaxDocs] docHave
+u8[edMaxDocs] docDirty
+u8[edMaxDocs] docOpen
+
+// The explorer rides in the cycle as one more slot past the documents, which is
+// what `Ctrl+Tab` reaching it costs: one index, no second key to learn and no
+// second mechanism. It is a little impure - it is a pane and not a tab - and the
+// alternative was a third shortcut for a screen with two panes on it.
+const expSlot   = edMaxDocs
+const cycleSize = expSlot + 1
 
 // `/?` or `-?`, DOS's convention. **It is also the only thing tier 2 can reach
 // in this program**: every other path opens a screen and waits for a key, and
@@ -233,6 +262,8 @@ const u8[] sNoName   = "(untitled)$"
 const u8[] sTooMany  = "too many files$"
 const u8[] sKb       = "K$"
 const u8[] sHere     = ".$"
+const u8[] sNoSlots  = "no free tab - close one first$"
+const u8[] sOneDoc   = "this is the only file open$"
 
 const u8[] sPickTitle = " pick a character $"
 const u8[] sPickKeys  = " Enter inserts  Esc cancels $"
@@ -333,7 +364,10 @@ bool loadFile() {
   u16 got
   u16 kb
 
-  textInit()
+  // **`textClear`, not `textInit`.** §54 is explicit about the difference and it
+  // only started to matter when there was a second document to lose: `textInit`
+  // lays out the machine for every slot, which an open of one file must not do.
+  textClear()
 
   handle = fileOpen( addr( fileName ), fileReadOnly )
   if ( fileFailed() ) return true
@@ -670,6 +704,27 @@ sub showLoading( u16 kb ) {
   statusText( x + 1 + numWidth( kb ), addr( sKb ) )
 }
 
+// `2/2` in front of the name, and **nothing at all when one file is open** -
+// which is the common case and should not pay three columns for a feature it is
+// not using. It is also the only thing on screen that says the other document is
+// there, the explorer being a pane rather than a tab strip.
+u16 statusTabs( u16 x ) {
+  u16 w
+
+  // Not while the panel has focus, where this line is about the *directory*:
+  // `2/2` in front of a path reads as "directory two of two", which is a
+  // sentence about something that does not exist.
+  if ( openDocs() < 2 || expFocus ) return 0
+
+  w = numWidth( docPosition() )
+
+  statusNumber( x, docPosition() )
+  cellAt( x + w, rows - 1, '/', attrStatus )
+  statusNumber( x + w + 1, openDocs() )
+
+  return w + 1 + numWidth( openDocs() ) + 1
+}
+
 sub drawStatus {
   u16 x
 
@@ -704,13 +759,15 @@ sub drawStatus {
   // editing.** Twelve columns cannot hold a path, so the one row that can is
   // the one that says which directory those names are from - which is the
   // question descending into a subdirectory immediately raises.
+  x = statusTabs( 0 )
+
   if ( expFocus ) {
-    x = statusPath( 0 )
+    x = x + statusPath( x )
   } else if ( haveName ) {
-    x = statusName( 0 )
+    x = x + statusName( x )
   } else {
-    statusText( 0, addr( sNoName ) )
-    x = strLen( addr( sNoName ) )
+    statusText( x, addr( sNoName ) )
+    x = x + strLen( addr( sNoName ) )
   }
 
   if ( dirty ) statusText( x + 1, addr( sStar ) )
@@ -797,14 +854,22 @@ sub refreshList {
 
   if ( listOverflowed() ) message = addr( sTooMany )
 
-  // The cursor lands on the file being edited, which is the difference between a
-  // panel and a file picker: it says where you are, not only what is here.
-  if ( haveName ) {
-    for ( u16 i = 0; i < listCount(); i++ ) {
-      if ( listIsNamed( i, addr( fileName ) + dirPathLen ) ) {
-        listGoto( i )
-        return
-      }
+  pointAtCurrent()
+}
+
+// The cursor lands on the file being edited, which is the difference between a
+// panel and a file picker: it says where you are, not only what is here.
+//
+// Split out of the rebuild because **switching documents wants this half and not
+// the other**: the directory has not changed, only which of its files is in front
+// of you, and re-reading a floppy to answer that would be felt.
+sub pointAtCurrent {
+  if ( !haveName ) return
+
+  for ( u16 i = 0; i < listCount(); i++ ) {
+    if ( listIsNamed( i, addr( fileName ) + dirPathLen ) ) {
+      listGoto( i )
+      return
     }
   }
 }
@@ -938,15 +1003,179 @@ sub focusExplorer {
   needExp  = true
 }
 
+// ---- switching between what is open -----------------------------------------
+
+sub docSaveHere( u16 d ) {
+  memCopy( addr( docNames ) + d * nameMax, addr( fileName ), nameMax )
+
+  docHave[d]  = haveName ? 1 : 0
+  docDirty[d] = dirty ? 1 : 0
+}
+
+sub docLoadHere( u16 d ) {
+  memCopy( addr( fileName ), addr( docNames ) + d * nameMax, nameMax )
+
+  haveName = docHave[d] != 0
+  dirty    = docDirty[d] != 0
+}
+
+bool slotLive( u16 s ) => s == expSlot ? expShown : docOpen[s] != 0
+
+u16 openDocs() {
+  u16 n
+  n = 0
+
+  for ( u16 d = 0; d < edMaxDocs; d++ ) {
+    if ( docOpen[d] != 0 ) n++
+  }
+
+  return n
+}
+
+// Which of the open documents this one is, counting from one. It is a position
+// among the *open* slots rather than the slot number, so closing the first of two
+// leaves the other one reading "1 of 1" instead of "2 of 1".
+u16 docPosition() {
+  u16 n
+  n = 0
+
+  for ( u16 d = 0; d <= textDoc(); d++ ) {
+    if ( docOpen[d] != 0 ) n++
+  }
+
+  return n
+}
+
+u16 freeSlot() {
+  for ( u16 d = 0; d < edMaxDocs; d++ ) {
+    if ( docOpen[d] == 0 ) return d
+  }
+
+  return edMaxDocs
+}
+
+// **One call switches both**, because §56 switches §54 from inside `viewSwitch`.
+// Two switches a caller has to remember to make together are two that will one
+// day be made apart, and the symptom of that is one document's cursor over
+// another document's text - which reads as a corrupt buffer rather than a missed
+// call.
+sub goToSlot( u16 slot ) {
+  if ( slot == expSlot ) {
+    focusExplorer()
+    return
+  }
+
+  expFocus = false
+
+  if ( slot != textDoc() ) {
+    docSaveHere( textDoc() )
+    viewSwitch( slot )
+    docLoadHere( slot )
+
+    if ( expShown ) pointAtCurrent()
+  }
+
+  needText = true
+  needExp  = true
+}
+
+// Forward or back over the live slots, wrapping. A dead slot is skipped rather
+// than shown empty, which is the whole of "an unused tab is invisible": there is
+// nothing to look at and nothing to land on.
+sub cycleDoc( bool forward ) {
+  u16 at
+  u16 by
+
+  at = expFocus ? expSlot : textDoc()
+  by = forward ? 1 : cycleSize - 1
+
+  for ( u16 i = 0; i < cycleSize; i++ ) {
+    at = ( at + by ) % cycleSize
+    if ( slotLive( at ) ) break
+  }
+
+  goToSlot( at )
+}
+
+// `^T`. An empty, unnamed document in the first free slot - which is what a new
+// tab is everywhere, and leaves `^O` and the panel as the two ways to put
+// something in it.
+sub newDoc {
+  u16 d
+
+  d = freeSlot()
+
+  if ( d >= edMaxDocs ) {
+    message = addr( sNoSlots )
+    return
+  }
+
+  docSaveHere( textDoc() )
+  viewSwitch( d )
+
+  docOpen[d] = 1
+
+  textClear()
+  viewHome()
+
+  fileName[0] = 0
+  haveName = false
+  dirty    = false
+
+  expFocus = false
+  needText = true
+  needExp  = true
+}
+
+// `^W`. **It refuses rather than asking**, which is `^O`'s rule at the other end
+// of the same problem: one keystroke, nothing said, and the only copy gone. A
+// prompt here would be a second kind of answer to a question this program has
+// already decided how to answer once.
+//
+// The last document does not close, because an editor with no document in it is
+// a state with nothing to draw and no way out except quitting.
+sub closeDoc {
+  u16 d
+
+  if ( openDocs() < 2 ) {
+    message = addr( sOneDoc )
+    return
+  }
+
+  if ( dirty ) {
+    message = addr( sDirty )
+    return
+  }
+
+  d = textDoc()
+
+  // The chunks go back to the shared store before the slot is marked free, since
+  // a slot nobody is in is a slot nobody will clear.
+  textClear()
+  docOpen[d] = 0
+
+  // A document rather than whatever is next in the ring: closing a file and
+  // landing in the explorer is a pane change nobody asked for. There is always
+  // one, because two were open a moment ago.
+  for ( u16 i = 0; i < edMaxDocs; i++ ) {
+    d = ( d + 1 ) % edMaxDocs
+    if ( docOpen[d] != 0 ) break
+  }
+
+  goToSlot( d )
+}
+
 sub explorerKey( u16 k ) {
   needExp = true
 
-  // **Tab moves between panes**, which is what Tab does everywhere else, and
-  // leaves `Ctrl+Tab` free for cycling documents once there is more than one.
-  // Both directions are the same thing while there are two panes and will not
-  // be when there are three.
-  if ( k == keyTab || k == keyExt + keyShiftTab ) {
-    expFocus = false
+  // **`Ctrl+Tab` leaves, the same way it arrived.** Tab used to do this and has
+  // been given back to the document, where a person indenting a line wants it -
+  // which was the whole argument for moving to browser-style cycling.
+  //
+  // `selecting` is what is left of Shift after §57's fold, so `Ctrl+Shift+Tab`
+  // needs no row of its own: the two differ in one flag bit and nothing else.
+  if ( k == keyExt + keyCtrlTab ) {
+    cycleDoc( !selecting )
     return
   }
 
@@ -957,6 +1186,15 @@ sub explorerKey( u16 k ) {
 
   if ( k == 2 ) {
     toggleExplorer()
+    return
+  }
+
+  // `^T` opens a tab from in here too, because "a new file in this directory" is
+  // a thought somebody has while looking at the directory. `^W` is deliberately
+  // not here: closing from a pane that is not a document leaves the question of
+  // which document, and the answer would have to be invented.
+  if ( k == 20 ) {
+    newDoc()
     return
   }
 
@@ -1334,6 +1572,10 @@ const actGoto   = 26
 const actOpen   = 27
 const actRepl   = 28
 const actExplor = 29
+const actCycle  = 30
+const actIndent = 31
+const actNewDoc = 32
+const actShut   = 33
 
 // No chord in this table yet, and the machinery is kept rather than removed:
 // `^K ^C` for a comment toggle is the obvious first one, and `edloop` holds
@@ -1350,7 +1592,7 @@ const actExplor = 29
 // keyboard question rather than an off-by-one.
 const u16[] bindPrefix = [
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0
+  0, 0, 0, 0, 0, 0, 0, 0
 ]
 
 const u16[] bindKey = [
@@ -1381,7 +1623,11 @@ const u16[] bindKey = [
   keyExt + keyCtrlLeft,
   keyExt + keyCtrlRight,
   keyExt + keyCtrlHome,
-  keyExt + keyCtrlEnd
+  keyExt + keyCtrlEnd,
+  keyExt + keyCtrlTab,   // and Ctrl+Shift+Tab, which differs in one flag bit
+  9,                     // Tab
+  20,                    // ^T
+  23                     // ^W
 ]
 
 const u8[] bindAction = [
@@ -1390,7 +1636,8 @@ const u8[] bindAction = [
   actFind, actAgain, actCopy, actCut, actPaste, actAll,
   actGoto, actOpen, actRepl, actExplor,
   actWordL, actWordR,
-  actTop, actBottom
+  actTop, actBottom,
+  actCycle, actIndent, actNewDoc, actShut
 ]
 
 // Quitting is not in the table, because a loop has to be able to stop whatever
@@ -1431,6 +1678,46 @@ sub doInsert( u8 ch ) {
     }
   } else {
     insertOne( ch )
+  }
+
+  dirty = true
+}
+
+// **Tab types spaces to the next stop**, which is what gives the key back
+// without §56 learning about display columns. A literal tab is one byte and the
+// arithmetic of a whole editor: a document column would stop being a screen
+// column, and the cursor, the selection and the match highlight all measure in
+// screen columns today. That is its own piece of work and is written up rather
+// than half done - and note that a file *containing* tabs already renders one to
+// a column, so the gap is there either way.
+//
+// Two, because that is what every source file in this repository is indented
+// with and this editor's first job is those files. One constant.
+const edTabWidth = 2
+
+sub doIndent {
+  u16 n
+
+  n = edTabWidth - viewCol() % edTabWidth
+
+  // A selection goes first, exactly as it does for a typed character. Indenting
+  // the selected *block* is what a larger editor does here and is a different
+  // command wearing the same key; this one is consistent with the rest of the
+  // keyboard, and is one `^Z` away from being wrong about it.
+  if ( viewSelected() ) {
+    undoStep {
+      killSelection()
+
+      for ( u16 i = 0; i < n; i++ ) {
+        insertOne( ' ' )
+      }
+    }
+  } else {
+    // No group, for `doInsert`'s reason: opening one breaks the run of typing
+    // before it, and a Tab in the middle of typing is not a new action.
+    for ( u16 i = 0; i < n; i++ ) {
+      insertOne( ' ' )
+    }
   }
 
   dirty = true
@@ -2041,6 +2328,16 @@ sub apply( u8 a, u16 k ) {
     promptOpen( askOpen, addr( sOpen ) )
   } else if ( a == actExplor ) {
     toggleExplorer()
+  } else if ( a == actCycle ) {
+    // Shift is the direction and nothing else, which is why there is one row in
+    // the table rather than two.
+    cycleDoc( !selecting )
+  } else if ( a == actIndent ) {
+    doIndent()
+  } else if ( a == actNewDoc ) {
+    newDoc()
+  } else if ( a == actShut ) {
+    closeDoc()
   } else if ( a == actRepl ) {
     promptOpen( askTerm, addr( sTerm ) )
     prefillFromSelection()
@@ -2121,14 +2418,6 @@ sub step( u16 k ) {
     return
   }
 
-  // The other half of the pair. Tab used to do nothing here - it is below the
-  // printable range so it never inserted - and the cost of taking it is that it
-  // cannot later insert one.
-  if ( k == keyTab || k == keyExt + keyShiftTab ) {
-    focusExplorer()
-    return
-  }
-
   // Escape with nothing to close drops the selection, which is where a hand
   // goes when it wants the highlight to stop being there.
   if ( k == keyEsc ) {
@@ -2183,6 +2472,18 @@ if ( helping ) haveName = false
 
 loud = true
 
+// **Once, and before anything opens a file.** `textInit` lays out the machine for
+// every document; `textClear` is what an open wants, and `loadFile` calls that
+// one now. Its single failure is a machine with no room past the segment, and it
+// has to be caught here rather than after the first `textClear` - which resets
+// the flag that says so.
+textInit()
+
+bool noBuffer
+noBuffer = textNoRoom()
+
+docOpen[0] = 1
+
 // **No arguments is a document with nowhere to go**, not an error. It used to be
 // a usage line and an exit, which was right while the only way to name a file was
 // on the command line - the panel is the other way, so an editor started with
@@ -2207,7 +2508,7 @@ if ( haveName ) {
 if ( helping ) {
   putStr( addr( sUsage ) )
   newline()
-} else if ( haveName && !loadFile() ) {
+} else if ( noBuffer || ( haveName && !loadFile() ) ) {
   // Refusing to open is the whole point: an editor that shows you part of a file
   // and then writes that part back over the whole is worse than one that will
   // not open it. **Which limit, and what this machine had**, because a file too
@@ -2226,10 +2527,6 @@ if ( helping ) {
   newline()
 } else {
   loud = false
-
-  // An empty document, because nothing named one. `loadFile` would have made it
-  // on the way past; with no name there was no way past.
-  if ( !haveName ) textInit()
 
   // `videoMode` is §48's bracket over §43's save and restore, so the display
   // cannot be left in whatever this program set it to - which `simplerl` got

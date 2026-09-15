@@ -13,6 +13,7 @@ motext__maxChunks: equ     32000
 motext__maxUndo: equ     2048
 motext__maxDocs: equ     2
 textMaxLines:   equ     12000
+textMaxDocs:    equ     2
 motext__headParas: equ     1500
 motext__lenParas: equ     1500
 motext__opInsert: equ     1
@@ -25,6 +26,7 @@ whyChunks:      equ     1
 whyLines:       equ     2
 whyBlock:       equ     3
 viewMaxWidth:   equ     160
+moview__viewDocs: equ     2
 pieceSize:      equ     64
 
 ; =========================================================== entry ====
@@ -173,6 +175,62 @@ __entry:
         call    viewGotoLine
 ; ---- showAt()
         call    showAt
+; ---- viewSize( 3, 20 )
+        mov     word [viewSize__h], 3
+        mov     word [viewSize__w], 20
+        call    viewSize
+; ---- viewGoto( 6, 2 )
+        mov     word [viewGoto__ln], 6
+        mov     word [viewGoto__col], 2
+        call    viewGoto
+; ---- showWhere()                             // 4 2
+        call    showWhere
+; ---- showAt()                                // 6 2
+        call    showAt
+; ---- viewSwitch( 1 )
+        mov     word [viewSwitch__d], 1
+        call    viewSwitch
+; ---- showDoc()                               // 1 1 1
+        call    showDoc
+; ---- typeIn( addr( second ) )
+        mov     ax, second                  ; link-time constant
+        mov     [typeIn__at], ax
+        call    typeIn
+; ---- viewGoto( 1, 3 )
+        mov     word [viewGoto__ln], 1
+        mov     word [viewGoto__col], 3
+        call    viewGoto
+; ---- showWhere()                             // 0 0
+        call    showWhere
+; ---- showAt()                                // 1 3
+        call    showAt
+; ---- viewRender()
+        call    viewRender
+; ---- viewSwitch( 0 )
+        mov     word [viewSwitch__d], 0
+        call    viewSwitch
+; ---- showDoc()                               // 0 0 9
+        call    showDoc
+; ---- showWhere()                             // 4 2
+        call    showWhere
+; ---- showAt()                                // 6 2
+        call    showAt
+; ---- viewRender()
+        call    viewRender
+; ---- viewSwitch( 1 )
+        mov     word [viewSwitch__d], 1
+        call    viewSwitch
+; ---- showDoc()                               // 1 1 8
+        call    showDoc
+; ---- showWhere()                             // 0 0
+        call    showWhere
+; ---- showAt()                                // 1 3
+        call    showAt
+; ---- viewSwitch( 9 )
+        mov     word [viewSwitch__d], 9
+        call    viewSwitch
+; ---- showDoc()                               // 1 1 8
+        call    showDoc
 
 ; ---- implicit exit ----
         mov     word [_ax], 0x4C00          ; DOS terminate, exit code 0
@@ -502,9 +560,77 @@ motext__chunkTake:
         mov     dx, [motext__usedSeg]       ; segment of motext__chunkUsed
         mov     es, dx
         mov     byte [es:bx], 0
+; ---- chunkLive++
+        inc     word [motext__chunkLive]
 ; ---- return c
         mov     ax, [motext__chunkTake__c]
         mov     [motext__chunkTake__ret], ax
+        ret
+
+; ============================================== sub motext__chunkGive ====
+
+motext__chunkGive:
+; ---- chunkUsed[c] = 0
+        mov     ax, [motext__chunkGive__c]
+        mov     bx, ax
+        mov     dx, [motext__usedSeg]       ; segment of motext__chunkUsed
+        mov     es, dx
+        mov     byte [es:bx], 0
+; ---- chunkNext[c] = chunkFree
+        mov     ax, [motext__chunkFree]
+        mov     bx, [motext__chunkGive__c]
+        shl     bx, 1                       ; word elements
+        mov     dx, [motext__nextSeg]       ; segment of motext__chunkNext
+        mov     es, dx
+        mov     [es:bx], ax
+; ---- chunkFree = c
+        mov     ax, [motext__chunkGive__c]
+        mov     [motext__chunkFree], ax
+; ---- chunkLive--
+        dec     word [motext__chunkLive]
+        ret
+
+; ============================================== sub motext__lineDrop ====
+
+motext__lineDrop:
+; ---- c = lineHead[ln]
+        mov     ax, [motext__lineDrop__ln]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     dx, [motext__headSeg]       ; segment of motext__lineHead
+        mov     es, dx
+        mov     ax, [es:bx]
+        mov     [motext__lineDrop__c], ax
+; ---- while ( c != 0 ) {
+.L44:
+        mov     ax, [motext__lineDrop__c]
+        test    ax, ax
+        je      .L46                        ; unsigned !=
+; ---- next = chunkNext[c]
+        mov     ax, [motext__lineDrop__c]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     dx, [motext__nextSeg]       ; segment of motext__chunkNext
+        mov     es, dx
+        mov     ax, [es:bx]
+        mov     [motext__lineDrop__next], ax
+; ---- chunkGive( c )
+        mov     ax, [motext__lineDrop__c]
+        mov     [motext__chunkGive__c], ax
+        call    motext__chunkGive
+; ---- c = next
+        mov     ax, [motext__lineDrop__next]
+        mov     [motext__lineDrop__c], ax
+.L45:
+        jmp     .L44
+.L46:
+; ---- lineHead[ln] = 0
+        mov     ax, [motext__lineDrop__ln]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     dx, [motext__headSeg]       ; segment of motext__lineHead
+        mov     es, dx
+        mov     word [es:bx], 0
         ret
 
 ; ============================================== sub motext__lineSeek ====
@@ -524,7 +650,7 @@ motext__lineSeek:
 ; ---- prev = 0
         mov     word [motext__lineSeek__prev], 0
 ; ---- while ( left > chunkUsed[c] && chunkNext[c] != 0 ) {
-.L44:
+.L48:
         mov     ax, [motext__lineSeek__left]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [motext__lineSeek__c]
@@ -536,9 +662,9 @@ motext__lineSeek:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        ja      .L47                        ; unsigned >
-        jmp     .L46
-.L47:
+        ja      .L51                        ; unsigned >
+        jmp     .L50
+.L51:
         mov     ax, [motext__lineSeek__c]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -546,7 +672,7 @@ motext__lineSeek:
         mov     es, dx
         mov     ax, [es:bx]
         test    ax, ax
-        je      .L46                        ; unsigned !=
+        je      .L50                        ; unsigned !=
 ; ---- left -= chunkUsed[c]
         mov     ax, [motext__lineSeek__left]
         push    ax                          ; save lhs: rhs is not a leaf
@@ -571,9 +697,9 @@ motext__lineSeek:
         mov     es, dx
         mov     ax, [es:bx]
         mov     [motext__lineSeek__c], ax
-.L45:
-        jmp     .L44
-.L46:
+.L49:
+        jmp     .L48
+.L50:
 ; ---- if ( left > chunkUsed[c] ) left = chunkUsed[c]
         mov     ax, [motext__lineSeek__left]
         push    ax                          ; save lhs: rhs is not a leaf
@@ -586,7 +712,7 @@ motext__lineSeek:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jbe     .L49                        ; unsigned >
+        jbe     .L53                        ; unsigned >
         mov     ax, [motext__lineSeek__c]
         mov     bx, ax
         mov     dx, [motext__usedSeg]       ; segment of motext__chunkUsed
@@ -594,7 +720,7 @@ motext__lineSeek:
         mov     al, [es:bx]
         xor     ah, ah                      ; u8 -> u16
         mov     [motext__lineSeek__left], ax
-.L49:
+.L53:
 ; ---- seekChunk = c
         mov     ax, [motext__lineSeek__c]
         mov     [motext__seekChunk], ax
@@ -612,14 +738,14 @@ motext__continuesRun:
 ; ---- if ( breakRun || undoDone == 0 ) return false
         mov     al, [motext__breakRun]
         test    al, al
-        jnz     .L54
+        jnz     .L58
         mov     ax, [motext__undoDone]
         test    ax, ax
-        jne     .L52                        ; unsigned ==
-.L54:
+        jne     .L56                        ; unsigned ==
+.L58:
         mov     byte [motext__continuesRun__ret], 0
         ret
-.L52:
+.L56:
 ; ---- at = ( undoHead + undoDone - 1 ) % maxUndo
         mov     ax, [motext__undoHead]
         mov     bx, [motext__undoDone]
@@ -635,22 +761,22 @@ motext__continuesRun:
         mov     ax, [es:bx]
         mov     bx, [motext__continuesRun__ln]
         cmp     ax, bx
-        jne     .L59                        ; unsigned !=
+        jne     .L63                        ; unsigned !=
         mov     ax, [motext__continuesRun__at]
         mov     bx, ax
         mov     dx, [motext__logOpSeg]      ; segment of motext__logOp
         mov     es, dx
         mov     al, [es:bx]
         cmp     al, [motext__continuesRun__op]; byte operands, no widening
-        je      .L57                        ; unsigned !=
-.L59:
+        je      .L61                        ; unsigned !=
+.L63:
         mov     byte [motext__continuesRun__ret], 0
         ret
-.L57:
+.L61:
 ; ---- if ( op == opInsert ) return logCol[at] + 1 == col
         mov     al, [motext__continuesRun__op]
         cmp     al, 1                       ; byte operands, no widening
-        jne     .L62                        ; unsigned ==
+        jne     .L66                        ; unsigned ==
         mov     ax, [motext__continuesRun__at]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -660,21 +786,21 @@ motext__continuesRun:
         inc     ax
         mov     bx, [motext__continuesRun__col]
         cmp     ax, bx
-        jne     .L65                        ; unsigned ==
+        jne     .L69                        ; unsigned ==
         mov     ax, 1
-        jmp     .L66
-.L65:
+        jmp     .L70
+.L69:
         xor     ax, ax
-.L66:
+.L70:
         mov     [motext__continuesRun__ret], al; narrowed to bool
         ret
-.L62:
+.L66:
 ; ---- if ( op == opDelete ) return logCol[at] == col || logCol[at] == col + 1
         mov     al, [motext__continuesRun__op]
         cmp     al, 2                       ; byte operands, no widening
-        je      .L70                        ; unsigned ==
-        jmp     .L68
-.L70:
+        je      .L74                        ; unsigned ==
+        jmp     .L72
+.L74:
         mov     ax, [motext__continuesRun__at]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -683,7 +809,7 @@ motext__continuesRun:
         mov     ax, [es:bx]
         mov     bx, [motext__continuesRun__col]
         cmp     ax, bx
-        je      .L73                        ; unsigned ==
+        je      .L77                        ; unsigned ==
         mov     ax, [motext__continuesRun__at]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -696,16 +822,16 @@ motext__continuesRun:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jne     .L71                        ; unsigned ==
-.L73:
+        jne     .L75                        ; unsigned ==
+.L77:
         mov     ax, 1
-        jmp     .L72
-.L71:
+        jmp     .L76
+.L75:
         xor     ax, ax
-.L72:
+.L76:
         mov     [motext__continuesRun__ret], al; narrowed to bool
         ret
-.L68:
+.L72:
 ; ---- return false
         mov     byte [motext__continuesRun__ret], 0
         ret
@@ -716,15 +842,15 @@ motext__undoPush:
 ; ---- if ( undoing ) return
         mov     al, [motext__undoing]
         test    al, al
-        jz      .L76
+        jz      .L80
         ret
-.L76:
+.L80:
 ; ---- if ( stepLost ) return
         mov     al, [motext__stepLost]
         test    al, al
-        jz      .L79
+        jz      .L83
         ret
-.L79:
+.L83:
 ; ---- joins = continuesRun( op, ln, col )
         mov     al, [motext__undoPush__op]
         mov     [motext__continuesRun__op], al; u8 -> u8, no widening
@@ -739,12 +865,12 @@ motext__undoPush:
 ; ---- if ( stepDepth > 0 && !breakRun ) joins = true
         mov     ax, [motext__stepDepth]
         test    ax, ax
-        jbe     .L82                        ; unsigned >
+        jbe     .L86                        ; unsigned >
         mov     al, [motext__breakRun]
         test    al, al
-        jnz     .L82
+        jnz     .L86
         mov     byte [motext__undoPush__joins], 1
-.L82:
+.L86:
 ; ---- breakRun = false
         mov     byte [motext__breakRun], 0
 ; ---- undoCount = undoDone
@@ -752,11 +878,11 @@ motext__undoPush:
         mov     [motext__undoCount], ax
 ; ---- if ( undoCount == maxUndo ) {
         cmp     ax, 2048
-        jne     .L86                        ; unsigned ==
+        jne     .L90                        ; unsigned ==
 ; ---- if ( stepDepth > 0 ) {
         mov     ax, [motext__stepDepth]
         test    ax, ax
-        jbe     .L89                        ; unsigned >
+        jbe     .L93                        ; unsigned >
 ; ---- stepLost  = true
         mov     byte [motext__stepLost], 1
 ; ---- undoLost  = true
@@ -769,7 +895,7 @@ motext__undoPush:
         mov     word [motext__undoDone], 0
 ; ---- return
         ret
-.L89:
+.L93:
 ; ---- undoHead = ( undoHead + 1 ) % maxUndo
         mov     ax, [motext__undoHead]
         inc     ax
@@ -779,7 +905,7 @@ motext__undoPush:
         dec     word [motext__undoCount]
 ; ---- undoDone--
         dec     word [motext__undoDone]
-.L86:
+.L90:
 ; ---- at = ( undoHead + undoCount ) % maxUndo
         mov     ax, [motext__undoHead]
         mov     bx, [motext__undoCount]
@@ -815,12 +941,12 @@ motext__undoPush:
 ; ---- logJoin[at] = joins ? 1 : 0
         mov     al, [motext__undoPush__joins]
         test    al, al
-        jz      .L92
+        jz      .L96
         mov     ax, 1
-        jmp     .L93
-.L92:
+        jmp     .L97
+.L96:
         xor     ax, ax                      ; 0
-.L93:
+.L97:
         mov     bx, [motext__undoPush__at]
         mov     dx, [motext__logJoinSeg]    ; segment of motext__logJoin
         mov     es, dx
@@ -840,14 +966,14 @@ motext__chunkSplit:
         mov     [motext__chunkSplit__d], ax
 ; ---- if ( d == 0 ) {
         test    ax, ax
-        jne     .L95                        ; unsigned ==
+        jne     .L99                        ; unsigned ==
 ; ---- noRoom = true
         mov     byte [motext__noRoom], 1
 ; ---- whyNoRoom = whyChunks
         mov     byte [motext__whyNoRoom], 1
 ; ---- return
         ret
-.L95:
+.L99:
 ; ---- atSrc( c )
         mov     ax, [motext__chunkSplit__c]
         mov     [motext__atSrc__c], ax
@@ -858,10 +984,10 @@ motext__chunkSplit:
         call    motext__atDst
 ; ---- for ( u16 i = 0; i < chunkSize - halfChunk; i++ ) {
         mov     word [motext__chunkSplit__i], 0
-.L98:
+.L102:
         mov     ax, [motext__chunkSplit__i]
         cmp     ax, 8
-        jae     .L100                       ; unsigned <
+        jae     .L104                       ; unsigned <
 ; ---- dst[i] = src[ halfChunk + i ]
         mov     ax, 8
         mov     bx, [motext__chunkSplit__i]
@@ -874,10 +1000,10 @@ motext__chunkSplit:
         mov     dx, [motext__dstSeg]        ; segment of motext__dst
         mov     es, dx
         mov     [es:bx], al
-.L99:
+.L103:
         inc     word [motext__chunkSplit__i]
-        jmp     .L98
-.L100:
+        jmp     .L102
+.L104:
 ; ---- chunkUsed[d] = chunkSize - halfChunk
         mov     ax, [motext__chunkSplit__d]
         mov     bx, ax
@@ -918,9 +1044,9 @@ lineInsert:
         mov     ax, [lineInsert__ln]
         mov     bx, [motext__lineCount]
         cmp     ax, bx
-        jb      .L102                       ; unsigned >=
+        jb      .L106                       ; unsigned >=
         ret
-.L102:
+.L106:
 ; ---- lineSeek( ln, col )
         mov     ax, [lineInsert__ln]
         mov     [motext__lineSeek__ln], ax
@@ -940,15 +1066,15 @@ lineInsert:
         mov     es, dx
         mov     al, [es:bx]
         cmp     al, 16                      ; byte operands, no widening
-        je      .L107                       ; unsigned ==
-        jmp     .L105
-.L107:
+        je      .L111                       ; unsigned ==
+        jmp     .L109
+.L111:
 ; ---- if ( off == chunkSize && chunkNext[c] == 0 ) {
         mov     ax, [lineInsert__off]
         cmp     ax, 16
-        je      .L110                       ; unsigned ==
-        jmp     .L108
-.L110:
+        je      .L114                       ; unsigned ==
+        jmp     .L112
+.L114:
         mov     ax, [lineInsert__c]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -956,21 +1082,21 @@ lineInsert:
         mov     es, dx
         mov     ax, [es:bx]
         test    ax, ax
-        jne     .L108                       ; unsigned ==
+        jne     .L112                       ; unsigned ==
 ; ---- d = chunkTake()
         call    motext__chunkTake
         mov     ax, [motext__chunkTake__ret]
         mov     [lineInsert__d], ax
 ; ---- if ( d == 0 ) {
         test    ax, ax
-        jne     .L112                       ; unsigned ==
+        jne     .L116                       ; unsigned ==
 ; ---- noRoom = true
         mov     byte [motext__noRoom], 1
 ; ---- whyNoRoom = whyChunks
         mov     byte [motext__whyNoRoom], 1
 ; ---- return
         ret
-.L112:
+.L116:
 ; ---- chunkNext[c] = d
         mov     ax, [lineInsert__d]
         mov     bx, [lineInsert__c]
@@ -983,8 +1109,8 @@ lineInsert:
         mov     [lineInsert__c], ax
 ; ---- off = 0
         mov     word [lineInsert__off], 0
-        jmp     .L109
-.L108:
+        jmp     .L113
+.L112:
 ; ---- chunkSplit( c )
         mov     ax, [lineInsert__c]
         mov     [motext__chunkSplit__c], ax
@@ -996,9 +1122,9 @@ lineInsert:
         mov     es, dx
         mov     al, [es:bx]
         cmp     al, 16                      ; byte operands, no widening
-        jne     .L115                       ; unsigned ==
+        jne     .L119                       ; unsigned ==
         ret
-.L115:
+.L119:
 ; ---- if ( off > chunkUsed[c] ) {
         mov     ax, [lineInsert__off]
         push    ax                          ; save lhs: rhs is not a leaf
@@ -1011,7 +1137,7 @@ lineInsert:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jbe     .L118                       ; unsigned >
+        jbe     .L122                       ; unsigned >
 ; ---- off -= chunkUsed[c]
         mov     ax, [lineInsert__off]
         push    ax                          ; save lhs: rhs is not a leaf
@@ -1033,9 +1159,9 @@ lineInsert:
         mov     es, dx
         mov     ax, [es:bx]
         mov     [lineInsert__c], ax
-.L118:
+.L122:
+.L113:
 .L109:
-.L105:
 ; ---- atDst( c )
         mov     ax, [lineInsert__c]
         mov     [motext__atDst__c], ax
@@ -1048,11 +1174,11 @@ lineInsert:
         mov     al, [es:bx]
         xor     ah, ah                      ; u8 -> u16
         mov     [lineInsert__i], ax
-.L121:
+.L125:
         mov     ax, [lineInsert__i]
         mov     bx, [lineInsert__off]
         cmp     ax, bx
-        jbe     .L123                       ; unsigned >
+        jbe     .L127                       ; unsigned >
 ; ---- dst[i] = dst[ i - 1 ]
         mov     ax, [lineInsert__i]
         dec     ax
@@ -1064,10 +1190,10 @@ lineInsert:
         mov     dx, [motext__dstSeg]        ; segment of motext__dst
         mov     es, dx
         mov     [es:bx], al
-.L122:
+.L126:
         dec     word [lineInsert__i]
-        jmp     .L121
-.L123:
+        jmp     .L125
+.L127:
 ; ---- dst[off] = ch
         mov     al, [lineInsert__ch]
         mov     bx, [lineInsert__off]
@@ -1131,17 +1257,17 @@ lineLength:
         mov     ax, [lineLength__ln]
         mov     bx, [motext__lineCount]
         cmp     ax, bx
-        jae     .L125                       ; unsigned <
+        jae     .L129                       ; unsigned <
         mov     ax, [lineLength__ln]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     dx, [motext__lenSeg]        ; segment of motext__lineLen
         mov     es, dx
         mov     ax, [es:bx]
-        jmp     .L126
-.L125:
+        jmp     .L130
+.L129:
         xor     ax, ax                      ; 0
-.L126:
+.L130:
         mov     [lineLength__ret], ax
         ret
 
@@ -1152,10 +1278,10 @@ lineSlice:
         mov     ax, [lineSlice__ln]
         mov     bx, [motext__lineCount]
         cmp     ax, bx
-        jb      .L128                       ; unsigned >=
+        jb      .L132                       ; unsigned >=
         mov     word [lineSlice__ret], 0
         ret
-.L128:
+.L132:
 ; ---- c = lineHead[ln]
         mov     ax, [lineSlice__ln]
         shl     ax, 1                       ; word elements
@@ -1170,18 +1296,18 @@ lineSlice:
 ; ---- done = 0
         mov     word [lineSlice__done], 0
 ; ---- while ( c != 0 && done < count ) {
-.L131:
+.L135:
         mov     ax, [lineSlice__c]
         test    ax, ax
-        jne     .L134                       ; unsigned !=
-        jmp     .L133
-.L134:
+        jne     .L138                       ; unsigned !=
+        jmp     .L137
+.L138:
         mov     ax, [lineSlice__done]
         mov     bx, [lineSlice__count]
         cmp     ax, bx
-        jb      .L135                       ; unsigned <
-        jmp     .L133
-.L135:
+        jb      .L139                       ; unsigned <
+        jmp     .L137
+.L139:
 ; ---- if ( left >= chunkUsed[c] ) {
         mov     ax, [lineSlice__left]
         push    ax                          ; save lhs: rhs is not a leaf
@@ -1194,7 +1320,7 @@ lineSlice:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L136                       ; unsigned >=
+        jb      .L140                       ; unsigned >=
 ; ---- left -= chunkUsed[c]
         mov     ax, [lineSlice__left]
         push    ax                          ; save lhs: rhs is not a leaf
@@ -1208,8 +1334,8 @@ lineSlice:
         pop     ax
         sub     ax, bx
         mov     [lineSlice__left], ax
-        jmp     .L137
-.L136:
+        jmp     .L141
+.L140:
 ; ---- atDst( c )
         mov     ax, [lineSlice__c]
         mov     [motext__atDst__c], ax
@@ -1232,19 +1358,19 @@ lineSlice:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jbe     .L139                       ; unsigned >
+        jbe     .L143                       ; unsigned >
         mov     ax, [lineSlice__count]
         mov     bx, [lineSlice__done]
         sub     ax, bx
         mov     [lineSlice__n], ax
-.L139:
+.L143:
 ; ---- for ( u16 i = 0; i < n; i++ ) {
         mov     word [lineSlice__i], 0
-.L142:
+.L146:
         mov     ax, [lineSlice__i]
         mov     bx, [lineSlice__n]
         cmp     ax, bx
-        jae     .L144                       ; unsigned <
+        jae     .L148                       ; unsigned <
 ; ---- poke8( at + done + i, dst[ left + i ] )
         mov     ax, [lineSlice__at]
         mov     bx, [lineSlice__done]
@@ -1261,10 +1387,10 @@ lineSlice:
         mov     al, [es:bx]
         pop     bx
         mov     [bx], al
-.L143:
+.L147:
         inc     word [lineSlice__i]
-        jmp     .L142
-.L144:
+        jmp     .L146
+.L148:
 ; ---- done += n
         mov     ax, [lineSlice__done]
         mov     bx, [lineSlice__n]
@@ -1272,7 +1398,7 @@ lineSlice:
         mov     [lineSlice__done], ax
 ; ---- left = 0
         mov     word [lineSlice__left], 0
-.L137:
+.L141:
 ; ---- c = chunkNext[c]
         mov     ax, [lineSlice__c]
         shl     ax, 1                       ; word elements
@@ -1281,9 +1407,9 @@ lineSlice:
         mov     es, dx
         mov     ax, [es:bx]
         mov     [lineSlice__c], ax
-.L132:
-        jmp     .L131
-.L133:
+.L136:
+        jmp     .L135
+.L137:
 ; ---- return done
         mov     ax, [lineSlice__done]
         mov     [lineSlice__ret], ax
@@ -1350,14 +1476,14 @@ motext__lineNew:
         mov     ax, [motext__lineCount]
         mov     bx, [motext__lineLimit]
         cmp     ax, bx
-        jb      .L146                       ; unsigned >=
+        jb      .L150                       ; unsigned >=
 ; ---- noRoom = true
         mov     byte [motext__noRoom], 1
 ; ---- whyNoRoom = whyLines
         mov     byte [motext__whyNoRoom], 2
 ; ---- return
         ret
-.L146:
+.L150:
 ; ---- lineHead[lineCount]   = chunkTake()
         call    motext__chunkTake
         mov     ax, [motext__chunkTake__ret]
@@ -1408,34 +1534,34 @@ motext__docSave:
 ; ---- docBreakRun[curDoc]   = breakRun ? 1 : 0
         mov     al, [motext__breakRun]
         test    al, al
-        jz      .L149
+        jz      .L153
         mov     ax, 1
-        jmp     .L150
-.L149:
+        jmp     .L154
+.L153:
         xor     ax, ax                      ; 0
-.L150:
+.L154:
         mov     bx, [motext__curDoc]
         mov     [motext__docBreakRun + bx], al
 ; ---- docUndoLost[curDoc]   = undoLost ? 1 : 0
         mov     al, [motext__undoLost]
         test    al, al
-        jz      .L152
+        jz      .L156
         mov     ax, 1
-        jmp     .L153
-.L152:
+        jmp     .L157
+.L156:
         xor     ax, ax                      ; 0
-.L153:
+.L157:
         mov     bx, [motext__curDoc]
         mov     [motext__docUndoLost + bx], al
 ; ---- docNoRoom[curDoc]     = noRoom ? 1 : 0
         mov     al, [motext__noRoom]
         test    al, al
-        jz      .L155
+        jz      .L159
         mov     ax, 1
-        jmp     .L156
-.L155:
+        jmp     .L160
+.L159:
         xor     ax, ax                      ; 0
-.L156:
+.L160:
         mov     bx, [motext__curDoc]
         mov     [motext__docNoRoom + bx], al
 ; ---- docWhyNoRoom[curDoc]  = whyNoRoom
@@ -1524,36 +1650,36 @@ motext__docLoad:
         mov     bx, ax
         mov     al, [motext__docBreakRun + bx]
         test    al, al
-        je      .L158                       ; unsigned !=
+        je      .L162                       ; unsigned !=
         mov     ax, 1
-        jmp     .L159
-.L158:
+        jmp     .L163
+.L162:
         xor     ax, ax
-.L159:
+.L163:
         mov     [motext__breakRun], al      ; narrowed to bool
 ; ---- undoLost   = docUndoLost[d] != 0
         mov     ax, [motext__docLoad__d]
         mov     bx, ax
         mov     al, [motext__docUndoLost + bx]
         test    al, al
-        je      .L161                       ; unsigned !=
+        je      .L165                       ; unsigned !=
         mov     ax, 1
-        jmp     .L162
-.L161:
+        jmp     .L166
+.L165:
         xor     ax, ax
-.L162:
+.L166:
         mov     [motext__undoLost], al      ; narrowed to bool
 ; ---- noRoom     = docNoRoom[d] != 0
         mov     ax, [motext__docLoad__d]
         mov     bx, ax
         mov     al, [motext__docNoRoom + bx]
         test    al, al
-        je      .L164                       ; unsigned !=
+        je      .L168                       ; unsigned !=
         mov     ax, 1
-        jmp     .L165
-.L164:
+        jmp     .L169
+.L168:
         xor     ax, ax
-.L165:
+.L169:
         mov     [motext__noRoom], al        ; narrowed to bool
 ; ---- whyNoRoom  = docWhyNoRoom[d]
         mov     ax, [motext__docLoad__d]
@@ -1570,9 +1696,59 @@ motext__docLoad:
         mov     byte [motext__stepLost], 0
         ret
 
+; ============================================== u16 textDoc ====
+
+textDoc:
+; ---- u16 textDoc() => curDoc
+        mov     ax, [motext__curDoc]
+        mov     [textDoc__ret], ax
+        ret
+
+; ============================================== sub textSwitch ====
+
+textSwitch:
+; ---- if ( d >= maxDocs ) return
+        mov     ax, [textSwitch__d]
+        cmp     ax, 2
+        jb      .L171                       ; unsigned >=
+        ret
+.L171:
+; ---- if ( d == curDoc ) return
+        mov     ax, [textSwitch__d]
+        mov     bx, [motext__curDoc]
+        cmp     ax, bx
+        jne     .L174                       ; unsigned ==
+        ret
+.L174:
+; ---- docSave()
+        call    motext__docSave
+; ---- curDoc = d
+        mov     ax, [textSwitch__d]
+        mov     [motext__curDoc], ax
+; ---- docLoad( d )
+        mov     ax, [textSwitch__d]
+        mov     [motext__docLoad__d], ax
+        call    motext__docLoad
+        ret
+
 ; ============================================== sub textClear ====
 
 textClear:
+; ---- for ( u16 ln = 0; ln < lineCount; ln++ ) {
+        mov     word [textClear__ln], 0
+.L177:
+        mov     ax, [textClear__ln]
+        mov     bx, [motext__lineCount]
+        cmp     ax, bx
+        jae     .L179                       ; unsigned <
+; ---- lineDrop( ln )
+        mov     ax, [textClear__ln]
+        mov     [motext__lineDrop__ln], ax
+        call    motext__lineDrop
+.L178:
+        inc     word [textClear__ln]
+        jmp     .L177
+.L179:
 ; ---- lineCount = 0
         mov     word [motext__lineCount], 0
 ; ---- undoHead  = 0
@@ -1600,9 +1776,9 @@ textClear:
 ; ---- if ( chunkLimit == 0 ) return
         mov     ax, [motext__chunkLimit]
         test    ax, ax
-        jne     .L167                       ; unsigned ==
+        jne     .L181                       ; unsigned ==
         ret
-.L167:
+.L181:
 ; ---- lineLimit = textMaxLines
         mov     word [motext__lineLimit], 12000
 ; ---- lineNew()
@@ -1618,6 +1794,8 @@ textInit:
         mov     word [motext__chunkFree], 0
 ; ---- chunkHigh  = 1
         mov     word [motext__chunkHigh], 1
+; ---- chunkLive  = 0
+        mov     word [motext__chunkLive], 0
 ; ---- chunkLimit = 0
         mov     word [motext__chunkLimit], 0
 ; ---- lineLimit  = 0
@@ -1653,27 +1831,27 @@ textInit:
 ; ---- if ( recBase == 0 ) {
         mov     ax, [motext__recBase]
         test    ax, ax
-        jne     .L170                       ; unsigned ==
+        jne     .L184                       ; unsigned ==
 ; ---- noRoom = true
         mov     byte [motext__noRoom], 1
 ; ---- whyNoRoom = whyBlock
         mov     byte [motext__whyNoRoom], 3
 ; ---- return
         ret
-.L170:
+.L184:
 ; ---- if ( blockEnd() <= recBase ) {
         call    blockEnd
         mov     ax, [blockEnd__ret]
         mov     bx, [motext__recBase]
         cmp     ax, bx
-        ja      .L173                       ; unsigned <=
+        ja      .L187                       ; unsigned <=
 ; ---- noRoom = true
         mov     byte [motext__noRoom], 1
 ; ---- whyNoRoom = whyBlock
         mov     byte [motext__whyNoRoom], 3
 ; ---- return
         ret
-.L173:
+.L187:
 ; ---- avail = blockEnd() - recBase
         call    blockEnd
         mov     ax, [blockEnd__ret]
@@ -1682,14 +1860,14 @@ textInit:
         mov     [textInit__avail], ax
 ; ---- if ( avail <= ( headParas + lenParas + logParas ) * maxDocs ) {
         cmp     ax, 7792
-        ja      .L176                       ; unsigned <=
+        ja      .L190                       ; unsigned <=
 ; ---- noRoom = true
         mov     byte [motext__noRoom], 1
 ; ---- whyNoRoom = whyBlock
         mov     byte [motext__whyNoRoom], 3
 ; ---- return
         ret
-.L176:
+.L190:
 ; ---- spare = avail - ( headParas + lenParas + logParas ) * maxDocs
         mov     ax, [textInit__avail]
         sub     ax, 7792
@@ -1717,9 +1895,9 @@ textInit:
         mov     [motext__chunkLimit], ax
 ; ---- if ( chunkLimit > maxChunks ) chunkLimit = maxChunks
         cmp     ax, 32000
-        jbe     .L179                       ; unsigned >
+        jbe     .L193                       ; unsigned >
         mov     word [motext__chunkLimit], 32000
-.L179:
+.L193:
 ; ---- nextSeg  = recBase
         mov     ax, [motext__recBase]
         mov     [motext__nextSeg], ax
@@ -1745,12 +1923,12 @@ textInit:
         mov     [textInit__at], ax
 ; ---- for ( u16 d = 0; d < maxDocs; d++ ) {
         mov     word [textInit__d], 0
-.L182:
+.L196:
         mov     ax, [textInit__d]
         cmp     ax, 2
-        jb      .L185                       ; unsigned <
-        jmp     .L184
-.L185:
+        jb      .L199                       ; unsigned <
+        jmp     .L198
+.L199:
 ; ---- docHeadSeg[d] = at
         mov     ax, [textInit__at]
         mov     bx, [textInit__d]
@@ -1808,10 +1986,10 @@ textInit:
         mov     ax, [textInit__at]
         add     ax, 128
         mov     [textInit__at], ax
-.L183:
+.L197:
         inc     word [textInit__d]
-        jmp     .L182
-.L184:
+        jmp     .L196
+.L198:
 ; ---- textBase = at
         mov     ax, [textInit__at]
         mov     [motext__textBase], ax
@@ -1820,14 +1998,14 @@ textInit:
         mov     ax, [blockEnd__ret]
         mov     bx, [motext__textBase]
         cmp     ax, bx
-        ja      .L186                       ; unsigned <=
+        ja      .L200                       ; unsigned <=
 ; ---- noRoom = true
         mov     byte [motext__noRoom], 1
 ; ---- whyNoRoom = whyBlock
         mov     byte [motext__whyNoRoom], 3
 ; ---- return
         ret
-.L186:
+.L200:
 ; ---- room = blockEnd() - textBase
         call    blockEnd
         mov     ax, [blockEnd__ret]
@@ -1837,14 +2015,14 @@ textInit:
 ; ---- if ( room < chunkLimit ) chunkLimit = room
         mov     bx, [motext__chunkLimit]
         cmp     ax, bx
-        jae     .L189                       ; unsigned <
+        jae     .L203                       ; unsigned <
         mov     ax, [textInit__room]
         mov     [motext__chunkLimit], ax
-.L189:
+.L203:
 ; ---- if ( chunkLimit < 2 ) {
         mov     ax, [motext__chunkLimit]
         cmp     ax, 2
-        jae     .L192                       ; unsigned <
+        jae     .L206                       ; unsigned <
 ; ---- chunkLimit = 0
         mov     word [motext__chunkLimit], 0
 ; ---- noRoom = true
@@ -1853,16 +2031,21 @@ textInit:
         mov     byte [motext__whyNoRoom], 3
 ; ---- return
         ret
-.L192:
+.L206:
 ; ---- for ( u16 d = 0; d < maxDocs; d++ ) {
         mov     word [textInit__d], 0
-.L195:
+.L209:
         mov     ax, [textInit__d]
         cmp     ax, 2
-        jae     .L197                       ; unsigned <
+        jae     .L211                       ; unsigned <
 ; ---- curDoc = d
         mov     ax, [textInit__d]
         mov     [motext__curDoc], ax
+; ---- docLines[d] = 0
+        mov     ax, [textInit__d]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     word [motext__docLines + bx], 0
 ; ---- docLoad( d )
         mov     ax, [textInit__d]
         mov     [motext__docLoad__d], ax
@@ -1871,10 +2054,10 @@ textInit:
         call    textClear
 ; ---- docSave()
         call    motext__docSave
-.L196:
+.L210:
         inc     word [textInit__d]
-        jmp     .L195
-.L197:
+        jmp     .L209
+.L211:
 ; ---- curDoc = 0
         mov     word [motext__curDoc], 0
 ; ---- docLoad( 0 )
@@ -1888,21 +2071,21 @@ textLoad:
 ; ---- if ( !bulking ) {
         mov     al, [motext__bulking]
         test    al, al
-        jnz     .L199
+        jnz     .L213
 ; ---- undoing = true
         mov     byte [motext__undoing], 1
 ; ---- if ( ch == '\n' ) {
         mov     al, [textLoad__ch]
         cmp     al, 10                      ; byte operands, no widening
-        jne     .L202                       ; unsigned ==
+        jne     .L216                       ; unsigned ==
 ; ---- lineNew()
         call    motext__lineNew
-        jmp     .L203
-.L202:
+        jmp     .L217
+.L216:
 ; ---- } else if ( ch != '\r' ) {
         mov     al, [textLoad__ch]
         cmp     al, 13                      ; byte operands, no widening
-        je      .L205                       ; unsigned !=
+        je      .L219                       ; unsigned !=
 ; ---- lineAppend( lineCount - 1, ch )
         mov     ax, [motext__lineCount]
         dec     ax
@@ -1910,23 +2093,23 @@ textLoad:
         mov     al, [textLoad__ch]
         mov     [lineAppend__ch], al        ; u8 -> u8, no widening
         call    lineAppend
-.L205:
-.L203:
+.L219:
+.L217:
 ; ---- undoing = false
         mov     byte [motext__undoing], 0
 ; ---- return
         ret
-.L199:
+.L213:
 ; ---- if ( ch == '\r' ) return
         mov     al, [textLoad__ch]
         cmp     al, 13                      ; byte operands, no widening
-        jne     .L208                       ; unsigned ==
+        jne     .L222                       ; unsigned ==
         ret
-.L208:
+.L222:
 ; ---- if ( ch == '\n' ) {
         mov     al, [textLoad__ch]
         cmp     al, 10                      ; byte operands, no widening
-        jne     .L211                       ; unsigned ==
+        jne     .L225                       ; unsigned ==
 ; ---- bulkFlush()
         call    motext__bulkFlush
 ; ---- lineNew()
@@ -1935,13 +2118,13 @@ textLoad:
         call    motext__bulkSeed
 ; ---- return
         ret
-.L211:
+.L225:
 ; ---- if ( loadUsed == chunkSize ) {
         mov     ax, [motext__loadUsed]
         cmp     ax, 16
-        je      .L216                       ; unsigned ==
-        jmp     .L214
-.L216:
+        je      .L230                       ; unsigned ==
+        jmp     .L228
+.L230:
 ; ---- chunkUsed[loadChunk] = chunkSize
         mov     ax, [motext__loadChunk]
         mov     bx, ax
@@ -1954,14 +2137,14 @@ textLoad:
         mov     [textLoad__d], ax
 ; ---- if ( d == 0 ) {
         test    ax, ax
-        jne     .L217                       ; unsigned ==
+        jne     .L231                       ; unsigned ==
 ; ---- noRoom = true
         mov     byte [motext__noRoom], 1
 ; ---- whyNoRoom = whyChunks
         mov     byte [motext__whyNoRoom], 1
 ; ---- return
         ret
-.L217:
+.L231:
 ; ---- chunkNext[loadChunk] = d
         mov     ax, [textLoad__d]
         mov     bx, [motext__loadChunk]
@@ -1978,7 +2161,7 @@ textLoad:
         mov     ax, [motext__loadChunk]
         mov     [motext__atDst__c], ax
         call    motext__atDst
-.L214:
+.L228:
 ; ---- dst[loadUsed] = ch
         mov     al, [textLoad__ch]
         mov     bx, [motext__loadUsed]
@@ -2000,12 +2183,12 @@ viewSize:
 ; ---- width = w > viewMaxWidth ? viewMaxWidth : w
         mov     ax, [viewSize__w]
         cmp     ax, 160
-        jbe     .L220                       ; unsigned >
+        jbe     .L234                       ; unsigned >
         mov     ax, 160
-        jmp     .L221
-.L220:
+        jmp     .L235
+.L234:
         mov     ax, [viewSize__w]
-.L221:
+.L235:
         mov     [moview__width], ax
         ret
 
@@ -2056,6 +2239,139 @@ viewCol:
         mov     [viewCol__ret], ax
         ret
 
+; ============================================== u16 viewDoc ====
+
+viewDoc:
+; ---- u16 viewDoc() => curView
+        mov     ax, [moview__curView]
+        mov     [viewDoc__ret], ax
+        ret
+
+; ============================================== sub viewSwitch ====
+
+viewSwitch:
+; ---- if ( d >= viewDocs ) return
+        mov     ax, [viewSwitch__d]
+        cmp     ax, 2
+        jb      .L237                       ; unsigned >=
+        ret
+.L237:
+; ---- if ( d == curView ) return
+        mov     ax, [viewSwitch__d]
+        mov     bx, [moview__curView]
+        cmp     ax, bx
+        jne     .L240                       ; unsigned ==
+        ret
+.L240:
+; ---- docTop[curView]      = top
+        mov     ax, [moview__top]
+        mov     bx, [moview__curView]
+        shl     bx, 1                       ; word elements
+        mov     [moview__docTop + bx], ax
+; ---- docLeft[curView]     = left
+        mov     ax, [moview__left]
+        mov     bx, [moview__curView]
+        shl     bx, 1                       ; word elements
+        mov     [moview__docLeft + bx], ax
+; ---- docLine[curView]     = curLine
+        mov     ax, [moview__curLine]
+        mov     bx, [moview__curView]
+        shl     bx, 1                       ; word elements
+        mov     [moview__docLine + bx], ax
+; ---- docCol[curView]      = curCol
+        mov     ax, [moview__curCol]
+        mov     bx, [moview__curView]
+        shl     bx, 1                       ; word elements
+        mov     [moview__docCol + bx], ax
+; ---- docMarkLine[curView] = markLine
+        mov     ax, [moview__markLine]
+        mov     bx, [moview__curView]
+        shl     bx, 1                       ; word elements
+        mov     [moview__docMarkLine + bx], ax
+; ---- docMarkCol[curView]  = markCol
+        mov     ax, [moview__markCol]
+        mov     bx, [moview__curView]
+        shl     bx, 1                       ; word elements
+        mov     [moview__docMarkCol + bx], ax
+; ---- docGoal[curView]     = goalCol
+        mov     ax, [moview__goalCol]
+        mov     bx, [moview__curView]
+        shl     bx, 1                       ; word elements
+        mov     [moview__docGoal + bx], ax
+; ---- docMarked[curView]   = marked ? 1 : 0
+        mov     al, [moview__marked]
+        test    al, al
+        jz      .L243
+        mov     ax, 1
+        jmp     .L244
+.L243:
+        xor     ax, ax                      ; 0
+.L244:
+        mov     bx, [moview__curView]
+        mov     [moview__docMarked + bx], al
+; ---- curView = d
+        mov     ax, [viewSwitch__d]
+        mov     [moview__curView], ax
+; ---- textSwitch( d )
+        mov     ax, [viewSwitch__d]
+        mov     [textSwitch__d], ax
+        call    textSwitch
+; ---- top      = docTop[d]
+        mov     ax, [viewSwitch__d]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [moview__docTop + bx]
+        mov     [moview__top], ax
+; ---- left     = docLeft[d]
+        mov     ax, [viewSwitch__d]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [moview__docLeft + bx]
+        mov     [moview__left], ax
+; ---- curLine  = docLine[d]
+        mov     ax, [viewSwitch__d]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [moview__docLine + bx]
+        mov     [moview__curLine], ax
+; ---- curCol   = docCol[d]
+        mov     ax, [viewSwitch__d]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [moview__docCol + bx]
+        mov     [moview__curCol], ax
+; ---- markLine = docMarkLine[d]
+        mov     ax, [viewSwitch__d]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [moview__docMarkLine + bx]
+        mov     [moview__markLine], ax
+; ---- markCol  = docMarkCol[d]
+        mov     ax, [viewSwitch__d]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [moview__docMarkCol + bx]
+        mov     [moview__markCol], ax
+; ---- goalCol  = docGoal[d]
+        mov     ax, [viewSwitch__d]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [moview__docGoal + bx]
+        mov     [moview__goalCol], ax
+; ---- marked   = docMarked[d] != 0
+        mov     ax, [viewSwitch__d]
+        mov     bx, ax
+        mov     al, [moview__docMarked + bx]
+        test    al, al
+        je      .L246                       ; unsigned !=
+        mov     ax, 1
+        jmp     .L247
+.L246:
+        xor     ax, ax
+.L247:
+        mov     [moview__marked], al        ; narrowed to bool
+        ret
+
 ; ============================================== sub moview__viewFollow ====
 
 moview__viewFollow:
@@ -2063,10 +2379,10 @@ moview__viewFollow:
         mov     ax, [moview__curLine]
         mov     bx, [moview__top]
         cmp     ax, bx
-        jae     .L223                       ; unsigned <
+        jae     .L249                       ; unsigned <
         mov     ax, [moview__curLine]
         mov     [moview__top], ax
-.L223:
+.L249:
 ; ---- if ( curLine >= top + height ) top = curLine - height + 1
         mov     ax, [moview__curLine]
         push    ax                          ; save lhs: rhs is not a leaf
@@ -2076,21 +2392,21 @@ moview__viewFollow:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L226                       ; unsigned >=
+        jb      .L252                       ; unsigned >=
         mov     ax, [moview__curLine]
         mov     bx, [moview__height]
         sub     ax, bx
         inc     ax
         mov     [moview__top], ax
-.L226:
+.L252:
 ; ---- if ( curCol < left ) left = curCol
         mov     ax, [moview__curCol]
         mov     bx, [moview__left]
         cmp     ax, bx
-        jae     .L229                       ; unsigned <
+        jae     .L255                       ; unsigned <
         mov     ax, [moview__curCol]
         mov     [moview__left], ax
-.L229:
+.L255:
 ; ---- if ( curCol >= left + width ) left = curCol - width + 1
         mov     ax, [moview__curCol]
         push    ax                          ; save lhs: rhs is not a leaf
@@ -2100,13 +2416,13 @@ moview__viewFollow:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L232                       ; unsigned >=
+        jb      .L258                       ; unsigned >=
         mov     ax, [moview__curCol]
         mov     bx, [moview__width]
         sub     ax, bx
         inc     ax
         mov     [moview__left], ax
-.L232:
+.L258:
         ret
 
 ; ============================================== sub viewGoto ====
@@ -2147,15 +2463,15 @@ moview__viewPlace:
 ; ---- if ( lines > 0 && curLine >= lines ) curLine = lines - 1
         mov     ax, [moview__viewPlace__lines]
         test    ax, ax
-        jbe     .L235                       ; unsigned >
+        jbe     .L261                       ; unsigned >
         mov     ax, [moview__curLine]
         mov     bx, [moview__viewPlace__lines]
         cmp     ax, bx
-        jb      .L235                       ; unsigned >=
+        jb      .L261                       ; unsigned >=
         mov     ax, [moview__viewPlace__lines]
         dec     ax
         mov     [moview__curLine], ax
-.L235:
+.L261:
 ; ---- curCol = col
         mov     ax, [moview__viewPlace__col]
         mov     [moview__curCol], ax
@@ -2168,13 +2484,13 @@ moview__viewPlace:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jbe     .L239                       ; unsigned >
+        jbe     .L265                       ; unsigned >
         mov     ax, [moview__curLine]
         mov     [lineLength__ln], ax
         call    lineLength
         mov     ax, [lineLength__ret]
         mov     [moview__curCol], ax
-.L239:
+.L265:
 ; ---- viewFollow()
         call    moview__viewFollow
         ret
@@ -2197,7 +2513,7 @@ viewRenderRow:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jae     .L242                       ; unsigned <
+        jae     .L268                       ; unsigned <
         mov     ax, [viewRenderRow__ln]
         mov     [lineSlice__ln], ax
         mov     ax, [moview__left]
@@ -2209,7 +2525,7 @@ viewRenderRow:
         call    lineSlice
         mov     ax, [lineSlice__ret]
         mov     [viewRenderRow__n], ax
-.L242:
+.L268:
 ; ---- viewRow( y, addr( row ), n )
         mov     ax, [viewRenderRow__y]
         mov     [viewRow__y], ax
@@ -2225,19 +2541,19 @@ viewRenderRow:
 viewRender:
 ; ---- for ( u16 y = 0; y < height; y++ ) {
         mov     word [viewRender__y], 0
-.L245:
+.L271:
         mov     ax, [viewRender__y]
         mov     bx, [moview__height]
         cmp     ax, bx
-        jae     .L247                       ; unsigned <
+        jae     .L273                       ; unsigned <
 ; ---- viewRenderRow( y )
         mov     ax, [viewRender__y]
         mov     [viewRenderRow__y], ax
         call    viewRenderRow
-.L246:
+.L272:
         inc     word [viewRender__y]
-        jmp     .L245
-.L247:
+        jmp     .L271
+.L273:
         ret
 
 ; ============================================== sub viewRow ====
@@ -2245,11 +2561,11 @@ viewRender:
 viewRow:
 ; ---- for ( u16 i = 0; i < n; i++ ) {
         mov     word [viewRow__i], 0
-.L249:
+.L275:
         mov     ax, [viewRow__i]
         mov     bx, [viewRow__n]
         cmp     ax, bx
-        jae     .L251                       ; unsigned <
+        jae     .L277                       ; unsigned <
 ; ---- putChar( peek8( at + i ) )
         mov     ax, [viewRow__at]
         mov     bx, [viewRow__i]
@@ -2258,10 +2574,10 @@ viewRow:
         mov     al, [bx]                    ; peek8 - unchecked, by design
         mov     [putChar__c], al            ; u8 -> u8, no widening
         call    putChar
-.L250:
+.L276:
         inc     word [viewRow__i]
-        jmp     .L249
-.L251:
+        jmp     .L275
+.L277:
 ; ---- putChar( '|' )
         mov     byte [putChar__c], 124
         call    putChar
@@ -2303,6 +2619,57 @@ showAt:
 ; ---- putNumber( viewCol() )
         call    viewCol
         mov     ax, [viewCol__ret]
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- newline()
+        call    newline
+        ret
+
+; ============================================== sub typeIn ====
+
+typeIn:
+; ---- while ( peek8( at ) != 0 ) {
+.L279:
+        mov     ax, [typeIn__at]
+        mov     bx, ax
+        mov     al, [bx]                    ; peek8 - unchecked, by design
+        test    al, al
+        je      .L281                       ; unsigned !=
+; ---- textLoad( peek8( at ) )
+        mov     ax, [typeIn__at]
+        mov     bx, ax
+        mov     al, [bx]                    ; peek8 - unchecked, by design
+        mov     [textLoad__ch], al          ; u8 -> u8, no widening
+        call    textLoad
+; ---- at++
+        inc     word [typeIn__at]
+.L280:
+        jmp     .L279
+.L281:
+        ret
+
+; ============================================== sub showDoc ====
+
+showDoc:
+; ---- putNumber( textDoc() )
+        call    textDoc
+        mov     ax, [textDoc__ret]
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- putChar( ' ' )
+        mov     byte [putChar__c], 32
+        call    putChar
+; ---- putNumber( viewDoc() )
+        call    viewDoc
+        mov     ax, [viewDoc__ret]
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- putChar( ' ' )
+        mov     byte [putChar__c], 32
+        call    putChar
+; ---- putNumber( textLines() )
+        call    textLines
+        mov     ax, [textLines__ret]
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- newline()
@@ -2389,6 +2756,7 @@ motext__atDst__c: dw      0        ; u16
 motext__atSrc__c: dw      0        ; u16
 motext__chunkHigh: dw      0        ; u16
 motext__chunkFree: dw      0        ; u16
+motext__chunkLive: dw      0        ; u16
 motext__chunkLimit: dw      0        ; u16
 motext__lineLimit: dw      0        ; u16
 motext__lineCount: dw      0        ; u16
@@ -2411,6 +2779,8 @@ motext__seekChunk: dw      0        ; u16
 motext__seekOff: dw      0        ; u16
 motext__seekPrev: dw      0        ; u16
 motext__chunkTake__ret: dw      0        ; u16
+motext__chunkGive__c: dw      0        ; u16
+motext__lineDrop__ln: dw      0        ; u16
 motext__lineSeek__ln: dw      0        ; u16
 motext__lineSeek__col: dw      0        ; u16
 motext__continuesRun__op: db      0        ; u8
@@ -2441,6 +2811,8 @@ motext__loadUsed: dw      0        ; u16
 motext__loadLine: dw      0        ; u16
 motext__loadLen: dw      0        ; u16
 motext__docLoad__d: dw      0        ; u16
+textDoc__ret:   dw      0        ; u16
+textSwitch__d:  dw      0        ; u16
 textLoad__ch:   db      0        ; u8
 moview__top:    dw      0        ; u16
 moview__left:   dw      0        ; u16
@@ -2448,6 +2820,8 @@ moview__height: dw      0        ; u16
 moview__width:  dw      0        ; u16
 moview__curLine: dw      0        ; u16
 moview__curCol: dw      0        ; u16
+moview__markLine: dw      0        ; u16
+moview__markCol: dw      0        ; u16
 moview__marked: db      0        ; bool
 moview__goalCol: dw      0        ; u16
 viewSize__h:    dw      0        ; u16
@@ -2456,6 +2830,9 @@ viewTop__ret:   dw      0        ; u16
 viewLeft__ret:  dw      0        ; u16
 viewLine__ret:  dw      0        ; u16
 viewCol__ret:   dw      0        ; u16
+moview__curView: dw      0        ; u16
+viewDoc__ret:   dw      0        ; u16
+viewSwitch__d:  dw      0        ; u16
 viewGoto__ln:   dw      0        ; u16
 viewGoto__col:  dw      0        ; u16
 viewGotoLine__ln: dw      0        ; u16
@@ -2468,8 +2845,11 @@ got:            dw      0        ; u16
 viewRow__y:     dw      0        ; u16
 viewRow__at:    dw      0        ; u16
 viewRow__n:     dw      0        ; u16
+typeIn__at:     dw      0        ; u16
 putNumber__i:   db      0        ; u8
 motext__chunkTake__c: dw      0        ; u16
+motext__lineDrop__c: dw      0        ; u16
+motext__lineDrop__next: dw      0        ; u16
 motext__lineSeek__c: dw      0        ; u16
 motext__lineSeek__left: dw      0        ; u16
 motext__lineSeek__prev: dw      0        ; u16
@@ -2487,6 +2867,7 @@ lineSlice__c:   dw      0        ; u16
 lineSlice__left: dw      0        ; u16
 lineSlice__done: dw      0        ; u16
 lineSlice__n:   dw      0        ; u16
+textClear__ln:  dw      0        ; u16
 textInit__d:    dw      0        ; u16
 textInit__room: dw      0        ; u16
 textInit__avail: dw      0        ; u16
@@ -2517,17 +2898,27 @@ motext__docUndoLost: times 2 db 0        ; u8[2]
 motext__docNoRoom: times 2 db 0        ; u8[2]
 motext__docWhyNoRoom: times 2 db 0        ; u8[2]
 moview__row:    times 160 db 0        ; u8[160]
+moview__docTop: times 2 dw 0        ; u16[2]
+moview__docLeft: times 2 dw 0        ; u16[2]
+moview__docLine: times 2 dw 0        ; u16[2]
+moview__docCol: times 2 dw 0        ; u16[2]
+moview__docMarkLine: times 2 dw 0        ; u16[2]
+moview__docMarkCol: times 2 dw 0        ; u16[2]
+moview__docGoal: times 2 dw 0        ; u16[2]
+moview__docMarked: times 2 db 0        ; u8[2]
 name:           db      'MOVIEW.TMP', 0        ; u8[11] const
 source:         db      'line one', 10,        ; u8[101] const
                 db      'the second line is quite a lot longer than the view is wide', 10,
                 db      'three', 10, 'four', 10, 'five', 10, 'six', 10, 'seven', 10, 'eight', 10
+second:         db      'alpha', 10, 'bravo', 10, 'charlie', 10, 'delta', 10, 'echo', 10,        ; u8[50] const
+                db      'foxtrot', 10, 'golf', 10, 'hotel', 0
 putNumber__digits: times 5 db 0        ; u8[5]
 
 ; ============================================================ heap ====
 ; No storage is emitted - a .COM owns everything past its image, so
 ; these are addresses and NASM does the arithmetic.
 
-_hstack:        equ     270        ; 14 worst-case + 256 interrupt reserve
+_hstack:        equ     272        ; 16 worst-case + 256 interrupt reserve
 _htop:          equ     0FFFEh - _hstack
 
 _hsize:         dw      _htop - _heap        ; NASM computes this

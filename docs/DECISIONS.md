@@ -3508,3 +3508,45 @@ and 13 the two bytes a text file's lines are *made of*. Those are refused.
 Both halves matter. Blocking zero as well would have been the cautious-looking
 choice and would have been wrong, and it is the kind of wrong nobody ever finds,
 because the feature simply does less than it could and says nothing about it.
+
+### Tab types spaces, and the literal tab is a bigger question than a key
+
+Giving Tab back to the document was the stated reason for moving to `Ctrl+Tab`
+cycling, so it had to actually come back. It types spaces to the next stop.
+
+A literal tab character is one byte and the arithmetic of a whole editor. Today a
+document column **is** a screen column, and the cursor, the horizontal scroll,
+the selection paint and the match highlight all depend on that being true. A tab
+breaks it in every one of them at once.
+
+What settles it as separate work rather than a shortcut taken here: **a file
+containing tabs already renders one to a column.** The gap is not something this
+change introduces or could avoid - it is a §56 feature that has been missing all
+along, and the Tab key merely arrives at it from a second direction.
+
+Two spaces, because that is what every source file in this repository is indented
+with and this editor's first job is those files. One constant.
+
+### The switch that had to be one call
+
+`viewSwitch` calls `textSwitch` from inside itself rather than sitting beside it
+in the caller. That is the whole reason the routine exists - the window's own
+state could have been eight arrays in `momoed` just as easily.
+
+**Two switches a caller has to remember to make together are two that will one
+day be made apart.** The symptom would be one document's cursor and scroll offset
+over another document's text, which does not read as a missed call: it reads as a
+corrupt buffer, and it would be chased in §54 for an afternoon.
+
+The same shape as §64's refusal to clip, and as the drift check on the binding
+tables: where the form can make a mistake impossible, it should.
+
+### What multiple documents cost
+
+Fourteen routines in `momoed`, eight arrays and a switch in §56, and 240 bytes of
+names. The buffers were already there and already paid for.
+
+The one number worth keeping is that **nothing was copied**: §54's text was never
+in this segment, so a switch is a dozen counters and seven segment registers, and
+§56's is eight more numbers. A document you are not looking at costs its line
+table and its log, which §58 bought in advance.
