@@ -1,0 +1,285 @@
+// vidprobe.momo - which attribute bytes this adapter can actually tell apart.
+//
+// `keyprobe` asks the keyboard; this asks the display, and for the same reason:
+// no headless tier can answer it. Whether `0x71` shows as an underline on a
+// reverse bar is a fact about a decoder and a monitor, and the only way to find
+// out is to look at one.
+//
+// **What it is for.** DESIGN §55 is about to grow a menu bar and a tab bar, and
+// both need something the editor does not have yet: a way to mark *one
+// character* on a reverse-video band - the letter an `Alt` shortcut uses. In
+// colour that is a colour. In mode 7 there are no colours, and the four states
+// that mode has are already spoken for:
+//
+//     0x07 normal     the text pane
+//     0x70 reverse    the status line, the explorer - and the selection, which
+//                     is the aliasing this is also here to settle
+//     0x0F bright     a search match
+//     0x01 underline  unused, and the one that only exists here
+//
+// So the question is narrow and the answer is per adapter, which is the shape
+// §55 already settled once: an attribute is a property of the adapter, not a
+// constant.
+//
+// **Run it in each mode and report the numbers**, which is all it asks for:
+//
+//     mode co80   then vidprobe      colour, 80x25
+//     mode bw80   then vidprobe      the same adapter with the burst off
+//     mode mono   then vidprobe      mode 7 at 0xB000
+//     mode bw40   then vidprobe      40 columns, which everything here fits
+//
+// It adopts whatever mode it is launched into rather than setting one, so the
+// `mode` command in front of it is what chooses - the same rule `momoed` follows
+// and for the same reason: the BIOS mode number is not the whole of a text mode.
+
+include "lib/std/key.momo"
+include "lib/std/str.momo"
+include "lib/std/screen.momo"
+include "lib/std/mode.momo"
+
+// Declared for the largest text mode, because a `far` region takes a constant
+// size (§16) while the geometry is read back from the BIOS (§43).
+const maxCols = 80
+const maxRows = 50
+
+// A variable for mode 7's sake, which is the whole point of running this in mode
+// 7 - §55 priced the cost of that and `drawrate` is where the number came from.
+u16 vramSeg
+
+far u16[maxCols * maxRows] vram = vramSeg
+
+u16 cols
+u16 rows
+u8  modeNow
+
+// **The two bytes both schemes agree on**, which is what makes the labels
+// readable whatever this is running on: `0x07` is light grey on black to a CGA
+// and "normal" to an MDA, and `0x70` is black on light grey to one and "reverse"
+// to the other. Every byte below is a question; these two are the frame the
+// questions are asked in.
+const attrPlain = 0x07
+const attrBar   = 0x70
+
+// ---- the candidates ----
+//
+// Marking one letter on a reverse bar. The first is the control: the mark drawn
+// in the bar's own attribute, so there is a row that is *meant* to look like
+// nothing and anything indistinguishable from it has failed.
+//
+// `0x74` is Borland's - red on grey - and is the one to bet on in colour. The
+// rest are the mono question, where the decoder only looks at some of the bits
+// and the documented combinations stop short of these.
+const u8[] barAttrs = [
+  0x70,   // the control: no mark at all
+  0x74,   // red on grey        / mono: foreground 100
+  0x7F,   // white on grey      / mono: reverse, bright
+  0x71,   // blue on grey       / mono: reverse over the underline foreground
+  0x78,   // dark grey on grey  / mono: reverse, intense
+  0x79,   // light blue on grey / mono: reverse, intense, underline foreground
+  0x7C,   // light red on grey
+  0xF0,   // reverse with the blink bit set
+  0x07    // a normal-video letter: the explorer's hole, one character wide
+]
+
+// And the pane, where the question is the aliasing rather than the marking:
+// `attrSel` and `attrStatus` are both `0x70` in mono today, so a selection looks
+// exactly like the status line. Nobody has noticed because they are never
+// adjacent, and the tab bar is about to put chrome and selection on one row.
+const u8[] paneAttrs = [
+  0x07,   // the pane
+  0x0F,   // bright        - a search match today
+  0x01,   // blue          / mono: underline, the one state nothing uses
+  0x09,   // light blue    / mono: underline, bright
+  0x70,   // reverse       - the status line, and the selection
+  0x1F,   // white on blue - the selection in colour
+  0x30,   // black on cyan - a match in colour
+  0x08    // dark grey     / mono: black with the intensity bit
+]
+
+const u8[] sBar   = "File  Edit  Find  View$"
+const u8[] hotPos = [ 0, 6, 12, 18 ]
+
+const u8[] sPane  = "sample text Ab 123$"
+
+const u8[] sTitle = "vidprobe  mode $"
+const u8[] sSeg   = "  seg $"
+const u8[] sQ1    = "bar: which first letters stand out?$"
+const u8[] sQ2    = "pane: which of these look different?$"
+const u8[] sPress = "any key to leave$"
+
+// Two for the number, a gap, two for the attribute, a gap - so a sample starts
+// at six and everything here fits the narrowest text mode there is.
+const sampleX = 6
+const barW    = 24
+
+u8[numMaxDigits] numBuf
+
+// ---- drawing ----
+
+sub cellAt( u16 x, u16 y, u8 ch, u8 attr ) {
+  vram[ y * cols + x ] = u16( ch ) | ( u16( attr ) << 8 )
+}
+
+sub textAt( u16 x, u16 y, u16 at, u8 attr ) {
+  u16 i
+  i = 0
+
+  while ( peek8( at + i ) != '$' ) {
+    cellAt( x + i, y, peek8( at + i ), attr )
+    i++
+  }
+}
+
+u8 hexDigit( u16 n ) {
+  if ( n < 10 ) return u8( n + '0' )
+  return u8( n - 10 + 'A' )
+}
+
+sub hexAt( u16 x, u16 y, u16 v, u16 digits ) {
+  for ( u16 i = 0; i < digits; i++ ) {
+    cellAt( x + i, y, hexDigit( ( v >> ( ( digits - 1 - i ) * 4 ) ) & 15 ), attrPlain )
+  }
+}
+
+sub numAt( u16 x, u16 y, u16 n ) {
+  u16 used
+  used = numText( addr( numBuf ), n )
+
+  for ( u16 i = 0; i < used; i++ ) {
+    cellAt( x + i, y, numBuf[i], attrPlain )
+  }
+}
+
+// The row number right-aligned in two, so ten does not shunt the hex across and
+// leave two columns that no longer line up.
+sub labelAt( u16 y, u16 n, u8 a ) {
+  u16 used
+  used = numRight( addr( numBuf ), n, 2, ' ' )
+
+  for ( u16 i = 0; i < used; i++ ) {
+    cellAt( i, y, numBuf[i], attrPlain )
+  }
+
+  hexAt( 3, y, u16( a ), 2 )
+}
+
+// A band of reverse video with four words on it and the first letter of each in
+// the candidate - which is the real thing rather than a swatch, because what is
+// being asked is whether a person reading a menu bar would see the letter.
+sub barRow( u16 y, u16 i ) {
+  u8 a
+  a = barAttrs[i]
+
+  labelAt( y, i + 1, a )
+
+  for ( u16 x = 0; x < barW; x++ ) {
+    cellAt( sampleX + x, y, ' ', attrBar )
+  }
+
+  textAt( sampleX + 1, y, addr( sBar ), attrBar )
+
+  for ( u16 h = 0; h < len( hotPos ); h++ ) {
+    cellAt( sampleX + 1 + hotPos[h], y, peek8( addr( sBar ) + hotPos[h] ), a )
+  }
+}
+
+sub paneRow( u16 y, u16 i ) {
+  labelAt( y, len( barAttrs ) + i + 1, paneAttrs[i] )
+  textAt( sampleX, y, addr( sPane ), paneAttrs[i] )
+}
+
+// **Its own, rather than `clearScreen`.** §43's routine blanks a window of
+// `screenRows - 1` by `screenCols - 1`, which are consts reading 24 and 79 - so
+// it is a routine that assumes 80x25 while `mode.momo` two files away knows the
+// real geometry. Every caller it has is 80x25, so it has never been wrong; this
+// is the first program meant to be run in `mode bw40`, where 79 is off the end.
+//
+// Not fixed there, because `screen.momo` asking `mode.momo` for the size would
+// be a circular include. Worth knowing about rather than worth working around
+// twice.
+sub clearFrame {
+  for ( u16 y = 0; y < rows; y++ ) {
+    for ( u16 x = 0; x < cols; x++ ) {
+      cellAt( x, y, ' ', attrPlain )
+    }
+  }
+}
+
+sub draw {
+  u16 x
+  u16 y
+
+  x = 0
+  textAt( x, 0, addr( sTitle ), attrPlain )
+  x = x + strLen( addr( sTitle ) )
+
+  hexAt( x, 0, u16( modeNow ), 2 )
+  x = x + 4
+
+  numAt( x, 0, cols )
+  x = x + numWidth( cols )
+
+  cellAt( x, 0, 'x', attrPlain )
+  x++
+
+  numAt( x, 0, rows )
+  x = x + numWidth( rows )
+
+  textAt( x, 0, addr( sSeg ), attrPlain )
+  x = x + strLen( addr( sSeg ) )
+
+  hexAt( x, 0, vramSeg, 4 )
+
+  textAt( 0, 2, addr( sQ1 ), attrPlain )
+
+  y = 3
+  for ( u16 i = 0; i < len( barAttrs ); i++ ) {
+    barRow( y + i, i )
+  }
+
+  y = y + len( barAttrs ) + 1
+  textAt( 0, y, addr( sQ2 ), attrPlain )
+
+  y++
+  for ( u16 i = 0; i < len( paneAttrs ); i++ ) {
+    paneRow( y + i, i )
+  }
+
+  y = y + len( paneAttrs ) + 1
+  textAt( 0, y, addr( sPress ), attrPlain )
+}
+
+// ---- entry ----
+
+// §48's bracket over §43's save and restore, so the display cannot be left in
+// whatever this set - which is the bug `simplerl` had for the whole of its life.
+videoMode {
+  // Adopted rather than imposed, so `mode mono` in front of this is what decides
+  // which adapter is answering. A graphics mode is the one case that cannot be
+  // described, and is the only one this overrides.
+  if ( !adoptMode() ) setMode( modeText )
+
+  // After the adopt, so it reports the mode actually in use rather than the one
+  // that was there a moment ago. `mode bw80` and `mode co80` are both 80x25 at
+  // 0xB800 and differ only in this number, which is why it is on screen.
+  _ah = 0x0F
+  int 0x10
+  modeNow = _al & 0x7F
+
+  vramSeg = screenSegment()
+
+  cols = screenWidth()
+  rows = screenHeight()
+
+  if ( cols > maxCols ) cols = maxCols
+  if ( rows > maxRows ) rows = maxRows
+
+  clearFrame()
+  hideCursor()
+
+  draw()
+
+  readKeyNorm()
+
+  showCursor()
+}

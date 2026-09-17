@@ -2676,3 +2676,117 @@ new storage model underneath it.
 **The condition for building it is a document somebody needs to edit and cannot.**
 That has not happened yet, and PROVENANCE is emphatic about what building for a
 consumer that does not exist costs.
+
+## 66. The menu bar and the tab bar
+
+**Designed, not built.** Two rows of chrome above the text: a menu bar at the top
+and a tab bar under it, with the status line staying where it is.
+
+The probes come first - `vidprobe` and `keyprobe menus.cfg` - because two of the
+decisions below cannot be made from a desk.
+
+### The row budget, and what it is measured against
+
+Chrome goes from one row to three. At 80x25 that leaves 22 rows of text against
+24, which is eight percent of the screen, permanently. At 80x50 it is noise.
+
+`edit.com` on the same machine spends **more**: a menu row, a title row, a
+horizontal scrollbar and a status row, plus a left border and a vertical
+scrollbar in the columns. Four rows and two columns against our three and none -
+the explorer is the one pane here that costs columns, and it is opt-in.
+
+So both bars stay visible always. A menu that comes and goes is worse than a row,
+and the tab bar doubles as the title bar `edit.com` also pays for.
+
+### The attribute problem, which is why `vidprobe` exists
+
+A menu bar needs a way to mark **one character** on a reverse-video band - the
+letter an `Alt` shortcut uses. In colour that is a colour. In mode 7 it cannot
+be, and the four states that mode has are already spoken for:
+
+    0x07 normal     the text pane
+    0x70 reverse    the status line, the explorer - and the selection
+    0x0F bright     a search match
+    0x01 underline  unused, and only exists here
+
+**Underline is mode 7 only.** In the colour text modes the attribute byte is four
+bits of background and four of foreground with no underline bit anywhere, so
+`0x01` there is blue text. It exists in exactly the mode where colour does not,
+which makes it one more per-adapter attribute rather than a mechanism - §55
+already settled that shape once.
+
+What cannot be decided by reading: whether `0x71`, `0x78` or `0x79` render as
+anything distinguishable on a reverse bar in mode 7. MDA's decoder only looks at
+some of the bits and the documented combinations stop short of these.
+
+`attrSel` and `attrStatus` are also **both `0x70` in mono today**, so a selection
+looks exactly like the status line. Nobody has noticed because they are never
+adjacent, and the tab bar is about to put chrome and selection on one row.
+
+### The tab bar inverts the obvious arrangement
+
+The band is reverse like the rest of the chrome, and **the active tab is a
+normal-video hole in it**, continuous with the text pane below. Inactive tabs are
+simply the band, separated by spaces or a rule.
+
+The first instinct is the other way round - highlight the one you are on - and it
+is wrong here for two reasons that agree. The explorer, four columns away, already
+marks its selection as *"a hole punched in the panel"*; a tab bar using reverse
+for the same idea would have two panes on one screen using opposite conventions.
+And VS Code's active tab carries the editor's background for the same reason: it
+reads as continuous with the pane underneath.
+
+It also costs no new attribute, which the paragraph above makes worth having.
+
+### What moves out of the status line
+
+- the **dirty marker** goes on the tab, where it can show both files at once - a
+  `*` after one name cannot
+- the **full path** moves to the status line, the one row wide enough for it; a
+  tab has room for 8.3 and no more
+- **`2/2` disappears** - the tab bar is that information, drawn properly
+- line, column and messages stay
+
+### The menu is a library; the picker was not
+
+§64 stayed in `momoed` because its screen-independent part was a masked byte and
+two comparisons - no behaviour a test project could hold against an answer. A menu
+bar is the opposite: which menu is open, which item is lit, Left and Right moving
+*between* menus while one is open, a letter picking an item, Escape closing one
+level and not all of them. Those are edges, and edges are what tier 2 is for.
+
+The item tables stay the program's, through §37's seam - the library asks what
+the items are and hands back what was chosen, the way `viewRow` and
+`fieldCopyOut` already work.
+
+### The menus, which are only what exists
+
+- **File** - New `^T`, Open `^O`, Save `^S`, Save As, Close `^W`, Exit `^Q`
+- **Edit** - Undo `^Z`, Redo `^Y`, Cut `^X`, Copy `^C`, Paste `^V`, Select All
+  `^A`, Character `^P`
+- **Search** - Find `^F`, Find Next `^L`, Replace `^R`, Go to Line `^G`
+- **View** - Explorer `^B`
+
+Nothing invented. A menu that lists a command the editor does not have is a menu
+that has to be edited twice.
+
+### What the probes are for
+
+`vidprobe` paints nine candidates for the hotkey mark on a real reverse bar and
+eight for the pane, numbered, and asks which are distinguishable. Run in
+`mode co80`, `mode bw80`, `mode mono` and `mode bw40`, it settles the whole
+palette in one trip.
+
+`keyprobe menus.cfg` asks what `Alt`+letter reports, which has never been
+measured. It should be a scancode with AL=0 - the opposite shape to `Alt`+numpad,
+which composes a character and reports no scancode at all. `F10` is there because
+it is what `edit.com` and Turbo Pascal use to reach the bar, and is the key
+somebody who has used a DOS editor will try first.
+
+### Order
+
+1. the probes, one trip
+2. the layout alone - `edTop()`, both bars drawn empty, everything below shifted.
+   This is where the off-by-ones live and it is worth landing on its own
+3. the tab bar, which is mostly data the editor already has
+4. the menu library and the drop-down, reusing §64's overlay shape in `repaint`
