@@ -2677,143 +2677,38 @@ new storage model underneath it.
 That has not happened yet, and PROVENANCE is emphatic about what building for a
 consumer that does not exist costs.
 
-## 66. The menu bar and the tab bar
+## 67. The menus themselves
 
-**Designed, not built. Measured.** Two rows of chrome above the text: a menu bar
-at the top and a tab bar under it, with the status line staying where it is.
+**Designed, not built.** §66 draws the bar; this is what happens when somebody
+presses a letter on it.
 
-The two questions that could not be answered from a desk have been, on a 286 with
-a VGA, by `vidprobe` and `keyprobe menus.cfg`. Both answers are below, and one of
-them corrected the design.
+`Alt`+letter opens a menu, `F10` opens the first one with no letter, the arrows
+walk the bar and the items, Enter chooses, Escape closes one level rather than
+all of them, and a letter inside an open menu picks an item.
 
-### The row budget, and what it is measured against
+### It is a library, which §64 was not
 
-Chrome goes from one row to three. At 80x25 that leaves 22 rows of text against
-24, which is eight percent of the screen, permanently. At 80x50 it is noise.
-
-`edit.com` on the same machine spends **more**: a menu row, a title row, a
-horizontal scrollbar and a status row, plus a left border and a vertical
-scrollbar in the columns. Four rows and two columns against our three and none -
-the explorer is the one pane here that costs columns, and it is opt-in.
-
-So both bars stay visible always. A menu that comes and goes is worse than a row,
-and the tab bar doubles as the title bar `edit.com` also pays for.
-
-### The mark for an `Alt` letter is one byte, in both schemes
-
-A menu bar needs a way to mark **one character** on a reverse-video band. In
-colour that could be a colour; in mode 7 it cannot be. Measured, the answer is
-the same byte either way:
-
-    0x7F   a bright foreground on a white background
-
-In colour that is white on light grey, one of the two that read best on a real
-bar. In mode 7 the intensity bit is the whole mechanism - a bright white glyph on
-a normal white background is legible, and every candidate carrying bit 3 stood
-out while every candidate without it either vanished into the bar or matched the
-control row.
-
-So `attrKey` is **a third byte the two schemes agree on**, joining `0x07` and
-`0x70`. That is worth more than it sounds: `momoed` carries a mono translation
-precisely because the two schemes mostly disagree, and all three bytes the chrome
-needs sit in the set that does not.
-
-### Underline does not render, which is what the probe was for
-
-This design expected `0x01` to be an underline in mode 7 - the classic MDA
-attribute, and the obvious mark where there is no colour.
-
-**It is not one on this hardware.** `0x01` is indistinguishable from `0x07`, and
-`0x09` from `0x0F`: the intensity bit reads and the underline foreground does
-not. The likely cause is the CRTC's underline-location register, which a VGA BIOS
-setting up mode 7 may leave pointing outside the character cell - but that is a
-guess where the measurement is not.
-
-Nothing is lost, since `0x7F` is the better mark anyway. What is worth keeping is
-the shape: the expectation came from a datasheet and the correction came from the
-machine.
-
-### What mode 7 actually has
-
-Five states, one more than this design assumed, and the extra one is exactly what
-the menu bar needed:
-
-    0x07  white on black          the text pane
-    0x0F  bright white on black   a search match
-    0x70  black on white          the chrome, and the selection
-    0x7F  bright white on white   the Alt letter          <- the new one
-    0x08  black on black          invisible, and good for nothing
-
-`attrSel` and `attrStatus` are still both `0x70`, so a selection looks like the
-status line in mono. `0x7F` could separate them and is deliberately not spent on
-it: a whole selected region in bright-on-white is legible but low contrast, and
-the two are only ever adjacent at one row boundary. The state exists and where it
-would go is written down, which is the useful half.
-
-**There is no "disabled" in mono.** `0x08` is invisible rather than dim and
-`0x78` reads as the chrome itself, so a drop-down cannot grey an item out on that
-adapter - and the menu must not be designed around greying things out. An item
-that cannot apply is better left doing nothing than shown in a state one adapter
-cannot draw.
-
-### Two schemes, not four
-
-`mode bw80` is indistinguishable from `mode co80` on a 286 with a VGA, which is
-how `edit.com` treats it too, and `mode bw40` differs only in being forty columns
-wide. So there are two attribute schemes and `useColor` / `useMono` is already
-exactly that split. `0xF0` blinks, as expected, and is good for nothing.
-
-### The tab bar inverts the obvious arrangement
-
-The band is reverse like the rest of the chrome, and **the active tab is a
-normal-video hole in it**, continuous with the text pane below. Inactive tabs are
-simply the band, separated by spaces or a rule.
-
-The first instinct is the other way round - highlight the one you are on - and it
-is wrong here for two reasons that agree. The explorer, four columns away, already
-marks its selection as *"a hole punched in the panel"*; a tab bar using reverse
-for the same idea would have two panes on one screen using opposite conventions.
-And VS Code's active tab carries the editor's background for the same reason: it
-reads as continuous with the pane underneath.
-
-It also costs no new attribute, which the paragraph above makes worth having.
-
-### What moves out of the status line
-
-- the **dirty marker** goes on the tab, where it can show both files at once - a
-  `*` after one name cannot
-- the **full path** moves to the status line, the one row wide enough for it; a
-  tab has room for 8.3 and no more
-- **`2/2` disappears** - the tab bar is that information, drawn properly
-- line, column and messages stay
-
-### The menu is a library; the picker was not
-
-§64 stayed in `momoed` because its screen-independent part was a masked byte and
-two comparisons - no behaviour a test project could hold against an answer. A menu
-bar is the opposite: which menu is open, which item is lit, Left and Right moving
-*between* menus while one is open, a letter picking an item, Escape closing one
-level and not all of them. Those are edges, and edges are what tier 2 is for.
+§64 stayed inside `momoed` because its screen-independent part was a masked byte
+and two comparisons - there was no behaviour a test project could hold against an
+answer. A menu bar is the opposite: which menu is open, which item is lit, Left
+and Right moving *between* menus while one is open, Escape closing one level.
+Those are edges, and edges are what tier 2 is for.
 
 The item tables stay the program's, through §37's seam - the library asks what
 the items are and hands back what was chosen, the way `viewRow` and
-`fieldCopyOut` already work.
+`fieldCopyOut` already do.
 
-### `Alt`+letter is the letter's scancode, and `Alt` alone is not a key
+### The drop-down reuses §64's overlay
 
-Measured: `Alt+F` is `2100`, `Alt+E` `1200`, `Alt+S` `1F00`, `Alt+V` `2F00` and
-`Alt+X` `2D00` - each the letter key's own scancode with **no character in the
-low byte**. `F10` is `4400` and `F1` is `3B00`.
+A box over the text, the frame in `attrStatus` and the lit item a normal-video
+hole in it, which is the same pair the tab bar and the explorer already use.
+`repaint` grew the shape for the picker: a modal that is up short-circuits the
+frame behind it, and `drawn = false` on the way out is the whole of putting the
+screen back.
 
-That is the opposite shape to `Alt`+numpad, which the BIOS *composes* into a
-finished character with a scancode of zero. Seeing the two be opposites is what
-says a menu can have `Alt` at the same time as a document can have composed
-characters: §57's key space already separates them on the low byte.
-
-`Alt` on its own reported nothing at all. `int 16h` reports keys and a modifier
-held by itself never becomes one, so programs that open a menu bar on a bare
-`Alt` are watching the shift flags rather than reading the keyboard. `F10` is the
-route that does not need that, which is why it is in the design.
+**Nothing is greyed out**, because mode 7 has no state for it - `0x08` is
+invisible rather than dim. An item that cannot apply does nothing when chosen.
+That is a constraint from §66's measurement rather than a preference.
 
 ### The menus, which are only what exists
 
@@ -2823,13 +2718,12 @@ route that does not need that, which is why it is in the design.
 - **Search** - Find `^F`, Find Next `^L`, Replace `^R`, Go to Line `^G`
 - **View** - Explorer `^B`
 
-Nothing invented. A menu that lists a command the editor does not have is a menu
+Nothing invented. A menu listing a command the editor does not have is a menu
 that has to be edited twice.
 
-### Order
+### What is not settled
 
-1. ~~the probes~~ - done, and the answers are above
-2. the layout alone - `edTop()`, both bars drawn empty, everything below shifted.
-   This is where the off-by-ones live and it is worth landing on its own
-3. the tab bar, which is mostly data the editor already has
-4. the menu library and the drop-down, reusing §64's overlay shape in `repaint`
+`^Q` still does not check whether anything is unsaved, and a **File > Exit** item
+inherits that. Putting the door on a menu is the point at which it stops being a
+key somebody has to know about and starts being one anybody can reach, so this is
+the change that makes the question urgent rather than academic.

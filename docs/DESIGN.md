@@ -6707,3 +6707,107 @@ at.
 - **The status line shows `2/2` only when more than one is open**, because one
   file is the common case and should not pay three columns for a feature it is
   not using.
+
+## 66. Two rows of chrome
+
+**Built.** A menu bar on row zero and a tab bar on row one, both always on
+screen, with the status line where it has always been. The menus themselves are
+PLAN §67; what is here is the layout, the palette and the tabs.
+
+### The row budget, measured against the thing it is compared to
+
+Chrome goes from one row to three, leaving 22 text rows of 25. `edit.com` on the
+same machine spends **more**: a menu row, a title row, a horizontal scrollbar and
+a status row, plus a left border and a vertical scrollbar in the columns. Four
+rows and two columns against three and none - the explorer is the one pane here
+that costs columns, and it is opt-in.
+
+Both bars are always visible. A bar that comes and goes is worse than a row, and
+the tab bar is the title bar as well.
+
+### `edTop` and `edHeight`, and everything that used to count from the screen
+
+`edLeft` and `edWidth` already existed for the explorer. These are the same idea
+on the other axis, and adding them was the whole of the change: every routine
+that measured from row zero or from `rows - 1` measures from these instead.
+
+The one worth naming is **paging**. `PgUp` and `PgDn` moved by `rows - 1` while
+the status line was the only chrome there was; a page that moves further than the
+window shows is a page with lines nobody saw. That is the kind of error the other
+sites cannot make - a row drawn two places too high is visible immediately, and a
+page that skips two lines is not.
+
+### The palette, which `vidprobe` settled
+
+`attrKey` is `0x7F` in both schemes - white on light grey to a VGA, bright white
+on white to mode 7. The design expected underline, the classic mode-7 attribute;
+it does not render on this hardware at all. DECISIONS has the run.
+
+So the chrome needs `0x07`, `0x70` and `0x7F`, all three of which mean the same
+thing to both adapters. The translation `useMono` exists for is not needed by any
+of it.
+
+Mode 7's whole vocabulary, since the next thing wanting a state will need to know
+what is left:
+
+    0x07  white on black          the text pane
+    0x0F  bright white on black   a search match
+    0x70  black on white          the chrome, and the selection
+    0x7F  bright white on white   the Alt letter
+    0x08  black on black          invisible, and good for nothing
+
+`attrSel` and `attrStatus` are both `0x70`, so a selection looks like the status
+line in mono. `0x7F` could separate them and is deliberately not spent on it: a
+whole selected region in bright-on-white is legible but low contrast, and the two
+are only ever adjacent at one row boundary.
+
+**There is no "disabled".** `0x08` is invisible rather than dim and `0x78` reads
+as the chrome itself, so nothing here may be designed around greying an item out.
+
+### The active tab is a hole, not a highlight
+
+The band is reverse like the rest of the chrome and **the active tab is
+normal-video**, continuous with the text pane below it.
+
+The first instinct is the other way round, and it is wrong here for two reasons
+that agree. The explorer fourteen columns away already marks its selection as a
+hole punched in the panel; a tab bar using reverse for the same idea would put two
+opposite conventions on one screen. And VS Code's active tab carries the editor's
+background for the same reason.
+
+It also costs no attribute, which mode 7 could not have spared.
+
+### The explorer is a tab
+
+Because it is already a slot in §65's cycling ring - the bar is the visible half
+of a decision made when `Ctrl+Tab` was built, not a new one. Hidden with `^B` it
+leaves the ring and the bar together.
+
+### What the status line stopped saying
+
+The `2/2` counter is gone: it existed **because** there was no tab bar, and
+leaving it beside one would be the same fact drawn twice in fewer characters. The
+dirty star moved onto the tab, where it can mark either document rather than only
+the one in front of you.
+
+What is left there is the division the tab bar makes possible: **the tab says
+which file and the status line says where it is.** `fileName` is the path as it
+was opened and the status line has always drawn all of it, so the line did not
+change - the tab taking the base name is what turned that into a distinction
+instead of a repetition.
+
+### Rules
+
+- **A tab's name is found, not sliced.** `dirPathLen` is where the *panel*
+  currently is and the panel moves when somebody descends into a subdirectory, so
+  subtracting it would chop the wrong number of characters off a name that never
+  moved. The last separator in the name is the answer, on `\` or `:` - the same
+  pair `takeName` splits on.
+- **The live copy wins for the slot you are in.** §65 saves a name and a dirty
+  flag when you switch *away*, so for the document in front of you those arrays
+  are as of the last switch and `fileName` and `dirty` are the truth.
+- **The bars redraw on `needExp`.** A pair of rows painted every frame is 160
+  cells against the 160 the scroll path spends in total, and `drawrate` is why
+  that is not free. Reusing the panel's flag rather than adding another follows
+  `needText`'s rule: one conservative trigger beats a flag at every site that
+  might need one.

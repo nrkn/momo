@@ -57,11 +57,23 @@ u8 attrStatus
 u8 attrMatch
 u8 attrSel
 
+// **The letter an `Alt` shortcut uses, and `vidprobe` says it is one byte in
+// both schemes** - which is not what the design expected. Underline was the plan,
+// being the classic mode-7 attribute, and it does not render on this hardware at
+// all: `0x01` is indistinguishable from `0x07`. What does render is the
+// intensity bit over a white background.
+//
+// So this joins `0x07` and `0x70` as a third byte the two schemes agree on -
+// white on light grey to a VGA, bright white on white to mode 7 - and every
+// attribute the chrome needs is now in the set that needs no translation.
+u8 attrKey
+
 sub useColor {
   attrText   = color( lightGray, black )
   attrStatus = color( black, lightGray )
   attrMatch  = color( black, cyan )
   attrSel    = color( white, blue )
+  attrKey    = color( white, lightGray )
 }
 
 sub useMono {
@@ -69,6 +81,14 @@ sub useMono {
   attrStatus = 0x70
   attrMatch  = 0x0F
   attrSel    = 0x70
+
+  // Measured rather than chosen: every candidate carrying the intensity bit
+  // stood out on a reverse bar and every candidate without it either vanished
+  // into the bar or matched it. `attrSel` is still `attrStatus` here - mode 7
+  // has one more state than this uses and it is deliberately not spent on
+  // separating them, because a whole selected region in bright-on-white is
+  // legible but low contrast, and the two are adjacent at one row boundary.
+  attrKey    = 0x7F
 }
 
 u16 cols
@@ -110,6 +130,23 @@ u8[80] openPath
 // panel changes about everything else.
 u16 edLeft()  => expShown ? expCols : 0
 u16 edWidth() => expShown ? cols - expCols : cols
+
+// ---- two rows of chrome above the text (§66) --------------------------------
+//
+// A menu bar and a tab bar, both always on screen. `edit.com` on the same machine
+// spends more - a menu row, a title row, a horizontal scrollbar and a status row,
+// plus a left border and a vertical scrollbar in the columns - so 22 text rows of
+// 25 is not the cost it first looks like.
+//
+// **Always visible rather than appearing with a second file.** A bar that comes
+// and goes is worse than a row, and the tab bar is the title bar as well.
+//
+// These two are the whole of the change: every routine that measured from row
+// zero or from `rows - 1` measures from here instead.
+const edChrome = 2
+
+u16 edTop()    => edChrome
+u16 edHeight() => rows - 1 - edChrome
 
 // The name being edited, and the one to go back to when an open is refused.
 const nameMax = 80
@@ -243,7 +280,6 @@ const u8[] sLoading = "loading $"
 const u8[] sLines   = " lines, room for $"
 const u8[] sChunks  = " chunks of text$"
 const u8[] sNoRoom  = " FULL$"
-const u8[] sStar    = "*$"
 const u8[] sFind    = "find: $"
 const u8[] sGoto    = "go to line: $"
 const u8[] sOpen    = "open: $"
@@ -462,7 +498,7 @@ sub viewRow( u16 y, u16 at, u16 n ) {
   u16 sx
   u8  ch
 
-  base = y * cols + edLeft()
+  base = ( edTop() + y ) * cols + edLeft()
 
   // The attribute used to be a `const` and folded into the instruction. It is
   // the adapter's now, so it is composed once for the row rather than read per
@@ -505,7 +541,7 @@ sub viewRow( u16 y, u16 at, u16 n ) {
           ch = 32
           if ( sx < n ) ch = peek8( at + sx )
 
-          cellAt( edLeft() + sx, y, ch, attrSel )
+          cellAt( edLeft() + sx, edTop() + y, ch, attrSel )
         }
       }
     }
@@ -527,7 +563,7 @@ sub viewRow( u16 y, u16 at, u16 n ) {
     hx = findCol() + x - viewLeft()
     if ( hx >= n ) return
 
-    cellAt( edLeft() + hx, y, peek8( at + hx ), attrMatch )
+    cellAt( edLeft() + hx, edTop() + y, peek8( at + hx ), attrMatch )
   }
 }
 
@@ -539,6 +575,137 @@ sub viewRow( u16 y, u16 at, u16 n ) {
 // The selection only shows while the panel has focus. Where the keys are going
 // is the one thing a two-pane screen has to be unambiguous about, and a
 // highlight that stays put when focus leaves is exactly how that gets lost.
+// ---- the menu bar and the tab bar -------------------------------------------
+
+// Static for now: the labels and their `Alt` letters, with nothing behind them.
+// §66 builds the menus themselves on top, and drawing the bar first is what puts
+// `attrKey` in front of a person on real hardware before anything depends on it.
+const u8[] sMenus  = "File  Edit  Search  View$"
+const u8[] menuHot = [ 0, 6, 12, 20 ]
+
+const u8[] sExpTab = "Explorer\0"
+const u8[] sNewTab = "(untitled)\0"
+
+sub drawStr( u16 x, u16 y, u16 at, u8 attr ) {
+  u16 i
+  i = 0
+
+  while ( peek8( at + i ) != '$' && x + i < cols ) {
+    cellAt( x + i, y, peek8( at + i ), attr )
+    i++
+  }
+}
+
+sub blankRow( u16 y, u8 attr ) {
+  for ( u16 x = 0; x < cols; x++ ) {
+    cellAt( x, y, ' ', attr )
+  }
+}
+
+sub drawMenus {
+  blankRow( 0, attrStatus )
+  drawStr( 1, 0, addr( sMenus ), attrStatus )
+
+  for ( u16 i = 0; i < len( menuHot ); i++ ) {
+    if ( 1 + menuHot[i] < cols ) {
+      cellAt( 1 + menuHot[i], 0, peek8( addr( sMenus ) + menuHot[i] ), attrKey )
+    }
+  }
+}
+
+// The name with its directory taken off, **found by looking rather than by
+// subtracting `dirPathLen`** - which is where the *panel* currently is, and the
+// panel can be taken somewhere else with `Enter` after a file is open. Subtracting
+// it would then chop the wrong number of characters off a name that never moved.
+//
+// 92 and 58 rather than escapes, the same pair `takeName` splits on: a drive
+// letter ends a directory as surely as a backslash does.
+u16 baseName( u16 at ) {
+  u16 last
+  u16 i
+
+  last = 0
+  i = 0
+
+  while ( peek8( at + i ) != 0 ) {
+    if ( peek8( at + i ) == 92 || peek8( at + i ) == 58 ) last = i + 1
+    i++
+  }
+
+  return at + last
+}
+
+// **The live copy wins for the slot you are in.** §65 saves a name and a dirty
+// flag into `docNames` and `docDirty` when you switch *away*, so for the document
+// in front of you those arrays hold the state as of the last switch and
+// `fileName` and `dirty` hold the truth. Every tab but one reads the arrays.
+u16 tabNameAt( u16 d ) {
+  if ( d == textDoc() ) {
+    if ( !haveName ) return addr( sNewTab )
+    return baseName( addr( fileName ) )
+  }
+
+  if ( docHave[d] == 0 ) return addr( sNewTab )
+  return baseName( addr( docNames ) + d * nameMax )
+}
+
+bool tabDirty( u16 d ) => d == textDoc() ? dirty : docDirty[d] != 0
+
+// One tab, returning where the next one starts. **The live one is a hole punched
+// in the band** - normal video, continuous with the text pane under it - which is
+// the explorer's trick fourteen columns away and the reason the obvious
+// arrangement is inverted here. It also costs no attribute, which mode 7 could
+// not have spared.
+u16 drawTab( u16 x, u16 at, bool live, bool star ) {
+  u8  a
+  u16 n
+
+  a = live ? attrText : attrStatus
+
+  if ( x >= cols ) return x
+
+  cellAt( x, 1, ' ', a )
+  x++
+
+  n = 0
+  while ( peek8( at + n ) != 0 && x < cols ) {
+    cellAt( x, 1, peek8( at + n ), a )
+    x++
+    n++
+  }
+
+  if ( star && x < cols ) {
+    cellAt( x, 1, '*', a )
+    x++
+  }
+
+  if ( x < cols ) {
+    cellAt( x, 1, ' ', a )
+    x++
+  }
+
+  return x
+}
+
+sub drawTabs {
+  u16 x
+
+  blankRow( 1, attrStatus )
+
+  x = 0
+
+  // The panel is a tab here because it is a slot in §65's ring - which is the
+  // visible half of a decision already made, rather than a new one. Hidden with
+  // `^B` it leaves both the ring and the bar.
+  if ( expShown ) x = drawTab( x, addr( sExpTab ), expFocus, false )
+
+  for ( u16 d = 0; d < edMaxDocs; d++ ) {
+    if ( docOpen[d] != 0 ) {
+      x = drawTab( x, tabNameAt( d ), !expFocus && d == textDoc(), tabDirty( d ) )
+    }
+  }
+}
+
 sub drawExplorer {
   u16 h
   u16 i
@@ -549,7 +716,7 @@ sub drawExplorer {
   u8  attr
   u8  ch
 
-  h = rows - 1
+  h = edHeight()
 
   thumbTop = listThumbAt()
   thumbEnd = thumbTop + listThumbSize()
@@ -567,7 +734,7 @@ sub drawExplorer {
     if ( i < listCount() && haveName &&
          listIsNamed( i, addr( fileName ) + dirPathLen ) ) ch = 42
 
-    cellAt( 0, y, ch, attr )
+    cellAt( 0, edTop() + y, ch, attr )
 
     // The length is measured before the row is drawn, because `listLoad` writes
     // a name and its terminator and leaves the rest of the slot alone - reading
@@ -584,7 +751,7 @@ sub drawExplorer {
     }
 
     for ( u16 x = 0; x < expName; x++ ) {
-      cellAt( 1 + x, y, x < n ? peek8( at + x ) : 32, attr )
+      cellAt( 1 + x, edTop() + y, x < n ? peek8( at + x ) : 32, attr )
     }
 
     // The track is always drawn in the panel attribute, so the hole does not
@@ -592,7 +759,7 @@ sub drawExplorer {
     ch = 0xB0
     if ( y >= thumbTop && y < thumbEnd ) ch = 0xDB
 
-    cellAt( expCols - 1, y, ch, attrStatus )
+    cellAt( expCols - 1, edTop() + y, ch, attrStatus )
   }
 }
 
@@ -704,27 +871,6 @@ sub showLoading( u16 kb ) {
   statusText( x + 1 + numWidth( kb ), addr( sKb ) )
 }
 
-// `2/2` in front of the name, and **nothing at all when one file is open** -
-// which is the common case and should not pay three columns for a feature it is
-// not using. It is also the only thing on screen that says the other document is
-// there, the explorer being a pane rather than a tab strip.
-u16 statusTabs( u16 x ) {
-  u16 w
-
-  // Not while the panel has focus, where this line is about the *directory*:
-  // `2/2` in front of a path reads as "directory two of two", which is a
-  // sentence about something that does not exist.
-  if ( openDocs() < 2 || expFocus ) return 0
-
-  w = numWidth( docPosition() )
-
-  statusNumber( x, docPosition() )
-  cellAt( x + w, rows - 1, '/', attrStatus )
-  statusNumber( x + w + 1, openDocs() )
-
-  return w + 1 + numWidth( openDocs() ) + 1
-}
-
 sub drawStatus {
   u16 x
 
@@ -759,7 +905,7 @@ sub drawStatus {
   // editing.** Twelve columns cannot hold a path, so the one row that can is
   // the one that says which directory those names are from - which is the
   // question descending into a subdirectory immediately raises.
-  x = statusTabs( 0 )
+  x = 0
 
   if ( expFocus ) {
     x = x + statusPath( x )
@@ -769,8 +915,6 @@ sub drawStatus {
     statusText( x, addr( sNoName ) )
     x = x + strLen( addr( sNoName ) )
   }
-
-  if ( dirty ) statusText( x + 1, addr( sStar ) )
 
   // **After the name and clipped short of the numbers**, which is where a message
   // has room: a filename and a star leave fifty-odd columns at 80, against the
@@ -801,7 +945,7 @@ sub placeCursor {
   }
 
   if ( expFocus && !prompting() ) {
-    moveTo( 1, u8( listCursor() - listTop() ) )
+    moveTo( 1, u8( edTop() + listCursor() - listTop() ) )
     return
   }
 
@@ -810,7 +954,8 @@ sub placeCursor {
     return
   }
 
-  moveTo( u8( edLeft() + viewCol() - viewLeft() ), u8( viewLine() - viewTop() ) )
+  moveTo( u8( edLeft() + viewCol() - viewLeft() ),
+          u8( edTop() + viewLine() - viewTop() ) )
 }
 
 // ---- how much of the screen an action actually owes -------------------------
@@ -850,7 +995,7 @@ bool drawn
 // written to it since - §62 makes that the rule rather than an option.
 sub refreshList {
   listLoad( addr( dirPat ), dirDirectory )
-  listSize( rows - 1 )
+  listSize( edHeight() )
 
   if ( listOverflowed() ) message = addr( sTooMany )
 
@@ -890,7 +1035,7 @@ sub toggleExplorer {
 
   if ( expShown ) refreshList()
 
-  viewSize( rows - 1, edWidth() )
+  viewSize( edHeight(), edWidth() )
   viewGoto( viewLine(), viewCol() )
 
   needText = true
@@ -1026,20 +1171,6 @@ u16 openDocs() {
   n = 0
 
   for ( u16 d = 0; d < edMaxDocs; d++ ) {
-    if ( docOpen[d] != 0 ) n++
-  }
-
-  return n
-}
-
-// Which of the open documents this one is, counting from one. It is a position
-// among the *open* slots rather than the slot number, so closing the first of two
-// leaves the other one reading "1 of 1" instead of "2 of 1".
-u16 docPosition() {
-  u16 n
-  n = 0
-
-  for ( u16 d = 0; d <= textDoc(); d++ ) {
     if ( docOpen[d] != 0 ) n++
   }
 
@@ -1502,17 +1633,17 @@ sub repaint {
     return
   }
 
-  h = rows - 1
+  h = edHeight()
   sel = viewSelected()
 
   if ( !drawn || needText || sel || lastSel || prompting() || lastAsk ||
        viewLeft() != lastLeft ) {
     viewRender()
   } else if ( viewTop() == lastTop + 1 ) {
-    scrollUp( u8( edLeft() ), 0, u8( edWidth() ), u8( h ), 1, attrText )
+    scrollUp( u8( edLeft() ), u8( edTop() ), u8( edWidth() ), u8( h ), 1, attrText )
     viewRenderRow( h - 1 )
   } else if ( lastTop == viewTop() + 1 ) {
-    scrollDown( u8( edLeft() ), 0, u8( edWidth() ), u8( h ), 1, attrText )
+    scrollDown( u8( edLeft() ), u8( edTop() ), u8( edWidth() ), u8( h ), 1, attrText )
     viewRenderRow( 0 )
   } else if ( viewTop() != lastTop ) {
     // A page, a goto, or a find. More than one row is new and nothing here can
@@ -1524,6 +1655,16 @@ sub repaint {
   // the same treatment: drawn when something it shows has changed, and not on a
   // keystroke that only moved the caret about the document.
   if ( expShown && ( needExp || !drawn ) ) drawExplorer()
+
+  // **On `needExp`, which is already the flag for "something structural moved".**
+  // A pair of rows redrawn every frame would be 160 cells against the 160 the
+  // scroll path spends in total, and `drawrate` is why that is not free. Reusing
+  // the panel's flag rather than adding a fifth follows `needText`'s rule: one
+  // conservative trigger beats a flag at every site that might need it.
+  if ( needExp || !drawn ) {
+    drawMenus()
+    drawTabs()
+  }
 
   if ( picking ) drawPicker()
 
@@ -2276,13 +2417,16 @@ sub apply( u8 a, u16 k ) {
   } else if ( a == actEnd ) {
     viewGoto( viewLine(), lineLength( viewLine() ) )
   } else if ( a == actPgUp ) {
-    if ( viewLine() > rows - 1 ) {
-      viewGotoLine( viewLine() - ( rows - 1 ) )
+    // **The window, not the screen.** These read `rows - 1` while the status line
+    // was the only chrome there was, and a page that moves further than the
+    // window shows is a page with lines nobody saw.
+    if ( viewLine() > edHeight() ) {
+      viewGotoLine( viewLine() - edHeight() )
     } else {
       viewGotoLine( 0 )
     }
   } else if ( a == actPgDn ) {
-    viewGotoLine( viewLine() + ( rows - 1 ) )
+    viewGotoLine( viewLine() + edHeight() )
   } else if ( a == actBack ) {
     doBack()
   } else if ( a == actDelete ) {
@@ -2571,7 +2715,7 @@ if ( helping ) {
     expFocus = expShown
 
     // One row goes to the status line, and the window gets what the panel leaves.
-    viewSize( rows - 1, edWidth() )
+    viewSize( edHeight(), edWidth() )
     viewHome()
 
     if ( expShown ) refreshList()
