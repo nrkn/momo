@@ -6029,6 +6029,11 @@ language feature.
   from the string, not written beside it.
 - **A refusal cleans up after itself.** `^O` puts back the file it was showing,
   because the buffer was emptied before the refusal was known.
+- **Every door refuses unsaved work**, and the way through is to press it again.
+  `^O`, `^W` and `^Q` are one rule; a second press is unambiguous where a dialog
+  would be a seventh question the prompt has to serve. `^Q` asks about **any**
+  open document, because the one holding unsaved work may not be the one on
+  screen.
 - **A refusal says which limit.** Lines, text and memory are three problems and
   one sentence cannot be all of them.
 - **A load stops at the first refusal**, rather than reading to the end of a
@@ -6811,3 +6816,72 @@ instead of a repetition.
   that is not free. Reusing the panel's flag rather than adding another follows
   `needText`'s rule: one conservative trigger beats a flag at every site that
   might need one.
+
+## 68. Drawing without flicker
+
+**Built.** Reported from the 286 in both `co80` and `mode mono`: the status line
+flickered while the text pane scrolled, and the picker box flickered while the
+cursor moved around the grid.
+
+### The cause was blank-then-draw, not redrawing too often
+
+`drawStatus`, `showLoading`, `drawMenus`, `drawTabs` and `pickBlank` all filled a
+row with spaces and then wrote content over the top. So every affected cell was
+written **twice a frame** and the first value was a blank, and whatever the beam
+caught between the two writes was that blank.
+
+A cell written once with its final value does not flicker however often it is
+rewritten, because the value never changes.
+
+**`drawExplorer` was the proof and it was already in the file.** It writes each
+cell exactly once - `x < n ? peek8( at + x ) : 32` - and the panel was the one
+piece of chrome nobody reported flickering, on the busiest redraw path there is.
+
+Which is why dirty-region tracking would not have fixed the status line: the
+column number changes on every cursor move, so the row is genuinely dirty and any
+such scheme would redraw it - and blank it first. Comparing before writing does
+not help either, since the space and the character both differ from what is
+there.
+
+### A row is composed in near memory and blitted
+
+`rowBuf` is a row of cells, `rowFill` / `rowPut` / `rowStr` compose into it and
+`rowBlit` writes a span. The buffer is not there to save writes; it is there
+because five routines placed text at computed columns over a row somebody else
+had cleared, and in that arrangement **writing once is nobody's job**. Composing
+makes it fall out of the structure instead of having to be maintained.
+
+It is also fewer far writes than before, not more: the status line paid eighty
+blanks a frame before anything was drawn on it.
+
+`drawStatus` and `pickInfo` are each split into a compose half and a write half,
+because both have an arm that returns early - and a blit at every exit is one
+somebody will forget to add to the third.
+
+### The picker redraws what moved
+
+Arrowing around the grid changes the cell losing the highlight, the cell gaining
+it, and the information line. The box was redrawing 37x21 for that.
+
+`pickGlyphAt` writes one cell straight to the frame and is deliberately **not**
+buffered: the buffer is for rows that would otherwise be cleared first, and a
+single cell written once with its final value has nothing to gain from it.
+
+### `viewRow` works its overlays out first
+
+A selected cell used to be written once in `attrText` and again in `attrSel`,
+which flashes a colour rather than a blank and so went unnoticed. It is the
+routine where the rule mattered least to a person and most to the rule: an
+exception in the busiest place is how a rule dies.
+
+The selection and the match are converted to spans of window columns **before**
+the row is written, and a row with neither runs the two loops it always ran.
+That guard is the whole of why this was safe to do here - the scroll path is
+untouched, and `drawrate` is what says that matters.
+
+### Rules
+
+- **Write each cell once per frame, with the value it will end up with.** Padding
+  goes after the content, not before it.
+- **Compose a row before writing any of it** when more than one thing goes on it.
+- **A routine that returns early composes; its caller writes.**

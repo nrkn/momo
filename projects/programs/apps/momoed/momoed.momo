@@ -300,6 +300,7 @@ const u8[] sKb       = "K$"
 const u8[] sHere     = ".$"
 const u8[] sNoSlots  = "no free tab - close one first$"
 const u8[] sOneDoc   = "this is the only file open$"
+const u8[] sQuitAgain = "unsaved - ^Q again to quit$"
 
 const u8[] sPickTitle = " pick a character $"
 const u8[] sPickKeys  = " Enter inserts  Esc cancels $"
@@ -484,39 +485,102 @@ sub cellAt( u16 x, u16 y, u8 ch, u8 attr ) {
   vram[ y * cols + x ] = u16( ch ) | ( u16( attr ) << 8 )
 }
 
+// ---- one row, composed before any of it is written (§68) ---------------------
+//
+// **The flicker was blank-then-draw**, not redrawing too often. Every routine
+// that filled a row with spaces and then wrote content over the top was writing
+// each cell twice a frame with a blank first, and whatever the beam caught
+// between the two writes was that blank. A cell written once with its final
+// value does not flicker however often it is rewritten.
+//
+// `drawExplorer` was the proof and it was already here: it writes each cell
+// exactly once and is the one piece of chrome nobody reported flickering, on the
+// busiest redraw path there is.
+//
+// This is that rule made structural rather than maintained. Five routines placed
+// text at computed columns over a row somebody else had cleared, which is an
+// arrangement where writing once is nobody's job; composing in near memory and
+// blitting a span makes it fall out instead.
+//
+// It is also **fewer far writes**, not more: the status line paid eighty blanks
+// a frame before anything was drawn on it.
+u16[edMaxCols] rowBuf
+
+sub rowFill( u16 from, u16 to, u8 ch, u8 attr ) {
+  for ( u16 x = from; x < to && x < cols; x++ ) {
+    rowBuf[x] = u16( ch ) | ( u16( attr ) << 8 )
+  }
+}
+
+sub rowPut( u16 x, u8 ch, u8 attr ) {
+  if ( x < cols ) rowBuf[x] = u16( ch ) | ( u16( attr ) << 8 )
+}
+
+// `stop` rather than the screen edge, because a row has more than one thing on
+// it and they are not all at the left - which is the clipping `statusClip` was
+// written for and is now the only place it lives.
+sub rowStr( u16 x, u16 at, u16 stop, u8 attr ) {
+  u16 i
+  i = 0
+
+  while ( peek8( at + i ) != '$' && x + i < stop ) {
+    rowPut( x + i, peek8( at + i ), attr )
+    i++
+  }
+}
+
+sub rowBlit( u16 y, u16 from, u16 to ) {
+  u16 base
+  base = y * cols
+
+  for ( u16 x = from; x < to && x < cols; x++ ) {
+    vram[ base + x ] = rowBuf[x]
+  }
+}
+
 // The routine §56 calls, and the only thing that differs between this and the
 // test projects that drive the same library. The row is padded to the full width
 // rather than left short, because what is past the text is last frame's pixels
 // until something writes over them.
+// **The overlays are worked out before the row is written, not painted over it.**
+// §68's rule, and this is the routine where it mattered least to a person and
+// most to the shape of the rule: a selected cell was written once in `attrText`
+// and again in `attrSel`, which flashes a colour rather than a blank and so goes
+// unnoticed - and an exception here is how the rule would have died.
+//
+// **The plain path is untouched.** A row with neither a selection nor a match on
+// it runs the two loops it has always run, because that is the scroll path and
+// `drawrate` is what says the difference matters. Everything below the guard is
+// new and costs nothing to the rows that do not take it.
 sub viewRow( u16 y, u16 at, u16 n ) {
   u16 base
   u16 hi
-  u16 hx
   u16 ln
   u16 c0
   u16 c1
-  u16 sx
+  u16 w
+  u16 selFrom
+  u16 selTo
+  u16 mFrom
+  u16 mTo
   u8  ch
+  u8  a
 
   base = ( edTop() + y ) * cols + edLeft()
+  w = edWidth()
 
   // The attribute used to be a `const` and folded into the instruction. It is
   // the adapter's now, so it is composed once for the row rather than read per
   // cell - which is where a variable would have cost something.
   hi = u16( attrText ) << 8
 
-  for ( u16 x = 0; x < n; x++ ) {
-    vram[ base + x ] = u16( peek8( at + x ) ) | hi
-  }
+  // The selection as a span of *window* columns, which is the conversion the old
+  // painting loop did one cell at a time. §56 answers which end comes first, so
+  // nothing here has to know that a selection made upwards has its anchor after
+  // its cursor. Empty when this row has none, which is what the guard reads.
+  selFrom = 0
+  selTo   = 0
 
-  for ( u16 x = n; x < edWidth(); x++ ) {
-    vram[ base + x ] = 32 | hi
-  }
-
-  // The selection, painted over the row that was just written rather than into
-  // it, because the span is in *document* columns and the row is in the window's.
-  // §56 answers which end comes first, so nothing here has to know that a
-  // selection made upwards has its anchor after its cursor.
   if ( viewSelected() ) {
     ln = viewTop() + y
 
@@ -533,16 +597,12 @@ sub viewRow( u16 y, u16 at, u16 n ) {
         c1++
       }
 
-      for ( u16 c = c0; c < c1; c++ ) {
-        if ( c >= viewLeft() ) {
-          sx = c - viewLeft()
-          if ( sx >= edWidth() ) break
+      if ( c0 < viewLeft() ) c0 = viewLeft()
+      if ( c1 > viewLeft() + w ) c1 = viewLeft() + w
 
-          ch = 32
-          if ( sx < n ) ch = peek8( at + sx )
-
-          cellAt( edLeft() + sx, edTop() + y, ch, attrSel )
-        }
+      if ( c1 > c0 ) {
+        selFrom = c0 - viewLeft()
+        selTo   = c1 - viewLeft()
       }
     }
   }
@@ -551,19 +611,46 @@ sub viewRow( u16 y, u16 at, u16 n ) {
   // down in the status line for as long as a person is typing a term, so
   // without this a search says which *line* it found and leaves them to work
   // out which word - which is most of the answer missing on a line with two.
-  if ( !prompting() || !onMatch ) return
-  if ( viewTop() + y != findLine() ) return
+  //
+  // Clipped to `n` rather than to the width, because past the end of the row
+  // there is nothing of the match left on screen.
+  mFrom = 0
+  mTo   = 0
 
-  for ( u16 x = 0; x < findLength(); x++ ) {
-    if ( findCol() + x < viewLeft() ) continue
+  if ( prompting() && onMatch && viewTop() + y == findLine() ) {
+    c0 = findCol()
+    c1 = findCol() + findLength()
 
-    // `at` is the row as the window sees it, so a document column is only in it
-    // once the left edge is taken off - and past the end of the row there is
-    // nothing of the match left on screen.
-    hx = findCol() + x - viewLeft()
-    if ( hx >= n ) return
+    if ( c0 < viewLeft() ) c0 = viewLeft()
+    if ( c1 > viewLeft() + n ) c1 = viewLeft() + n
 
-    cellAt( edLeft() + hx, edTop() + y, peek8( at + hx ), attrMatch )
+    if ( c1 > c0 ) {
+      mFrom = c0 - viewLeft()
+      mTo   = c1 - viewLeft()
+    }
+  }
+
+  if ( selTo == selFrom && mTo == mFrom ) {
+    for ( u16 x = 0; x < n; x++ ) {
+      vram[ base + x ] = u16( peek8( at + x ) ) | hi
+    }
+
+    for ( u16 x = n; x < w; x++ ) {
+      vram[ base + x ] = 32 | hi
+    }
+
+    return
+  }
+
+  for ( u16 x = 0; x < w; x++ ) {
+    ch = 32
+    if ( x < n ) ch = peek8( at + x )
+
+    a = attrText
+    if ( x >= selFrom && x < selTo ) a = attrSel
+    if ( x >= mFrom && x < mTo ) a = attrMatch
+
+    vram[ base + x ] = u16( ch ) | ( u16( a ) << 8 )
   }
 }
 
@@ -586,31 +673,15 @@ const u8[] menuHot = [ 0, 6, 12, 20 ]
 const u8[] sExpTab = "Explorer\0"
 const u8[] sNewTab = "(untitled)\0"
 
-sub drawStr( u16 x, u16 y, u16 at, u8 attr ) {
-  u16 i
-  i = 0
-
-  while ( peek8( at + i ) != '$' && x + i < cols ) {
-    cellAt( x + i, y, peek8( at + i ), attr )
-    i++
-  }
-}
-
-sub blankRow( u16 y, u8 attr ) {
-  for ( u16 x = 0; x < cols; x++ ) {
-    cellAt( x, y, ' ', attr )
-  }
-}
-
 sub drawMenus {
-  blankRow( 0, attrStatus )
-  drawStr( 1, 0, addr( sMenus ), attrStatus )
+  rowFill( 0, cols, ' ', attrStatus )
+  rowStr( 1, addr( sMenus ), cols, attrStatus )
 
   for ( u16 i = 0; i < len( menuHot ); i++ ) {
-    if ( 1 + menuHot[i] < cols ) {
-      cellAt( 1 + menuHot[i], 0, peek8( addr( sMenus ) + menuHot[i] ), attrKey )
-    }
+    rowPut( 1 + menuHot[i], peek8( addr( sMenus ) + menuHot[i] ), attrKey )
   }
+
+  rowBlit( 0, 0, cols )
 }
 
 // The name with its directory taken off, **found by looking rather than by
@@ -664,23 +735,23 @@ u16 drawTab( u16 x, u16 at, bool live, bool star ) {
 
   if ( x >= cols ) return x
 
-  cellAt( x, 1, ' ', a )
+  rowPut( x, ' ', a )
   x++
 
   n = 0
   while ( peek8( at + n ) != 0 && x < cols ) {
-    cellAt( x, 1, peek8( at + n ), a )
+    rowPut( x, peek8( at + n ), a )
     x++
     n++
   }
 
   if ( star && x < cols ) {
-    cellAt( x, 1, '*', a )
+    rowPut( x, '*', a )
     x++
   }
 
   if ( x < cols ) {
-    cellAt( x, 1, ' ', a )
+    rowPut( x, ' ', a )
     x++
   }
 
@@ -690,7 +761,7 @@ u16 drawTab( u16 x, u16 at, bool live, bool star ) {
 sub drawTabs {
   u16 x
 
-  blankRow( 1, attrStatus )
+  rowFill( 0, cols, ' ', attrStatus )
 
   x = 0
 
@@ -704,6 +775,8 @@ sub drawTabs {
       x = drawTab( x, tabNameAt( d ), !expFocus && d == textDoc(), tabDirty( d ) )
     }
   }
+
+  rowBlit( 1, 0, cols )
 }
 
 sub drawExplorer {
@@ -774,7 +847,7 @@ sub statusClip( u16 x, u16 at, u16 stop ) {
   i = 0
 
   while ( peek8( at + i ) != '$' && x + i < stop ) {
-    cellAt( x + i, rows - 1, peek8( at + i ), attrStatus )
+    rowPut( x + i, peek8( at + i ), attrStatus )
     i++
   }
 }
@@ -793,7 +866,7 @@ u16 statusPath( u16 x ) {
 
   i = 0
   while ( i < dirPathLen && x + i < cols ) {
-    cellAt( x + i, rows - 1, dirPath[i], attrStatus )
+    rowPut( x + i, dirPath[i], attrStatus )
     i++
   }
 
@@ -811,7 +884,7 @@ u16 statusName( u16 x ) {
   i = 0
 
   while ( fileName[i] != 0 && x + i < cols ) {
-    cellAt( x + i, rows - 1, fileName[i], attrStatus )
+    rowPut( x + i, fileName[i], attrStatus )
     i++
   }
 
@@ -828,7 +901,7 @@ sub statusNumber( u16 x, u16 n ) {
   used = numText( addr( numBuf ), n )
 
   for ( u16 i = 0; i < used; i++ ) {
-    cellAt( x + i, rows - 1, numBuf[i], attrStatus )
+    rowPut( x + i, numBuf[i], attrStatus )
   }
 }
 
@@ -840,7 +913,7 @@ sub statusField( u16 x ) {
   at = fieldAddr()
 
   for ( u16 i = 0; i < fieldLength() && x + i < cols; i++ ) {
-    cellAt( x + i, rows - 1, peek8( at + i ), attrStatus )
+    rowPut( x + i, peek8( at + i ), attrStatus )
   }
 }
 
@@ -856,9 +929,7 @@ sub statusField( u16 x ) {
 sub showLoading( u16 kb ) {
   u16 x
 
-  for ( x = 0; x < cols; x++ ) {
-    cellAt( x, rows - 1, 32, attrStatus )
-  }
+  rowFill( 0, cols, ' ', attrStatus )
 
   statusText( 0, addr( sLoading ) )
 
@@ -869,14 +940,20 @@ sub showLoading( u16 kb ) {
 
   statusNumber( x + 1, kb )
   statusText( x + 1 + numWidth( kb ), addr( sKb ) )
+
+  rowBlit( rows - 1, 0, cols )
 }
 
+// **Composed, then written, and they are two routines** because the arm below
+// returns early - a blit at every exit is a blit somebody will forget to add to
+// the third one. §68 is the rule this shape exists to make unbreakable.
 sub drawStatus {
-  u16 x
+  composeStatus()
+  rowBlit( rows - 1, 0, cols )
+}
 
-  for ( x = 0; x < cols; x++ ) {
-    cellAt( x, rows - 1, ' ', attrStatus )
-  }
+sub composeStatus {
+  rowFill( 0, cols, ' ', attrStatus )
 
   if ( prompting() ) {
     statusText( 0, askLabel )
@@ -905,26 +982,24 @@ sub drawStatus {
   // editing.** Twelve columns cannot hold a path, so the one row that can is
   // the one that says which directory those names are from - which is the
   // question descending into a subdirectory immediately raises.
-  x = 0
-
-  if ( expFocus ) {
-    x = x + statusPath( x )
+  // **A message takes the whole line**, which §66's tab bar is what makes safe:
+  // the name is up there now, so the only thing displaced is a path.
+  //
+  // It used to be squeezed in after the name and **skipped entirely below 41
+  // columns**, on the grounds that there was no room - which is a refusal nobody
+  // sees, and `^Q` is precisely the refusal that must not be missed.
+  if ( message != 0 ) {
+    statusClip( 0, message, cols - 13 )
+  } else if ( expFocus ) {
+    statusPath( 0 )
   } else if ( haveName ) {
-    x = x + statusName( x )
+    statusName( 0 )
   } else {
-    statusText( x, addr( sNoName ) )
-    x = x + strLen( addr( sNoName ) )
+    statusText( 0, addr( sNoName ) )
   }
 
-  // **After the name and clipped short of the numbers**, which is where a message
-  // has room: a filename and a star leave fifty-odd columns at 80, against the
-  // thirteen that were left by hanging it off the right-hand end. Right-aligning
-  // it would have meant measuring it first, and the answer would still have been
-  // too long for the gap.
-  if ( message != 0 && cols > 40 ) statusClip( x + 3, message, cols - 13 )
-
   statusNumber( cols - 12, viewLine() + 1 )
-  cellAt( cols - 8, rows - 1, ':', attrStatus )
+  rowPut( cols - 8, ':', attrStatus )
   statusNumber( cols - 7, viewCol() + 1 )
 }
 
@@ -1311,7 +1386,7 @@ sub explorerKey( u16 k ) {
   }
 
   if ( k == keyQuit ) {
-    running = false
+    tryQuit()
     return
   }
 
@@ -1423,48 +1498,50 @@ u8 hexDigit( u16 n ) {
   return u8( n - 10 + 'A' )
 }
 
-sub pickCell( u16 x, u16 y, u8 ch ) {
-  cellAt( pickX + x, pickY + y, ch, attrStatus )
+// Everything below composes into §68's row buffer in box coordinates and one
+// routine blits the span. The box used to fill each row with spaces and then
+// write over it, which is the flicker somebody watched while arrowing around the
+// grid.
+sub pickPut( u16 x, u8 ch, u8 attr ) {
+  rowPut( pickX + x, ch, attr )
 }
 
-sub pickText( u16 x, u16 y, u16 at ) {
-  u16 i
-  i = 0
-
-  while ( peek8( at + i ) != '$' ) {
-    pickCell( x + i, y, peek8( at + i ) )
-    i++
-  }
+sub pickBlitRow( u16 y ) {
+  rowBlit( pickY + y, pickX, pickX + pickW )
 }
 
-sub pickNumber( u16 x, u16 y, u16 n ) {
+sub pickText( u16 x, u16 at ) {
+  rowStr( pickX + x, at, pickX + pickW, attrStatus )
+}
+
+sub pickNumber( u16 x, u16 n ) {
   u16 used
 
   used = numText( addr( numBuf ), n )
 
   for ( u16 i = 0; i < used; i++ ) {
-    pickCell( x + i, y, numBuf[i] )
+    pickPut( x + i, numBuf[i], attrStatus )
   }
 }
 
-sub pickRule( u16 y, u8 left, u8 right ) {
-  pickCell( 0, y, left )
+sub pickRuleInto( u8 left, u8 right ) {
+  pickPut( 0, left, attrStatus )
 
   for ( u16 x = 1; x < pickW - 1; x++ ) {
-    pickCell( x, y, boxH )
+    pickPut( x, boxH, attrStatus )
   }
 
-  pickCell( pickW - 1, y, right )
+  pickPut( pickW - 1, right, attrStatus )
 }
 
-sub pickBlank( u16 y ) {
-  pickCell( 0, y, boxV )
+sub pickBlankInto {
+  pickPut( 0, boxV, attrStatus )
 
   for ( u16 x = 1; x < pickW - 1; x++ ) {
-    pickCell( x, y, ' ' )
+    pickPut( x, ' ', attrStatus )
   }
 
-  pickCell( pickW - 1, y, boxV )
+  pickPut( pickW - 1, boxV, attrStatus )
 }
 
 // Reverse video for the box and *normal* for the cell under the cursor, which is
@@ -1472,14 +1549,11 @@ sub pickBlank( u16 y ) {
 // punched in the panel, and 0x70 against 0x07 means the same thing on an MDA as
 // on a VGA. A colour would not.
 sub pickGridRow( u16 r ) {
-  u16 y
   u16 code
   u8  attr
 
-  y = pickGridY + r
-
-  pickBlank( y )
-  pickCell( 2, y, hexDigit( r ) )
+  pickBlankInto()
+  pickPut( 2, hexDigit( r ), attrStatus )
 
   for ( u16 c = 0; c < 16; c++ ) {
     code = r * 16 + c
@@ -1487,64 +1561,114 @@ sub pickGridRow( u16 r ) {
     attr = attrStatus
     if ( code == pickCode ) attr = attrText
 
-    cellAt( pickX + pickGridX + c * 2, pickY + y, u8( code ), attr )
+    pickPut( pickGridX + c * 2, u8( code ), attr )
   }
+
+  pickBlitRow( pickGridY + r )
+}
+
+// **One cell of the grid, straight to the frame.** Two of these and the
+// information line are the whole of what moving the cursor changes, against the
+// 37x21 the box was redrawing per keystroke. Written once with its final value,
+// so it is not buffered: the buffer is for rows that would otherwise be cleared
+// first, and this one never is.
+sub pickGlyphAt( u16 code ) {
+  u8 attr
+
+  attr = attrStatus
+  if ( code == pickCode ) attr = attrText
+
+  cellAt( pickX + pickGridX + ( code & 15 ) * 2,
+          pickY + pickGridY + ( code >> 4 ), u8( code ), attr )
 }
 
 // Decimal, hex and the `Alt` sequence. The decimal is in the hint already and is
 // labelled separately anyway, because the two are read for different things: one
 // is what to press next time and the other is what to look up in a table.
 sub pickInfo {
-  u16 x
-  u16 y
+  composePickInfo()
+  pickBlitRow( pickH - 2 )
+}
 
-  y = pickH - 2
-  pickBlank( y )
+// Split from the blit for `drawStatus`'s reason: the refusal arm returns early,
+// and a write at each exit is one somebody will forget to add to the third.
+sub composePickInfo {
+  u16 x
+
+  pickBlankInto()
 
   x = 2
 
-  pickText( x, y, addr( sPickDec ) )
+  pickText( x, addr( sPickDec ) )
   x = x + strLen( addr( sPickDec ) )
 
-  pickNumber( x, y, pickCode )
+  pickNumber( x, pickCode )
   x = x + numWidth( pickCode )
 
-  pickText( x, y, addr( sPickHex ) )
+  pickText( x, addr( sPickHex ) )
   x = x + strLen( addr( sPickHex ) )
 
-  pickCell( x, y, hexDigit( pickCode >> 4 ) )
-  pickCell( x + 1, y, hexDigit( pickCode & 15 ) )
+  pickPut( x, hexDigit( pickCode >> 4 ), attrStatus )
+  pickPut( x + 1, hexDigit( pickCode & 15 ), attrStatus )
   x = x + 2
 
   if ( pickEnds( pickCode ) ) {
-    pickText( x, y, addr( sPickEol ) )
+    pickText( x, addr( sPickEol ) )
     return
   }
 
-  pickText( x, y, addr( sPickAlt ) )
+  pickText( x, addr( sPickAlt ) )
   x = x + strLen( addr( sPickAlt ) )
 
-  pickNumber( x, y, pickCode )
+  pickNumber( x, pickCode )
+}
+
+// A rule with something written along it - the title and the key hints both sit
+// on one - which is two things on one row and so has to be composed before any of
+// it is written, the same as everything else here.
+sub pickRuleRow( u16 y, u8 left, u8 right, u16 label ) {
+  pickRuleInto( left, right )
+  pickText( 2, label )
+  pickBlitRow( y )
 }
 
 sub drawPicker {
-  pickRule( 0, boxTL, boxTR )
-  pickText( 2, 0, addr( sPickTitle ) )
+  pickRuleRow( 0, boxTL, boxTR, addr( sPickTitle ) )
 
-  pickBlank( pickGridY - 1 )
+  pickBlankInto()
   for ( u16 c = 0; c < 16; c++ ) {
-    pickCell( pickGridX + c * 2, pickGridY - 1, hexDigit( c ) )
+    pickPut( pickGridX + c * 2, hexDigit( c ), attrStatus )
   }
+  pickBlitRow( pickGridY - 1 )
 
   for ( u16 r = 0; r < 16; r++ ) {
     pickGridRow( r )
   }
 
-  pickRule( pickH - 3, boxML, boxMR )
+  pickRuleInto( boxML, boxMR )
+  pickBlitRow( pickH - 3 )
+
   pickInfo()
 
-  pickRule( pickH - 1, boxBL, boxBR )
-  pickText( 2, pickH - 1, addr( sPickKeys ) )
+  pickRuleRow( pickH - 1, boxBL, boxBR, addr( sPickKeys ) )
+
+  // What the cheap path below measures against.
+  lastPickCode = pickCode
+}
+
+// **What a keystroke in the picker actually changes**: the cell losing the
+// highlight, the cell gaining it, and the information line. The box was being
+// redrawn whole for that, which is 777 cells for three.
+u16 lastPickCode
+
+sub pickMoved {
+  if ( pickCode == lastPickCode ) return
+
+  pickGlyphAt( lastPickCode )
+  pickGlyphAt( pickCode )
+  pickInfo()
+
+  lastPickCode = pickCode
 }
 
 // **The box is never clipped**, it is refused. Every text mode this can be
@@ -1627,7 +1751,7 @@ sub repaint {
   // forces a whole-screen redraw. Without this, arrowing around the grid would
   // cost 1,584 cells a keystroke to paint something the box is standing on.
   if ( picking && lastPick ) {
-    drawPicker()
+    pickMoved()
     drawStatus()
     placeCursor()
     return
@@ -1784,6 +1908,40 @@ const u8[] bindAction = [
 // Quitting is not in the table, because a loop has to be able to stop whatever
 // the table says and a rebindable quit is a rebindable way to lose the door.
 const keyQuit = 17
+
+// Whether `^Q` has already been refused once, cleared by any other key - so this
+// is a double-tap and not a latch that could be armed ten minutes ago.
+bool quitAsked
+
+// **Any document, not the one in front of you.** With two open, the one holding
+// unsaved work may not be the one on screen, which is exactly the case where a
+// door that asked nothing would be worst.
+bool anyDirty() {
+  if ( dirty ) return true
+
+  for ( u16 d = 0; d < edMaxDocs; d++ ) {
+    if ( d != textDoc() && docOpen[d] != 0 && docDirty[d] != 0 ) return true
+  }
+
+  return false
+}
+
+// **It refuses, the way `^O` and `^W` do**, and the way through is to press it
+// again. One rule for all three doors, and a second press is unambiguous where a
+// dialog would be a seventh thing the prompt has to serve.
+//
+// `^Q` has never checked this, and with one file that was one file's work. §66
+// put the door on the way to a menu, where **File > Exit** inherits it and it
+// stops being a key somebody has to know about.
+sub tryQuit {
+  if ( !anyDirty() || quitAsked ) {
+    running = false
+    return
+  }
+
+  quitAsked = true
+  message = addr( sQuitAgain )
+}
 
 u16 pending
 bool running
@@ -2518,6 +2676,11 @@ sub step( u16 k ) {
   u16 had
   u8  a
 
+  // Any key but `^Q` disarms the door, which is what makes it a double-tap and
+  // not a latch left armed ten minutes ago. Ahead of everything, because the
+  // picker and the prompt both return before the rest of this runs.
+  if ( k != keyQuit ) quitAsked = false
+
   // The prompt takes everything, including `^Q` - a door out of a mode is `Esc`
   // and putting a second one in would mean a keystroke meant for the field
   // could close the program instead.
@@ -2580,7 +2743,7 @@ sub step( u16 k ) {
   pending = 0
 
   if ( k == keyQuit ) {
-    running = false
+    tryQuit()
     return
   }
 

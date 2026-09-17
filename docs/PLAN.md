@@ -2721,71 +2721,21 @@ That is a constraint from §66's measurement rather than a preference.
 Nothing invented. A menu listing a command the editor does not have is a menu
 that has to be edited twice.
 
-### What is not settled
+### The door, and the dialog that will replace the double-tap
 
-`^Q` still does not check whether anything is unsaved, and a **File > Exit** item
-inherits that. Putting the door on a menu is the point at which it stops being a
-key somebody has to know about and starts being one anybody can reach, so this is
-the change that makes the question urgent rather than academic.
+`^Q` refuses unsaved work now and the way through is to press it again, which is
+`^O`'s and `^W`'s rule and needed no new mechanism. **File > Exit** inherits it,
+which was the reason to settle it before this section rather than after.
 
-## 68. Drawing without flicker
+A double-tap is the right answer for a key and the wrong one for a menu item: you
+cannot press a menu item twice in a row without going back through the menu, and
+"choose Exit again" is not something a screen can say usefully.
 
-**Not built, and deliberately deferred.** Reported from the 286 in both `co80`
-and `mode mono`: parts of the screen that did not change flicker - the status
-line while the text pane scrolls, and the whole picker box while the cursor moves
-around the grid.
+So the intended end state is `edit.com`'s: a **dialog with Yes / No / Cancel**,
+which is three answers where a double-tap has two - the missing one being "quit
+and throw the work away" as distinct from "cancel". `edit.com` has a **Help**
+button beside them and that is deferred until there is something to show.
 
-### The cause is blank-then-draw, not redrawing too often
-
-Every one of these routines fills its row with spaces and then writes the content
-over the top:
-
-    drawStatus   showLoading   drawMenus   drawTabs   pickBlank
-
-So each affected cell is written **twice per frame**, and the first value is a
-space. Whatever the beam catches between the two writes is a blank, which is the
-flash. A cell written once with its final value does not flicker however often it
-is rewritten, because the value never changes.
-
-**`drawExplorer` is the proof, and it is already in the file.** It writes each
-cell exactly once - `x < n ? peek8( at + x ) : 32` - and the panel is the one
-piece of chrome nobody has reported flickering, on the busiest redraw path there
-is.
-
-### Which is why dirty-region tracking alone would not fix it
-
-The obvious reading of the symptom is "stop redrawing what did not change", and
-that is the wrong end of it for the status line: the column number **does**
-change on every cursor move, so the row is genuinely dirty and would be redrawn
-by any such scheme - and would still be blanked first.
-
-Comparing before writing does not help either, for the same reason. The space and
-the character both differ from what is there, so both writes happen.
-
-### Two fixes, and they are different fixes
-
-**The status line and the bars want write-once.** Compose the row and write each
-cell one time with the value it is going to end up with - padding included,
-rather than padding first. That is a restructure of five routines that currently
-place content at fixed columns over a cleared row, and the awkward part is that
-the content is placed by several routines that do not know about each other.
-
-**The picker wants to redraw what moved.** Arrowing around the grid changes
-exactly two cells - the one losing the highlight and the one gaining it - plus
-the information line. Redrawing 37x21 for that is the waste, and there the
-obvious reading of the symptom is the right one.
-
-### Why it is deferred, and what it will cost when it is not
-
-Nothing here is wrong, only ugly, and it is ugly in a way that a person notices
-rather than one that loses work.
-
-The cost when it lands is mostly in the status line, which has five callers
-placing text at computed columns over a row somebody else cleared. The
-alternative worth pricing at the same time is a one-row compose buffer: build the
-eighty cells in near memory and blit them, which makes write-once fall out of the
-structure rather than having to be maintained by every caller.
-
-**Worth doing before anything else draws.** PLAN §67 adds a drop-down, which is
-more blank-then-draw of exactly the picker's kind - so the rule is cheaper to
-establish than to retrofit.
+This wants the overlay shape §64 established and the field §60 already has, so it
+is small once the drop-down exists - which is the argument for doing it after
+this section rather than before.
