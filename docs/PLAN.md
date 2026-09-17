@@ -2679,8 +2679,8 @@ consumer that does not exist costs.
 
 ## 67. The menus themselves
 
-**Designed, not built.** §66 draws the bar; this is what happens when somebody
-presses a letter on it.
+**Designed, not built.** The bar itself is already on screen; this is what
+happens when somebody presses a letter on it. DESIGN §66 is the row it sits on.
 
 `Alt`+letter opens a menu, `F10` opens the first one with no letter, the arrows
 walk the bar and the items, Enter chooses, Escape closes one level rather than
