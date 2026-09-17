@@ -3550,3 +3550,49 @@ The one number worth keeping is that **nothing was copied**: §54's text was nev
 in this segment, so a switch is a dozen counters and seven segment registers, and
 §56's is eight more numbers. A document you are not looking at costs its line
 table and its log, which §58 bought in advance.
+
+### `vidprobe`, and the attribute the datasheet was wrong about
+
+The probe was written to settle which bytes a mode-7 adapter can tell apart, on
+the grounds that the menu bar needed a fifth state and mode 7 looked like it had
+four. Run on a 286 with a VGA, in four modes.
+
+**The expected answer was wrong and the useful answer was better.** Underline -
+`0x01`, the classic MDA attribute and the obvious mark for an `Alt` letter - does
+not render at all: it is indistinguishable from `0x07`, and `0x09` from `0x0F`.
+What does render is the **intensity bit over a white background**, `0x7F`, which
+nothing in the reading suggested and which turns out to be legible in colour as
+well.
+
+So the mark is one byte in both schemes rather than one per adapter. That makes
+three bytes the two schemes agree on - `0x07`, `0x70`, `0x7F` - and every one the
+chrome needs is in that set, which is a better position than the design asked
+for.
+
+**The probe drew a real bar rather than swatches**, with the first letter of each
+of four words in the candidate, and that is why the answer is trustworthy at the
+size it will be used. A swatch would have passed `0x74` and `0x71`, which vanish
+completely at one character on a white ground.
+
+Two more answers for nothing. `mode bw80` is indistinguishable from `co80` on this
+hardware - `edit.com` treats it the same way - and `bw40` differs only in width,
+so there are two schemes rather than four. And mode 7 has no state for "disabled":
+`0x08` is invisible rather than dim, so the menu cannot be designed around greying
+items out.
+
+### `Alt`+letter, and a modifier that is not a key
+
+`keyprobe menus.cfg`: `Alt+F` is `2100`, `Alt+E` `1200`, `Alt+S` `1F00`, `Alt+V`
+`2F00`, `Alt+X` `2D00`, `F10` `4400`, `F1` `3B00`. Each `Alt`+letter is the
+letter key's own scancode with nothing in the low byte.
+
+**The shape is the finding, not the numbers.** `Alt`+numpad is the BIOS composing
+a character and reporting no scancode; `Alt`+letter is a scancode reporting no
+character. They are exact opposites, and §57's key space already separates them
+on the low byte - so a menu on `Alt` and a document taking composed characters
+cost nothing to have at once.
+
+`Alt` held on its own reported nothing. A modifier never becomes a key to
+`int 16h`, so a program that opens its menu bar on a bare `Alt` is watching the
+shift flags in the BIOS data area rather than reading the keyboard. `F10` is the
+route that needs none of that, which is why every DOS editor has it.

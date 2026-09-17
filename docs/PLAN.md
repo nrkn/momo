@@ -2679,11 +2679,12 @@ consumer that does not exist costs.
 
 ## 66. The menu bar and the tab bar
 
-**Designed, not built.** Two rows of chrome above the text: a menu bar at the top
-and a tab bar under it, with the status line staying where it is.
+**Designed, not built. Measured.** Two rows of chrome above the text: a menu bar
+at the top and a tab bar under it, with the status line staying where it is.
 
-The probes come first - `vidprobe` and `keyprobe menus.cfg` - because two of the
-decisions below cannot be made from a desk.
+The two questions that could not be answered from a desk have been, on a 286 with
+a VGA, by `vidprobe` and `keyprobe menus.cfg`. Both answers are below, and one of
+them corrected the design.
 
 ### The row budget, and what it is measured against
 
@@ -2698,30 +2699,69 @@ the explorer is the one pane here that costs columns, and it is opt-in.
 So both bars stay visible always. A menu that comes and goes is worse than a row,
 and the tab bar doubles as the title bar `edit.com` also pays for.
 
-### The attribute problem, which is why `vidprobe` exists
+### The mark for an `Alt` letter is one byte, in both schemes
 
-A menu bar needs a way to mark **one character** on a reverse-video band - the
-letter an `Alt` shortcut uses. In colour that is a colour. In mode 7 it cannot
-be, and the four states that mode has are already spoken for:
+A menu bar needs a way to mark **one character** on a reverse-video band. In
+colour that could be a colour; in mode 7 it cannot be. Measured, the answer is
+the same byte either way:
 
-    0x07 normal     the text pane
-    0x70 reverse    the status line, the explorer - and the selection
-    0x0F bright     a search match
-    0x01 underline  unused, and only exists here
+    0x7F   a bright foreground on a white background
 
-**Underline is mode 7 only.** In the colour text modes the attribute byte is four
-bits of background and four of foreground with no underline bit anywhere, so
-`0x01` there is blue text. It exists in exactly the mode where colour does not,
-which makes it one more per-adapter attribute rather than a mechanism - §55
-already settled that shape once.
+In colour that is white on light grey, one of the two that read best on a real
+bar. In mode 7 the intensity bit is the whole mechanism - a bright white glyph on
+a normal white background is legible, and every candidate carrying bit 3 stood
+out while every candidate without it either vanished into the bar or matched the
+control row.
 
-What cannot be decided by reading: whether `0x71`, `0x78` or `0x79` render as
-anything distinguishable on a reverse bar in mode 7. MDA's decoder only looks at
-some of the bits and the documented combinations stop short of these.
+So `attrKey` is **a third byte the two schemes agree on**, joining `0x07` and
+`0x70`. That is worth more than it sounds: `momoed` carries a mono translation
+precisely because the two schemes mostly disagree, and all three bytes the chrome
+needs sit in the set that does not.
 
-`attrSel` and `attrStatus` are also **both `0x70` in mono today**, so a selection
-looks exactly like the status line. Nobody has noticed because they are never
-adjacent, and the tab bar is about to put chrome and selection on one row.
+### Underline does not render, which is what the probe was for
+
+This design expected `0x01` to be an underline in mode 7 - the classic MDA
+attribute, and the obvious mark where there is no colour.
+
+**It is not one on this hardware.** `0x01` is indistinguishable from `0x07`, and
+`0x09` from `0x0F`: the intensity bit reads and the underline foreground does
+not. The likely cause is the CRTC's underline-location register, which a VGA BIOS
+setting up mode 7 may leave pointing outside the character cell - but that is a
+guess where the measurement is not.
+
+Nothing is lost, since `0x7F` is the better mark anyway. What is worth keeping is
+the shape: the expectation came from a datasheet and the correction came from the
+machine.
+
+### What mode 7 actually has
+
+Five states, one more than this design assumed, and the extra one is exactly what
+the menu bar needed:
+
+    0x07  white on black          the text pane
+    0x0F  bright white on black   a search match
+    0x70  black on white          the chrome, and the selection
+    0x7F  bright white on white   the Alt letter          <- the new one
+    0x08  black on black          invisible, and good for nothing
+
+`attrSel` and `attrStatus` are still both `0x70`, so a selection looks like the
+status line in mono. `0x7F` could separate them and is deliberately not spent on
+it: a whole selected region in bright-on-white is legible but low contrast, and
+the two are only ever adjacent at one row boundary. The state exists and where it
+would go is written down, which is the useful half.
+
+**There is no "disabled" in mono.** `0x08` is invisible rather than dim and
+`0x78` reads as the chrome itself, so a drop-down cannot grey an item out on that
+adapter - and the menu must not be designed around greying things out. An item
+that cannot apply is better left doing nothing than shown in a state one adapter
+cannot draw.
+
+### Two schemes, not four
+
+`mode bw80` is indistinguishable from `mode co80` on a 286 with a VGA, which is
+how `edit.com` treats it too, and `mode bw40` differs only in being forty columns
+wide. So there are two attribute schemes and `useColor` / `useMono` is already
+exactly that split. `0xF0` blinks, as expected, and is good for nothing.
 
 ### The tab bar inverts the obvious arrangement
 
@@ -2759,6 +2799,22 @@ The item tables stay the program's, through §37's seam - the library asks what
 the items are and hands back what was chosen, the way `viewRow` and
 `fieldCopyOut` already work.
 
+### `Alt`+letter is the letter's scancode, and `Alt` alone is not a key
+
+Measured: `Alt+F` is `2100`, `Alt+E` `1200`, `Alt+S` `1F00`, `Alt+V` `2F00` and
+`Alt+X` `2D00` - each the letter key's own scancode with **no character in the
+low byte**. `F10` is `4400` and `F1` is `3B00`.
+
+That is the opposite shape to `Alt`+numpad, which the BIOS *composes* into a
+finished character with a scancode of zero. Seeing the two be opposites is what
+says a menu can have `Alt` at the same time as a document can have composed
+characters: §57's key space already separates them on the low byte.
+
+`Alt` on its own reported nothing at all. `int 16h` reports keys and a modifier
+held by itself never becomes one, so programs that open a menu bar on a bare
+`Alt` are watching the shift flags rather than reading the keyboard. `F10` is the
+route that does not need that, which is why it is in the design.
+
 ### The menus, which are only what exists
 
 - **File** - New `^T`, Open `^O`, Save `^S`, Save As, Close `^W`, Exit `^Q`
@@ -2770,22 +2826,9 @@ the items are and hands back what was chosen, the way `viewRow` and
 Nothing invented. A menu that lists a command the editor does not have is a menu
 that has to be edited twice.
 
-### What the probes are for
-
-`vidprobe` paints nine candidates for the hotkey mark on a real reverse bar and
-eight for the pane, numbered, and asks which are distinguishable. Run in
-`mode co80`, `mode bw80`, `mode mono` and `mode bw40`, it settles the whole
-palette in one trip.
-
-`keyprobe menus.cfg` asks what `Alt`+letter reports, which has never been
-measured. It should be a scancode with AL=0 - the opposite shape to `Alt`+numpad,
-which composes a character and reports no scancode at all. `F10` is there because
-it is what `edit.com` and Turbo Pascal use to reach the bar, and is the key
-somebody who has used a DOS editor will try first.
-
 ### Order
 
-1. the probes, one trip
+1. ~~the probes~~ - done, and the answers are above
 2. the layout alone - `edTop()`, both bars drawn empty, everything below shifted.
    This is where the off-by-ones live and it is worth landing on its own
 3. the tab bar, which is mostly data the editor already has

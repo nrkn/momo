@@ -43,6 +43,27 @@ const keyCtrlPgUp  = 132
 // Shift+navigation pair has, so the fold below carries it with no new case.
 const keyCtrlTab   = 148
 
+// **`Alt`+letter is the letter's own scancode with no character at all**, which
+// is the opposite shape to `Alt`+numpad: that one the BIOS *composes*, handing
+// back the finished character with a scancode of zero. Both were measured, and
+// seeing the two shapes be opposites is what says a menu can have `Alt` at the
+// same time as a document can have composed characters.
+//
+// Only the letters a menu bar uses are here, for this file's standing reason:
+// they are here because somebody pressed them.
+const keyAltF = 33
+const keyAltE = 18
+const keyAltS = 31
+const keyAltV = 47
+const keyAltX = 45
+
+// **`Alt` on its own is not a key.** `int 16h` reports keys and a modifier held
+// by itself never becomes one, so the programs that open a menu bar on a bare
+// `Alt` are watching the shift flags rather than reading the keyboard. `F10` is
+// what `edit.com` and Turbo Pascal use instead, and is the one to have.
+const keyF1  = 59
+const keyF10 = 68
+
 // ASCII values, reported in the low byte.
 const keyEsc    = 27
 const keyEnter  = 13
