@@ -498,3 +498,27 @@ climbing, and never coming back.
 exposed it - `textInit` to `textClear` in `loadFile` - was one line, and the
 reason to look was that the line was about memory and nothing had asked where the
 old document's memory went.
+
+## A flag named after a pane, used to mean "something moved"
+
+Moving between menus left the old drop-down's columns on screen - but only when
+moving *leftwards*, which is the shape of the finding rather than a detail of it.
+
+`menuStep` set `needExp`, which redraws the explorer and the two chrome bars and
+does not touch the text pane. The boxes sit at columns 0, 6, 12 and 20 and are
+all nineteen wide, so a rightward move vacates columns on the *left* - and the
+explorer is columns 0 to 13, so it cleaned them on its way past. A leftward move
+vacates columns on the right, which nothing owned.
+
+Confirmed from the other side before the fix was trusted: with the explorer
+hidden, both directions leave trails.
+
+**A bug that is correct in one direction is a bug about what is underneath**, not
+about the thing on top. The asymmetry was the whole diagnosis - a symptom that
+appeared in both directions would have said far less.
+
+**And the flag was the real mistake.** `needExp` names a pane; it was being used
+to mean "something structural moved", which is true of it often enough to look
+right. `drawn = false` is the honest way to say "put the screen back" and is what
+closing the picker and closing a menu already used. A box that has *moved* is a
+close and an open, and had to say so.

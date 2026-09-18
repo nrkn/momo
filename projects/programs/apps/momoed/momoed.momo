@@ -2190,10 +2190,23 @@ bool menuOpened( u16 k ) {
 // changes. The cheap path in `repaint` does not consult it, so this costs
 // nothing on the frames that take that path.
 sub menuStep( u16 k ) {
-  u8 r
+  u8  r
+  u16 was
 
   needExp = true
+  was = menuAt()
+
   r = menuKey( k )
+
+  // **A box that has moved is a close and an open**, and everything it was
+  // standing on has to be put back - which `needExp` alone does not do. It
+  // redraws the panel and the bars and leaves the text pane, so moving *right*
+  // looked correct only because the panel happens to sit under the columns a
+  // rightward move vacates, and moving *left* vacates columns nothing owned.
+  //
+  // A bug that is right in one direction is a bug about what is underneath
+  // rather than about the thing on top.
+  if ( menuAt() != was ) drawn = false
 
   if ( r == menuGoing ) return
 
