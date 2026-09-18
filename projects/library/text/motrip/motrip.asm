@@ -68,11 +68,12 @@ __entry:
         call    fileCreate
         mov     ax, [fileCreate__ret]
         mov     [handle], ax
-; ---- wrote = textSave( handle )
+; ---- saved = textSave( handle )
         mov     [textSave__handle], ax
         call    textSave
-        mov     ax, [textSave__ret]
-        mov     [wrote], ax
+        mov     al, [textSave__ret]
+        xor     ah, ah                      ; bool -> u16
+        mov     [saved], al                 ; narrowed to bool
 ; ---- fileClose( handle )
         mov     ax, [handle]
         mov     [fileClose__handle], ax
@@ -84,8 +85,9 @@ __entry:
 ; ---- putChar( ' ' )
         mov     byte [putChar__c], 32
         call    putChar
-; ---- putNumber( wrote )
-        mov     ax, [wrote]
+; ---- putNumber( textWrote() )
+        call    textWrote
+        mov     ax, [textWrote__ret]
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- newline()
@@ -165,6 +167,41 @@ __entry:
         call    newline
 ; ---- showAll()
         call    showAll
+; ---- putNumber( u16( saved ) )
+        mov     al, [saved]
+        xor     ah, ah                      ; bool -> u16
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- newline()                               // 1
+        call    newline
+; ---- handle = fileOpen( addr( name ), fileReadOnly )
+        mov     ax, name                    ; link-time constant
+        mov     [fileOpen__at], ax
+        mov     byte [fileOpen__mode], 0
+        call    fileOpen
+        mov     ax, [fileOpen__ret]
+        mov     [handle], ax
+; ---- putNumber( u16( textSave( handle ) ) )
+        mov     [textSave__handle], ax
+        call    textSave
+        mov     al, [textSave__ret]
+        xor     ah, ah                      ; bool -> u16
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- putChar( ' ' )
+        mov     byte [putChar__c], 32
+        call    putChar
+; ---- putNumber( textWrote() )
+        call    textWrote
+        mov     ax, [textWrote__ret]
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- newline()                               // 0 0
+        call    newline
+; ---- fileClose( handle )
+        mov     ax, [handle]
+        mov     [fileClose__handle], ax
+        call    fileClose
 
 ; ---- implicit exit ----
         mov     word [_ax], 0x4C00          ; DOS terminate, exit code 0
@@ -2288,20 +2325,59 @@ textLoad:
         inc     word [motext__loadLen]
         ret
 
-; ============================================== u16 textSave ====
+; ============================================== u16 textWrote ====
+
+textWrote:
+; ---- u16 textWrote() => saveWrote
+        mov     ax, [motext__saveWrote]
+        mov     [textWrote__ret], ax
+        ret
+
+; ============================================== bool motext__putOut ====
+
+motext__putOut:
+; ---- sent = fileWrite( handle, at, n )
+        mov     ax, [motext__putOut__handle]
+        mov     [fileWrite__handle], ax
+        mov     ax, [motext__putOut__at]
+        mov     [fileWrite__at], ax
+        mov     ax, [motext__putOut__n]
+        mov     [fileWrite__count], ax
+        call    fileWrite
+        mov     ax, [fileWrite__ret]
+        mov     [motext__putOut__sent], ax
+; ---- saveWrote += sent
+        mov     ax, [motext__saveWrote]
+        mov     bx, [motext__putOut__sent]
+        add     ax, bx
+        mov     [motext__saveWrote], ax
+; ---- return sent == n
+        mov     ax, [motext__putOut__sent]
+        mov     bx, [motext__putOut__n]
+        cmp     ax, bx
+        jne     .L248                       ; unsigned ==
+        mov     ax, 1
+        jmp     .L249
+.L248:
+        xor     ax, ax
+.L249:
+        mov     [motext__putOut__ret], al   ; narrowed to bool
+        ret
+
+; ============================================== bool textSave ====
 
 textSave:
-; ---- total = 0
-        mov     word [textSave__total], 0
+; ---- saveWrote = 0
+        mov     word [motext__saveWrote], 0
 ; ---- for ( u16 ln = 0; ln < lineCount; ln++ ) {
         mov     word [textSave__ln], 0
-.L248:
+.L251:
         mov     ax, [textSave__ln]
         mov     bx, [motext__lineCount]
         cmp     ax, bx
-        jb      .L251                       ; unsigned <
-        jmp     .L250
-.L251:
+        jb      .L254                       ; unsigned <
+        jmp     .L253
+.L254:
 ; ---- col = 0
         mov     word [textSave__col], 0
 ; ---- n = lineSlice( ln, col, stageBytes, addr( stage ) )
@@ -2316,27 +2392,27 @@ textSave:
         mov     ax, [lineSlice__ret]
         mov     [textSave__n], ax
 ; ---- while ( n > 0 ) {
-.L252:
+.L255:
         mov     ax, [textSave__n]
         test    ax, ax
-        ja      .L255                       ; unsigned >
-        jmp     .L254
-.L255:
-; ---- total += fileWrite( handle, addr( stage ), n )
-        mov     ax, [textSave__total]
-        push    ax                          ; save lhs: rhs is not a leaf
+        ja      .L258                       ; unsigned >
+        jmp     .L257
+.L258:
+; ---- if ( !putOut( handle, addr( stage ), n ) ) return false
         mov     ax, [textSave__handle]
-        mov     [fileWrite__handle], ax
+        mov     [motext__putOut__handle], ax
         mov     ax, motext__stage           ; link-time constant
-        mov     [fileWrite__at], ax
+        mov     [motext__putOut__at], ax
         mov     ax, [textSave__n]
-        mov     [fileWrite__count], ax
-        call    fileWrite
-        mov     ax, [fileWrite__ret]
-        mov     bx, ax
-        pop     ax
-        add     ax, bx
-        mov     [textSave__total], ax
+        mov     [motext__putOut__n], ax
+        call    motext__putOut
+        mov     al, [motext__putOut__ret]
+        xor     ah, ah                      ; bool -> u16
+        test    ax, ax
+        jnz     .L259
+        mov     byte [textSave__ret], 0
+        ret
+.L259:
 ; ---- col += n
         mov     ax, [textSave__col]
         mov     bx, [textSave__n]
@@ -2353,36 +2429,36 @@ textSave:
         call    lineSlice
         mov     ax, [lineSlice__ret]
         mov     [textSave__n], ax
-.L253:
-        jmp     .L252
-.L254:
-; ---- if ( ln + 1 < lineCount ) total += fileWrite( handle, addr( lineEnd ), 2 )
+.L256:
+        jmp     .L255
+.L257:
+; ---- if ( ln + 1 < lineCount ) {
         mov     ax, [textSave__ln]
         inc     ax
         mov     bx, [motext__lineCount]
         cmp     ax, bx
-        jae     .L256                       ; unsigned <
-        mov     ax, [textSave__total]
-        push    ax                          ; save lhs: rhs is not a leaf
+        jae     .L262                       ; unsigned <
+; ---- if ( !putOut( handle, addr( lineEnd ), 2 ) ) return false
         mov     ax, [textSave__handle]
-        mov     [fileWrite__handle], ax
+        mov     [motext__putOut__handle], ax
         mov     ax, motext__lineEnd         ; link-time constant
-        mov     [fileWrite__at], ax
-        mov     word [fileWrite__count], 2
-        call    fileWrite
-        mov     ax, [fileWrite__ret]
-        mov     bx, ax
-        pop     ax
-        add     ax, bx
-        mov     [textSave__total], ax
-.L256:
-.L249:
+        mov     [motext__putOut__at], ax
+        mov     word [motext__putOut__n], 2
+        call    motext__putOut
+        mov     al, [motext__putOut__ret]
+        xor     ah, ah                      ; bool -> u16
+        test    ax, ax
+        jnz     .L265
+        mov     byte [textSave__ret], 0
+        ret
+.L265:
+.L262:
+.L252:
         inc     word [textSave__ln]
-        jmp     .L248
-.L250:
-; ---- return total
-        mov     ax, [textSave__total]
-        mov     [textSave__ret], ax
+        jmp     .L251
+.L253:
+; ---- return true
+        mov     byte [textSave__ret], 1
         ret
 
 ; ============================================== sub record ====
@@ -2394,11 +2470,11 @@ record:
         mov     [beforeCount], ax
 ; ---- for ( u16 i = 0; i < beforeCount; i++ ) {
         mov     word [record__i], 0
-.L259:
+.L268:
         mov     ax, [record__i]
         mov     bx, [beforeCount]
         cmp     ax, bx
-        jae     .L261                       ; unsigned <
+        jae     .L270                       ; unsigned <
 ; ---- before[i] = lineLength( i )
         mov     ax, [record__i]
         mov     [lineLength__ln], ax
@@ -2407,10 +2483,10 @@ record:
         mov     bx, [record__i]
         shl     bx, 1                       ; word elements
         mov     [before + bx], ax
-.L260:
+.L269:
         inc     word [record__i]
-        jmp     .L259
-.L261:
+        jmp     .L268
+.L270:
         ret
 
 ; ============================================== bool matches ====
@@ -2421,17 +2497,17 @@ matches:
         mov     ax, [textLines__ret]
         mov     bx, [beforeCount]
         cmp     ax, bx
-        je      .L263                       ; unsigned !=
+        je      .L272                       ; unsigned !=
         mov     byte [matches__ret], 0
         ret
-.L263:
+.L272:
 ; ---- for ( u16 i = 0; i < beforeCount; i++ ) {
         mov     word [matches__i], 0
-.L266:
+.L275:
         mov     ax, [matches__i]
         mov     bx, [beforeCount]
         cmp     ax, bx
-        jae     .L268                       ; unsigned <
+        jae     .L277                       ; unsigned <
 ; ---- if ( lineLength( i ) != before[i] ) return false
         mov     ax, [matches__i]
         mov     [lineLength__ln], ax
@@ -2445,14 +2521,14 @@ matches:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        je      .L270                       ; unsigned !=
+        je      .L279                       ; unsigned !=
         mov     byte [matches__ret], 0
         ret
-.L270:
-.L267:
+.L279:
+.L276:
         inc     word [matches__i]
-        jmp     .L266
-.L268:
+        jmp     .L275
+.L277:
 ; ---- return true
         mov     byte [matches__ret], 1
         ret
@@ -2462,7 +2538,7 @@ matches:
 showAll:
 ; ---- for ( u16 ln = 0; ln < textLines(); ln++ ) {
         mov     word [showAll__ln], 0
-.L273:
+.L282:
         mov     ax, [showAll__ln]
         push    ax                          ; save lhs: rhs is not a leaf
         call    textLines
@@ -2470,9 +2546,9 @@ showAll:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L276                       ; unsigned <
-        jmp     .L275
-.L276:
+        jb      .L285                       ; unsigned <
+        jmp     .L284
+.L285:
 ; ---- n = lineSlice( ln, 0, len( rowBuf ), addr( rowBuf ) )
         mov     ax, [showAll__ln]
         mov     [lineSlice__ln], ax
@@ -2485,28 +2561,28 @@ showAll:
         mov     [showAll__n], ax
 ; ---- for ( u16 i = 0; i < n; i++ ) {
         mov     word [showAll__i], 0
-.L277:
+.L286:
         mov     ax, [showAll__i]
         mov     bx, [showAll__n]
         cmp     ax, bx
-        jae     .L279                       ; unsigned <
+        jae     .L288                       ; unsigned <
 ; ---- putChar( rowBuf[i] )
         mov     ax, [showAll__i]
         mov     bx, ax
         mov     al, [rowBuf + bx]
         mov     [putChar__c], al            ; u8 -> u8, no widening
         call    putChar
-.L278:
+.L287:
         inc     word [showAll__i]
-        jmp     .L277
-.L279:
+        jmp     .L286
+.L288:
 ; ---- putChar( '|' )
         mov     byte [putChar__c], 124
         call    putChar
-.L274:
+.L283:
         inc     word [showAll__ln]
-        jmp     .L273
-.L275:
+        jmp     .L282
+.L284:
 ; ---- newline()
         call    newline
         ret
@@ -2649,11 +2725,17 @@ motext__loadLine: dw      0        ; u16
 motext__loadLen: dw      0        ; u16
 motext__docLoad__d: dw      0        ; u16
 textLoad__ch:   db      0        ; u8
+motext__saveWrote: dw      0        ; u16
+textWrote__ret: dw      0        ; u16
+motext__putOut__handle: dw      0        ; u16
+motext__putOut__at: dw      0        ; u16
+motext__putOut__n: dw      0        ; u16
+motext__putOut__ret: db      0        ; bool
 textSave__handle: dw      0        ; u16
-textSave__ret:  dw      0        ; u16
+textSave__ret:  db      0        ; bool
 beforeCount:    dw      0        ; u16
 handle:         dw      0        ; u16
-wrote:          dw      0        ; u16
+saved:          db      0        ; bool
 got:            dw      0        ; u16
 matches__ret:   db      0        ; bool
 putNumber__i:   db      0        ; u8
@@ -2689,8 +2771,8 @@ textInit__avail: dw      0        ; u16
 textInit__spare: dw      0        ; u16
 textInit__at:   dw      0        ; u16
 textLoad__d:    dw      0        ; u16
+motext__putOut__sent: dw      0        ; u16
 textSave__ln:   dw      0        ; u16
-textSave__total: dw      0        ; u16
 textSave__col:  dw      0        ; u16
 textSave__n:    dw      0        ; u16
 record__i:      dw      0        ; u16

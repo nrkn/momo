@@ -27,7 +27,7 @@ u16 beforeCount
 u8[40] rowBuf
 
 u16 handle
-u16 wrote
+bool saved
 u16 got
 
 sub record {
@@ -83,12 +83,12 @@ lineSplit( 1, 2 )
 record()
 
 handle = fileCreate( addr( name ) )
-wrote = textSave( handle )
+saved = textSave( handle )
 fileClose( handle )
 
 putNumber( beforeCount )
 putChar( ' ' )
-putNumber( wrote )
+putNumber( textWrote() )
 newline()
 
 showAll()
@@ -114,3 +114,27 @@ putNumber( u16( matches() ) )
 newline()
 
 showAll()
+
+// ---- a save that could not finish says so -----------------------------------
+//
+// The save above answered `true`, which is the half that is easy. This is the
+// other: **a short write is the failure §38 cannot report.** DOS writes what it
+// can, returns the count and leaves carry clear, so `fileFailed` is false on
+// exactly the case that loses a file - a disk that filled up halfway - and the
+// count is the only signal there is.
+//
+// A read-only handle produces that shape at its extreme, nought of what was
+// asked for, which is the same comparison the disk-full case makes and the only
+// one a test can arrange without filling a disk.
+
+putNumber( u16( saved ) )
+newline()                               // 1
+
+handle = fileOpen( addr( name ), fileReadOnly )
+
+putNumber( u16( textSave( handle ) ) )
+putChar( ' ' )
+putNumber( textWrote() )
+newline()                               // 0 0
+
+fileClose( handle )

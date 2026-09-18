@@ -396,3 +396,28 @@ either. See DESIGN §7.
 **Worth knowing anyway**, because it was the shape of the next one, twice over:
 nothing in tier 1 could have caught either. The program compiled, and only the
 assembler objected.
+
+## `fileFailed()` is false when a write was short
+
+`fileWrite` is `AH=40h`, and DOS reports a full disk by **writing what fits and
+returning that count**. It does not set carry, so nothing in §38 says anything
+went wrong:
+
+```momo
+fileWrite( handle, addr( buf ), 512 )
+if ( fileFailed() ) ...                 // false, and 40 bytes went to disk
+```
+
+The count is the only signal. A caller writing a file has to compare it with what
+it asked for, every time:
+
+```momo
+if ( fileWrite( handle, addr( buf ), n ) != n ) ...
+```
+
+**And the close is a write too.** DOS flushes the last partial sector at
+`AH=3Eh`, so a disk that fills on the final buffer fails there and nowhere
+earlier - `fileFailed()` after `fileClose` is the only place that shows.
+
+This cost §54 a silent bug: a save that truncated a file, wrote part of it back
+and was reported as a save. See LESSONS.

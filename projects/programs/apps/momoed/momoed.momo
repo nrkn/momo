@@ -278,7 +278,7 @@ u16 spanToCol
 
 const u8[] sNoFile  = " (new)$"
 const u8[] sSaved   = " saved$"
-const u8[] sFailed  = " WRITE FAILED$"
+const u8[] sFailed  = "WRITE FAILED - file damaged$"
 const u8[] sTooBig  = "file does not fit - not opened$"
 const u8[] sNoLines = "too many lines$"
 const u8[] sNoChunk = "too much text$"
@@ -464,16 +464,29 @@ bool loadFile() {
   return !textNoRoom()
 }
 
+// **A save that could not finish must not be reported as one.** `fileCreate`
+// truncates before a byte is written, so a failure here leaves the file on disk
+// shorter than the document - and the one thing that must not then happen is
+// `dirty` being cleared, because the copy in memory is the only correct one left.
+//
+// Three things can go wrong and only the first used to be looked at.
 bool saveFile() {
   u16 handle
+  bool ok
 
   handle = fileCreate( addr( fileName ) )
   if ( fileFailed() ) return false
 
-  textSave( handle )
-  fileClose( handle )
+  ok = textSave( handle )
 
-  return true
+  // **The close is a write too.** DOS flushes the last partial sector at
+  // `AH=3Eh`, so a disk that fills on the final buffer fails here and nowhere
+  // earlier - which is the one failure that would still have been invisible with
+  // every `fileWrite` checked.
+  fileClose( handle )
+  if ( fileFailed() ) return false
+
+  return ok
 }
 
 // Which of the three limits, and what the machine had. **A file that ran out of

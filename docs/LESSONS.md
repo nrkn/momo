@@ -522,3 +522,37 @@ to mean "something structural moved", which is true of it often enough to look
 right. `drawn = false` is the honest way to say "put the screen back" and is what
 closing the picker and closing a menu already used. A box that has *moved* is a
 close and an open, and had to say so.
+
+## The return value nobody compared, and could not have
+
+`textSave` added up what `fileWrite` returned and handed back the total. Both
+its callers threw it away, and it had been that way since the routine was
+written.
+
+That was not carelessness on the callers' part. The total was a `u16` over a
+buffer that can hold 456 KB, so it wraps - there was no number anybody could
+have compared it against. **An interface whose only error signal is a value
+callers cannot meaningfully check is an interface nobody will check.**
+
+What it was hiding: DOS reports a full disk by writing what fits and returning
+that count, with carry clear. So `fileFailed()` is false on the one failure that
+loses a file, and the discarded number was the only signal there was. A save
+could truncate a file - `fileCreate` does that before a byte is written - put
+part of it back, report success, and `momoed` would then clear `dirty`, leaving
+the only correct copy of the work one keystroke from being forgotten.
+
+Three things to take.
+
+**The rule existed and was applied at one end only.** §55 says *an editor that
+shows you part of a file and then writes that part back over the whole is worse
+than one that will not open it*, which was written about opening and bought with
+a real bug. The same sentence describes saving exactly, and nobody went looking.
+
+**The close is a write.** DOS flushes the last partial sector at `AH=3Eh`, so a
+disk that fills on the final buffer fails there and nowhere else - checking every
+`fileWrite` would still have missed it.
+
+**It was found by reading the code to answer a different question.** The question
+was "what should we build next", and the answer came from looking at what the
+editor does on the operation it exists to perform, rather than from anything
+going wrong.

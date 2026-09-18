@@ -1406,9 +1406,9 @@ local const u8[] lineEnd = "\r\n"
 local const stageBytes = 512
 local u8[stageBytes] stage
 
-// The whole buffer to an already-open handle, returning the bytes written. The
-// handle is the caller's: this knows how a buffer is shaped and nothing about
-// where a file came from.
+// The whole buffer to an already-open handle, answering whether **all** of it
+// got there. The handle is the caller's: this knows how a buffer is shaped and
+// nothing about where a file came from.
 //
 // **A newline goes between lines and not after the last**, which is what makes
 // the round trip exact. A file ending in one loads as a final empty line, so
@@ -1416,25 +1416,62 @@ local u8[stageBytes] stage
 //
 // Each chunk is handed to DOS where it already lies, so nothing is copied on the
 // way out - which is the whole reason this routine is in this file.
-u16 textSave( u16 handle ) {
-  u16 total
+//
+// ---- every write is checked against what it asked for ----------------------
+//
+// **DOS reports a short write by returning a smaller number and leaving carry
+// alone.** `AH=40h` on a disk that filled up halfway writes what fits and says
+// so only in `AX`, so §38's `fileFailed` is silent on the one failure that
+// matters most here. This used to add the counts up and return the total, which
+// nobody compared against anything - so a save could truncate a file, write part
+// of it back, and be reported as a save.
+//
+// §55 has the rule from the other end, written about opening: *an editor that
+// shows you part of a file and then writes that part back over the whole is
+// worse than one that will not open it.* That is this hazard on the way out, and
+// it was never closed.
+//
+// It stops at the first short write. There is nothing to be gained by putting
+// more of a file on a disk that has already refused some of it, and a caller
+// told `false` still has the document in memory, which is the copy that is right.
+//
+// **The byte count is secondary and is a `u16`**, so it wraps past 64 KB and is
+// no use as a check from outside - which is why it is no longer the return.
+// `textWrote` is for a test that knows its fixture is small.
+local u16 saveWrote
+
+u16 textWrote() => saveWrote
+
+local bool putOut( u16 handle, u16 at, u16 n ) {
+  u16 sent
+
+  sent = fileWrite( handle, at, n )
+  saveWrote += sent
+
+  return sent == n
+}
+
+bool textSave( u16 handle ) {
   u16 col
   u16 n
 
-  total = 0
+  saveWrote = 0
 
   for ( u16 ln = 0; ln < lineCount; ln++ ) {
     col = 0
     n = lineSlice( ln, col, stageBytes, addr( stage ) )
 
     while ( n > 0 ) {
-      total += fileWrite( handle, addr( stage ), n )
+      if ( !putOut( handle, addr( stage ), n ) ) return false
+
       col += n
       n = lineSlice( ln, col, stageBytes, addr( stage ) )
     }
 
-    if ( ln + 1 < lineCount ) total += fileWrite( handle, addr( lineEnd ), 2 )
+    if ( ln + 1 < lineCount ) {
+      if ( !putOut( handle, addr( lineEnd ), 2 ) ) return false
+    }
   }
 
-  return total
+  return true
 }

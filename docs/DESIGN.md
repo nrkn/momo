@@ -5528,6 +5528,27 @@ clean.
 
 ---
 
+### A save is checked, because DOS does not report the failure that matters
+
+`textSave` used to add up what `fileWrite` returned and hand back the total.
+Every caller threw it away, and the total was a `u16` that wraps past 64 KB -
+so it was a number nobody could have checked usefully even if they had tried.
+
+**DOS reports a short write by returning a smaller number and leaving carry
+alone.** `AH=40h` on a disk that filled up halfway writes what fits and says so
+only in `AX`, so §38's `fileFailed` is false on exactly the case that loses a
+file. That number was the only signal there was.
+
+The result was that a save could truncate a file, write part of it back, and be
+reported as a save - after which `momoed` cleared `dirty` and the only correct
+copy of the work was one keystroke from being forgotten.
+
+So `textSave` answers **whether all of it got there** and stops at the first
+short write. There is nothing to be gained by putting more of a file onto a disk
+that has already refused some of it, and a caller told `false` still holds the
+document. `textWrote` reports the count for a test that knows its fixture is
+small; it is not a check and does not pretend to be one.
+
 ## 55. `momoed` - the editor
 
 **Partly built**, and which half is which matters more than the status. It
@@ -6029,6 +6050,11 @@ language feature.
   from the string, not written beside it.
 - **A refusal cleans up after itself.** `^O` puts back the file it was showing,
   because the buffer was emptied before the refusal was known.
+- **A save that could not finish does not clear `dirty`.** `fileCreate`
+  truncates before a byte is written, so a failure leaves the file on disk
+  shorter than the document - and the copy in memory is then the only correct one
+  there is. Three things can fail and all three are looked at: the create, every
+  write, and the close, which is where DOS flushes the last partial sector.
 - **Every door refuses unsaved work**, and the way through is to press it again.
   `^O`, `^W` and `^Q` are one rule; a second press is unambiguous where a dialog
   would be a seventh question the prompt has to serve. `^Q` asks about **any**
