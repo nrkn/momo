@@ -25,6 +25,7 @@ include "lib/mofind.momo"
 include "lib/mofield.momo"
 include "lib/morange.momo"
 include "lib/modir.momo"
+include "lib/momenu.momo"
 
 // The frame is declared for the largest text mode this supports, because a `far`
 // region takes a constant size (§16) while the geometry is read back from the
@@ -67,6 +68,13 @@ u8 attrSel
 // white on light grey to a VGA, bright white on white to mode 7 - and every
 // attribute the chrome needs is now in the set that needs no translation.
 u8 attrKey
+
+// The `Alt` letter on the *open* menu's title, where the row is normal video and
+// `attrKey`'s white-on-grey would paint a grey block over it. Bright on the text
+// background instead - which is `0x0F` in both schemes, a fourth byte they agree
+// on after `0x07`, `0x70` and `0x7F`, and so a const rather than a fifth line in
+// each of `useColor` and `useMono`.
+const attrKeyOn = 0x0F
 
 sub useColor {
   attrText   = color( lightGray, black )
@@ -300,7 +308,7 @@ const u8[] sKb       = "K$"
 const u8[] sHere     = ".$"
 const u8[] sNoSlots  = "no free tab - close one first$"
 const u8[] sOneDoc   = "this is the only file open$"
-const u8[] sQuitAgain = "unsaved - ^Q again to quit$"
+const u8[] sQuitAgain = "unsaved - ^Q to quit anyway$"
 
 const u8[] sPickTitle = " pick a character $"
 const u8[] sPickKeys  = " Enter inserts  Esc cancels $"
@@ -654,34 +662,126 @@ sub viewRow( u16 y, u16 at, u16 n ) {
   }
 }
 
-// The panel. Reverse video like the status line - which is the attribute that
-// survives the mono translation unchanged, `0x70` meaning the same thing on an
-// MDA as on a VGA - with the selected row in *normal*, so it reads as a hole
-// punched in the panel rather than needing a colour mono does not have.
-//
-// The selection only shows while the panel has focus. Where the keys are going
-// is the one thing a two-pane screen has to be unambiguous about, and a
-// highlight that stays put when focus leaves is exactly how that gets lost.
 // ---- the menu bar and the tab bar -------------------------------------------
 
-// Static for now: the labels and their `Alt` letters, with nothing behind them.
-// §66 builds the menus themselves on top, and drawing the bar first is what puts
-// `attrKey` in front of a person on real hardware before anything depends on it.
-const u8[] sMenus  = "File  Edit  Search  View$"
-const u8[] menuHot = [ 0, 6, 12, 20 ]
-
-const u8[] sExpTab = "Explorer\0"
-const u8[] sNewTab = "(untitled)\0"
-
 sub drawMenus {
-  rowFill( 0, cols, ' ', attrStatus )
-  rowStr( 1, addr( sMenus ), cols, attrStatus )
+  u16 x
+  u16 at
+  bool lit
 
-  for ( u16 i = 0; i < len( menuHot ); i++ ) {
-    rowPut( 1 + menuHot[i], peek8( addr( sMenus ) + menuHot[i] ), attrKey )
+  rowFill( 0, cols, ' ', attrStatus )
+
+  for ( u16 m = 0; m < menuCount(); m++ ) {
+    at  = menuTitle( m )
+    x   = menuBarX( m )
+    lit = menuUp() && menuAt() == m
+
+    // The open menu's title is a hole in the bar, which is the tab bar's rule and
+    // the explorer's before it - and it joins up with the box hanging below it.
+    rowStr( x, at, cols, lit ? attrText : attrStatus )
+    rowPut( x, peek8( at ), lit ? attrKeyOn : attrKey )
   }
 
   rowBlit( 0, 0, cols )
+}
+
+// ---- the drop-down -----------------------------------------------------------
+//
+// §64's overlay shape: a box over whatever is beneath, composed a row at a time
+// and blitted (§68), with `drawn = false` on the way out as the whole of putting
+// the screen back.
+//
+// It hangs from row one, so it covers the tab bar rather than starting below it -
+// which is what makes it read as dropping out of the title above it.
+const menuBoxY = 1
+
+// Measured rather than assumed. The items are padded to a common width so the
+// accelerators line up, and measuring anyway means a longer one added later
+// widens the box instead of running out of it.
+u16 menuBoxW() {
+  u16 w
+  u16 n
+
+  w = 0
+
+  for ( u16 i = 0; i < menuItemCount( menuAt() ); i++ ) {
+    n = strLen( menuItemText( menuAt(), i ) )
+    if ( n > w ) w = n
+  }
+
+  return w + 4
+}
+
+// Under its own title, pulled left only if it would run off the edge - which is
+// `View` at forty columns, where the box is exactly as wide as what is left.
+u16 menuBoxX() {
+  u16 bx
+  u16 bw
+
+  bx = menuBarX( menuAt() ) - 1
+  bw = menuBoxW()
+
+  if ( bx + bw > cols ) bx = cols - bw
+
+  return bx
+}
+
+// **The lit item is a hole the full width of the box**, not just under its text,
+// so it reads as a bar rather than as a word that changed colour.
+sub drawMenuItem( u16 i ) {
+  u16 bx
+  u16 bw
+  u8  a
+
+  bx = menuBoxX()
+  bw = menuBoxW()
+
+  a = attrStatus
+  if ( i == menuItemAt() ) a = attrText
+
+  rowPut( bx, boxV, attrStatus )
+
+  for ( u16 x = 1; x < bw - 1; x++ ) {
+    rowPut( bx + x, ' ', a )
+  }
+
+  rowStr( bx + 2, menuItemText( menuAt(), i ), bx + bw - 1, a )
+  rowPut( bx + bw - 1, boxV, attrStatus )
+
+  rowBlit( menuBoxY + 1 + i, bx, bx + bw )
+}
+
+sub drawMenuEdge( u16 y, u8 left, u8 right ) {
+  u16 bx
+  u16 bw
+
+  bx = menuBoxX()
+  bw = menuBoxW()
+
+  rowPut( bx, left, attrStatus )
+
+  for ( u16 x = 1; x < bw - 1; x++ ) {
+    rowPut( bx + x, boxH, attrStatus )
+  }
+
+  rowPut( bx + bw - 1, right, attrStatus )
+  rowBlit( y, bx, bx + bw )
+}
+
+sub drawMenuBox {
+  u16 n
+  n = menuItemCount( menuAt() )
+
+  drawMenuEdge( menuBoxY, boxTL, boxTR )
+
+  for ( u16 i = 0; i < n; i++ ) {
+    drawMenuItem( i )
+  }
+
+  drawMenuEdge( menuBoxY + 1 + n, boxBL, boxBR )
+
+  lastMenuAt   = menuAt()
+  lastMenuItem = menuItemAt()
 }
 
 // The name with its directory taken off, **found by looking rather than by
@@ -779,6 +879,14 @@ sub drawTabs {
   rowBlit( 1, 0, cols )
 }
 
+// The panel. Reverse video like the status line - which is the attribute that
+// survives the mono translation unchanged, `0x70` meaning the same thing on an
+// MDA as on a VGA - with the selected row in *normal*, so it reads as a hole
+// punched in the panel rather than needing a colour mono does not have.
+//
+// The selection only shows while the panel has focus. Where the keys are going
+// is the one thing a two-pane screen has to be unambiguous about, and a
+// highlight that stays put when focus leaves is exactly how that gets lost.
 sub drawExplorer {
   u16 h
   u16 i
@@ -1013,6 +1121,11 @@ sub placeCursor {
   // going: the prompt while one is open, the panel while it has focus, the
   // document otherwise. Anything else and the screen is telling you the wrong
   // thing about where you are.
+  if ( menuUp() ) {
+    moveTo( u8( menuBoxX() + 2 ), u8( menuBoxY + 1 + menuItemAt() ) )
+    return
+  }
+
   if ( picking ) {
     moveTo( u8( pickX + pickGridX + ( pickCode & 15 ) * 2 ),
             u8( pickY + pickGridY + ( pickCode >> 4 ) ) )
@@ -1064,6 +1177,9 @@ u16  lastLeft
 bool lastSel
 bool lastAsk
 bool lastPick
+bool lastMenu
+u16  lastMenuAt
+u16  lastMenuItem
 bool drawn
 
 // Rebuilt from nothing, because the directory is not ours and anything may have
@@ -1757,6 +1873,21 @@ sub repaint {
     return
   }
 
+  // The same shape for the drop-down, and only while it is the *same* menu:
+  // moving to another one has to erase the old box, which is what the full path
+  // below does by drawing everything and then the new box over it.
+  if ( menuUp() && lastMenu && menuAt() == lastMenuAt ) {
+    if ( menuItemAt() != lastMenuItem ) {
+      drawMenuItem( lastMenuItem )
+      drawMenuItem( menuItemAt() )
+      lastMenuItem = menuItemAt()
+    }
+
+    drawStatus()
+    placeCursor()
+    return
+  }
+
   h = edHeight()
   sel = viewSelected()
 
@@ -1790,6 +1921,7 @@ sub repaint {
     drawTabs()
   }
 
+  if ( menuUp() ) drawMenuBox()
   if ( picking ) drawPicker()
 
   drawStatus()
@@ -1802,6 +1934,7 @@ sub repaint {
   lastSel  = sel
   lastAsk  = prompting()
   lastPick = picking
+  lastMenu = menuUp()
   drawn    = true
 }
 
@@ -1841,6 +1974,111 @@ const actCycle  = 30
 const actIndent = 31
 const actNewDoc = 32
 const actShut   = 33
+
+// **Reachable from a menu and from nowhere else yet.** `Save As` was a branch
+// inside `^S`, `Exit` was `^Q` handled beside the table, and the picker was `^P`
+// handled ahead of the prompt - so a menu that could only run bound actions
+// would have had three holes in it.
+const actSaveAs = 34
+const actQuit   = 35
+const actPick   = 36
+
+// ---- the menus (§67) ---------------------------------------------------------
+//
+// A blob per menu, because a table of addresses cannot be written down (§13), and
+// the titles in one more so that the bar's layout is **derived rather than
+// written twice**: what used to sit here was a label string and a list of the
+// columns its words started at, which is the same fact in two forms.
+//
+// Each item is padded to a common width so the accelerator lines up. The box is
+// still measured rather than assuming that, because a menu somebody edits later
+// should widen rather than overflow.
+//
+// **The action array is the authority for how many items a menu has.** The pair
+// is an index apart, which is the shape that cost a session in §55's binding
+// tables - the difference is that this one fails visibly: an action array longer
+// than its blob draws blank rows, and one shorter hides rows, where a disagreeing
+// *label* is a label somebody reads. Nothing here can run the wrong command
+// without showing the wrong word first.
+const u8[] sMenuNames = "File$Edit$Search$View$\0"
+
+const u8[] mFile   = "New          ^T$"
+                     "Open...      ^O$"
+                     "Save         ^S$"
+                     "Save As...     $"
+                     "Close        ^W$"
+                     "Exit         ^Q$"
+                     "\0"
+
+const u8[] mEdit   = "Undo         ^Z$"
+                     "Redo         ^Y$"
+                     "Cut          ^X$"
+                     "Copy         ^C$"
+                     "Paste        ^V$"
+                     "Select All   ^A$"
+                     "Character... ^P$"
+                     "\0"
+
+const u8[] mSearch = "Find...      ^F$"
+                     "Find Next    ^L$"
+                     "Replace...   ^R$"
+                     "Go to Line   ^G$"
+                     "\0"
+
+const u8[] mView   = "Explorer     ^B$"
+                     "\0"
+
+const u8[] aFile   = [ actNewDoc, actOpen, actSave, actSaveAs, actShut, actQuit ]
+const u8[] aEdit   = [ actUndo, actRedo, actCut, actCopy, actPaste, actAll, actPick ]
+const u8[] aSearch = [ actFind, actAgain, actRepl, actGoto ]
+const u8[] aView   = [ actExplor ]
+
+u16 menuBlobOf( u16 m ) {
+  if ( m == 0 ) return addr( mFile )
+  if ( m == 1 ) return addr( mEdit )
+  if ( m == 2 ) return addr( mSearch )
+
+  return addr( mView )
+}
+
+u8 menuAction( u16 m, u16 i ) {
+  if ( m == 0 ) return aFile[i]
+  if ( m == 1 ) return aEdit[i]
+  if ( m == 2 ) return aSearch[i]
+
+  return aView[i]
+}
+
+// ---- what §67 asks the program (§37) ----
+
+u16 menuCount() => strParts( addr( sMenuNames ) )
+u16 menuTitle( u16 m ) => nthStr( addr( sMenuNames ), m )
+
+u16 menuItemCount( u16 m ) {
+  if ( m == 0 ) return len( aFile )
+  if ( m == 1 ) return len( aEdit )
+  if ( m == 2 ) return len( aSearch )
+
+  return len( aView )
+}
+
+u16 menuItemText( u16 m, u16 i ) => nthStr( menuBlobOf( m ), i )
+
+// Where each title starts on the bar, from the titles themselves - two spaces
+// between, one at the left. A menu renamed moves its own drop-down.
+u16 menuBarX( u16 m ) {
+  u16 x
+  x = 1
+
+  for ( u16 i = 0; i < m; i++ ) {
+    x = x + strLen( menuTitle( i ) ) + 2
+  }
+
+  return x
+}
+
+const u8[] sExpTab = "Explorer\0"
+const u8[] sNewTab = "(untitled)\0"
 
 // No chord in this table yet, and the machinery is kept rather than removed:
 // `^K ^C` for a comment toggle is the obvious first one, and `edloop` holds
@@ -1904,6 +2142,67 @@ const u8[] bindAction = [
   actTop, actBottom,
   actCycle, actIndent, actNewDoc, actShut
 ]
+
+// ---- the menu bar, driven (§67) ----------------------------------------------
+//
+// **The scancodes are in the order the menus are.** `Alt`+letter reports the
+// letter key's own scancode with nothing in the low byte, which §57 measured, and
+// there is no arithmetic from a letter to its scancode - so this is a table, and
+// the one thing it has to agree with is the order of `sMenuNames`.
+//
+// A disagreement is an `Alt` key that opens the wrong menu, which is visible on
+// the first press. Out of range is refused by `menuShow` rather than read past
+// the end of anything.
+const u16[] menuAlt = [
+  keyExt + keyAltF,
+  keyExt + keyAltE,
+  keyExt + keyAltS,
+  keyExt + keyAltV
+]
+
+sub openMenu( u16 m ) {
+  message = 0
+  menuShow( m )
+  needExp = true
+}
+
+// `F10` opens the first, which is what `edit.com` and Turbo Pascal do and is what
+// somebody who has used a DOS editor will try - and §57 measured that `Alt` on
+// its own is not a key, so there is no other way in without a letter.
+bool menuOpened( u16 k ) {
+  if ( k == keyExt + keyF10 ) {
+    openMenu( 0 )
+    return true
+  }
+
+  for ( u16 m = 0; m < len( menuAlt ); m++ ) {
+    if ( k == menuAlt[m] ) {
+      openMenu( m )
+      return true
+    }
+  }
+
+  return false
+}
+
+// **`needExp` on every keystroke**, which is §66's trigger for "something
+// structural moved" and is what redraws the bar's highlight when the open menu
+// changes. The cheap path in `repaint` does not consult it, so this costs
+// nothing on the frames that take that path.
+sub menuStep( u16 k ) {
+  u8 r
+
+  needExp = true
+  r = menuKey( k )
+
+  if ( r == menuGoing ) return
+
+  // Either way the box has to come off the screen, and `drawn` going false is the
+  // whole of that - the same as closing the picker.
+  drawn = false
+
+  if ( r == menuChosen ) apply( menuAction( menuAt(), menuItemAt() ), 0 )
+}
 
 // Quitting is not in the table, because a loop has to be able to stop whatever
 // the table says and a rebindable quit is a rebindable way to lose the door.
@@ -2640,6 +2939,15 @@ sub apply( u8 a, u16 k ) {
     newDoc()
   } else if ( a == actShut ) {
     closeDoc()
+  } else if ( a == actSaveAs ) {
+    // Straight to the question rather than through `doSave`, which only asks when
+    // there is no name - and "Save As" on a named file is the case that exists
+    // for.
+    promptOpen( askSave, addr( sSave ) )
+  } else if ( a == actQuit ) {
+    tryQuit()
+  } else if ( a == actPick ) {
+    openPicker()
   } else if ( a == actRepl ) {
     promptOpen( askTerm, addr( sTerm ) )
     prefillFromSelection()
@@ -2681,6 +2989,14 @@ sub step( u16 k ) {
   // picker and the prompt both return before the rest of this runs.
   if ( k != keyQuit ) quitAsked = false
 
+  // **An open menu owns the keyboard**, ahead of the picker and the prompt alike.
+  // §67 swallows whatever it does not recognise, so nothing reaches the document
+  // behind it and Escape is the only way back.
+  if ( menuUp() ) {
+    menuStep( k )
+    return
+  }
+
   // The prompt takes everything, including `^Q` - a door out of a mode is `Esc`
   // and putting a second one in would mean a keystroke meant for the field
   // could close the program instead.
@@ -2717,6 +3033,11 @@ sub step( u16 k ) {
     selecting = true
     k = keyExt + ( k - keyShift )
   }
+
+  // **Before the panel, because a menu bar belongs to the screen** rather than to
+  // whichever pane has focus - `Alt+F` from the explorer opens File, the same as
+  // it does from the document.
+  if ( menuOpened( k ) ) return
 
   // After the fold, so the panel sees a shifted arrow as an arrow, and before
   // everything else, because a focused panel owns the keyboard.

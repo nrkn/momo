@@ -1,0 +1,191 @@
+// momenu.momo - shared/lib/momenu.momo held against numbers (DESIGN §67, §14).
+//
+// The keys go in already normalised, the way §60's project feeds them: what is
+// under test is the state machine, and §57 has its own project for the half
+// above it.
+//
+// **The fixture is ragged and collides on purpose.** Menus of four, three, one
+// and no items, and an `Edit` whose first letters are C, C, P, C - because the
+// three things worth testing here are the wrap between menus of different
+// lengths, a letter that matches more than one item, and a menu that must not be
+// landed on at all.
+
+include "lib/std/io.momo"
+include "lib/std/str.momo"
+include "lib/momenu.momo"
+
+// ---- the tables, which are the program's (§37) ------------------------------
+//
+// A blob per menu, because a table of addresses cannot be written down - §13 has
+// the reason and `strParts` is what makes the count derived rather than a second
+// number to keep in step.
+//
+// `Nothing` is the empty one. It is last only so that stepping onto it has to
+// wrap to be reached, which is the path that would have divided by zero.
+const u8[] tTitles = "Edit$View$File$Nothing$\0"
+
+const u8[] tEdit    = "Cut$Copy$Paste$Character$\0"
+const u8[] tView    = "Explorer$\0"
+const u8[] tFile    = "New$Open$Save$\0"
+const u8[] tNothing = "\0"
+
+u16 menuBlob( u16 m ) {
+  if ( m == 0 ) return addr( tEdit )
+  if ( m == 1 ) return addr( tView )
+  if ( m == 2 ) return addr( tFile )
+
+  return addr( tNothing )
+}
+
+u16 menuCount() => strParts( addr( tTitles ) )
+u16 menuTitle( u16 m ) => nthStr( addr( tTitles ), m )
+
+u16 menuItemCount( u16 m ) => strParts( menuBlob( m ) )
+u16 menuItemText( u16 m, u16 i ) => nthStr( menuBlob( m ), i )
+
+// ---- driving it ----
+
+u8 res
+
+sub press( u16 k ) {
+  res = menuKey( k )
+}
+
+sub show {
+  putNumber( u16( menuUp() ) )
+  putChar( ' ' )
+  putNumber( menuAt() )
+  putChar( ' ' )
+  putNumber( menuItemAt() )
+  newline()
+}
+
+// ---- entry ----
+
+putNumber( menuCount() )
+putChar( ' ' )
+putNumber( menuItemCount( 0 ) )
+putChar( ' ' )
+putNumber( menuItemCount( 3 ) )
+newline()                               // 4 4 0
+
+// Closed, and a keystroke is not its business.
+show()                                  // 0 0 0
+
+press( keyExt + keyDown )
+putNumber( res )
+newline()                               // 0
+show()                                  // 0 0 0
+
+// ---- opening ----
+
+putNumber( u16( menuOpenFor( 'e' ) ) )
+newline()                               // 1
+show()                                  // 1 0 0
+
+// **The letter is case-folded**, and it is the label's first letter rather than
+// a table - so `View` is reached by `v` without anything saying so twice.
+menuHide()
+putNumber( u16( menuOpenFor( 'V' ) ) )
+newline()                               // 1
+show()                                  // 1 1 0
+
+// A letter nothing starts with leaves it closed and says so.
+menuHide()
+putNumber( u16( menuOpenFor( 'z' ) ) )
+newline()                               // 0
+show()                                  // 0 1 0
+
+// A menu with no items does not open, which every motion below depends on.
+putNumber( u16( menuOpenFor( 'n' ) ) )
+newline()                               // 0
+show()                                  // 0 1 0
+
+// Out of range does nothing rather than trusting the caller.
+menuShow( 9 )
+show()                                  // 0 1 0
+
+// ---- the items ----
+
+menuShow( 0 )
+show()                                  // 1 0 0
+
+press( keyExt + keyDown )
+press( keyExt + keyDown )
+show()                                  // 1 0 2
+
+// Up past the first wraps to the last, which is four items and not three.
+press( keyExt + keyUp )
+press( keyExt + keyUp )
+press( keyExt + keyUp )
+show()                                  // 1 0 3
+
+press( keyExt + keyHome )
+show()                                  // 1 0 0
+
+press( keyExt + keyEnd )
+show()                                  // 1 0 3
+
+// ---- between menus ----
+//
+// The item goes back to the first, which is what removes the ragged edge: item
+// three of `Edit` has no counterpart in `View`'s one.
+
+press( keyExt + keyRight )
+show()                                  // 1 1 0
+
+// **`Nothing` is stepped over.** Right from `File` is slot three, which has no
+// items, so it carries on to slot zero - and Down after it divides by four
+// rather than by nothing.
+press( keyExt + keyRight )
+show()                                  // 1 2 0
+
+press( keyExt + keyRight )
+show()                                  // 1 0 0
+
+press( keyExt + keyDown )
+show()                                  // 1 0 1
+
+// And backwards over it too.
+press( keyExt + keyLeft )
+show()                                  // 1 2 0
+
+// ---- a letter that matches three items ---------------------------------------
+//
+// `Cut`, `Copy` and `Character` all start with C, which is why pressing it
+// cycles rather than choosing: there is no unique letter to mark, and §66
+// measured that there is no attribute to mark one with in mode 7 either.
+
+menuShow( 0 )
+show()                                  // 1 0 0
+
+press( 'c' )
+show()                                  // 1 0 1
+
+press( 'c' )
+show()                                  // 1 0 3
+
+press( 'c' )
+show()                                  // 1 0 0
+
+// A letter nothing starts with leaves the cursor alone.
+press( 'z' )
+show()                                  // 1 0 0
+
+// ---- the two ways out ----
+
+press( keyExt + keyDown )
+press( 13 )
+putNumber( res )
+newline()                               // 2
+
+// **The answer survives the close**, which is what a caller reads after being
+// told something was chosen - §54's shape, where `undoOnce` reports where it
+// landed through a separate pair.
+show()                                  // 0 0 1
+
+menuShow( 2 )
+press( 27 )
+putNumber( res )
+newline()                               // 1
+show()                                  // 0 2 0

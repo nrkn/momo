@@ -6885,3 +6885,98 @@ untouched, and `drawrate` is what says that matters.
   goes after the content, not before it.
 - **Compose a row before writing any of it** when more than one thing goes on it.
 - **A routine that returns early composes; its caller writes.**
+
+## 67. The menus
+
+**Built.** `shared/lib/momenu.momo` with `momenu` as its test project, and the
+tables, the drawing and the key routing in `momoed`.
+
+`Alt`+F, E, S or V opens a menu, `F10` opens the first, the arrows walk the bar
+and the items, a letter jumps, Enter chooses and Escape closes.
+
+### It is a library, which §64 was not
+
+§64's picker stayed in the program because its screen-independent part was a
+masked byte and two comparisons - there was no behaviour a test project could
+hold against an answer. This is the other side of that line: which menu is open,
+which item is lit, moving *between* menus of different lengths, a letter that
+matches three items, a menu that must not be opened at all. Those are edges.
+
+The seam is four routines the program defines, all of which its drawing needs
+anyway, so nothing exists for the library's sake:
+
+    u16 menuCount()
+    u16 menuTitle( u16 m )
+    u16 menuItemCount( u16 m )
+    u16 menuItemText( u16 m, u16 i )
+
+**The hotkey is the title's first letter**, asked for rather than tabulated, so
+it cannot drift from the letter the bar draws in `attrKey`. The bar's layout is
+derived from the same titles - a menu renamed moves its own drop-down - which
+replaced a label string and a list of the columns its words began at, the same
+fact in two forms.
+
+### No bar-without-a-drop-down state
+
+`edit.com` has one: `F10` lights a title and the menu drops on Enter or Down.
+This does not - `F10` opens the first menu dropped, and Left and Right move
+between menus with the drop-down following.
+
+Two states rather than three, and the one dropped is the one that answers a
+keystroke with nothing visibly happening. Escape closes what is open, which is
+all there is to close.
+
+### A letter jumps; it does not choose
+
+`edit.com` chooses on the letter, which needs a unique marked letter per item.
+There is no unique letter to be had: `Edit` alone has Cut, Copy and Character,
+and `File` has Save and Save As.
+
+The usual answer is to mark a different letter in each - Save **A**s, C**o**py -
+and §66 measured that this cannot draw one. Underline does not render in mode 7,
+and a lit item is normal video with no state left to spare on one character.
+
+So the letter jumps to the next item starting with it, wrapping - §62's rule for
+a file list - and Enter chooses. Press `c` three times in `Edit` and you visit
+all three. **A mark one adapter cannot draw is worse than no mark**, and the
+behaviour that needs no mark is the one that survives.
+
+### An empty menu is refused, and the failure was a hang
+
+Every motion divides by the item count, so a menu with none is a divide by zero.
+`menuShow` refuses to open one and `menuNext` and `menuPrev` step over it - and
+the second is not the first: they could not have borrowed the guard, because they
+do not go through it.
+
+Found by putting an empty menu in the fixture, which is most of the reason the
+fixture has one. Taking the guard out again does not crash the test: **it hangs
+it**, which is what a person would have got too - not an editor that says
+something, an editor that stops.
+
+### The action array is the authority
+
+An item's label lives in a `$`-blob and its action in a `const u8[]`, an index
+apart - which is the shape that cost a session in §55's binding tables.
+
+The difference is that this one **fails visibly**. `menuItemCount` reads the
+action array's length, so an array longer than its blob draws blank rows and one
+shorter hides rows, and a pair that has drifted shows the wrong *word* before it
+runs the wrong command. §55's tables could disagree in silence; these cannot.
+
+What is on the menus is not written down here. They are only commands the editor
+already has, the tables in `momoed.momo` are readable, and a list in prose would
+be a third copy of the pair above - drifting from both.
+
+### Rules
+
+- **An open menu owns the keyboard**, ahead of the picker and the prompt alike,
+  and swallows what it does not recognise - so nothing reaches the document
+  behind it and Escape is the only way back.
+- **The bar belongs to the screen, not to a pane.** `Alt+F` opens File from the
+  explorer as readily as from the document.
+- **The open title is a hole in the bar**, joining up with the box below it -
+  the tab bar's rule and the explorer's before it.
+- **The lit item is a hole the full width of the box**, not just under its text,
+  so it reads as a bar rather than as a word that changed colour.
+- **`0x0F` marks the letter on the open title**, where `attrKey`'s white-on-grey
+  would paint a block on a normal-video row. A fourth byte both schemes agree on.

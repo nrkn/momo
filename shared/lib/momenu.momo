@@ -1,0 +1,186 @@
+// momenu.momo - a menu bar and one drop-down (DESIGN §67).
+//
+// Which menu is open, which item is lit, and one routine that takes a normalised
+// keystroke and says what it meant. Not a widget: it draws nothing, because the
+// bar and the drop-down are drawn in different places by a program that knows
+// its own geometry.
+//
+// **It is a library for §55's reason rather than for reuse.** Everything a
+// headless tier can run lives below `momoed`, and what is here is a state
+// machine with edges - moving between menus while one is open, a letter that
+// matches more than one item, Escape, a menu that does not exist. §64's picker
+// stayed in the program because its screen-independent part was a masked byte
+// and two comparisons; this is the other side of that line.
+//
+// ---- what the program defines (§37) ----------------------------------------
+//
+//   u16 menuCount()                      how many menus on the bar
+//   u16 menuTitle( u16 m )               its label, `$`-terminated
+//   u16 menuItemCount( u16 m )           how many items menu `m` drops
+//   u16 menuItemText( u16 m, u16 i )     item `i`'s label, `$`-terminated
+//
+// The same seam `viewRow` and `fieldCopyOut` use, and for the same reason: the
+// tables are the program's, the arithmetic is not. Every one of these is a
+// routine the drawing needs anyway, so nothing exists here for this file's sake.
+//
+// **The hotkey is the label's first letter**, asked for rather than tabulated,
+// so it cannot drift from the letter the bar draws in `attrKey`.
+
+include "lib/std/key.momo"
+
+// What a keystroke meant. `menuChosen` leaves `menuAt` and `menuItemAt` on the
+// answer - §54's shape, where `undoOnce` reports where it landed through a
+// separate pair rather than through the return.
+const menuGoing  = 0
+const menuClosed = 1
+const menuChosen = 2
+
+local bool showing
+local u16 curMenu
+local u16 curItem
+
+bool menuUp()     => showing
+u16  menuAt()     => curMenu
+u16  menuItemAt() => curItem
+
+local u8 fold( u8 c ) => c >= 'a' && c <= 'z' ? c - 32 : c
+
+local u16 itemsHere() => menuItemCount( curMenu )
+
+// **A menu with no items does not open.** Every motion below divides by the
+// count, and an empty menu is a program's table being wrong rather than a state
+// worth drawing.
+sub menuShow( u16 m ) {
+  if ( m >= menuCount() ) return
+  if ( menuItemCount( m ) == 0 ) return
+
+  showing = true
+  curMenu = m
+  curItem = 0
+}
+
+sub menuHide {
+  showing = false
+}
+
+// The menu whose label starts with this letter. The program hands over what
+// `Alt`+letter reported; which letter belongs to which menu is answered here so
+// that the bar's labels are the only place it is written down.
+bool menuOpenFor( u8 c ) {
+  for ( u16 m = 0; m < menuCount(); m++ ) {
+    if ( fold( peek8( menuTitle( m ) ) ) == fold( c ) ) {
+      menuShow( m )
+      return showing
+    }
+  }
+
+  return false
+}
+
+// **Moving between menus resets to the first item**, which is what every menu
+// bar does and is also what removes the one edge a ragged table has: menu A's
+// sixth item has no counterpart in menu B's four.
+//
+// **An empty menu is stepped over rather than landed on.** `menuShow` refuses to
+// open one, and these have to refuse for the same reason and could not have
+// borrowed it: every motion below divides by the item count, and arriving on a
+// menu with none is a divide by zero rather than an empty box. Found by putting
+// one in the fixture, which is most of why the fixture has one.
+//
+// Taking the guard out again does not crash the test - **it hangs it**, which is
+// the symptom a person would get too: not an editor that says something, an
+// editor that stops.
+local sub menuGo( u16 by ) {
+  u16 m
+  m = curMenu
+
+  for ( u16 i = 0; i < menuCount(); i++ ) {
+    m = ( m + by ) % menuCount()
+    if ( menuItemCount( m ) > 0 ) break
+  }
+
+  curMenu = m
+  curItem = 0
+}
+
+sub menuNext {
+  menuGo( 1 )
+}
+
+sub menuPrev {
+  menuGo( menuCount() - 1 )
+}
+
+// **The next item starting with this letter, from the one after the cursor and
+// wrapping** - §62's rule for a file list, and here for a reason that rule did
+// not have: two items in one menu genuinely do start with the same letter, and
+// there are three of them in `Edit` alone.
+//
+// A marked letter per item is the usual answer and this cannot have one. §66
+// measured that underline does not render in mode 7 and that a normal-video row
+// has no fourth state left, so a mark would be a mark one adapter cannot draw.
+// Cycling needs no mark at all: press the letter again.
+bool menuJump( u8 c ) {
+  u16 n
+  u16 at
+
+  n = itemsHere()
+  if ( n == 0 ) return false
+
+  for ( u16 i = 1; i <= n; i++ ) {
+    at = ( curItem + i ) % n
+
+    if ( fold( peek8( menuItemText( curMenu, at ) ) ) == fold( c ) ) {
+      curItem = at
+      return true
+    }
+  }
+
+  return false
+}
+
+// ---- one keystroke ----
+//
+// The same normalised `u16` §57 hands the editor. Shift is folded back out the
+// way §60 and §55 do it: nothing here is shifted, so a shifted arrow is still an
+// arrow rather than a key this does not recognise.
+//
+// **Anything unbound is swallowed rather than passed on.** An open menu owns the
+// keyboard, which is what makes Escape the only way back and means a stray
+// function key cannot edit the document behind it.
+u8 menuKey( u16 k ) {
+  if ( !showing ) return menuGoing
+
+  if ( k >= keyShift ) k = keyExt + ( k - keyShift )
+
+  if ( k == keyEsc ) {
+    showing = false
+    return menuClosed
+  }
+
+  if ( k == 13 ) {
+    showing = false
+    return menuChosen
+  }
+
+  if ( k == keyExt + keyLeft )  menuPrev()
+  if ( k == keyExt + keyRight ) menuNext()
+  if ( k == keyExt + keyHome )  curItem = 0
+  if ( k == keyExt + keyEnd )   curItem = itemsHere() - 1
+
+  if ( k == keyExt + keyUp ) {
+    curItem = ( curItem + itemsHere() - 1 ) % itemsHere()
+  }
+
+  if ( k == keyExt + keyDown ) {
+    curItem = ( curItem + 1 ) % itemsHere()
+  }
+
+  // **A letter jumps and does not choose.** Choosing on the letter is what
+  // `edit.com` does and it needs a unique marked letter per item, which the
+  // paragraph above says this cannot have. Enter is one more key and is never
+  // ambiguous.
+  if ( k >= 32 && k < keyExt ) menuJump( u8( k ) )
+
+  return menuGoing
+}

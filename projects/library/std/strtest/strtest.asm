@@ -367,6 +367,50 @@ __entry:
 ; ---- showLines( len( allSkip ) )               // 0:
         mov     word [showLines__n], 15
         call    showLines
+; ---- putNumber( strParts( addr( blobThree ) ) )
+        mov     ax, blobThree               ; link-time constant
+        mov     [strParts__at], ax
+        call    strParts
+        mov     ax, [strParts__ret]
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- newline()                               // 3
+        call    newline
+; ---- putNumber( strParts( addr( blobOne ) ) )
+        mov     ax, blobOne                 ; link-time constant
+        mov     [strParts__at], ax
+        call    strParts
+        mov     ax, [strParts__ret]
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- newline()                               // 1
+        call    newline
+; ---- putNumber( strParts( addr( blobNone ) ) )
+        mov     ax, blobNone                ; link-time constant
+        mov     [strParts__at], ax
+        call    strParts
+        mov     ax, [strParts__ret]
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- newline()                               // 0
+        call    newline
+; ---- putStr( nthStr( addr( blobThree ), strParts( addr( blobThree ) ) - 1 ) )
+        mov     ax, blobThree               ; link-time constant
+        push    ax                          ; argument evaluated before any is stored
+        mov     ax, blobThree               ; link-time constant
+        mov     [strParts__at], ax
+        call    strParts
+        mov     ax, [strParts__ret]
+        dec     ax
+        mov     [nthStr__n], ax
+        pop     ax
+        mov     [nthStr__at], ax
+        call    nthStr
+        mov     ax, [nthStr__ret]
+        mov     [putStr__at], ax
+        call    putStr
+; ---- newline()                               // gamma
+        call    newline
 
 ; ---- implicit exit ----
         mov     word [_ax], 0x4C00          ; DOS terminate, exit code 0
@@ -525,6 +569,42 @@ strCopy:
 .L18:
         ret
 
+; ============================================== u16 strParts ====
+
+strParts:
+; ---- n = 0
+        mov     word [strParts__n], 0
+; ---- i = 0
+        mov     word [strParts__i], 0
+; ---- while ( peek8( at + i ) != 0 ) {
+.L22:
+        mov     ax, [strParts__at]
+        mov     bx, [strParts__i]
+        add     ax, bx
+        mov     bx, ax
+        mov     al, [bx]                    ; peek8 - unchecked, by design
+        test    al, al
+        je      .L24                        ; unsigned !=
+; ---- if ( peek8( at + i ) == strEnd ) n++
+        mov     ax, [strParts__at]
+        mov     bx, [strParts__i]
+        add     ax, bx
+        mov     bx, ax
+        mov     al, [bx]                    ; peek8 - unchecked, by design
+        cmp     al, 36                      ; byte operands, no widening
+        jne     .L26                        ; unsigned ==
+        inc     word [strParts__n]
+.L26:
+; ---- i++
+        inc     word [strParts__i]
+.L23:
+        jmp     .L22
+.L24:
+; ---- return n
+        mov     ax, [strParts__n]
+        mov     [strParts__ret], ax
+        ret
+
 ; ============================================== u16 nthStr ====
 
 nthStr:
@@ -533,11 +613,11 @@ nthStr:
 ; ---- seen = 0
         mov     word [nthStr__seen], 0
 ; ---- while ( seen < n ) {
-.L22:
+.L29:
         mov     ax, [nthStr__seen]
         mov     bx, [nthStr__n]
         cmp     ax, bx
-        jae     .L24                        ; unsigned <
+        jae     .L31                        ; unsigned <
 ; ---- if ( peek8( at + i ) == strEnd ) seen++
         mov     ax, [nthStr__at]
         mov     bx, [nthStr__i]
@@ -545,14 +625,14 @@ nthStr:
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
         cmp     al, 36                      ; byte operands, no widening
-        jne     .L26                        ; unsigned ==
+        jne     .L33                        ; unsigned ==
         inc     word [nthStr__seen]
-.L26:
+.L33:
 ; ---- i++
         inc     word [nthStr__i]
-.L23:
-        jmp     .L22
-.L24:
+.L30:
+        jmp     .L29
+.L31:
 ; ---- return at + i
         mov     ax, [nthStr__at]
         mov     bx, [nthStr__i]
@@ -566,7 +646,7 @@ strCmp:
 ; ---- i = 0
         mov     word [strCmp__i], 0
 ; ---- for ( ;; ) {
-.L29:
+.L36:
 ; ---- ca = peek8( a + i )
         mov     ax, [strCmp__a]
         mov     bx, [strCmp__i]
@@ -584,7 +664,7 @@ strCmp:
 ; ---- if ( ca != cb ) return i16( ca ) - i16( cb )
         mov     al, [strCmp__ca]
         cmp     al, [strCmp__cb]            ; byte operands, no widening
-        je      .L32                        ; unsigned !=
+        je      .L39                        ; unsigned !=
         mov     al, [strCmp__ca]
         xor     ah, ah                      ; u8 -> u16
         push    ax                          ; save lhs: rhs is not a leaf
@@ -595,19 +675,19 @@ strCmp:
         sub     ax, bx
         mov     [strCmp__ret], ax
         ret
-.L32:
+.L39:
 ; ---- if ( ca == strEnd ) return 0
         mov     al, [strCmp__ca]
         cmp     al, 36                      ; byte operands, no widening
-        jne     .L35                        ; unsigned ==
+        jne     .L42                        ; unsigned ==
         mov     word [strCmp__ret], 0
         ret
-.L35:
+.L42:
 ; ---- i++
         inc     word [strCmp__i]
-.L30:
-        jmp     .L29
-.L31:
+.L37:
+        jmp     .L36
+.L38:
         ret
 
 ; ============================================== u16 strFind ====
@@ -616,7 +696,7 @@ strFind:
 ; ---- i = 0
         mov     word [strFind__i], 0
 ; ---- for ( ;; ) {
-.L38:
+.L45:
 ; ---- c = peek8( at + i )
         mov     ax, [strFind__at]
         mov     bx, [strFind__i]
@@ -626,25 +706,25 @@ strFind:
         mov     [strFind__c], al            ; u8 -> u8, no widening
 ; ---- if ( c == ch ) return at + i
         cmp     al, [strFind__ch]           ; byte operands, no widening
-        jne     .L41                        ; unsigned ==
+        jne     .L48                        ; unsigned ==
         mov     ax, [strFind__at]
         mov     bx, [strFind__i]
         add     ax, bx
         mov     [strFind__ret], ax
         ret
-.L41:
+.L48:
 ; ---- if ( c == strEnd ) return 0
         mov     al, [strFind__c]
         cmp     al, 36                      ; byte operands, no widening
-        jne     .L44                        ; unsigned ==
+        jne     .L51                        ; unsigned ==
         mov     word [strFind__ret], 0
         ret
-.L44:
+.L51:
 ; ---- i++
         inc     word [strFind__i]
-.L39:
-        jmp     .L38
-.L40:
+.L46:
+        jmp     .L45
+.L47:
         ret
 
 ; ============================================== sub memCopy ====
@@ -652,11 +732,11 @@ strFind:
 memCopy:
 ; ---- for ( u16 i = 0; i < count; i++ ) {
         mov     word [memCopy__i], 0
-.L47:
+.L54:
         mov     ax, [memCopy__i]
         mov     bx, [memCopy__count]
         cmp     ax, bx
-        jae     .L49                        ; unsigned <
+        jae     .L56                        ; unsigned <
 ; ---- poke8( to + i, peek8( from + i ) )
         mov     ax, [memCopy__to]
         mov     bx, [memCopy__i]
@@ -669,10 +749,10 @@ memCopy:
         mov     al, [bx]                    ; peek8 - unchecked, by design
         pop     bx
         mov     [bx], al
-.L48:
+.L55:
         inc     word [memCopy__i]
-        jmp     .L47
-.L49:
+        jmp     .L54
+.L56:
         ret
 
 ; ============================================== sub memFill ====
@@ -680,11 +760,11 @@ memCopy:
 memFill:
 ; ---- for ( u16 i = 0; i < count; i++ ) {
         mov     word [memFill__i], 0
-.L51:
+.L58:
         mov     ax, [memFill__i]
         mov     bx, [memFill__count]
         cmp     ax, bx
-        jae     .L53                        ; unsigned <
+        jae     .L60                        ; unsigned <
 ; ---- poke8( at + i, value )
         mov     ax, [memFill__at]
         mov     bx, [memFill__i]
@@ -693,10 +773,10 @@ memFill:
         mov     al, [memFill__value]
         pop     bx
         mov     [bx], al
-.L52:
+.L59:
         inc     word [memFill__i]
-        jmp     .L51
-.L53:
+        jmp     .L58
+.L60:
         ret
 
 ; ============================================== u16 strLines ====
@@ -710,13 +790,13 @@ strLines:
         mov     byte [strLines__comment], 0
 ; ---- for ( u16 i = 0; i < bytes; i++ ) {
         mov     word [strLines__i], 0
-.L55:
+.L62:
         mov     ax, [strLines__i]
         mov     bx, [strLines__bytes]
         cmp     ax, bx
-        jb      .L58                        ; unsigned <
-        jmp     .L57
-.L58:
+        jb      .L65                        ; unsigned <
+        jmp     .L64
+.L65:
 ; ---- ch = peek8( at + i )
         mov     ax, [strLines__at]
         mov     bx, [strLines__i]
@@ -726,20 +806,20 @@ strLines:
         mov     [strLines__ch], al          ; u8 -> u8, no widening
 ; ---- if ( ch == 13 ) continue
         cmp     al, 13                      ; byte operands, no widening
-        jne     .L59                        ; unsigned ==
-        jmp     .L56
-.L59:
+        jne     .L66                        ; unsigned ==
+        jmp     .L63
+.L66:
 ; ---- if ( ch == 10 ) {
         mov     al, [strLines__ch]
         cmp     al, 10                      ; byte operands, no widening
-        jne     .L62                        ; unsigned ==
+        jne     .L69                        ; unsigned ==
 ; ---- if ( !atStart && !comment ) {
         mov     al, [strLines__atStart]
         test    al, al
-        jnz     .L65
+        jnz     .L72
         mov     al, [strLines__comment]
         test    al, al
-        jnz     .L65
+        jnz     .L72
 ; ---- poke8( at + out, strEnd )
         mov     ax, [strLines__at]
         mov     bx, [strLines__out]
@@ -748,41 +828,41 @@ strLines:
         mov     byte [bx], 36
 ; ---- out++
         inc     word [strLines__out]
-.L65:
+.L72:
 ; ---- atStart = true
         mov     byte [strLines__atStart], 1
 ; ---- comment = false
         mov     byte [strLines__comment], 0
 ; ---- continue
-        jmp     .L56
-.L62:
-; ---- if ( atStart && ch == '#' ) {
-        mov     al, [strLines__atStart]
-        test    al, al
-        jz      .L69
-        mov     al, [strLines__ch]
-        cmp     al, 35                      ; byte operands, no widening
-        jne     .L69                        ; unsigned ==
-; ---- comment = true
-        mov     byte [strLines__comment], 1
-; ---- continue
-        jmp     .L56
+        jmp     .L63
 .L69:
-; ---- if ( comment ) continue
-        mov     al, [strLines__comment]
-        test    al, al
-        jz      .L73
-        jmp     .L56
-.L73:
-; ---- if ( atStart && ch == ' ' ) continue
+; ---- if ( atStart && ch == '#' ) {
         mov     al, [strLines__atStart]
         test    al, al
         jz      .L76
         mov     al, [strLines__ch]
-        cmp     al, 32                      ; byte operands, no widening
+        cmp     al, 35                      ; byte operands, no widening
         jne     .L76                        ; unsigned ==
-        jmp     .L56
+; ---- comment = true
+        mov     byte [strLines__comment], 1
+; ---- continue
+        jmp     .L63
 .L76:
+; ---- if ( comment ) continue
+        mov     al, [strLines__comment]
+        test    al, al
+        jz      .L80
+        jmp     .L63
+.L80:
+; ---- if ( atStart && ch == ' ' ) continue
+        mov     al, [strLines__atStart]
+        test    al, al
+        jz      .L83
+        mov     al, [strLines__ch]
+        cmp     al, 32                      ; byte operands, no widening
+        jne     .L83                        ; unsigned ==
+        jmp     .L63
+.L83:
 ; ---- atStart = false
         mov     byte [strLines__atStart], 0
 ; ---- poke8( at + out, ch )
@@ -795,17 +875,17 @@ strLines:
         mov     [bx], al
 ; ---- out++
         inc     word [strLines__out]
-.L56:
+.L63:
         inc     word [strLines__i]
-        jmp     .L55
-.L57:
+        jmp     .L62
+.L64:
 ; ---- if ( !atStart && !comment ) {
         mov     al, [strLines__atStart]
         test    al, al
-        jnz     .L80
+        jnz     .L87
         mov     al, [strLines__comment]
         test    al, al
-        jnz     .L80
+        jnz     .L87
 ; ---- poke8( at + out, strEnd )
         mov     ax, [strLines__at]
         mov     bx, [strLines__out]
@@ -814,7 +894,7 @@ strLines:
         mov     byte [bx], 36
 ; ---- out++
         inc     word [strLines__out]
-.L80:
+.L87:
 ; ---- return out
         mov     ax, [strLines__out]
         mov     [strLines__ret], ax
@@ -826,7 +906,7 @@ numText:
 ; ---- if ( n == 0 ) {
         mov     ax, [numText__n]
         test    ax, ax
-        jne     .L84                        ; unsigned ==
+        jne     .L91                        ; unsigned ==
 ; ---- poke8( at, '0' )
         mov     ax, [numText__at]
         mov     bx, ax
@@ -834,14 +914,14 @@ numText:
 ; ---- return 1
         mov     word [numText__ret], 1
         ret
-.L84:
+.L91:
 ; ---- i = 0
         mov     word [numText__i], 0
 ; ---- while ( n > 0 ) {
-.L87:
+.L94:
         mov     ax, [numText__n]
         test    ax, ax
-        jbe     .L89                        ; unsigned >
+        jbe     .L96                        ; unsigned >
 ; ---- digits[i] = u8( n % 10 ) + '0'
         mov     ax, [numText__n]
         mov     bx, 10
@@ -860,16 +940,16 @@ numText:
         mov     [numText__n], ax
 ; ---- i++
         inc     word [numText__i]
-.L88:
-        jmp     .L87
-.L89:
+.L95:
+        jmp     .L94
+.L96:
 ; ---- for ( u16 j = 0; j < i; j++ ) {
         mov     word [numText__j], 0
-.L91:
+.L98:
         mov     ax, [numText__j]
         mov     bx, [numText__i]
         cmp     ax, bx
-        jae     .L93                        ; unsigned <
+        jae     .L100                       ; unsigned <
 ; ---- poke8( at + j, digits[ i - 1 - j ] )
         mov     ax, [numText__at]
         mov     bx, [numText__j]
@@ -883,10 +963,10 @@ numText:
         mov     al, [numText__digits + bx]
         pop     bx
         mov     [bx], al
-.L92:
+.L99:
         inc     word [numText__j]
-        jmp     .L91
-.L93:
+        jmp     .L98
+.L100:
 ; ---- return i
         mov     ax, [numText__i]
         mov     [numText__ret], ax
@@ -904,7 +984,7 @@ numRight:
 ; ---- if ( used >= width ) return numText( at, n )
         mov     bx, [numRight__width]
         cmp     ax, bx
-        jb      .L95                        ; unsigned >=
+        jb      .L102                       ; unsigned >=
         mov     ax, [numRight__at]
         mov     [numText__at], ax
         mov     ax, [numRight__n]
@@ -913,7 +993,7 @@ numRight:
         mov     ax, [numText__ret]
         mov     [numRight__ret], ax
         ret
-.L95:
+.L102:
 ; ---- blank = width - used
         mov     ax, [numRight__width]
         mov     bx, [numRight__used]
@@ -921,11 +1001,11 @@ numRight:
         mov     [numRight__blank], ax
 ; ---- for ( u16 i = 0; i < blank; i++ ) {
         mov     word [numRight__i], 0
-.L98:
+.L105:
         mov     ax, [numRight__i]
         mov     bx, [numRight__blank]
         cmp     ax, bx
-        jae     .L100                       ; unsigned <
+        jae     .L107                       ; unsigned <
 ; ---- poke8( at + i, pad )
         mov     ax, [numRight__at]
         mov     bx, [numRight__i]
@@ -934,10 +1014,10 @@ numRight:
         mov     al, [numRight__pad]
         pop     bx
         mov     [bx], al
-.L99:
+.L106:
         inc     word [numRight__i]
-        jmp     .L98
-.L100:
+        jmp     .L105
+.L107:
 ; ---- numText( at + blank, n )
         mov     ax, [numRight__at]
         mov     bx, [numRight__blank]
@@ -957,10 +1037,10 @@ numWidth:
 ; ---- w = 1
         mov     word [numWidth__w], 1
 ; ---- while ( n >= 10 ) {
-.L102:
+.L109:
         mov     ax, [numWidth__n]
         cmp     ax, 10
-        jb      .L104                       ; unsigned >=
+        jb      .L111                       ; unsigned >=
 ; ---- n /= 10
         mov     ax, [numWidth__n]
         mov     bx, 10
@@ -969,9 +1049,9 @@ numWidth:
         mov     [numWidth__n], ax
 ; ---- w++
         inc     word [numWidth__w]
-.L103:
-        jmp     .L102
-.L104:
+.L110:
+        jmp     .L109
+.L111:
 ; ---- return w
         mov     ax, [numWidth__w]
         mov     [numWidth__ret], ax
@@ -982,12 +1062,12 @@ numWidth:
 numHex:
 ; ---- for ( u16 i = 0; i < 4; i++ ) {
         mov     word [numHex__i], 0
-.L106:
+.L113:
         mov     ax, [numHex__i]
         cmp     ax, 4
-        jb      .L109                       ; unsigned <
-        jmp     .L108
-.L109:
+        jb      .L116                       ; unsigned <
+        jmp     .L115
+.L116:
 ; ---- nib = u8( ( n >> ( 12 - i * 4 ) ) & 0x0F )
         mov     ax, [numHex__n]
         push    ax
@@ -1011,23 +1091,23 @@ numHex:
         push    ax                          ; save the address while the value is computed
         mov     al, [numHex__nib]
         cmp     al, 10                      ; byte operands, no widening
-        jae     .L110                       ; unsigned <
+        jae     .L117                       ; unsigned <
         mov     al, [numHex__nib]
         xor     ah, ah                      ; u8 -> u16
         add     ax, 48
-        jmp     .L111
-.L110:
+        jmp     .L118
+.L117:
         mov     al, [numHex__nib]
         xor     ah, ah                      ; u8 -> u16
         sub     ax, 10
         add     ax, 65
-.L111:
+.L118:
         pop     bx
         mov     [bx], al
-.L107:
+.L114:
         inc     word [numHex__i]
-        jmp     .L106
-.L108:
+        jmp     .L113
+.L115:
 ; ---- return 4
         mov     word [numHex__ret], 4
         ret
@@ -1048,19 +1128,19 @@ strNumber:
 ; ---- if ( n == 0 ) return false
         mov     ax, [strNumber__n]
         test    ax, ax
-        jne     .L113                       ; unsigned ==
+        jne     .L120                       ; unsigned ==
         mov     byte [strNumber__ret], 0
         ret
-.L113:
+.L120:
 ; ---- for ( u16 i = 0; i < n; i++ ) {
         mov     word [strNumber__i], 0
-.L116:
+.L123:
         mov     ax, [strNumber__i]
         mov     bx, [strNumber__n]
         cmp     ax, bx
-        jb      .L119                       ; unsigned <
-        jmp     .L118
-.L119:
+        jb      .L126                       ; unsigned <
+        jmp     .L125
+.L126:
 ; ---- ch = peek8( at + i )
         mov     ax, [strNumber__at]
         mov     bx, [strNumber__i]
@@ -1070,34 +1150,34 @@ strNumber:
         mov     [strNumber__ch], al         ; u8 -> u8, no widening
 ; ---- if ( ch < '0' || ch > '9' ) {
         cmp     al, 48                      ; byte operands, no widening
-        jb      .L122                       ; unsigned <
+        jb      .L129                       ; unsigned <
         mov     al, [strNumber__ch]
         cmp     al, 57                      ; byte operands, no widening
-        jbe     .L120                       ; unsigned >
-.L122:
+        jbe     .L127                       ; unsigned >
+.L129:
 ; ---- numValue = 0
         mov     word [str__numValue], 0
 ; ---- return false
         mov     byte [strNumber__ret], 0
         ret
-.L120:
+.L127:
 ; ---- if ( numValue > 6553 || ( numValue == 6553 && ch > '5' ) ) {
         mov     ax, [str__numValue]
         cmp     ax, 6553
-        ja      .L127                       ; unsigned >
+        ja      .L134                       ; unsigned >
         mov     ax, [str__numValue]
         cmp     ax, 6553
-        jne     .L125                       ; unsigned ==
+        jne     .L132                       ; unsigned ==
         mov     al, [strNumber__ch]
         cmp     al, 53                      ; byte operands, no widening
-        jbe     .L125                       ; unsigned >
-.L127:
+        jbe     .L132                       ; unsigned >
+.L134:
 ; ---- numValue = 0
         mov     word [str__numValue], 0
 ; ---- return false
         mov     byte [strNumber__ret], 0
         ret
-.L125:
+.L132:
 ; ---- numValue = numValue * 10 + u16( ch - '0' )
         mov     ax, [str__numValue]
         mov     bx, 10
@@ -1110,10 +1190,10 @@ strNumber:
         pop     ax
         add     ax, bx
         mov     [str__numValue], ax
-.L117:
+.L124:
         inc     word [strNumber__i]
-        jmp     .L116
-.L118:
+        jmp     .L123
+.L125:
 ; ---- return true
         mov     byte [strNumber__ret], 1
         ret
@@ -1251,20 +1331,20 @@ showLines:
         call    putStr
 ; ---- for ( u16 i = 0; i < count; i++ ) {
         mov     word [showLines__i], 0
-.L131:
+.L138:
         mov     ax, [showLines__i]
         mov     bx, [showLines__count]
         cmp     ax, bx
-        jae     .L133                       ; unsigned <
+        jae     .L140                       ; unsigned <
 ; ---- putChar( i > 0 ? 124 : 32 )
         mov     ax, [showLines__i]
         test    ax, ax
-        jbe     .L135                       ; unsigned >
+        jbe     .L142                       ; unsigned >
         mov     ax, 124
-        jmp     .L136
-.L135:
+        jmp     .L143
+.L142:
         mov     ax, 32
-.L136:
+.L143:
         mov     [putChar__c], al            ; narrowed to u8
         call    putChar
 ; ---- putStr( nthStr( addr( lines ), i ) )
@@ -1276,10 +1356,10 @@ showLines:
         mov     ax, [nthStr__ret]
         mov     [putStr__at], ax
         call    putStr
-.L132:
+.L139:
         inc     word [showLines__i]
-        jmp     .L131
-.L133:
+        jmp     .L138
+.L140:
 ; ---- newline()
         call    newline
         ret
@@ -1291,11 +1371,11 @@ countStrs:
         mov     word [countStrs__n], 0
 ; ---- for ( u16 i = 0; i < bytes; i++ ) {
         mov     word [countStrs__i], 0
-.L138:
+.L145:
         mov     ax, [countStrs__i]
         mov     bx, [countStrs__bytes]
         cmp     ax, bx
-        jae     .L140                       ; unsigned <
+        jae     .L147                       ; unsigned <
 ; ---- if ( peek8( at + i ) == strEnd ) n++
         mov     ax, [countStrs__at]
         mov     bx, [countStrs__i]
@@ -1303,13 +1383,13 @@ countStrs:
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
         cmp     al, 36                      ; byte operands, no widening
-        jne     .L142                       ; unsigned ==
+        jne     .L149                       ; unsigned ==
         inc     word [countStrs__n]
-.L142:
-.L139:
+.L149:
+.L146:
         inc     word [countStrs__i]
-        jmp     .L138
-.L140:
+        jmp     .L145
+.L147:
 ; ---- return n
         mov     ax, [countStrs__n]
         mov     [countStrs__ret], ax
@@ -1361,6 +1441,8 @@ strLen__at:     dw      0        ; u16
 strLen__ret:    dw      0        ; u16
 strCopy__to:    dw      0        ; u16
 strCopy__from:  dw      0        ; u16
+strParts__at:   dw      0        ; u16
+strParts__ret:  dw      0        ; u16
 nthStr__at:     dw      0        ; u16
 nthStr__n:      dw      0        ; u16
 nthStr__ret:    dw      0        ; u16
@@ -1413,6 +1495,8 @@ putNumber__i:   db      0        ; u8
 strLen__n:      dw      0        ; u16
 strCopy__i:     dw      0        ; u16
 strCopy__ch:    db      0        ; u8
+strParts__n:    dw      0        ; u16
+strParts__i:    dw      0        ; u16
 nthStr__i:      dw      0        ; u16
 nthStr__seen:   dw      0        ; u16
 strCmp__i:      dw      0        ; u16
@@ -1465,6 +1549,9 @@ noEnd:          db      'one', 13, 10, 'two', 13, 10, 'three'        ; u8[15] co
 laidOut:        db      '# what this asks', 13, 10, 13, 10, 'one', 13, 10, 13, 10, '  two', 13,        ; u8[52] const
                 db      10, '# and why', 13, 10, 'three', 13, 10
 allSkip:        db      '# only this', 13, 10, 13, 10        ; u8[15] const
+blobThree:      db      'alpha$beta$gamma$', 0        ; u8[18] const
+blobOne:        db      'only$', 0        ; u8[6] const
+blobNone:       times 1 db 0        ; u8[1]
 putNumber__digits: times 5 db 0        ; u8[5]
 numText__digits: times 5 db 0        ; u8[5]
 

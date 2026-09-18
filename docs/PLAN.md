@@ -2677,65 +2677,41 @@ new storage model underneath it.
 That has not happened yet, and PROVENANCE is emphatic about what building for a
 consumer that does not exist costs.
 
-## 67. The menus themselves
+## 69. The unsaved-changes dialog
 
-**Designed, not built.** The bar itself is already on screen; this is what
-happens when somebody presses a letter on it. DESIGN §66 is the row it sits on.
+**Designed, not built.** `^Q` refuses unsaved work and the way through is to
+press it again, which is `^O`'s and `^W`'s rule and needed no new mechanism.
+§67 put **File > Exit** on a menu, and that is where the double-tap runs out.
 
-`Alt`+letter opens a menu, `F10` opens the first one with no letter, the arrows
-walk the bar and the items, Enter chooses, Escape closes one level rather than
-all of them, and a letter inside an open menu picks an item.
+### Why a double-tap does not survive being a menu item
 
-### It is a library, which §64 was not
+You cannot choose a menu item twice in a row: reaching it the second time means
+opening the menu again, and opening a menu is a keystroke, which disarms the
+door. So **File > Exit on a modified document can never get through on its own**.
 
-§64 stayed inside `momoed` because its screen-independent part was a masked byte
-and two comparisons - there was no behaviour a test project could hold against an
-answer. A menu bar is the opposite: which menu is open, which item is lit, Left
-and Right moving *between* menus while one is open, Escape closing one level.
-Those are edges, and edges are what tier 2 is for.
+It is not a dead end, because the refusal says what to press - "unsaved - ^Q to
+quit anyway", which is true of both routes - but a menu item whose own answer is
+"use the keyboard instead" is a menu item that has outgrown the mechanism behind
+it.
 
-The item tables stay the program's, through §37's seam - the library asks what
-the items are and hands back what was chosen, the way `viewRow` and
-`fieldCopyOut` already do.
+### What replaces it
 
-### The drop-down reuses §64's overlay
+`edit.com`'s: a box with **Yes / No / Cancel**. That is three answers where a
+double-tap has two, and the missing one is the important half - "quit and throw
+the work away" is a different intention from "I have changed my mind", and a
+double-tap makes them the same gesture at different speeds.
 
-A box over the text, the frame in `attrStatus` and the lit item a normal-video
-hole in it, which is the same pair the tab bar and the explorer already use.
-`repaint` grew the shape for the picker: a modal that is up short-circuits the
-frame behind it, and `drawn = false` on the way out is the whole of putting the
-screen back.
+`edit.com` has a **Help** button beside them. Deferred until there is something
+to show; a button that opens an empty screen is worse than no button.
 
-**Nothing is greyed out**, because mode 7 has no state for it - `0x08` is
-invisible rather than dim. An item that cannot apply does nothing when chosen.
-That is a constraint from §66's measurement rather than a preference.
+### What it needs, most of which exists
 
-### The menus, which are only what exists
+§64's overlay shape - a box composed a row at a time and blitted (§68), with
+`drawn = false` on the way out - and §67's own key handling, which is the same
+"a modal owns the keyboard and swallows what it does not know" that both the
+picker and the drop-down already are.
 
-- **File** - New `^T`, Open `^O`, Save `^S`, Save As, Close `^W`, Exit `^Q`
-- **Edit** - Undo `^Z`, Redo `^Y`, Cut `^X`, Copy `^C`, Paste `^V`, Select All
-  `^A`, Character `^P`
-- **Search** - Find `^F`, Find Next `^L`, Replace `^R`, Go to Line `^G`
-- **View** - Explorer `^B`
-
-Nothing invented. A menu listing a command the editor does not have is a menu
-that has to be edited twice.
-
-### The door, and the dialog that will replace the double-tap
-
-`^Q` refuses unsaved work now and the way through is to press it again, which is
-`^O`'s and `^W`'s rule and needed no new mechanism. **File > Exit** inherits it,
-which was the reason to settle it before this section rather than after.
-
-A double-tap is the right answer for a key and the wrong one for a menu item: you
-cannot press a menu item twice in a row without going back through the menu, and
-"choose Exit again" is not something a screen can say usefully.
-
-So the intended end state is `edit.com`'s: a **dialog with Yes / No / Cancel**,
-which is three answers where a double-tap has two - the missing one being "quit
-and throw the work away" as distinct from "cancel". `edit.com` has a **Help**
-button beside them and that is deferred until there is something to show.
-
-This wants the overlay shape §64 established and the field §60 already has, so it
-is small once the drop-down exists - which is the argument for doing it after
-this section rather than before.
+What is new is only that a dialog has a **horizontal** row of choices rather than
+a vertical list, and that it has to hand an answer back to whatever asked. Which
+suggests it should be general from the start: **Save As over an existing file**
+wants the same box, and so does a delete if one is ever added.

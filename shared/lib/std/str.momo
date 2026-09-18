@@ -71,6 +71,29 @@ sub strCopy( u16 to, u16 from ) {
 // Past the end it returns the address of the byte after the last terminator,
 // which is not a string. Nothing here can check n, for the same reason nothing
 // else here bounds-checks.
+// How many strings are in such a blob, which is the question `nthStr` cannot be
+// asked and every caller indexing one has to answer. The blob ends at a nul, so
+// a caller writing one terminates it `"a$b$\0"` - the `$` ends each string and
+// the nul ends the run.
+//
+// **Counted rather than written down beside it**, which is the whole reason it
+// is here: a count in a second place is a count that disagrees the first time
+// somebody adds a line to the blob and not to the number.
+u16 strParts( u16 at ) {
+  u16 n
+  u16 i
+
+  n = 0
+  i = 0
+
+  while ( peek8( at + i ) != 0 ) {
+    if ( peek8( at + i ) == strEnd ) n++
+    i++
+  }
+
+  return n
+}
+
 u16 nthStr( u16 at, u16 n ) {
   u16 i
   u16 seen

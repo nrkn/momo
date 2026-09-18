@@ -266,3 +266,28 @@ showLines( len( laidOut ) )             // 3: one|two|three
 
 loadLines( addr( allSkip ), len( allSkip ) )
 showLines( len( allSkip ) )               // 0:
+
+// ---- how many strings are in a blob (§13) -----------------------------------
+//
+// The companion `nthStr` cannot be: a caller indexing a blob has to know where to
+// stop, and a count written beside the blob is a count that disagrees the first
+// time somebody adds a line to one and not the other.
+
+const u8[] blobThree = "alpha$beta$gamma$\0"
+const u8[] blobOne   = "only$\0"
+const u8[] blobNone  = "\0"
+
+putNumber( strParts( addr( blobThree ) ) )
+newline()                               // 3
+
+putNumber( strParts( addr( blobOne ) ) )
+newline()                               // 1
+
+// An empty blob is nought rather than one. Nothing is not an empty string here,
+// which is what lets a caller use the count as "is there anything at all".
+putNumber( strParts( addr( blobNone ) ) )
+newline()                               // 0
+
+// And it agrees with `nthStr` about where the last one is.
+putStr( nthStr( addr( blobThree ), strParts( addr( blobThree ) ) - 1 ) )
+newline()                               // gamma
