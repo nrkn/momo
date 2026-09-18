@@ -6055,11 +6055,9 @@ language feature.
   shorter than the document - and the copy in memory is then the only correct one
   there is. Three things can fail and all three are looked at: the create, every
   write, and the close, which is where DOS flushes the last partial sector.
-- **Every door refuses unsaved work**, and the way through is to press it again.
-  `^O`, `^W` and `^Q` are one rule; a second press is unambiguous where a dialog
-  would be a seventh question the prompt has to serve. `^Q` asks about **any**
-  open document, because the one holding unsaved work may not be the one on
-  screen.
+- **No door loses unsaved work.** `^O` and `^W` refuse and say so; `^Q` asks,
+  because §69 needed three answers and they do not. All three are about **any**
+  open document, since the one holding unsaved work may not be the one on screen.
 - **A refusal says which limit.** Lines, text and memory are three problems and
   one sentence cannot be all of them.
 - **A load stops at the first refusal**, rather than reading to the end of a
@@ -7006,3 +7004,90 @@ be a third copy of the pair above - drifting from both.
   so it reads as a bar rather than as a word that changed colour.
 - **`0x0F` marks the letter on the open title**, where `attrKey`'s white-on-grey
   would paint a block on a normal-video row. A fourth byte both schemes agree on.
+
+## 69. A question with three answers
+
+**Built**, in `momoed`. `edit.com`'s shape: a box with **Yes / No / Cancel**,
+arrows or Tab to move, Enter to take the focused one, Escape for Cancel, and
+Y, N or C to answer outright.
+
+### Why the double-tap had to go
+
+`^Q` refused unsaved work and asked for a second press, which is `^O`'s and
+`^W`'s rule and was right for a key. **It does not survive being a menu item.**
+Reaching File > Exit a second time means opening the menu again, and opening a
+menu is a keystroke, which disarmed the door - so Exit could never get through at
+all.
+
+And three answers is not a decoration. *Save and go*, *go anyway* and *stay* are
+three intentions; a double-tap made two of them the same gesture at different
+speeds.
+
+### Two questions, one box
+
+A reason code says what Yes means, which is the prompt's shape one section over:
+`asking` decides what Enter does there and `dlgWhy` decides what Yes does here.
+That is what stopped this being two boxes that happen to look alike.
+
+The second question is the one that had **no guard at all**: Save As over a file
+that already exists. `fileCreate` truncates before a byte of ours is written, so
+there was never a point at which this could have been *reported* - it had to be
+asked first, and now is.
+
+### The distinction that earns the third button
+
+For an overwrite, **No goes back to the question** and Cancel abandons the save.
+"Do not replace that one" almost always means "let me pick another name", and
+that is a different answer from "forget I asked".
+
+For an exit, Yes saves and goes, No goes, Cancel stays.
+
+### Cancel leaves nothing behind
+
+A Save As name used to go straight into `fileName`. With a question in the way
+that would mean Cancel left the document wearing a name nothing on disk had -
+and one `^S` from silently overwriting the file it had just declined to replace.
+It waits in `saveAsName` and is committed by the answer.
+
+### An untitled document, and more than one dirty one
+
+Two places where the obvious version stops halfway.
+
+**Yes on an untitled document** has nothing to save to, so `doSave` asks for a
+name - and the quit has to survive that. `quitAfterSave` is the thread, picked
+back up when the Save As completes, and dropped by `promptClose` if the prompt is
+abandoned.
+
+**Yes with two dirty documents** saves one and leaves the other. So `tryQuit`
+**switches to the document it is about to ask about** and Yes calls it again: it
+either leaves, or moves to the next one and asks. No machinery, and the box never
+names a file you cannot see - which a box asking you to take its word for it
+would.
+
+### It is in the program, where §67 is not
+
+The state is three buttons and a reason code. What is interesting is what each
+answer *does* - save then quit, reopen the prompt, put the name back - and that
+is entirely this program's and could not be tested headless anyway. §67 went the
+other way because its state machine had the edges; this one has one wrap.
+
+### Rules
+
+- **A question owns the keyboard before anything else does.** It is the only
+  modal here that can be opened *by* another one - File > Exit from a menu, Save
+  As from a prompt - so it is tested ahead of both.
+- **It draws last**, for the same reason: what is behind it may be a menu or a
+  prompt that has drawn itself already.
+- **The focused button is a hole in the box.** Five places now - the explorer's
+  row, the active tab, the open menu title, the lit menu item, this - and one
+  rule, which is the rule that costs no attribute.
+- **Escape is the last button**, taken from the list rather than by number, so
+  renaming or reordering the buttons cannot leave Escape pointing at the wrong
+  one.
+
+### What has not moved to it
+
+`^O` and `^W` still refuse rather than ask. That is not an oversight: refusing
+never loses work, and those two were not broken - Exit was, and Save As had
+nothing at all. Converting them is a case each now the box exists, and is the
+obvious next use of it.

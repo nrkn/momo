@@ -161,6 +161,11 @@ const nameMax = 80
 
 u8[nameMax] fileName
 u8[nameMax] wasName
+
+// **Where a Save As name waits for an answer.** It used to go straight into
+// `fileName`, which meant Cancel left the document wearing a name nothing on disk
+// had - and one `^S` from overwriting the file it had just declined to.
+u8[nameMax] saveAsName
 bool haveName
 bool dirty
 
@@ -308,7 +313,9 @@ const u8[] sKb       = "K$"
 const u8[] sHere     = ".$"
 const u8[] sNoSlots  = "no free tab - close one first$"
 const u8[] sOneDoc   = "this is the only file open$"
-const u8[] sQuitAgain = "unsaved - ^Q to quit anyway$"
+const u8[] sButtons     = "Yes$No$Cancel$\0"
+const u8[] sSaveChanges = "Save changes to$"
+const u8[] sOverwrite   = "Replace the existing file$"
 
 const u8[] sPickTitle = " pick a character $"
 const u8[] sPickKeys  = " Enter inserts  Esc cancels $"
@@ -696,6 +703,205 @@ sub drawMenus {
   }
 
   rowBlit( 0, 0, cols )
+}
+
+// ---- a question with three answers (§69) -------------------------------------
+//
+// `^Q` used to refuse and ask for a second press, which is `^O`'s and `^W`'s rule
+// and was right for a key. **It does not survive being a menu item**: reaching
+// File > Exit a second time means opening the menu again, and opening a menu is a
+// keystroke, which disarmed the door. So Exit could never get through.
+//
+// Three answers rather than two, and the third is the one a double-tap could not
+// have: *save and go*, *go anyway* and *stay* are three intentions, and two of
+// them were the same gesture at different speeds.
+//
+// **It is in the program, where §64's picker is and §67's menus are not.** The
+// state is three buttons and a reason code; what is interesting is what each
+// answer *does*, and that is entirely this program's and could not be tested
+// headless anyway.
+const dlgNone      = 0
+const dlgExit      = 1
+const dlgOverwrite = 2
+
+u8  dlgWhy
+u16 dlgQuestion
+u16 dlgSubject
+u16 dlgPick
+
+bool dlgUp() => dlgWhy != dlgNone
+
+u16 dlgCount() => strParts( addr( sButtons ) )
+u16 dlgButton( u16 i ) => nthStr( addr( sButtons ), i )
+
+u8 fold( u8 c ) => c >= 'a' && c <= 'z' ? c - 32 : c
+
+// One space either side of each label so the focused one reads as a block, and
+// two between - measured rather than written down, so a renamed button moves the
+// row it is in.
+const dlgGap = 2
+
+u16 dlgRowW() {
+  u16 w
+  w = 0
+
+  for ( u16 i = 0; i < dlgCount(); i++ ) {
+    w = w + strLen( dlgButton( i ) ) + 2
+    if ( i + 1 < dlgCount() ) w = w + dlgGap
+  }
+
+  return w
+}
+
+// ASCIZ, because the only two subjects there are are filenames.
+u16 dlgSubjectLen() {
+  u16 n
+  n = 0
+
+  while ( peek8( dlgSubject + n ) != 0 ) {
+    n++
+  }
+
+  return n
+}
+
+u16 dlgW() {
+  u16 w
+
+  w = dlgRowW()
+  if ( strLen( dlgQuestion ) > w ) w = strLen( dlgQuestion )
+  if ( dlgSubjectLen() > w ) w = dlgSubjectLen()
+
+  w = w + 4
+  if ( w > cols ) w = cols
+
+  return w
+}
+
+const dlgH = 6
+
+u16 dlgX() => ( cols - dlgW() ) / 2
+u16 dlgY() => ( rows - dlgH ) / 2
+
+// Where each button's label starts, so the drawing and the cursor agree without
+// either of them counting twice.
+u16 dlgButtonX( u16 i ) {
+  u16 x
+  x = dlgX() + ( dlgW() - dlgRowW() ) / 2 + 1
+
+  for ( u16 j = 0; j < i; j++ ) {
+    x = x + strLen( dlgButton( j ) ) + 2 + dlgGap
+  }
+
+  return x
+}
+
+sub dlgOpen( u8 why, u16 question, u16 subject ) {
+  message     = 0
+  dlgWhy      = why
+  dlgQuestion = question
+  dlgSubject  = subject
+  dlgPick     = 0
+}
+
+// ---- drawing it ----
+
+sub dlgEdge( u16 y, u8 left, u8 right ) {
+  u16 bx
+  u16 bw
+
+  bx = dlgX()
+  bw = dlgW()
+
+  rowPut( bx, left, attrStatus )
+
+  for ( u16 x = 1; x < bw - 1; x++ ) {
+    rowPut( bx + x, boxH, attrStatus )
+  }
+
+  rowPut( bx + bw - 1, right, attrStatus )
+  rowBlit( y, bx, bx + bw )
+}
+
+sub dlgBlank {
+  u16 bx
+  u16 bw
+
+  bx = dlgX()
+  bw = dlgW()
+
+  rowPut( bx, boxV, attrStatus )
+
+  for ( u16 x = 1; x < bw - 1; x++ ) {
+    rowPut( bx + x, ' ', attrStatus )
+  }
+
+  rowPut( bx + bw - 1, boxV, attrStatus )
+}
+
+// **The focused button is a hole in the box**, which is the explorer's trick, the
+// tab bar's, the menu's and the picker's. Five places now, one rule, and it is
+// the rule that costs no attribute - which is what mode 7 could not have spared.
+sub dlgButtons {
+  u16 x
+  u16 at
+  u16 n
+  u8  a
+
+  dlgBlank()
+
+  for ( u16 i = 0; i < dlgCount(); i++ ) {
+    a = attrStatus
+    if ( i == dlgPick ) a = attrText
+
+    at = dlgButton( i )
+    n  = strLen( at )
+    x  = dlgButtonX( i )
+
+    rowPut( x - 1, ' ', a )
+    rowStr( x, at, dlgX() + dlgW() - 1, a )
+    rowPut( x + n, ' ', a )
+  }
+
+  rowBlit( dlgY() + 4, dlgX(), dlgX() + dlgW() )
+}
+
+sub dlgText( u16 y, u16 at ) {
+  dlgBlank()
+  rowStr( dlgX() + 2, at, dlgX() + dlgW() - 1, attrStatus )
+  rowBlit( y, dlgX(), dlgX() + dlgW() )
+}
+
+sub drawDialog {
+  u16 bx
+  u16 bw
+  u16 i
+
+  dlgEdge( dlgY(), boxTL, boxTR )
+
+  dlgText( dlgY() + 1, dlgQuestion )
+
+  // The subject is ASCIZ where everything else on a row is `$`-terminated, so it
+  // is placed rather than passed to `rowStr`.
+  bx = dlgX()
+  bw = dlgW()
+
+  dlgBlank()
+  i = 0
+
+  while ( peek8( dlgSubject + i ) != 0 && bx + 2 + i < bx + bw - 1 ) {
+    rowPut( bx + 2 + i, peek8( dlgSubject + i ), attrStatus )
+    i++
+  }
+
+  rowBlit( dlgY() + 2, bx, bx + bw )
+
+  dlgBlank()
+  rowBlit( dlgY() + 3, bx, bx + bw )
+
+  dlgButtons()
+
+  dlgEdge( dlgY() + 5, boxBL, boxBR )
 }
 
 // ---- the drop-down -----------------------------------------------------------
@@ -1134,6 +1340,11 @@ sub placeCursor {
   // going: the prompt while one is open, the panel while it has focus, the
   // document otherwise. Anything else and the screen is telling you the wrong
   // thing about where you are.
+  if ( dlgUp() ) {
+    moveTo( u8( dlgButtonX( dlgPick ) ), u8( dlgY() + 4 ) )
+    return
+  }
+
   if ( menuUp() ) {
     moveTo( u8( menuBoxX() + 2 ), u8( menuBoxY + 1 + menuItemAt() ) )
     return
@@ -1193,6 +1404,7 @@ bool lastPick
 bool lastMenu
 u16  lastMenuAt
 u16  lastMenuItem
+bool lastDlg
 bool drawn
 
 // Rebuilt from nothing, because the directory is not ours and anything may have
@@ -1886,6 +2098,15 @@ sub repaint {
     return
   }
 
+  // One row changes when the focus moves between buttons, and the box is over
+  // everything - so this is the picker's arrangement with a smaller moving part.
+  if ( dlgUp() && lastDlg ) {
+    dlgButtons()
+    drawStatus()
+    placeCursor()
+    return
+  }
+
   // The same shape for the drop-down, and only while it is the *same* menu:
   // moving to another one has to erase the old box, which is what the full path
   // below does by drawing everything and then the new box over it.
@@ -1937,6 +2158,10 @@ sub repaint {
   if ( menuUp() ) drawMenuBox()
   if ( picking ) drawPicker()
 
+  // **Last, because it is the one that can be over another.** Save As opens it
+  // with a prompt behind, and Exit with a menu behind.
+  if ( dlgUp() ) drawDialog()
+
   drawStatus()
   placeCursor()
 
@@ -1948,6 +2173,7 @@ sub repaint {
   lastAsk  = prompting()
   lastPick = picking
   lastMenu = menuUp()
+  lastDlg  = dlgUp()
   drawn    = true
 }
 
@@ -2234,9 +2460,10 @@ sub menuStep( u16 k ) {
 // the table says and a rebindable quit is a rebindable way to lose the door.
 const keyQuit = 17
 
-// Whether `^Q` has already been refused once, cleared by any other key - so this
-// is a double-tap and not a latch that could be armed ten minutes ago.
-bool quitAsked
+// Set while a Save As is on its way to quitting, so that answering **Yes** on an
+// untitled document asks for a name, saves, and then goes - rather than asking
+// for a name and leaving you where you started.
+bool quitAfterSave
 
 // **Any document, not the one in front of you.** With two open, the one holding
 // unsaved work may not be the one on screen, which is exactly the case where a
@@ -2259,14 +2486,133 @@ bool anyDirty() {
 // put the door on the way to a menu, where **File > Exit** inherits it and it
 // stops being a key somebody has to know about.
 sub tryQuit {
-  if ( !anyDirty() || quitAsked ) {
+  if ( !anyDirty() ) {
     running = false
     return
   }
 
-  quitAsked = true
-  message = addr( sQuitAgain )
+  // **Switch to the document being asked about.** With two open, the one holding
+  // unsaved work may not be the one on screen, and a box naming a file you cannot
+  // see is a box asking you to take its word for it. It also makes the loop below
+  // need no machinery: Yes saves this one and calls this again, which either
+  // leaves or moves to the next.
+  if ( !dirty ) {
+    for ( u16 d = 0; d < edMaxDocs; d++ ) {
+      if ( docOpen[d] != 0 && docDirty[d] != 0 ) {
+        goToSlot( d )
+        break
+      }
+    }
+  }
+
+  dlgOpen( dlgExit, addr( sSaveChanges ), tabNameAt( textDoc() ) )
 }
+
+// The name goes into `fileName` here and nowhere earlier, which is what makes
+// Cancel cost nothing.
+sub saveAsCommit {
+  memCopy( addr( fileName ), addr( saveAsName ), nameMax )
+  haveName = true
+
+  doSave()
+
+  // A file that did not exist a moment ago is in the directory now.
+  if ( expShown ) refreshList()
+
+  if ( quitAfterSave && !dirty ) tryQuit()
+}
+
+// Whether there is something there to lose. `fileCreate` truncates before a byte
+// is written, so this has to be asked *before* the save rather than reported
+// after it.
+bool fileHere( u16 at ) {
+  u16 h
+
+  h = fileOpen( at, fileReadOnly )
+  if ( fileFailed() ) return false
+
+  fileClose( h )
+  return true
+}
+
+// ---- what each answer does ----
+//
+// **The reason code is what makes one box serve two questions**, which is the
+// prompt's shape one section over: `asking` says what Enter means there, and this
+// says what Yes means here.
+sub dlgAnswer( u16 pick ) {
+  u8 why
+
+  why = dlgWhy
+  dlgWhy = dlgNone
+  drawn = false
+
+  if ( why == dlgExit ) {
+    if ( pick == 0 ) {
+      // Yes. `doSave` asks for a name when there is none, and then this is not
+      // the end of it - `saveAsCommit` picks the thread back up.
+      quitAfterSave = true
+      doSave()
+
+      if ( !dirty && !prompting() ) tryQuit()
+      return
+    }
+
+    if ( pick == 1 ) running = false
+
+    // Cancel, which is the answer a double-tap did not have.
+    quitAfterSave = false
+    return
+  }
+
+  if ( why == dlgOverwrite ) {
+    if ( pick == 0 ) {
+      saveAsCommit()
+      return
+    }
+
+    // **No goes back to the question**, because "do not replace that one" almost
+    // always means "let me pick another name". Cancel is what abandons the save,
+    // and that distinction is why there are three buttons rather than two.
+    if ( pick == 1 ) {
+      promptOpen( askSave, addr( sSave ) )
+      return
+    }
+
+    quitAfterSave = false
+  }
+}
+
+sub dlgKey( u16 k ) {
+  if ( k >= keyShift ) k = keyExt + ( k - keyShift )
+
+  if ( k == keyEsc ) {
+    dlgAnswer( dlgCount() - 1 )
+    return
+  }
+
+  if ( k == 13 ) {
+    dlgAnswer( dlgPick )
+    return
+  }
+
+  if ( k == keyExt + keyLeft )  dlgPick = ( dlgPick + dlgCount() - 1 ) % dlgCount()
+  if ( k == keyExt + keyRight ) dlgPick = ( dlgPick + 1 ) % dlgCount()
+  if ( k == keyTab )            dlgPick = ( dlgPick + 1 ) % dlgCount()
+
+  // **A letter chooses outright here**, which §67's menu items could not do: Y, N
+  // and C are distinct, so there is nothing to cycle through and nothing to mark.
+  if ( k >= 32 && k < keyExt ) {
+    for ( u16 i = 0; i < dlgCount(); i++ ) {
+      if ( fold( u8( k ) ) == fold( peek8( dlgButton( i ) ) ) ) {
+        dlgAnswer( i )
+        return
+      }
+    }
+  }
+}
+
+
 
 u16 pending
 bool running
@@ -2616,6 +2962,10 @@ sub promptOpen( u8 what, u16 label ) {
 sub promptClose {
   asking  = askNone
   message = 0
+
+  // A prompt that was abandoned is not on its way to quitting, whatever asked
+  // for it.
+  quitAfterSave = false
 }
 
 sub doGoto {
@@ -2808,14 +3158,18 @@ sub promptDone {
     asking = askNone
     if ( fieldLength() == 0 ) return
 
-    memCopy( addr( fileName ), fieldAddr(), fieldLength() )
-    fileName[ fieldLength() ] = 0
-    haveName = true
+    memCopy( addr( saveAsName ), fieldAddr(), fieldLength() )
+    saveAsName[ fieldLength() ] = 0
 
-    doSave()
+    // **Asked before the write, because the write is what destroys it.**
+    // `fileCreate` truncates the file to nothing before a byte of ours goes in,
+    // so there was no point at which this could have been reported instead.
+    if ( fileHere( addr( saveAsName ) ) ) {
+      dlgOpen( dlgOverwrite, addr( sOverwrite ), baseName( addr( saveAsName ) ) )
+      return
+    }
 
-    // A file that did not exist a moment ago is in the directory now.
-    if ( expShown ) refreshList()
+    saveAsCommit()
   }
 }
 
@@ -3010,10 +3364,14 @@ sub step( u16 k ) {
   u16 had
   u8  a
 
-  // Any key but `^Q` disarms the door, which is what makes it a double-tap and
-  // not a latch left armed ten minutes ago. Ahead of everything, because the
-  // picker and the prompt both return before the rest of this runs.
-  if ( k != keyQuit ) quitAsked = false
+  // **A question owns the keyboard before anything else does.** It is the only
+  // modal here that can be opened *by* another one - File > Exit opens it from a
+  // menu, and Save As opens it from a prompt - so it has to be tested ahead of
+  // both of the things that could have put it up.
+  if ( dlgUp() ) {
+    dlgKey( k )
+    return
+  }
 
   // **An open menu owns the keyboard**, ahead of the picker and the prompt alike.
   // §67 swallows whatever it does not recognise, so nothing reaches the document
