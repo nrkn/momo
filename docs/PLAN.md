@@ -27,7 +27,7 @@ happen.
 | | | wants |
 |---|---|---|
 | `momowad` (§41) | assets in bulk, with Doom-style PWAD overrides. Compatible with WAD at the container level, carrying our own lump types | nothing - §38 landed |
-| `momoed` (§55) | the editor - **opens, edits, searches, selects and saves one file, and holds it past the segment**; an explorer beside a text pane and text modes `edit.com` never had are what is left | directory enumeration, for the explorer half only - §38 put that out of scope and names the DTA collision behind it |
+| `momoed` (§55) | the editor - **opens, edits, searches, selects and saves several files from an explorer, and holds them past the segment**; text modes `edit.com` never had are what is left | nothing - the directory enumeration the explorer wanted is §38's now, and text in a graphics mode is undesigned rather than blocked |
 | `momode` | a graphical shell and launcher. Single-tasking, and windowed by screen offsets an aware program is handed (§43) | a mouse, and §40's ES gap |
 | `momove` | a small vector editor, for icons and the like | a mouse, §37's geometric booleans |
 | `momopnt` | the library three image editors share - sprite, bitmap font, paint | a mouse, a palette library, §43 |
@@ -131,14 +131,13 @@ at all, which makes one a floor rather than a measurement.
   since a README that shows off wants something to show.
 - **Fixed-point division.** DESIGN §25 is half built and says which half: `*` on
   8.8 lands, division does not, and §25 sets out why it is the awkward one.
-- **Finish `momoed`.** DESIGN §55 is partly built and says which half: it opens a
-  file, edits it, searches it, selects in it and writes it back, and there is no
-  explorer. The explorer is the next piece and the only one that wants something
-  that does not exist - the directory enumeration §38 refused, with the DTA
-  collision as the reason. Two things follow from the editor rather than block
-  it: it is the consumer §43's properties query has been waiting for, and text in
-  a graphics mode is the first consumer of what DECISIONS §22 gives as the reason
-  for `in` and `out`.
+- **Finish `momoed`.** DESIGN §55 is partly built and says which half: it opens,
+  edits, searches, selects in and writes back several files at once, from an
+  explorer or the command line, under menus and a question box - §62 and §64 to
+  §69. What is left is text in a graphics mode, which is wanted and not designed,
+  and two things follow from it rather than block it: it is the consumer §43's
+  properties query has been waiting for, and the first consumer of what
+  DECISIONS §22 gives as the reason for `in` and `out`.
 - **`addr()` in an initialiser.** §51 - `const u16[] t = [ addr( a ), addr( b ) ]`
   is rejected because an array's elements are folded to numbers and a label is
   not one until NASM says so. The target has never objected: `emitData` already
@@ -366,6 +365,38 @@ All are set out in DESIGN §20 unless noted.
 section that was itself a plan - see the note at the top for why, and where to
 look for the rest.
 
+- **A question with three answers.** 2026-09-18. §69, now in `DESIGN.md`.
+  Yes / No / Cancel for File > Exit over unsaved work, which a double-tap could
+  never get through because opening the menu again disarmed it - and for Save As
+  over an existing file, which had no guard of any kind because `fileCreate`
+  truncates before anything could be reported. `^O` and `^W` still refuse rather
+  than ask, and §69 names converting them as the next use.
+- **The menus.** 2026-09-18. §67, now in `DESIGN.md`, with `shared/lib/momenu.momo`
+  and `momenu` under it. A letter jumps rather than chooses, because a unique
+  marked letter per item needs an attribute mode 7 cannot draw; and an empty
+  menu, put in the fixture on purpose, turned out to be a hang rather than a
+  crash.
+- **Drawing without flicker.** 2026-09-18. §68, now in `DESIGN.md`. The cause was
+  blank-then-draw rather than redrawing too often, so the fix was writing each
+  cell once with its final value - a row composed in near memory and blitted -
+  and `drawExplorer`, which already did that, was the one piece of chrome nobody
+  had reported.
+- **Two rows of chrome.** 2026-09-18. §66, now in `DESIGN.md`. A menu bar and a
+  tab bar, three rows of chrome against `edit.com`'s four, with `vidprobe`
+  deciding the palette - underline, which the design expected, does not render
+  in mode 7 at all.
+- **Several files open.** 2026-09-15. §65, now in `DESIGN.md`, which §55 had
+  named as outside the first version and whose `Ctrl+Tab` it had set aside for
+  exactly this. `viewSwitch` switches the window and the buffer in one call, the
+  explorer is a slot in the ring, and Tab went back to the document.
+- **The character picker.** 2026-09-15. §64, now in `DESIGN.md`, inside `momoed`
+  rather than under it. Sixteen by sixteen so the cursor's position is the code,
+  and 10 and 13 refused because §54 makes them the bytes a line is made of.
+- **The explorer.** 2026-09-14. The piece "Finish `momoed`" named next, in §55,
+  over §62's `shared/lib/modir.momo`. Its one blocker had been §38's directory
+  enumeration, which landed first. It navigates, because a panel that shows
+  subdirectories and cannot enter them is a list of things you may not have -
+  and `momoed` needs no arguments now.
 - **Bulk loading.** 2026-09-14. §54 grew `textBulk`, a bracket that keeps the
   append position in ordinary variables for the length of a load; the record is
   DECISIONS under bulk loading. One loaded character had cost **eleven far

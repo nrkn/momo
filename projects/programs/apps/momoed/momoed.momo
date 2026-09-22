@@ -1,9 +1,10 @@
-// momoed.momo - the editor (PLAN §55).
+// momoed.momo - the editor (§55).
 //
 // A file named on the command line - or none, and the explorer says what is here
 // - with §54's buffer under it, §56's window onto it, §59 searching it, §60
 // holding the term, §61 moving spans of it about, §62 listing the directory,
-// §57's keys driving all of them, and cells written straight to the text frame.
+// §67 driving the menus, §57's keys driving all of them, and cells written
+// straight to the text frame.
 //
 // **Almost nothing here is new.** The buffer, the window, the search, the field,
 // the spans and the keyboard are libraries with test projects of their own, and

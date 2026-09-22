@@ -5552,18 +5552,21 @@ small; it is not a check and does not pretend to be one.
 ## 55. `momoed` - the editor
 
 **Partly built**, and which half is which matters more than the status. It
-opens a file named on the command line, edits it and writes it back, over §54's
-buffer, §56's window and §57's keys, drawing cells into the text frame. **The
-explorer does not exist**, and neither does more than one file open at a time,
-or text in a graphics mode - each is named below and none is designed.
+opens files from an explorer beside the text or from the command line, several
+at a time (§65), and edits, searches and writes them back, over §54's buffer,
+§56's window and §57's keys, drawing cells into the text frame under a menu bar
+and a tab bar (§66, §67). **Text in a graphics mode does not exist**, and
+neither do multiple cursors or syntax colour - each is named below and none is
+designed.
 
 Almost nothing in the program is new. Every part of it that a headless tier can
 run is tested in a library below it, and `edloop` drives this exact command
 layer from a script of keystrokes. What `momoed` adds is the three things no
 tier can run: a real keyboard, a real screen, and a file named by a person.
 
-An explorer beside a text pane, toggled away for width, and text modes `edit.com`
-never had.
+The destination was an explorer beside a text pane, toggled away for width, and
+text modes `edit.com` never had. The explorer is built; the text modes are what
+is left.
 
 ### Three stages, and the tier line is not where it looks
 
@@ -5619,10 +5622,13 @@ flexible option is affordable here in a way it never is in an inner loop.**
 So the key map is data, and the flavour of the editor stops being a decision that
 has to be right the first time.
 
-**The table is three `const` arrays and not a `group`.** That is a boundary on
-§18 rather than a preference: a group's fields are storage and take no
-initialiser, so a table known at compile time cannot be written as one. `group`
-is for a pool filled at runtime; this is data, and data goes in the image.
+**The table is three parallel `const` arrays.** The reason first given here was
+a boundary on §18 - that a group's fields are storage and take no initialiser -
+and it was already untrue when it was written: §52 had given a field an
+initialiser, and its rows form is the one where a row is what the writer edits
+and a column is what the program reads, which is this table exactly. So the
+arrays are a choice nobody has revisited rather than a constraint, and the
+drift check under Rules is what the choice costs.
 
 A chord costs one `u16` of state and a `prefix` column, so `^K ^C` and a plain
 `^S` live in the same table with no second mechanism.
@@ -5989,9 +5995,9 @@ on the command line needs none of it, and the explorer is the half that can wait
 
 **It waited, and then it was built** - §38 has `std/dir.momo` and `dirtest`, with
 the DTA moved before every call so the collision above cannot reach a caller.
-What is left for the explorer is the half that was never blocked: what it looks
-like, which of §55's unsettled questions it answers, and whether the scrollable
-list it needs is the first thing in this program to go through momolo.
+What was left for the explorer was the half that was never blocked, what it
+looks like, and that is further down. The scrollable list went into §62 rather
+than through momolo.
 
 ### Number formatting into a buffer, which was missing and is not now
 
@@ -6069,10 +6075,10 @@ language feature.
   above. Nothing downstream sees `AL`, `AH` or a flags byte.
 - **The flags are masked to the modifier bits.** They carry state as well, and
   the state differs between machines for the same keypress.
-- **A binding table is `const` arrays, not a `group`**, and `npm run drift` holds
-  their lengths against each other. The form cannot make the mistake impossible,
-  so something has to make it loud - they drifted apart once and the symptom was
-  one key doing nothing.
+- **The binding table's parallel arrays are held against each other** by `npm
+  run drift`. The form cannot make the mistake impossible, so something has to
+  make it loud - they drifted apart once and the symptom was one key doing
+  nothing.
 - **A keystroke redraws what it changed.** A motion inside the window changes no
   cell of the text area; a one-line scroll changes one row and the BIOS moves the
   rest. The whole screen is for the cases that earn it.
@@ -6193,10 +6199,10 @@ none of them. Two sets, chosen by the frame segment - which is the honest signal
 because the segment *is* what the difference is. The two sets agree on text and
 status, which is why the status line looked right in mono when nothing else did.
 
-Not in it: more than one file open; multiple cursors; syntax colour; and text in
-a graphics mode. Each is a paragraph of its own or a line in §54's, and none was
-needed for the thing to be an editor. Replace and the explorer were on this list
-and are not now.
+Not in it: multiple cursors; syntax colour; and text in a graphics mode. Each is
+a paragraph of its own or a line in §54's, and none was needed for the thing to
+be an editor. Replace, the explorer and more than one file open were on this
+list and are not now - the last is §65.
 
 ### The explorer, which is VS Code's shape and not a file manager's
 
@@ -6239,23 +6245,15 @@ document scrolled right would be looking at a column that no longer exists.
 **The panel owns the keyboard while it has focus**, the way the prompt does, so
 there is one place that answers *where did that keystroke go*. `^Q` and `^B`
 cross the boundary because leaving the program and putting the panel away should
-not need a detour through the editor. Escape leaves it on screen and gives the
-keys back; `^B` puts it away - two gestures because they are two intentions.
+not need a detour through the editor, and so do `Ctrl+Tab` and `^T` since §65,
+and the menus since §67. Escape leaves it on screen and gives the keys back;
+`^B` puts it away - two gestures because they are two intentions.
 
-**Tab moves between the panes**, both ways, which is what Tab does everywhere
-else. Escape on its own was asymmetric - it got you out of the panel and left no
-way back in but `^B` twice - and a pair of keys that only work in one direction
-is a pair somebody has to remember rather than reach for.
-
-`Ctrl+Tab` was the other candidate and is deliberately **left free**: when there
-is more than one document it should cycle those, which is what it does in every
-program that has both. Tab for panes and `Ctrl+Tab` for documents is the
-distinction already in everybody's hands. It is also the one that needed no
-probe - §57 measured `Tab` and `Shift+Tab` and never measured `Ctrl+Tab`.
-
-The cost is that **Tab can no longer insert a tab**. It never did - it is below
-the printable range that `step` inserts from - so nothing was taken, but
-something was spent.
+**Tab moved between the panes at first**, both ways, because Escape on its own
+was asymmetric - it got you out of the panel and left no way back in but `^B`
+twice. `Ctrl+Tab` was left free for cycling documents once there was more than
+one. §65 is where both changed: the explorer became a slot in the `Ctrl+Tab`
+ring, which answers the asymmetry, and Tab went back to the document to indent.
 
 **There is one hardware cursor**, which §55 already noted for multiple cursors
 and which a second pane runs into first. It goes where the keys are going, and
@@ -6290,15 +6288,17 @@ the ones that followed.
 
 ### What is not settled
 
-What the status bar says. Whether selection is a mark and a point or a range. And
-what *finished* means for a first version, which `simplerl` answered for a game
+What *finished* means for a first version, which `simplerl` answered for a game
 by being deliberately the smallest thing that counts as one.
 
-The explorer's shape was on this list and is settled above. What it opened
-instead: whether subdirectories should be shown when they cannot be entered
-(§62 supports them and the editor asks for files alone, so nothing is a control
-that does nothing), and whether the list should refresh on anything other than
-being shown.
+Three things were on this list and are not now. What the status bar says is
+§66's division: the tab says which file and the status line says where it is.
+Selection is a mark and a point, which §61 took. And the explorer's shape is
+settled above - including the question it opened about subdirectories that
+could not be entered, which went away when they could be.
+
+What is still open from the explorer is whether the list should refresh on
+anything other than being shown.
 
 ---
 
@@ -6711,16 +6711,16 @@ to a name in the program.
 `docOpen` is a flag per slot rather than a count, because closing the *first* of
 two leaves the second open and a count cannot say that.
 
-### What this makes sharper, and has not answered
+### What this made sharper, and §69 answered
 
-`^Q` does not check whether anything is unsaved, and never has. `^O` and `^W` both
-refuse a dirty document; the door does not. With one file that was one file's
-work; with two it is two, and one of them may not be the one on screen.
+`^Q` did not check whether anything was unsaved, and never had. `^O` and `^W`
+both refuse a dirty document; the door did not. With one file that was one
+file's work; with two it is two, and one of them may not be the one on screen.
 
-The fix is not obvious enough to make quietly: refusing needs a way through, and
-"press it again" is a second kind of answer to a question this program has
-already decided how to answer once. It is written down here rather than guessed
-at.
+The fix was not obvious enough to make quietly: refusing needs a way through, and
+"press it again" is a second kind of answer to a question this program had
+already decided how to answer once. A double-tap came first and did not survive
+File > Exit; §69's three-answer box is what replaced it.
 
 ### Rules
 
