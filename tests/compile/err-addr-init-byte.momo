@@ -1,0 +1,4 @@
+// EXPECT-ERROR: an address is a u16
+// An address is a word in our segment (§10), so a byte table cannot hold one.
+u8[4] a
+const u8[] names = [ addr( a ) ]

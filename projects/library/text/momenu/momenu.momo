@@ -16,9 +16,9 @@ include "lib/momenu.momo"
 
 // ---- the tables, which are the program's (§37) ------------------------------
 //
-// A blob per menu, because a table of addresses cannot be written down - §13 has
-// the reason and `strParts` is what makes the count derived rather than a second
-// number to keep in step.
+// A blob per menu, written before §51 made a table of addresses writable, and
+// `strParts` is what makes the count derived rather than a second number to keep
+// in step.
 //
 // `Nothing` is the empty one. It is last only so that stepping onto it has to
 // wrap to be reached, which is the path that would have divided by zero.

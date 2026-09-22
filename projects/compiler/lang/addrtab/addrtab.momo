@@ -1,0 +1,66 @@
+// addrtab.momo - addr() in an initialiser (§51): a table NASM fills in.
+//
+// Every table here is read back and followed, because the claim is that each
+// entry is the address of what it names, and only running can show that - the
+// emitted `dw` is a label, and nothing below NASM knows what it resolves to.
+//
+// What the golden tier holds instead is the pruning. `sDead` is named only by a
+// table nothing reads, so neither of them is in the image; and `sInner` is named
+// only by a table that is itself named only by a table, which is the case the
+// fixpoint is for.
+
+include "lib/std/io.momo"
+
+const u8[] sOne   = "one$"
+const u8[] sTwo   = "two$"
+const u8[] sThree = "three$"
+
+const u16[] names = [ addr( sOne ), addr( sTwo ), addr( sThree ) ]
+
+// Inferred rather than declared: the address settles it as u16, and a number may
+// sit beside one - here a 0 ending the run, the way a sentinel does.
+const tail = [ addr( sThree ), addr( sOne ), 0 ]
+
+// A table of tables. Nothing names `inner` but `outer`, and nothing names
+// `sInner` but `inner`.
+const u8[] sInner  = "inner$"
+const u16[] inner  = [ addr( sInner ) ]
+const u16[] outer  = [ addr( inner ) ]
+
+// Storage that is not a string: written through the table, read through the
+// name, and the other way round.
+u16 counter
+const u16[] slots = [ addr( counter ) ]
+
+// Named by nothing that runs, so neither is emitted.
+const u8[] sDead  = "dead$"
+const u16[] dead  = [ addr( sDead ) ]
+
+// ---- entry ----
+
+for ( u16 i in names ) {
+  putStr( names[i] )                  // one, two, three
+  newline()
+}
+
+putNumber( len( names ) )             // 3
+newline()
+
+u16 at
+at = 0
+while ( tail[at] != 0 ) {
+  putStr( tail[at] )                  // three, one
+  newline()
+  at++
+}
+
+putStr( peek16( outer[0] ) )          // inner
+newline()
+
+poke16( slots[0], 1234 )
+putNumber( counter )                  // 1234
+newline()
+
+counter = 77
+putNumber( peek16( slots[0] ) )       // 77
+newline()

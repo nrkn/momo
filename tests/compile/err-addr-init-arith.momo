@@ -1,0 +1,5 @@
+// EXPECT-ERROR: only a bare addr()
+// NASM would take `dw a + 1`. The language does not: nothing guarantees two
+// globals are adjacent, and addr( b ) - addr( a ) reads as a size (§51, §18).
+u8[4] a
+const u16[] names = [ addr( a ) + 1 ]

@@ -194,8 +194,8 @@ sub progIcon( u16 name ) {
 // It is told that width rather than discovering it, which is the cheap half of
 // flow: the packing happens while the tree is built because there is nothing
 // left to find out. moflow answers which icons go on which row, and this emits
-// them - the split that exists because Momo has neither closures nor a way to
-// write down a table of addresses.
+// them - the split that exists because Momo has neither closures nor the
+// address of a routine.
 sub w311Group( u16 title, u16 names, u16 count, u16 width ) {
   u16 inner
 

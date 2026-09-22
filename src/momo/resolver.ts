@@ -58,6 +58,10 @@ import {
 // gets emitted, and a chain of views collapses to one offset from real storage.
 export type Alias = { parent: string; byteOffset: number }
 
+// An element of an array's data: a number the folder produced, or a label NASM
+// will resolve (§51). Only a const `u16` array ever holds the second.
+export type ArrayValue = number | { label: string }
+
 export type MomoSymbol =
   // `frac` on a symbol is the fraction width of its type, absent meaning 0. It
   // sits beside `type` rather than inside it, so everything that wants storage -
@@ -80,7 +84,7 @@ export type MomoSymbol =
       unit?: string
       length: number
       readonly: boolean
-      values: number[]
+      values: ArrayValue[]
       // Written as a string literal rather than as numbers. The emitter groups
       // printable runs back into quoted text for these and only these - see the
       // `db` line in emitData, and DECISIONS §1 for why that used to be
@@ -1357,16 +1361,24 @@ export const resolve = (program: Program): ResolveResult => {
   // Element type of an array const with no declared type: the smallest type
   // holding every value. Unlike arithmetic this does NOT promote to 16 bits -
   // an array of small values should occupy one byte per element, not two.
-  const inferElementType = (values: number[], at: Location): ValueType => {
+  // An address is a word, so one in the list settles the type (§51) and every
+  // number beside it has to fit that word.
+  const inferElementType = (values: ArrayValue[], at: Location): ValueType => {
     let min = 0
     let max = 0
+    const addresses = values.some((value) => typeof value !== 'number')
 
     for (const value of values) {
+      if (typeof value !== 'number') continue
+      if (addresses && !fits(value, 'u16')) {
+        raise(at, `value ${value} does not fit in u16, which a table holding addr() is`)
+      }
       if (naturalType(value) === null) raise(at, `value ${value} does not fit in 16 bits`)
       min = Math.min(min, value)
       max = Math.max(max, value)
     }
 
+    if (addresses) return 'u16'
     if (min >= 0 && max <= 255) return 'u8'
     if (min >= -128 && max <= 127) return 'i8'
     if (min >= 0 && max <= 65535) return 'u16'
@@ -1374,11 +1386,23 @@ export const resolve = (program: Program): ResolveResult => {
     raise(at, 'array values do not share a common type')
   }
 
+  // Whether an expression mentions addr() anywhere, so that `addr( a ) + 1` can be
+  // told why it was refused rather than only that it is not a constant.
+  const mentionsAddr = (node: unknown): boolean => {
+    if (Array.isArray(node)) return node.some(mentionsAddr)
+    if (typeof node !== 'object' || node === null) return false
+    if ((node as { type?: string }).type === 'AddrExpression') return true
+    return Object.values(node).some(mentionsAddr)
+  }
+
+  // `addresses` is true only for a const array: §51 admits a bare addr() there
+  // and nowhere else, as a label NASM resolves rather than a number folded here.
   const arrayValuesFrom = (
     init: Expression | null,
     elementType: ValueType | null,
     elementFrac = 0,
-  ): number[] => {
+    addresses = false,
+  ): ArrayValue[] => {
     if (!init) return []
 
     if (init.type === 'StringLiteral') {
@@ -1391,13 +1415,54 @@ export const resolve = (program: Program): ResolveResult => {
       raise(init, 'an array must be initialised with an array or string literal')
     }
 
-    const values: number[] = []
+    const values: ArrayValue[] = []
     for (const element of init.elements) {
+      // §51. The refusals of a sub, a const and a far region are addr()'s own,
+      // raised by resolving it, so an initialiser inherits them rather than
+      // restating them.
+      if (element.type === 'AddrExpression') {
+        if (!addresses) {
+          raise(
+            element,
+            'addr() in an initialiser is only for a const array - a writable table of' +
+              ' addresses is a pointer array in all but name',
+          )
+        }
+        if ((elementType !== null && elementType !== 'u16') || elementFrac !== 0) {
+          raise(element, `an address is a u16, so an array of ${elementType} cannot hold one`)
+        }
+        // An initialiser is resolved where it stands, as every other one is, so
+        // what it names has to be above it. Code can name a later global and
+        // this cannot, which a bare "not declared" would not explain.
+        if (!lookup(element.target.name)) {
+          raise(
+            element,
+            `"${element.target.name}" is not declared above this - a table can only name` +
+              ' what comes before it',
+          )
+        }
+        resolveExpression(element)
+        values.push({ label: element.target.label as string })
+        continue
+      }
+
       // Resolved rather than folded, because an element of a fixed-point array
       // has to satisfy the scale as well as the range - and a count does not.
       scaleDecimals(element, elementFrac)
       const resolved = resolveExpression(element)
-      if (resolved.value === null) raise(element, 'array element must be a constant')
+      if (resolved.value === null) {
+        // Bare only, and for §18's reason: nothing guarantees two globals are
+        // adjacent, and arithmetic on addresses is one step from a size that is
+        // not one. NASM would take it; the language does not.
+        if (mentionsAddr(element)) {
+          raise(
+            element,
+            'only a bare addr() can go in an initialiser - arithmetic on an address' +
+              ' reads as a size and is not one, and len() is the size',
+          )
+        }
+        raise(element, 'array element must be a constant')
+      }
       if (resolved.frac !== elementFrac) {
         checkAssignable(resolved, elementType ?? 'u16', elementFrac, element)
       }
@@ -1420,7 +1485,7 @@ export const resolve = (program: Program): ResolveResult => {
     local = false,
   ) => {
     const elementType = typeNode.name
-    const values = arrayValuesFrom(init, elementType, typeNode.frac)
+    const values = arrayValuesFrom(init, elementType, typeNode.frac, readonly)
 
     let length: number
     if (typeNode.size) {
@@ -1792,7 +1857,7 @@ export const resolve = (program: Program): ResolveResult => {
   // tail zero-fill: `u8[10] partial = [ 1, 2, 3 ]` is a buffer with a head, where
   // a group with three rows and ten instances is a miscount. The message follows
   // the form the author wrote, which is why `fromRows` is carried this far.
-  const columnValues = (node: GroupDeclaration, field: GroupField, count: number): number[] => {
+  const columnValues = (node: GroupDeclaration, field: GroupField, count: number): ArrayValue[] => {
     if (!field.init) return new Array<number>(count).fill(0)
 
     // Said here rather than left to the array path, which would report "an array
@@ -1978,7 +2043,7 @@ export const resolve = (program: Program): ResolveResult => {
         return
       }
 
-      const values = arrayValuesFrom(node.init, null)
+      const values = arrayValuesFrom(node.init, null, 0, true)
       const elementType = inferElementType(values, node)
       declare(
         {

@@ -138,11 +138,6 @@ at all, which makes one a floor rather than a measurement.
   and two things follow from it rather than block it: it is the consumer §43's
   properties query has been waiting for, and the first consumer of what
   DECISIONS §22 gives as the reason for `in` and `out`.
-- **`addr()` in an initialiser.** §51 - `const u16[] t = [ addr( a ), addr( b ) ]`
-  is rejected because an array's elements are folded to numbers and a label is
-  not one until NASM says so. The target has never objected: `emitData` already
-  writes `_hsize dw _htop - _heap`. It is the smallest item here, it deletes a
-  `PITFALLS` entry, and §41's directory and §53's spine both want it.
 
 ### Probably
 
@@ -241,7 +236,8 @@ at all, which makes one a floor rather than a measurement.
   worth showing and on a draft written rather than generated.
 - **Nested arrays.** §53 - `const u8[][] menu = [ "File$", "Edit$", "View$" ]`,
   with a compiler-written table of child addresses in place of the blob and the
-  linear walk `std/str.momo`'s `nthStr` does today. Behind §51, which is the table.
+  linear walk `std/str.momo`'s `nthStr` does today. §51, which is the table, is
+  built.
   It is the largest of the three because it is the only one that gives Momo an
   expression whose type is an array, and §18 refused exactly that for `mob[i]` -
   the refusal does not transfer, and the shape that replaces it is §45's: a name
@@ -365,6 +361,15 @@ All are set out in DESIGN §20 unless noted.
 section that was itself a plan - see the note at the top for why, and where to
 look for the rest.
 
+- **`addr()` in an initialiser.** 2026-09-23. §51, now in `DESIGN.md`, and the
+  record is DECISIONS §51. `const u16[] t = [ addr( a ), addr( b ) ]` emits
+  `dw a, b`, which NASM had always been able to resolve. The design called
+  widening an element to a number-or-label "the whole change", and it was not:
+  pruning read every initialiser as a use, so a table nobody reads would have
+  kept everything it named. A live table keeps its targets now and a dead one
+  keeps nothing, and a table naming a table is why that is a fixpoint. The
+  `PITFALLS` entry became a note about something that used to be true, which is
+  that file's own rule, rather than being deleted as this item said it would be.
 - **A question with three answers.** 2026-09-18. §69, now in `DESIGN.md`.
   Yes / No / Cancel for File > Exit over unsaved work, which a double-tap could
   never get through because opening the menu again disarmed it - and for Save As
@@ -2388,65 +2393,6 @@ way, and a scene format earns its keep when there are more scenes than a person
 wants to read - which is a threshold this repository has not reached. The reason
 to write the design down anyway is that it was *tested and it held*, and the
 study that tested it is closed: this is the only place the result survives.
-
----
-
-## 51. `addr()` in an initialiser - the table that cannot be written down
-
-**Designed, not built.** The smallest of three sections, and the one the other
-two rest on:
-
-```momo
-const u8[] sOne = "one$"
-const u8[] sTwo = "two$"
-
-const u16[] names = [ addr( sOne ), addr( sTwo ) ]     // rejected today
-```
-
-`PITFALLS.md` has the error - `array element must be a constant` - and the
-reason: `addr()` is a link-time constant, and an array initialiser is folded
-before there are any symbols to point at. So the obvious table is missing, and
-`std/str.momo`'s `nthStr` exists to walk a blob in its place.
-
-### The refusal is the folder's, not the target's
-
-`dw sOne` is something NASM has always resolved, and `emitData` already writes
-labels into the data section - `_hsize dw _htop - _heap` is one, with a comment
-saying NASM computes it. So nothing about the machine, the object format or the
-`.COM` model is in the way. What is in the way is that an array symbol carries
-`values: number[]`, and a label is not a number until the assembler says so.
-
-Widening that element to a number-or-label, and having `emitData` write the label
-where there is one, is the whole change. The folder gains one case: `addr(x)` in
-an initialiser position resolves to a label reference rather than raising.
-
-### `addr(a) + 1` stays out, and the reason is §18's
-
-Only a bare `addr(x)` is admitted. NASM would take `dw sOne + 1` happily, so this
-is a language rule rather than a capability limit, and it exists to keep one
-sentence in §18 true: **nothing guarantees two globals are adjacent.** Arithmetic
-on link-time addresses is one short step from `addr(b) - addr(a)`, which reads as
-a size and is not one. A program that wants a size has `len`.
-
-### Rules
-
-- **`u16` elements only.** An address does not fit in a `u8`, and §10 already
-  fixes an address at one word in our own segment.
-- **`const` only** in v1. A writable table of addresses is a pointer array in all
-  but name, and nothing has wanted one.
-- **The `far` carve-out is inherited, not new.** §16 already refuses `addr()` on
-  a far region - *it is in another segment* - and an initialiser position changes
-  nothing about that.
-- **No `addr()` of a `sub`.** The resolver already refuses it, and an indirect
-  `call` is not in §1's instruction subset.
-
-### What it unblocks that is not nesting
-
-Any table whose entries are consumed by `peek`/`poke`, which is the interface
-`std/str.momo` already presents. §41's `momowad` directory is one: a lump of
-assets wants a table of where each begins, and the alternative is the same linear
-walk `nthStr` does. §52 has landed and §53 may never; this stands alone either
-way.
 
 ---
 

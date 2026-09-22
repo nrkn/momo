@@ -3881,6 +3881,89 @@ Four more refusals, each of them a wrong answer with no diagnostic otherwise:
 
 ---
 
+## 51. `addr()` in an initialiser - the table that cannot be written down
+
+**Built.** `addrtab` runs every shape in tier 2, and the `err-addr-init-*`
+files hold the refusals. The smallest of three sections, and the one the other
+two rest on:
+
+```momo
+const u8[] sOne = "one$"
+const u8[] sTwo = "two$"
+
+const u16[] names = [ addr( sOne ), addr( sTwo ) ]
+```
+
+emits `names: dw sOne, sTwo`, and NASM fills the table in. Before this it was
+refused with `array element must be a constant`, because `addr()` is a link-time
+constant and an array initialiser is folded before there are any symbols to point
+at - so the obvious table was missing, and `std/str.momo`'s `nthStr` exists to
+walk a blob in its place.
+
+### The refusal was the folder's, not the target's
+
+`dw sOne` is something NASM has always resolved, and `emitData` already wrote
+labels into the data section - `_hsize dw _htop - _heap` is one, with a comment
+saying NASM computes it. So nothing about the machine, the object format or the
+`.COM` model was in the way. What was in the way is that an array symbol carried
+`values: number[]`, and a label is not a number until the assembler says so.
+
+So an element is a number or a label now, and `emitData` writes the label where
+there is one. The folder gained one case: a bare `addr(x)` in an initialiser
+resolves to a label rather than raising.
+
+### `addr(a) + 1` stays out, and the reason is §18's
+
+Only a bare `addr(x)` is admitted. NASM would take `dw sOne + 1` happily, so this
+is a language rule rather than a capability limit, and it exists to keep one
+sentence in §18 true: **nothing guarantees two globals are adjacent.** Arithmetic
+on link-time addresses is one short step from `addr(b) - addr(a)`, which reads as
+a size and is not one. A program that wants a size has `len`, and the refusal
+says so.
+
+### A table keeps what it names alive, and only while it is kept
+
+Pruning keeps the storage the retained program mentions, and it found those
+mentions by walking every declaration's initialiser - which was right while an
+initialiser could only mention constants. An `addr()` in a table is different: it
+is the *table's* reference, not the program's. Walked like the others, a table
+nobody reads would keep everything it names in the image.
+
+So an address in an initialiser is not a use. It joins the fixpoint that already
+keeps a live view's parent alive: **a live table keeps its targets, and a dead one
+keeps nothing.** It has to be a fixpoint rather than a pass, because a table can
+name a table - `addrtab`'s `outer` names `inner`, which names a string nothing
+else mentions.
+
+### Rules
+
+- **`u16` elements only.** An address does not fit in a `u8`, and §10 already
+  fixes an address at one word in our own segment. An inferred table holding one
+  is `u16`, and a number beside it has to fit that word - `-1` is refused rather
+  than making the table `i16`.
+- **`const` only.** A writable table of addresses is a pointer array in all but
+  name, and nothing has wanted one. A `group` field is storage, so this refuses a
+  column of addresses too.
+- **A table names what is above it.** An initialiser is resolved where it stands,
+  as every other initialiser is - `const u8[] early = [ late ]` is refused the
+  same way. Code can name a later global and a table cannot, so the refusal says
+  which rather than only that the name is not declared.
+- **The `far` carve-out is inherited, not new.** §16 already refuses `addr()` on
+  a far region - *it is in another segment* - and an initialiser position changes
+  nothing about that. The same goes for a const, which has no storage.
+- **No `addr()` of a `sub`.** The resolver already refuses it, and an indirect
+  `call` is not in §1's instruction subset.
+
+### What it unblocks that is not nesting
+
+Any table whose entries are consumed by `peek`/`poke`, which is the interface
+`std/str.momo` already presents. §41's `momowad` directory is one: a lump of
+assets wants a table of where each begins, and the alternative is the same linear
+walk `nthStr` does. §52 has landed and §53 may never; this stands alone either
+way.
+
+---
+
 ## 52. `group` data, written as rows
 
 **Built.** The field initialisers §18 left out of v1, in the spelling that makes
@@ -6304,7 +6387,7 @@ anything other than being shown.
 
 ## Sections designed, but not built
 
-Fifteen sections carry numbers but no text here, because what they describe does
+Fourteen sections carry numbers but no text here, because what they describe does
 not exist yet. All are in `PLAN.md`. The heading names no range deliberately - the
 set stopped being contiguous the moment one of them was built.
 
@@ -6323,7 +6406,6 @@ set stopped being contiguous the moment one of them was built.
 | §46 | `alias` - a name for an indexed access, which §45's `of` is one case of |
 | §49 | Named and default arguments, which is what §48's `cfg` carrier needs |
 | §50 | A layout DSL: content, layout and paint as three documents |
-| §51 | `addr()` in an initialiser - the table of addresses that cannot be written down |
 | §53 | Nested arrays, and the spine they need |
 
 ---

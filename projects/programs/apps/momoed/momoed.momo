@@ -2225,7 +2225,7 @@ const actPick   = 36
 
 // ---- the menus (§67) ---------------------------------------------------------
 //
-// A blob per menu, because a table of addresses cannot be written down (§13), and
+// A blob per menu, written before §51 made a table of addresses writable, and
 // the titles in one more so that the bar's layout is **derived rather than
 // written twice**: what used to sit here was a label string and a list of the
 // columns its words started at, which is the same fact in two forms.

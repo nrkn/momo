@@ -1,0 +1,5 @@
+// EXPECT-ERROR: addr() has no meaning
+// §16's refusal, inherited rather than restated: an initialiser position changes
+// nothing about a far region having no offset in our segment.
+far u16[2000] cells = 0xB800
+const u16[] names = [ addr( cells ) ]

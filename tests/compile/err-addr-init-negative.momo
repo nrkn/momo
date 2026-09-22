@@ -1,0 +1,5 @@
+// EXPECT-ERROR: does not fit in u16
+// An address settles an inferred table's type as u16, and every number beside
+// it has to fit that word - so -1 is refused rather than making the table i16.
+u8[4] a
+const names = [ addr( a ), -1 ]

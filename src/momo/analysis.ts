@@ -28,6 +28,7 @@ type PrunableSymbol =
       label: string
       dynamic: boolean
       alias?: { parent: string; byteOffset: number }
+      values: (number | { label: string })[]
     }
   | { kind: 'const'; name: string; label: string }
   | { kind: 'constfn'; name: string; label: string }
@@ -293,18 +294,24 @@ export const prune = <S extends PrunableSymbol>(result: {
   // rather than per-node-type means a new node kind cannot silently be missed.
   const used = new Set<string>()
 
-  const walk = (value: unknown) => {
+  // `inTable` is set inside an array initialiser, where an addr() is data rather
+  // than code: it is the table's reference, and the fixpoint below keeps its
+  // target only while the table itself is kept (§51).
+  const walk = (value: unknown, inTable = false) => {
     if (Array.isArray(value)) {
-      for (const item of value) walk(item)
+      for (const item of value) walk(item, inTable)
       return
     }
     if (typeof value !== 'object' || value === null) return
 
     const node = value as Record<string, unknown> & { type?: string; label?: string }
 
+    if (inTable && node.type === 'AddrExpression') return
+
     // A declaration's own label is not a use - only references count.
     if (node.type === 'VariableDeclaration' || node.type === 'ConstDeclaration') {
-      walk(node.init)
+      const init = node.init as { type?: string } | null
+      walk(init, init?.type === 'ArrayLiteral')
       return
     }
 
@@ -318,23 +325,39 @@ export const prune = <S extends PrunableSymbol>(result: {
     if (typeof node.label === 'string') used.add(node.label)
     for (const key of Object.keys(node)) {
       if (key === 'label') continue
-      walk(node[key])
+      walk(node[key], inTable)
     }
   }
 
   walk(body)
 
-  // A live view keeps its parent alive: the alias is `equ parent + n`, so
-  // dropping the storage would leave NASM with an undefined symbol. Views
-  // collapse to real storage when they are declared, so one pass would do - the
-  // fixpoint is here so that stops being something this has to know.
+  // What a live symbol's own data names, which dropping would leave NASM with
+  // an undefined symbol for.
+  //
+  // A live view keeps its parent alive: the alias is `equ parent + n`. Views
+  // collapse to real storage when they are declared, so one pass would do for
+  // them - but a table of addresses (§51) can name another table, and that one
+  // needs the fixpoint.
+  const references = (symbol: S): string[] => {
+    const out: string[] = []
+    if ('alias' in symbol && symbol.alias) out.push(symbol.alias.parent)
+    if (symbol.kind === 'array') {
+      for (const value of symbol.values) {
+        if (typeof value !== 'number') out.push(value.label)
+      }
+    }
+    return out
+  }
+
   for (;;) {
     let added = false
     for (const symbol of result.symbols) {
-      if (!('alias' in symbol) || !symbol.alias) continue
-      if (!used.has(symbol.label) || used.has(symbol.alias.parent)) continue
-      used.add(symbol.alias.parent)
-      added = true
+      if (!used.has(symbol.label)) continue
+      for (const label of references(symbol)) {
+        if (used.has(label)) continue
+        used.add(label)
+        added = true
+      }
     }
     if (!added) break
   }

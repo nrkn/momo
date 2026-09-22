@@ -1,0 +1,5 @@
+// EXPECT-ERROR: only for a const array
+// A writable table of addresses is a pointer array in all but name (§51).
+u8[4] a
+u8[4] b
+u16[] names = [ addr( a ), addr( b ) ]

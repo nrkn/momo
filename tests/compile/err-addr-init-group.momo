@@ -1,0 +1,9 @@
+// EXPECT-ERROR: only for a const array
+// A group's fields are storage, so a column of addresses is writable - which is
+// the pointer array §51 declines, by the other door.
+u8[4] a
+u8[4] b
+
+group item[2] {
+  u16 name = [ addr( a ), addr( b ) ]
+}

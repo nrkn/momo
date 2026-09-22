@@ -1549,6 +1549,13 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
 
   // ---- data -----------------------------------------------------------------
 
+  // A string literal's elements are its characters, so a label here is a
+  // resolver bug rather than something to write out.
+  const byteOf = (value: number | { label: string }): number => {
+    if (typeof value !== 'number') throw new Error(`internal: a label in string data`)
+    return value
+  }
+
   // Group printable runs into quoted strings so a string reads as one.
   //
   // **Only for data that was written as a string.** This was unconditional for
@@ -1702,10 +1709,15 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
           continue
         }
 
+        // A label is written as itself and NASM resolves it (§51), the way it
+        // already resolves `_hsize` below. Only a const u16 array holds one, so a
+        // string's bytes never meet a label.
         const parts =
           directive === 'db' && symbol.fromString
-            ? formatByteParts(symbol.values)
-            : symbol.values.map(String)
+            ? formatByteParts(symbol.values.map(byteOf))
+            : symbol.values.map((value) =>
+                typeof value === 'number' ? String(value) : symbolFor(value.label).label,
+              )
 
         emitArrayData(
           symbol.label,

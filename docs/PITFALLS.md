@@ -209,6 +209,11 @@ nothing - and it is the maintainable direction anyway, because an offset table
 written out by hand has to be recomputed every time a string changes length. The
 blob is the only thing that has to stay right.
 
+**Since 2026-09-23 this is something that used to be true.** DESIGN §51 admits a
+bare `addr()` in a `const u16[]` initialiser, and the table at the top of this
+entry compiles to `dw sOne, sTwo` with NASM filling it in. The blob still works;
+it is no longer the only way.
+
 ---
 
 ## A loop counter stepped past its bound never leaves the loop

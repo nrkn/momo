@@ -30,8 +30,8 @@
 //
 // The study this came from packs a list of items, each carrying a width and a
 // closure that builds it, and emits the rows itself. Momo has neither closures
-// nor a way to write down a table of addresses (PITFALLS), so an item cannot be
-// a thing that gets passed around.
+// nor the address of a routine to put in a table (§51 refuses one), so an item
+// cannot be a thing that gets passed around.
 //
 // So the split moves: this answers WHICH items go on WHICH row, and the caller
 // emits them. That is the half a caller cannot work out without doing the
