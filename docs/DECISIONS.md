@@ -1270,6 +1270,66 @@ compiler change. The alignment work waits for a reason to prefer the 8086 over t
 locals-locality cost paid deliberately. `tilefill` itself stays as it is: it is the
 straightforward version on purpose, and §14 wants it readable more than fast.
 
+### `tennis` was the program that cared, and word views were the smaller half
+
+2026-09-23. `tennis` ran well on a 486 and flickered on a 286, and its render
+cleared the ball and both paddles and drew them again every frame through
+`setPixel` - a call, a `mul` by 320 and four byte stores each reloading ES, per
+logical pixel, 54 of them a frame and 99 whenever the ball neared the net, which
+was redrawn whole. Three changes replaced it:
+
+- **Draw what moved, and never clear what is about to be drawn.** A paddle draws
+  the rows it entered and clears the rows it left; the ball draws its new square
+  and clears only the old pixels outside it. This is DESIGN §68's finding again,
+  and it is what removes the flicker whatever the timing: nothing is ever briefly
+  absent for the beam to catch.
+- **Clear to what is underneath.** The only thing the ball crosses is the net, so
+  a cleared pixel in the net's column asks `netAt` - and the net's whole redraw
+  left the frame.
+- **Word stores through `pxwords`.** A logical pixel is one word on each of two
+  screen rows, and a run steps 320 words a row from one multiply.
+
+**Counted by running rather than by hand.** The render now branches on how far
+each thing moved, which a hand count gets wrong, so the emitted assembly was run
+in an interpreter of §1's subset with two scripted players, and each rendered
+frame's instructions counted exactly. The cycle column applies the 8086 table this
+section already uses; it compares the two builds and predicts no machine.
+
+| per rendered frame, 3,000 frames | before | after |
+|---|---|---|
+| instructions, median | 3,523 | 763 |
+| instructions, 95th percentile | 3,523 | 1,119 |
+| instructions, worst | 6,349 | 1,385 |
+| 8086 cycles, median | ~39,800 | ~8,300 |
+| 8086 cycles, worst | ~72,400 | ~14,900 |
+| `mul` executed, mean | 56 | 5.8 |
+
+About 4.8 times less, where the estimate before drafting was ten. **The same run
+compared the screen after every frame** - 3,000 frames, then 20,000 more with
+lazier players so that two games were won and restarted - and every one was
+identical to the old render's. `tennis` blocks on input and has no tier 2, so
+that comparison is the only evidence the rewrite draws the same game.
+
+**The row table the source proposed was measured out.** After the rewrite a frame
+multiplies about six times, roughly 700 of its ~8,300 8086 cycles, and on a 286
+`mul` is about 21 cycles rather than 124. **So was the 160x100 logical buffer**:
+expanding it to the screen would cost more every frame than the 20-odd pixels
+that actually change.
+
+**What is left is the compiler's, not the program's.** `fillColumn` is 59% of the
+new frame, and its loop is 25 instructions a row of which two store pixels - the
+rest reload `w`, `k`, `n` and `c` from memory and ES twice, which is §9's memory
+model and §16's reload per access. That is the next factor for every mode 13h
+program here, and it is a compiler change rather than a tennis one.
+
+**Confirmed on the machine that asked.** The same day, from `momo-3.ima` on the
+286 that flickered: no flicker.
+
+The round trip found a printer bug on the way: a parameterised const's body is
+resolved per call on a copy, so the body as written never got labels, and one
+naming a `local` printed it bare. `t_scr`'s `wordAt` was the first to do it.
+`ok-constfn-local` holds the fix.
+
 ---
 
 ## 36. `momolo`

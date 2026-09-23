@@ -62,10 +62,6 @@ const grid ballServeOffset = ( paddleH - ballH ) * subgridScale / 2
 const grid hitLead = ballH * subgridScale - 1
 const grid hitWindow = hitLead + paddleH * subgridScale
 
-const grid netBallXMin = ( centerX - playLeft - ballW ) * subgridScale
-const grid netBallXMax = ( centerX - playLeft ) * subgridScale - 1
-const grid netBallXSpan = netBallXMax - netBallXMin
-
 // word blitting
 
 // halved for word, but scoreTop doubled for view doubling - cancels out

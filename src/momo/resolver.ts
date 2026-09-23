@@ -2308,6 +2308,23 @@ export const resolve = (program: Program): ResolveResult => {
       seen.add(parameter.name)
     }
 
+    // The body is a template: every call resolves a copy of it, so the body
+    // written here is never resolved and its names never get labels. The emitter
+    // does not care, and the printer does - a body naming a `local` would print
+    // the bare name, which the printed program cannot find (§14). So the names it
+    // can already see are labelled where it stands, parameters left alone.
+    const labelBody = (value: unknown): void => {
+      if (Array.isArray(value)) return value.forEach(labelBody)
+      if (typeof value !== 'object' || value === null) return
+      const node = value as { type?: string; name?: string; field?: string; label?: string }
+      if (node.type === 'Identifier' && node.name !== undefined && node.field === undefined && !seen.has(node.name)) {
+        const symbol = lookup(node.name)
+        if (symbol) node.label = symbol.label
+      }
+      Object.values(value).forEach(labelBody)
+    }
+    labelBody(node.body)
+
     declare(
       {
         kind: 'constfn',

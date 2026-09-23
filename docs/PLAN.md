@@ -204,33 +204,6 @@ at all, which makes one a floor rather than a measurement.
 - **`scope`.** §23 - designed in full; no program has wanted it yet.
 - **Interrupt handlers.** §24 - designed in full. A raw scancode reader and
   held-key input are what would ask for it.
-- **Optimise `tennis`.** It runs well on a 486 and flickers on a 286 - vsync fixed
-  the flicker on fast hardware, and that is as far as it got. The intended work was
-  always known and is recorded in the source rather than in any document:
-
-  - **Word blitting.** `t_scr.momo` declares `view u16[32000] pxwords` "for later
-    optimisation of `setPixel`", and `drawBackground` uses it as a demo of "the
-    word blitting we will use extensively later". Nothing else does yet.
-  - **Skip `pset`.** `drawLineHorizontal` and `drawLineVertical` go through it
-    because that was easier; the note beside them says writing them by hand is
-    much more efficient.
-  - **Unroll the sprites.** `draw`/`clearPaddles` and `draw`/`clearBall` need not
-    call `drawLineVertical` at all - nine direct `pixels[n]` writes each - with
-    pixel doubling as the complication: one axis can be done with a word, the rows
-    still have to be doubled.
-  - **Dirty tracking, only if the above is not enough.** A 27-element buffer for
-    the 9x2 paddle pixels and 9 ball pixels plus a count, or just each object's
-    movement offset so the redraw knows exactly how many pixels changed. The
-    source is explicit that this waits: *"wait and see how it plays out before
-    prematurely adding this"*.
-
-  The word blitting is §27's finding arriving in a real program - that section
-  concluded word views are worth doing today with no compiler change, and this is
-  the program that cares.
-
-  **Its comments come after the code.** `STYLE.md`'s comment rule exempts `tennis`
-  until this lands, because the notes above *are* the plan and tidying them first
-  would delete it.
 - **Rewrite `README.md`.** `CONTRIBUTING.md` records that it is provisional, in a
   register the other documents do not use, and that rewriting it waits on programs
   worth showing and on a draft written rather than generated.
@@ -353,6 +326,14 @@ All are set out in DESIGN §20 unless noted.
 section that was itself a plan - see the note at the top for why, and where to
 look for the rest.
 
+- **Optimise `tennis`.** 2026-09-23. It flickered on a 286 and not on a 486, and
+  the render cleared every object and drew it again each frame. It now draws only
+  what moved and never clears what it is about to draw - DESIGN §68's finding -
+  with word stores and the net's redraw gone, at about a fifth of the old cost per
+  frame and the identical picture on every frame compared. Confirmed on the 286:
+  no flicker. The source's other proposals - a row table, a logical back buffer,
+  dirty tracking - were measured out or made unnecessary, and DECISIONS §27 has
+  which.
 - **Nested arrays.** 2026-09-23. §53, now in `DESIGN.md`, and the record is
   DECISIONS §53. `const u8[][]`, with children as ordinary arrays, §51's table as
   the spine, a length spine beside it, and pruning deciding which of the three
@@ -609,8 +590,9 @@ look for the rest.
   signs, a claim that port I/O did not exist yet, two counts in `std/io.momo` that
   had drifted, and a `mlodemo` header describing paragraphs as unwrapped after
   wrapping landed. `std/rand.momo` was the one file where the content was the
-  problem, and lost two thirds of its header. `tennis` is still exempt - see
-  Optimise `tennis`.
+  problem, and lost two thirds of its header. `tennis` was exempt until its
+  render was rewritten, because its notes were the plan - they went with the
+  rewrite, and DECISIONS §27 has what became of each.
 - **Finish moving the record into `DECISIONS.md`.** 2026-08-28. §15, §16, §17,
   §18, §20, §22, §25, §26 and §27 - §27 dissolved entirely rather than splitting,
   and §16 spun out two designs of its own, §34 and §35. What remained at the end

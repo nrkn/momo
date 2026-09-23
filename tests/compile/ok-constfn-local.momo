@@ -1,0 +1,8 @@
+// A parameterised const whose body names a `local` (§8, §11). Each call resolves
+// a copy of the body, so the body as written was never resolved, and the printed
+// program named the local bare - which it could not find (§14).
+local const step = 3
+local const scaled( u16 x ) = x * step
+
+u16 n
+n = scaled( 4 )

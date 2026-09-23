@@ -59,7 +59,7 @@ keyboardBegin()
 // -- main
 
 sub drawBackground( u16 color ) {
-  // demos the word blitting we will use extensively later
+  // a word at a time, as everything that draws does - see `pxwords`
   for( u16 dy = 0; dy < scoreTopWord; dy++ ){
     pxwords[ dy ] = color
   }
@@ -76,19 +76,40 @@ sub drawPlayfield {
   drawNet()
 }
 
+// The net: dashes down the centre column, each `netDash` rows long, one every
+// `netGap` rows. Named, because `netAt` has to agree with `drawNet` exactly.
+const netTop = playTop + 3
+const netDash = 9
+const netGap = 14
+const netDashes = 5
+const netBottom = netTop + ( netDashes - 1 ) * netGap + netDash
+
 sub drawNet {
-  u8 netY
+  for ( u16 k = 0; k < netDashes; k++ ) {
+    fillColumn( centerX, netTop + k * netGap, netDash, greenW )
+  }
+}
 
-  // we should precompute this, it doesn't change, but this is fine for now
-  for( u8 net = 0; net < 5; net++ ){
-    netY = playTop + 3 + net * 14
+// Whether row `y` of the centre column is on one of the net's dashes.
+bool netAt( u16 y ) => y >= netTop && y < netBottom && ( y - netTop ) % netGap < netDash
 
-    drawLineVertical( centerX, netY, netY + 8, green )
+// `n` rows of column `x` put back to what is under them. Only the ball ever
+// crosses anything, and the only thing it crosses is the net - so clearing to
+// the background is what keeps the net whole, where the old render redrew all
+// five dashes whenever the ball came near.
+sub clearColumn( u16 x, u16 y, u16 n ) {
+  if ( x != centerX ) {
+    fillColumn( x, y, n, lightGreenW )
+    return
+  }
+
+  for ( u16 k = 0; k < n; k++ ) {
+    fillColumn( x, y + k, 1, netAt( y + k ) ? greenW : lightGreenW )
   }
 }
 
 // subgrid to pixels
-// playfield offset, eg playRight, playLeft, playTop etc 
+// playfield offset, eg playRight, playLeft, playTop etc
 // object offset, eg ball.x, ball.y, player[ i ].y etc
 // `>> 2` and not `/ 4`: obj is stored as i16, and a signed divide rounds toward
 // zero where the shift floors, so these are different answers for a negative
@@ -96,69 +117,106 @@ sub drawNet {
 // The `i16( ... )` is the one place a subgrid value becomes a pixel.
 const subgridToPx( i16 play, grid obj ) = play + 1 + i16( obj >> 2 )
 
-// clear at old, draw at new
-// note - ~~it flickers quite badly~~ fixed by vsync - on fast hardware at
-// least
-// but wait until optimised blitting lands and see if we can live with it
-// otherwise, we might need better dirty tracking
-// eg maybe a buffer of 27 elements to track 9x2 paddle pixels, 9 ball px, and a
-// scalar for how many are currently dirty
-// or just the movement offset for each so we know exactly how many px to redraw
-// from one frame to another
-// BUT wait and see how it plays out before prematurely adding this lol
-// todo: neither draw/clearPaddles nor draw/clearBall need to call 
-// drawLineVertical - they can be unrolled to just 9 direct 
-// pixels[n] assignments - oh, but pixel doubling... can do 1 on x with a word
-// but still have to double rows!
+// Pixel positions, which are never negative - the subgrid is clamped at 0 and
+// the playfield offset is added on top.
+const paddleRow( grid y ) = u16( subgridToPx( playTop, y ) )
+const ballColumn( grid x ) = u16( subgridToPx( playLeft, x ) )
+const ballRow( grid y ) = u16( subgridToPx( playTop, y ) )
 
-sub drawPaddle( u8 pi ) {
-  i16 subPxY
-  i16 subPxY2
+const u16[] paddleColorW = [ redW, blueW ]
 
-  subPxY = subgridToPx( playTop, player[ pi ].y )
-  subPxY2 = subPxY + paddleH - 1
+// The colour the ball was last drawn in, because a return changes its colour
+// without always moving it a whole pixel.
+u8 ballDrawnColor
 
-  drawLineVertical( paddleX[ pi ], subPxY, subPxY2, paddleColor[ pi ] )
+// Whole objects, for `start` - after it, only what moves is drawn.
+sub drawPaddle( u8 pi ) => fillColumn( paddleX[ pi ], paddleRow( player[ pi ].y ), paddleH, paddleColorW[ pi ] )
+
+sub drawBall {
+  u16 x
+  u16 y
+  u16 c
+
+  x = ballColumn( ball.x )
+  y = ballRow( ball.y )
+  c = pxDouble( ball.color )
+
+  for ( u16 k = 0; k < ballW; k++ ) {
+    fillColumn( x + k, y, ballH, c )
+  }
+
+  ballDrawnColor = ball.color
 }
 
-sub clearPaddle( u8 pi ) {
-  i16 subPxY
-  i16 subPxY2
+// **Only the rows a paddle entered are drawn and only the rows it left are
+// cleared**, so it is never missing from the screen, even for the length of one
+// store. That is what made the flicker: the old render cleared the whole paddle
+// and drew it again, and on a machine that could not finish inside the vertical
+// blank the beam caught it cleared. DESIGN §68 found the same in `momoed`.
+//
+// A move of `d` rows changes `d` rows at each end, or all of them once `d`
+// reaches the paddle's height and the two positions stop overlapping.
+sub shiftPaddle( u8 pi ) {
+  u16 x
+  u16 was
+  u16 now
+  u16 n
 
-  subPxY = subgridToPx( playTop, player[ pi ].oldY )
-  subPxY2 = subPxY + paddleH - 1
+  was = paddleRow( player[ pi ].oldY )
+  now = paddleRow( player[ pi ].y )
+  if ( now == was ) return
 
-  drawLineVertical( paddleX[ pi ], subPxY, subPxY2, lightGreen )
+  x = paddleX[ pi ]
+
+  if ( now > was ) {
+    n = now - was
+    if ( n > paddleH ) n = paddleH
+    fillColumn( x, now + paddleH - n, n, paddleColorW[ pi ] )
+    fillColumn( x, was, n, lightGreenW )
+  } else {
+    n = was - now
+    if ( n > paddleH ) n = paddleH
+    fillColumn( x, now, n, paddleColorW[ pi ] )
+    fillColumn( x, was + paddleH - n, n, lightGreenW )
+  }
 }
 
-// clear at old, draw at new
+// The ball the same way, in two dimensions: the whole new square is drawn - nine
+// pixels, and it may have changed colour - and then only the old pixels the new
+// square does not cover are cleared. Drawn first, so there is no moment with no
+// ball on the screen.
+sub shiftBall {
+  u16 wasX
+  u16 wasY
+  u16 nowX
+  u16 nowY
+  u16 x
+  u16 n
 
-sub drawBall {  
-  i16 subPxX
-  i16 subPxY
-  i16 subPxY2
+  wasX = ballColumn( ball.oldX )
+  wasY = ballRow( ball.oldY )
+  nowX = ballColumn( ball.x )
+  nowY = ballRow( ball.y )
 
-  subPxX = subgridToPx( playLeft, ball.x )
-  subPxY = subgridToPx( playTop, ball.y )
-  subPxY2 = subPxY + ballH - 1
+  if ( nowX == wasX && nowY == wasY && ball.color == ballDrawnColor ) return
 
-  drawLineVertical( subPxX, subPxY, subPxY2, ball.color )
-  drawLineVertical( subPxX + 1, subPxY, subPxY2, ball.color )
-  drawLineVertical( subPxX + 2, subPxY, subPxY2, ball.color )
-}
+  drawBall()
 
-sub clearBall {
-  i16 subPxX
-  i16 subPxY
-  i16 subPxY2
+  for ( u16 k = 0; k < ballW; k++ ) {
+    x = wasX + k
 
-  subPxX = subgridToPx( playLeft, ball.oldX )
-  subPxY = subgridToPx( playTop, ball.oldY )
-  subPxY2 = subPxY + ballH - 1
-
-  drawLineVertical( subPxX, subPxY, subPxY2, lightGreen )
-  drawLineVertical( subPxX + 1, subPxY, subPxY2, lightGreen )
-  drawLineVertical( subPxX + 2, subPxY, subPxY2, lightGreen )
+    if ( x < nowX || x >= nowX + ballW ) {
+      clearColumn( x, wasY, ballH )
+    } else if ( wasY < nowY ) {
+      n = nowY - wasY
+      if ( n > ballH ) n = ballH
+      clearColumn( x, wasY, n )
+    } else if ( wasY > nowY ) {
+      n = wasY - nowY
+      if ( n > ballH ) n = ballH
+      clearColumn( x, wasY + ballH - n, n )
+    }
+  }
 }
 
 sub drawSprite( u8 index, u8 dx, u8 dy ){
@@ -314,17 +372,12 @@ sub update {
 sub render {
   if( isWinScreen ) return
 
-  // testing if they moved or not is probably cheaper but this keeps tick time
-  // consistent
-  clearBall()
-  clearPaddle( leftPlayer )
-  clearPaddle( rightPlayer )
-
-  if ( ball.oldX >= netBallXMin && ball.oldX <= netBallXMax ) drawNet()
-
-  drawBall()
-  drawPaddle( leftPlayer )
-  drawPaddle( rightPlayer )
+  // Only what moved, and nothing erased that is about to be drawn - see
+  // `shiftPaddle`. A frame's cost now follows the movement rather than being
+  // the same every time, which the frame wait already makes harmless.
+  shiftBall()
+  shiftPaddle( leftPlayer )
+  shiftPaddle( rightPlayer )
 
   player[ leftPlayer ].oldY = player[ leftPlayer ].y
   player[ rightPlayer ].oldY = player[ rightPlayer ].y
@@ -403,6 +456,11 @@ sub start {
 
   ball.oldX = ball.x
   ball.oldY = ball.y
+
+  // Drawn whole once, because from here on a frame only draws what moved.
+  drawPaddle( leftPlayer )
+  drawPaddle( rightPlayer )
+  drawBall()
 }
 
 start()

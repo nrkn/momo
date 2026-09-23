@@ -7209,6 +7209,11 @@ caught between the two writes was that blank.
 A cell written once with its final value does not flicker however often it is
 rewritten, because the value never changes.
 
+**`tennis` had the same cause in mode 13h**: it cleared the ball and both paddles
+and drew them again every frame. It now draws only the pixels an object entered
+and clears only the ones it left, so nothing is ever briefly gone - DECISIONS §27
+has what that cost and saved.
+
 **`drawExplorer` was the proof and it was already in the file.** It writes each
 cell exactly once - `x < n ? peek8( at + x ) : 32` - and the panel was the one
 piece of chrome nobody reported flickering, on the busiest redraw path there is.
