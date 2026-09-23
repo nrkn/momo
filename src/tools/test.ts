@@ -404,6 +404,8 @@ const roundTripTests = (): number => {
         )
       }
     } catch (error) {
+      // Counted, or the breakdown stops summing to the total.
+      asserted += 1
       check(`round trip ${name}`, false, describe(sources, error))
     }
   }
