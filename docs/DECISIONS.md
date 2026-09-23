@@ -36,12 +36,7 @@ A paragraph that fails the test in both directions is usually two paragraphs.
 ## Numbering
 
 Sections carry the same numbers as in `DESIGN.md` and `PLAN.md` - **one namespace
-across all three** - so §18 is `group` wherever it appears. The number tells you
-the topic; the file tells you which aspect.
-
-That means a number can legitimately appear here *and* in one of the others: the
-design of `group` is `DESIGN.md` §18, and what it displaced is §18 below. What
-cannot happen is the same aspect in two places.
+across all three**, which `DESIGN.md` explains under **Numbering** at its head.
 
 ---
 

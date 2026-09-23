@@ -10,9 +10,8 @@ second half**, further down, and they are here rather than in `DESIGN.md` becaus
 `DESIGN.md` describes the system as it stands, and these are not part of it yet.
 
 When one gets built, its section moves into `DESIGN.md` and its item moves to
-Done. **The number goes with it.** Section numbers are one namespace across all
-three documents - §24 means interrupt handlers wherever it currently lives - so
-the number tells you the topic and the file tells you the status.
+Done. **The number goes with it**, because section numbers are one namespace
+across the documents - `DESIGN.md` opens with why, under **Numbering**.
 
 ## Where this is going
 

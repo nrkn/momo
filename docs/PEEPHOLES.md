@@ -16,9 +16,8 @@ rather than a description of codegen.
 **Numbers are stable and only ever appended**, for the same reason section numbers
 are. A rewrite that is superseded keeps its number and says so.
 
-A `§` below is a section of `DESIGN.md` or of `PLAN.md` - the numbers are one
-namespace across both, so §14 is the testing tiers wherever it currently sits and
-§24 is interrupt handlers, which are designed and not built.
+A `§` below is a section in the documents' shared namespace, which `DESIGN.md`
+explains under **Numbering** at its head.
 
 ## How one gets added
 
