@@ -688,16 +688,37 @@ dirIsDir:
         mov     [dirIsDir__ret], al         ; narrowed to bool
         ret
 
+; ============================================== u8 strUpper ====
+
+strUpper:
+; ---- u8 strUpper( u8 ch ) => ch >= 'a' && ch <= 'z' ? ch - 32 : ch
+        mov     al, [strUpper__ch]
+        cmp     al, 97                      ; byte operands, no widening
+        jb      .L49                        ; unsigned >=
+        mov     al, [strUpper__ch]
+        cmp     al, 122                     ; byte operands, no widening
+        ja      .L49                        ; unsigned <=
+        mov     al, [strUpper__ch]
+        xor     ah, ah                      ; u8 -> u16
+        sub     ax, 32
+        jmp     .L50
+.L49:
+        mov     al, [strUpper__ch]
+        xor     ah, ah                      ; u8 -> u16
+.L50:
+        mov     [strUpper__ret], al         ; narrowed to u8
+        ret
+
 ; ============================================== sub memCopy ====
 
 memCopy:
 ; ---- for ( u16 i = 0; i < count; i++ ) {
         mov     word [memCopy__i], 0
-.L49:
+.L53:
         mov     ax, [memCopy__i]
         mov     bx, [memCopy__count]
         cmp     ax, bx
-        jae     .L51                        ; unsigned <
+        jae     .L55                        ; unsigned <
 ; ---- poke8( to + i, peek8( from + i ) )
         mov     ax, [memCopy__to]
         mov     bx, [memCopy__i]
@@ -710,10 +731,10 @@ memCopy:
         mov     al, [bx]                    ; peek8 - unchecked, by design
         pop     bx
         mov     [bx], al
-.L50:
+.L54:
         inc     word [memCopy__i]
-        jmp     .L49
-.L51:
+        jmp     .L53
+.L55:
         ret
 
 ; ============================================== u16 listCount ====
@@ -761,12 +782,12 @@ listIsDir:
         mov     bx, ax
         mov     al, [modir__listDir + bx]
         test    al, al
-        je      .L53                        ; unsigned !=
+        je      .L57                        ; unsigned !=
         mov     ax, 1
-        jmp     .L54
-.L53:
+        jmp     .L58
+.L57:
         xor     ax, ax
-.L54:
+.L58:
         mov     [listIsDir__ret], al        ; narrowed to bool
         ret
 
@@ -786,20 +807,20 @@ modir__before:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        je      .L56                        ; unsigned !=
+        je      .L60                        ; unsigned !=
         mov     ax, [modir__before__slot]
         mov     bx, ax
         mov     al, [modir__listDir + bx]
         test    al, al
-        je      .L59                        ; unsigned !=
+        je      .L63                        ; unsigned !=
         mov     ax, 1
-        jmp     .L60
-.L59:
+        jmp     .L64
+.L63:
         xor     ax, ax
-.L60:
+.L64:
         mov     [modir__before__ret], al    ; narrowed to bool
         ret
-.L56:
+.L60:
 ; ---- a = addr( listNames ) + slot * listNameMax
         mov     ax, modir__listNames        ; link-time constant
         push    ax                          ; save lhs: rhs is not a leaf
@@ -822,12 +843,12 @@ modir__before:
         mov     [modir__before__b], ax
 ; ---- for ( u16 i = 0; i < listNameMax; i++ ) {
         mov     word [modir__before__i], 0
-.L62:
+.L66:
         mov     ax, [modir__before__i]
         cmp     ax, 13
-        jb      .L65                        ; unsigned <
-        jmp     .L64
-.L65:
+        jb      .L69                        ; unsigned <
+        jmp     .L68
+.L69:
 ; ---- ca = peek8( a + i )
         mov     ax, [modir__before__a]
         mov     bx, [modir__before__i]
@@ -845,29 +866,29 @@ modir__before:
 ; ---- if ( ca != cb ) return ca < cb
         mov     al, [modir__before__ca]
         cmp     al, [modir__before__cb]     ; byte operands, no widening
-        je      .L66                        ; unsigned !=
+        je      .L70                        ; unsigned !=
         mov     al, [modir__before__ca]
         cmp     al, [modir__before__cb]     ; byte operands, no widening
-        jae     .L69                        ; unsigned <
+        jae     .L73                        ; unsigned <
         mov     ax, 1
-        jmp     .L70
-.L69:
+        jmp     .L74
+.L73:
         xor     ax, ax
-.L70:
+.L74:
         mov     [modir__before__ret], al    ; narrowed to bool
         ret
-.L66:
+.L70:
 ; ---- if ( ca == 0 ) return false
         mov     al, [modir__before__ca]
         test    al, al
-        jne     .L72                        ; unsigned ==
+        jne     .L76                        ; unsigned ==
         mov     byte [modir__before__ret], 0
         ret
-.L72:
-.L63:
+.L76:
+.L67:
         inc     word [modir__before__i]
-        jmp     .L62
-.L64:
+        jmp     .L66
+.L68:
 ; ---- return false
         mov     byte [modir__before__ret], 0
         ret
@@ -881,13 +902,13 @@ modir__insertSorted:
         mov     ax, [modir__listCount_]
         mov     [modir__insertSorted__hi], ax
 ; ---- while ( lo < hi ) {
-.L75:
+.L79:
         mov     ax, [modir__insertSorted__lo]
         mov     bx, [modir__insertSorted__hi]
         cmp     ax, bx
-        jb      .L78                        ; unsigned <
-        jmp     .L77
-.L78:
+        jb      .L82                        ; unsigned <
+        jmp     .L81
+.L82:
 ; ---- mid = ( lo + hi ) / 2
         mov     ax, [modir__insertSorted__lo]
         mov     bx, [modir__insertSorted__hi]
@@ -906,28 +927,28 @@ modir__insertSorted:
         mov     al, [modir__before__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L79
+        jz      .L83
 ; ---- hi = mid
         mov     ax, [modir__insertSorted__mid]
         mov     [modir__insertSorted__hi], ax
-        jmp     .L80
-.L79:
+        jmp     .L84
+.L83:
 ; ---- lo = mid + 1
         mov     ax, [modir__insertSorted__mid]
         inc     ax
         mov     [modir__insertSorted__lo], ax
+.L84:
 .L80:
-.L76:
-        jmp     .L75
-.L77:
+        jmp     .L79
+.L81:
 ; ---- for ( u16 i = listCount_; i > lo; i-- ) {
         mov     ax, [modir__listCount_]
         mov     [modir__insertSorted__i], ax
-.L82:
+.L86:
         mov     ax, [modir__insertSorted__i]
         mov     bx, [modir__insertSorted__lo]
         cmp     ax, bx
-        jbe     .L84                        ; unsigned >
+        jbe     .L88                        ; unsigned >
 ; ---- order[i] = order[i - 1]
         mov     ax, [modir__insertSorted__i]
         dec     ax
@@ -937,10 +958,10 @@ modir__insertSorted:
         mov     bx, [modir__insertSorted__i]
         shl     bx, 1                       ; word elements
         mov     [modir__order + bx], ax
-.L83:
+.L87:
         dec     word [modir__insertSorted__i]
-        jmp     .L82
-.L84:
+        jmp     .L86
+.L88:
 ; ---- order[lo] = slot
         mov     ax, [modir__insertSorted__slot]
         mov     bx, [modir__insertSorted__lo]
@@ -958,18 +979,18 @@ modir__isDot:
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
         cmp     al, 46                      ; byte operands, no widening
-        jne     .L86                        ; unsigned ==
+        jne     .L90                        ; unsigned ==
         mov     ax, [modir__isDot__at]
         inc     ax
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
         test    al, al
-        jne     .L86                        ; unsigned ==
+        jne     .L90                        ; unsigned ==
         mov     ax, 1
-        jmp     .L87
-.L86:
+        jmp     .L91
+.L90:
         xor     ax, ax
-.L87:
+.L91:
         mov     [modir__isDot__ret], al     ; narrowed to bool
         ret
 
@@ -989,11 +1010,11 @@ listLoad:
         mov     al, [dirFirst__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jnz     .L90
+        jnz     .L94
         ret
-.L90:
+.L94:
 ; ---- while ( true ) {
-.L93:
+.L97:
 ; ---- if ( !isDot( dirName() ) ) {
         call    dirName
         mov     ax, [dirName__ret]
@@ -1002,18 +1023,18 @@ listLoad:
         mov     al, [modir__isDot__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L98
-        jmp     .L96
-.L98:
+        jz      .L102
+        jmp     .L100
+.L102:
 ; ---- if ( listCount_ >= listMax ) {
         mov     ax, [modir__listCount_]
         cmp     ax, 256
-        jb      .L99                        ; unsigned >=
+        jb      .L103                       ; unsigned >=
 ; ---- listFull_ = true
         mov     byte [modir__listFull_], 1
 ; ---- return
         ret
-.L99:
+.L103:
 ; ---- slot = listCount_
         mov     ax, [modir__listCount_]
         mov     [listLoad__slot], ax
@@ -1033,9 +1054,9 @@ listLoad:
         mov     [listLoad__n], ax
 ; ---- if ( n > listNameMax - 1 ) n = listNameMax - 1
         cmp     ax, 12
-        jbe     .L102                       ; unsigned >
+        jbe     .L106                       ; unsigned >
         mov     word [listLoad__n], 12
-.L102:
+.L106:
 ; ---- memCopy( to, dirName(), n )
         mov     ax, [listLoad__to]
         push    ax                          ; argument evaluated before any is stored
@@ -1060,30 +1081,30 @@ listLoad:
         mov     al, [dirIsDir__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L105
+        jz      .L109
         mov     ax, 1
-        jmp     .L106
-.L105:
+        jmp     .L110
+.L109:
         xor     ax, ax                      ; 0
-.L106:
+.L110:
         mov     bx, [listLoad__slot]
         mov     [modir__listDir + bx], al
 ; ---- insertSorted( slot )
         mov     ax, [listLoad__slot]
         mov     [modir__insertSorted__slot], ax
         call    modir__insertSorted
-.L96:
+.L100:
 ; ---- if ( !dirNext() ) return
         call    dirNext
         mov     al, [dirNext__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jnz     .L108
+        jnz     .L112
         ret
-.L108:
-.L94:
-        jmp     .L93
-.L95:
+.L112:
+.L98:
+        jmp     .L97
+.L99:
         ret
 
 ; ============================================== bool listIsNamed ====
@@ -1097,12 +1118,12 @@ listIsNamed:
         mov     [listIsNamed__a], ax
 ; ---- for ( u16 k = 0; k < listNameMax; k++ ) {
         mov     word [listIsNamed__k], 0
-.L111:
+.L115:
         mov     ax, [listIsNamed__k]
         cmp     ax, 13
-        jb      .L114                       ; unsigned <
-        jmp     .L113
-.L114:
+        jb      .L118                       ; unsigned <
+        jmp     .L117
+.L118:
 ; ---- ca = peek8( a + k )
         mov     ax, [listIsNamed__a]
         mov     bx, [listIsNamed__k]
@@ -1120,21 +1141,21 @@ listIsNamed:
 ; ---- if ( ca != cb ) return false
         mov     al, [listIsNamed__ca]
         cmp     al, [listIsNamed__cb]       ; byte operands, no widening
-        je      .L115                       ; unsigned !=
+        je      .L119                       ; unsigned !=
         mov     byte [listIsNamed__ret], 0
         ret
-.L115:
+.L119:
 ; ---- if ( ca == 0 ) return true
         mov     al, [listIsNamed__ca]
         test    al, al
-        jne     .L118                       ; unsigned ==
+        jne     .L122                       ; unsigned ==
         mov     byte [listIsNamed__ret], 1
         ret
-.L118:
-.L112:
+.L122:
+.L116:
         inc     word [listIsNamed__k]
-        jmp     .L111
-.L113:
+        jmp     .L115
+.L117:
 ; ---- return true
         mov     byte [listIsNamed__ret], 1
         ret
@@ -1170,14 +1191,14 @@ modir__listFollow:
         mov     ax, [modir__listCur_]
         mov     bx, [modir__listTop_]
         cmp     ax, bx
-        jae     .L121                       ; unsigned <
+        jae     .L125                       ; unsigned <
         mov     ax, [modir__listCur_]
         mov     [modir__listTop_], ax
-.L121:
+.L125:
 ; ---- if ( listRows > 0 && listCur_ >= listTop_ + listRows ) listTop_ = listCur_ - listRows + 1
         mov     ax, [modir__listRows]
         test    ax, ax
-        jbe     .L124                       ; unsigned >
+        jbe     .L128                       ; unsigned >
         mov     ax, [modir__listCur_]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [modir__listTop_]
@@ -1186,13 +1207,13 @@ modir__listFollow:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L124                       ; unsigned >=
+        jb      .L128                       ; unsigned >=
         mov     ax, [modir__listCur_]
         mov     bx, [modir__listRows]
         sub     ax, bx
         inc     ax
         mov     [modir__listTop_], ax
-.L124:
+.L128:
         ret
 
 ; ============================================== sub listGoto ====
@@ -1204,21 +1225,21 @@ listGoto:
 ; ---- if ( listCount_ > 0 && listCur_ >= listCount_ ) listCur_ = listCount_ - 1
         mov     ax, [modir__listCount_]
         test    ax, ax
-        jbe     .L128                       ; unsigned >
+        jbe     .L132                       ; unsigned >
         mov     ax, [modir__listCur_]
         mov     bx, [modir__listCount_]
         cmp     ax, bx
-        jb      .L128                       ; unsigned >=
+        jb      .L132                       ; unsigned >=
         mov     ax, [modir__listCount_]
         dec     ax
         mov     [modir__listCur_], ax
-.L128:
+.L132:
 ; ---- if ( listCount_ == 0 ) listCur_ = 0
         mov     ax, [modir__listCount_]
         test    ax, ax
-        jne     .L132                       ; unsigned ==
+        jne     .L136                       ; unsigned ==
         mov     word [modir__listCur_], 0
-.L132:
+.L136:
 ; ---- listFollow()
         call    modir__listFollow
         ret
@@ -1237,13 +1258,13 @@ listEnd:
 ; ---- sub listEnd  => listGoto( listCount_ > 0 ? listCount_ - 1 : 0 )
         mov     ax, [modir__listCount_]
         test    ax, ax
-        jbe     .L135                       ; unsigned >
+        jbe     .L139                       ; unsigned >
         mov     ax, [modir__listCount_]
         dec     ax
-        jmp     .L136
-.L135:
+        jmp     .L140
+.L139:
         xor     ax, ax                      ; 0
-.L136:
+.L140:
         mov     [listGoto__i], ax
         call    listGoto
         ret
@@ -1254,12 +1275,12 @@ listUp:
 ; ---- if ( listCur_ > 0 ) listGoto( listCur_ - 1 )
         mov     ax, [modir__listCur_]
         test    ax, ax
-        jbe     .L138                       ; unsigned >
+        jbe     .L142                       ; unsigned >
         mov     ax, [modir__listCur_]
         dec     ax
         mov     [listGoto__i], ax
         call    listGoto
-.L138:
+.L142:
         ret
 
 ; ============================================== sub listDown ====
@@ -1272,27 +1293,6 @@ listDown:
         call    listGoto
         ret
 
-; ============================================== u8 modir__upper ====
-
-modir__upper:
-; ---- local u8 upper( u8 ch ) => ( ch >= 'a' && ch <= 'z' ) ? ch - 32 : ch
-        mov     al, [modir__upper__ch]
-        cmp     al, 97                      ; byte operands, no widening
-        jb      .L141                       ; unsigned >=
-        mov     al, [modir__upper__ch]
-        cmp     al, 122                     ; byte operands, no widening
-        ja      .L141                       ; unsigned <=
-        mov     al, [modir__upper__ch]
-        xor     ah, ah                      ; u8 -> u16
-        sub     ax, 32
-        jmp     .L142
-.L141:
-        mov     al, [modir__upper__ch]
-        xor     ah, ah                      ; u8 -> u16
-.L142:
-        mov     [modir__upper__ret], al     ; narrowed to u8
-        ret
-
 ; ============================================== sub listJump ====
 
 listJump:
@@ -1302,11 +1302,11 @@ listJump:
         jne     .L145                       ; unsigned ==
         ret
 .L145:
-; ---- want = upper( ch )
+; ---- want = strUpper( ch )
         mov     al, [listJump__ch]
-        mov     [modir__upper__ch], al      ; u8 -> u8, no widening
-        call    modir__upper
-        mov     al, [modir__upper__ret]
+        mov     [strUpper__ch], al          ; u8 -> u8, no widening
+        call    strUpper
+        mov     al, [strUpper__ret]
         xor     ah, ah                      ; u8 -> u16
         mov     [listJump__want], al        ; narrowed to u8
 ; ---- for ( u16 n = 1; n <= listCount_; n++ ) {
@@ -1327,15 +1327,15 @@ listJump:
         div     bx
         mov     ax, dx                      ; remainder
         mov     [listJump__i], ax
-; ---- if ( upper( peek8( listName( i ) ) ) == want ) {
+; ---- if ( strUpper( peek8( listName( i ) ) ) == want ) {
         mov     [listName__i], ax
         call    listName
         mov     ax, [listName__ret]
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
-        mov     [modir__upper__ch], al      ; u8 -> u8, no widening
-        call    modir__upper
-        mov     al, [modir__upper__ret]
+        mov     [strUpper__ch], al          ; u8 -> u8, no widening
+        call    strUpper
+        mov     al, [strUpper__ret]
         xor     ah, ah                      ; u8 -> u16
         mov     bl, [listJump__want]
         xor     bh, bh                      ; u8 -> u16
@@ -1668,6 +1668,8 @@ dirNext__ret:   db      0        ; bool
 dirName__ret:   dw      0        ; u16
 dirNameLen__ret: dw      0        ; u16
 dirIsDir__ret:  db      0        ; bool
+strUpper__ch:   db      0        ; u8
+strUpper__ret:  db      0        ; u8
 memCopy__to:    dw      0        ; u16
 memCopy__from:  dw      0        ; u16
 memCopy__count: dw      0        ; u16
@@ -1708,8 +1710,6 @@ listTop__ret:   dw      0        ; u16
 listCursor__ret: dw      0        ; u16
 listSize__h:    dw      0        ; u16
 listGoto__i:    dw      0        ; u16
-modir__upper__ch: db      0        ; u8
-modir__upper__ret: db      0        ; u8
 listJump__ch:   db      0        ; u8
 listThumbSize__ret: dw      0        ; u16
 listThumbAt__ret: dw      0        ; u16

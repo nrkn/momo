@@ -27,6 +27,7 @@
 // so it cannot drift from the letter the bar draws in `attrKey`.
 
 include "lib/std/key.momo"
+include "lib/std/str.momo"
 
 // What a keystroke meant. `menuChosen` leaves `menuAt` and `menuItemAt` on the
 // answer - §54's shape, where `undoOnce` reports where it landed through a
@@ -42,8 +43,6 @@ local u16 curItem
 bool menuUp()     => showing
 u16  menuAt()     => curMenu
 u16  menuItemAt() => curItem
-
-local u8 fold( u8 c ) => c >= 'a' && c <= 'z' ? c - 32 : c
 
 local u16 itemsHere() => menuItemCount( curMenu )
 
@@ -68,7 +67,7 @@ sub menuHide {
 // that the bar's labels are the only place it is written down.
 bool menuOpenFor( u8 c ) {
   for ( u16 m = 0; m < menuCount(); m++ ) {
-    if ( fold( peek8( menuTitle( m ) ) ) == fold( c ) ) {
+    if ( strUpper( peek8( menuTitle( m ) ) ) == strUpper( c ) ) {
       menuShow( m )
       return showing
     }
@@ -130,7 +129,7 @@ bool menuJump( u8 c ) {
   for ( u16 i = 1; i <= n; i++ ) {
     item = ( curItem + i ) % n
 
-    if ( fold( peek8( menuItemText( curMenu, item ) ) ) == fold( c ) ) {
+    if ( strUpper( peek8( menuItemText( curMenu, item ) ) ) == strUpper( c ) ) {
       curItem = item
       return true
     }

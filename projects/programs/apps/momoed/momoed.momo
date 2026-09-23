@@ -756,8 +756,6 @@ bool dlgUp() => dlgWhy != dlgNone
 u16 dlgCount() => len( sButtons )
 a16 dlgButton( u16 i ) => addr( sButtons[i] )
 
-u8 fold( u8 c ) => c >= 'a' && c <= 'z' ? c - 32 : c
-
 // One space either side of each label so the focused one reads as a block, and
 // two between - measured rather than written down, so a renamed button moves the
 // row it is in.
@@ -2625,7 +2623,7 @@ sub dlgKey( u16 k ) {
   // and C are distinct, so there is nothing to cycle through and nothing to mark.
   if ( k >= 32 && k < keyExt ) {
     for ( u16 i = 0; i < dlgCount(); i++ ) {
-      if ( fold( u8( k ) ) == fold( peek8( dlgButton( i ) ) ) ) {
+      if ( strUpper( u8( k ) ) == strUpper( peek8( dlgButton( i ) ) ) ) {
         dlgAnswer( i )
         return
       }
