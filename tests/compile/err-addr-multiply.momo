@@ -1,4 +1,5 @@
 // EXPECT-ERROR: an address only moves by + and -
+// EXPECT-AT: 8:9
 // Scaling a place is not a place, whatever it would be for a unit (§39).
 u8[8] buf
 a16 at

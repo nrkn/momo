@@ -1,4 +1,5 @@
 // EXPECT-ERROR: comparison is non-associative
+// EXPECT-AT: 7:13
 u8 a
 u8 b
 u8 c

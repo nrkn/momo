@@ -1,4 +1,5 @@
 // EXPECT-ERROR: "nope" is not declared
+// EXPECT-AT: 4:3
 sub t {
   nope = 1
 }

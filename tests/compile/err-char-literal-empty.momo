@@ -1,2 +1,3 @@
 // EXPECT-ERROR: a character literal cannot be empty
+// EXPECT-AT: 3:8
 u8 c = ''

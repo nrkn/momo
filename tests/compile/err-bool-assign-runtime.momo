@@ -1,4 +1,5 @@
 // EXPECT-ERROR: u8 is not a bool
+// EXPECT-AT: 6:5
 bool b
 u8 x
 

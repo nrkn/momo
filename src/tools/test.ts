@@ -10,13 +10,21 @@
 // Keeping the expectation inside the file means test and assertion cannot drift
 // apart, and there is no manifest to forget to update.
 //
+// A test may also pin where the error is reported, as a line or a line and a
+// 1-based column in the test file itself:
+//
+//   // EXPECT-AT: 7:12
+//
+// Opt-in, because the message alone passes a diagnostic that has drifted to the
+// wrong line, and a caret on the wrong line is most of what makes one useless.
+//
 // Also runs the type-lattice assertions, which are the one place unit tests earn
 // their keep: `combineRanges` and `truncate` encode facts about 16-bit integers,
 // not design choices we might revisit.
 
 import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve as resolvePath } from 'node:path'
 
 import {
   allProjects,
@@ -31,7 +39,7 @@ import {
 } from './cli.js'
 import { filesOf, runDos } from './dos.js'
 import { compile } from '../momo/compile.js'
-import { formatError, isMomoError } from '../momo/diagnostics.js'
+import { formatError, isMomoError, type MomoError } from '../momo/diagnostics.js'
 import { tokenize } from '../momo/lexer.js'
 import { load } from '../momo/loader.js'
 import { printProgram } from '../momo/printer.js'
@@ -215,6 +223,36 @@ const expectedError = (source: string): string | null => {
   return null
 }
 
+// `// EXPECT-AT: <line>[:<col>]`. A header that says EXPECT-AT and does not
+// parse is reported rather than skipped - a typo there would otherwise turn the
+// assertion off without a word.
+type ExpectedAt = { line: number; col: number | null } | { malformed: string }
+
+const expectedAt = (source: string): ExpectedAt | null => {
+  for (const line of source.split('\n')) {
+    const header = line.match(/^\s*\/\/\s*EXPECT-AT:\s*(.*?)\s*$/)
+    if (!header) continue
+    const at = header[1].match(/^(\d+)(?::(\d+))?$/)
+    if (!at) return { malformed: header[1] }
+    return { line: Number(at[1]), col: at[2] === undefined ? null : Number(at[2]) }
+  }
+  return null
+}
+
+// Null when the error is where the test says it is, else what was wrong.
+const positionMismatch = (file: string, at: ExpectedAt | null, error: MomoError): string | null => {
+  if (at === null) return null
+  if ('malformed' in at) return `EXPECT-AT "${at.malformed}" is not <line> or <line>:<col>`
+
+  const got = error.momo
+  const wanted = at.col === null ? `${at.line}` : `${at.line}:${at.col}`
+  const actual = at.col === null ? `${got.line}` : `${got.line}:${got.col}`
+  if (resolvePath(got.file) !== resolvePath(file)) {
+    return `expected at ${wanted}, got ${got.file}:${got.line}:${got.col} - another file`
+  }
+  return wanted === actual ? null : `expected at ${wanted}, got ${actual}`
+}
+
 const compileTests = () => {
   const files = readdirSync(compileDir)
     .filter((name) => name.endsWith('.momo'))
@@ -222,7 +260,9 @@ const compileTests = () => {
 
   for (const name of files) {
     const file = join(compileDir, name)
-    const expect = expectedError(readFileSync(file, 'utf8'))
+    const text = readFileSync(file, 'utf8')
+    const expect = expectedError(text)
+    const at = expectedAt(text)
     const sources = new Map<string, string>()
 
     let error: unknown = null
@@ -233,6 +273,10 @@ const compileTests = () => {
     }
 
     if (!expect) {
+      if (at !== null) {
+        check(name, false, 'EXPECT-AT with no EXPECT-ERROR - a position is only asserted for an error')
+        continue
+      }
       check(name, error === null, error instanceof Error ? error.message : String(error))
       continue
     }
@@ -248,11 +292,14 @@ const compileTests = () => {
     }
 
     const formatted = formatError(sources, error)
-    check(
-      name,
-      error.message.includes(expect),
-      `expected "${expect}"\n    got      "${error.message}"\n${formatted}`,
-    )
+    if (!error.message.includes(expect)) {
+      check(name, false, `expected "${expect}"\n    got      "${error.message}"\n${formatted}`)
+      continue
+    }
+
+    // One assertion per file either way, so the tally stays the file count.
+    const misplaced = positionMismatch(file, at, error)
+    check(name, misplaced === null, `${misplaced}\n${formatted}`)
   }
 
   return files.length
