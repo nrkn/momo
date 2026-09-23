@@ -1,0 +1,7 @@
+// EXPECT-ERROR: different units do not combine
+// `x += t` is `x = x + t`, and two units do not add (§39).
+unit px = u16
+unit ms = u16
+px x
+ms t
+x += t

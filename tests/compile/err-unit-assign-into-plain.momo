@@ -1,0 +1,6 @@
+// EXPECT-ERROR: "*=" makes px, and the left side is plain u16
+// A count times a px is a px (§39), so `n *= x` leaves a px where a count was.
+unit px = u16
+px x
+u16 n
+n *= x

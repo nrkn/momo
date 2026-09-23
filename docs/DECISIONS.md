@@ -1070,8 +1070,22 @@ not.
 
 A unit parameter, a unit return and a typed const each lost their unit, and the
 printer dropped a return's - none of it reachable from `unittest`, all of it
-found because §71 could not work until it was closed. The list, and the gap in
-compound assignment that was left open, are under DECISIONS §71.
+found because §71 could not work until it was closed. The list is under
+DECISIONS §71.
+
+### Compound assignment checked storage and nothing else
+
+`x op= e` went through the storage rule and never met this table, so
+`px x; x += someMs` compiled where `x = x + someMs` did not. §71 closed it for
+`a16` only, and the general case followed in the next session: the pair now goes
+through the same unit rules as `x op e`, and the result has to be the target's
+unit - which is the half the plain form's assignment check does, and what refuses
+`x /= w` (a plain ratio into a px) and `n *= x` (a px into a count). Shifts needed
+nothing, because `x << n` already keeps `x`'s unit and ignores the count's.
+
+No program was affected: `unittest` is the only one declaring a unit, and every
+`.asm` stayed byte-identical. The `ok-unit` pair gained the compound forms that
+must still compile, so the identity tier holds them as costing nothing too.
 
 ---
 ## 38. File I/O
@@ -1867,10 +1881,10 @@ was closed - which is the only reason they were found:
 - the printer spelled a fn's return type by its storage, which the round trip
   would have caught the first time a program had one.
 
-Each has an `err-unit-*` file now. **§39's compound assignment still ignores
-units** - `px x; x += someMs` compiles - because `x op= e` checks storage only.
-§71 checks it for `a16` and left the general case alone, which is a known gap
-rather than a decision.
+Each has an `err-unit-*` file now. **§39's compound assignment ignored units
+too** - `px x; x += someMs` compiled - because `x op= e` checked storage only.
+§71 checked it for `a16` and left the general case, which was closed in the
+session after; DECISIONS §39 has it.
 
 ### The teeth
 

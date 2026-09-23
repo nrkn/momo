@@ -1,0 +1,6 @@
+// EXPECT-ERROR: write px( ... ) if that is what it is
+// A typed count is not a literal one, so `x += n` is refused as `x = x + n` is (§39).
+unit px = u16
+px x
+u16 n
+x += n

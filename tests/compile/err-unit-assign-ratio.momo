@@ -1,0 +1,6 @@
+// EXPECT-ERROR: "/=" makes a plain count, and the left side is px
+// px over px is a plain ratio (§39), and a px cannot hold one.
+unit px = u16
+px x
+px w
+x /= w

@@ -3191,6 +3191,7 @@ by neither. `null` - unitless - is what every value was before this existed.
 | `unit / unit`, same unit | unitless: a ratio is a plain number |
 | `unit * unit` | an error - that is an area, and there is no name for one here |
 | a shift | keeps the unit; the count counts bits |
+| `x op= e` | as `x = x op e`: the pair by this table, and the result must be `x`'s unit |
 
 **An untyped constant adopting the unit is what makes this usable**, and it is
 §25's conclusion reached again: without it `x + 1` needs a cast, every expression

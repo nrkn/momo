@@ -2697,6 +2697,10 @@ export const resolve = (program: Program): ResolveResult => {
       }
 
       // `x op= e` is `x = x op e`, so the mixing rule applies to the pair.
+      //
+      // A shift keeps the left side's unit and its count counts bits (§39), so
+      // `x <<= n` needs no unit check that `x = x << n` would not also skip -
+      // only an address refuses one.
       const operator = node.operator.slice(0, -1)
       if (shiftOps.includes(operator)) {
         if (target.unit === addressUnit || value.unit === addressUnit) {
@@ -2706,16 +2710,18 @@ export const resolve = (program: Program): ResolveResult => {
       }
       combineOperands(target, value, operator, node)
 
-      // §71, and the pair has to land back in the target. `at += n` moves an
-      // address and is still one; `at -= other` is a count, and `n += at` is an
-      // address, and neither is what the left side holds.
-      if (target.unit === addressUnit || value.unit === addressUnit) {
-        const unit = combineUnits(target, value, operator, node)
-        if (unit !== target.unit) {
-          const from = unit === addressUnit ? 'an address' : unit ?? 'a plain count'
-          const to = target.unit === addressUnit ? 'an address' : target.unit ?? `plain ${describeType(target)}`
-          raise(node, `"${node.operator}" makes ${from}, and the left side is ${to}`)
-        }
+      // The units of the pair, by the rules `x op e` follows, and the result has
+      // to land back in the target - which is the half the plain form's
+      // assignment check does. `x += t` across units and `x += n` with a typed
+      // count are refused by combineUnits itself; `x /= x2` is a plain ratio and
+      // `n += x` is a px, and neither is what the left side holds (§39). The
+      // same for an address: `at -= other` is a count and `n += at` is a place
+      // (§71).
+      const unit = combineUnits(target, value, operator, node)
+      if (unit !== target.unit) {
+        const from = unit === addressUnit ? 'an address' : unit ?? 'a plain count'
+        const to = target.unit === addressUnit ? 'an address' : target.unit ?? `plain ${describeType(target)}`
+        raise(node, `"${node.operator}" makes ${from}, and the left side is ${to}`)
       }
       return
     }

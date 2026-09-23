@@ -27,3 +27,13 @@ ratio = a / b
 out = u16( n > 0 ? a : b )
 out = u16( u16( n ) )
 out = u16( raw i16( t ) )
+
+// Compound assignment follows the plain form: a constant, the same unit, a
+// plain count under * and /, and a shift keep the unit.
+a += 1
+a += b
+a -= b
+a *= n
+a /= n
+a <<= 1
+a >>= n
