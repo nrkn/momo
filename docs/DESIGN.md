@@ -5868,13 +5868,18 @@ flexible option is affordable here in a way it never is in an inner loop.**
 So the key map is data, and the flavour of the editor stops being a decision that
 has to be right the first time.
 
-**The table is three parallel `const` arrays.** The reason first given here was
-a boundary on §18 - that a group's fields are storage and take no initialiser -
-and it was already untrue when it was written: §52 had given a field an
-initialiser, and its rows form is the one where a row is what the writer edits
-and a column is what the program reads, which is this table exactly. So the
-arrays are a choice nobody has revisited rather than a constraint, and the
-drift check under Rules is what the choice costs.
+**The table is a `group` written as rows** (§52), one row per binding, so a key,
+its prefix and its action cannot fall out of step: a row short of a column is the
+parser's error and a count that disagrees with the rows is the resolver's. It was
+three parallel `const` arrays first, on the grounds that a group's fields take no
+initialiser - which §52 had already made untrue - and the arrays drifted apart
+once, which is where the rule about making that loud came from.
+
+**What the rows cost is `const`.** A group is storage and has no read-only form,
+so nothing now refuses a write to `bind[i].key` where the arrays refused one to
+`bindKey[i]`. The emitted scan is identical instruction for instruction and the
+bytes are the same; only the promise changed. A `const` group would give it back,
+and is also what §51's refusal of an address in a group column is waiting on.
 
 A chord costs one `u16` of state and a `prefix` column, so `^K ^C` and a plain
 `^S` live in the same table with no second mechanism.
@@ -6321,10 +6326,9 @@ language feature.
   above. Nothing downstream sees `AL`, `AH` or a flags byte.
 - **The flags are masked to the modifier bits.** They carry state as well, and
   the state differs between machines for the same keypress.
-- **The binding table's parallel arrays are held against each other** by `npm
-  run drift`. The form cannot make the mistake impossible, so something has to
-  make it loud - they drifted apart once and the symptom was one key doing
-  nothing.
+- **The binding table is rows**, so its columns cannot disagree. `npm run drift`
+  reads the key column for a key bound twice, which the form cannot catch - the
+  scan takes the first match and the second row never runs.
 - **A keystroke redraws what it changed.** A motion inside the window changes no
   cell of the text area; a one-line scroll changes one row and the BIOS moves the
   rest. The whole screen is for the cases that earn it.

@@ -2302,63 +2302,58 @@ const u8[] sNewTab = "(untitled)\0"
 // `^K ^C` for a comment toggle is the obvious first one, and `edloop` holds
 // the mechanism against a script meanwhile. Every prefix here being 0 costs one
 // comparison per entry per keystroke, which at this rate is nothing.
-// **One entry per row of the two tables below**, and `npm run drift` holds the
-// three lengths against each other - because they drifted apart once and the
-// symptom was a key that did nothing.
 //
-// Adding `^B` put an entry in `bindKey` and `bindAction` and not here, so every
-// row after it read the previous rows prefix and the *last* one read past the
-// end of this array entirely. `Ctrl+End` is that last row. `Ctrl+Home` is the
-// one before it and worked perfectly, which is what made it look like a
-// keyboard question rather than an off-by-one.
-const u16[] bindPrefix = [
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0, 0, 0, 0
-]
+// **A row per binding** (§52), so a key, its prefix and its action cannot fall
+// out of step: a row short of a column is the parser's error, and a row count
+// that disagrees with `bindCount` is the resolver's. They were three parallel
+// arrays until then, and drifted apart once - adding `^B` put an entry in two of
+// them, so every row after it read the previous row's prefix and the *last* one
+// read past the end entirely. `Ctrl+End` was that last row, and `Ctrl+Home`
+// beside it worked perfectly, which is what made it look like a keyboard
+// question rather than an off-by-one.
+//
+// What the form cannot catch is a key bound twice - the scan takes the first
+// match and the second row never runs - so `npm run drift` still reads the key
+// column for that.
+const bindCount = 32
 
-const u16[] bindKey = [
-  keyExt + keyLeft,
-  keyExt + keyRight,
-  keyExt + keyUp,
-  keyExt + keyDown,
-  keyExt + keyHome,
-  keyExt + keyEnd,
-  keyExt + keyDelete,
-  keyExt + keyPgUp,
-  keyExt + keyPgDn,
-  8,                     // Backspace
-  13,                    // Enter
-  26,                    // ^Z
-  19,                    // ^S
-  25,                    // ^Y
-  6,                     // ^F
-  12,                    // ^L
-  3,                     // ^C
-  24,                    // ^X
-  22,                    // ^V
-  1,                     // ^A
-  7,                     // ^G
-  15,                    // ^O
-  18,                    // ^R
-  2,                     // ^B
-  keyExt + keyCtrlLeft,
-  keyExt + keyCtrlRight,
-  keyExt + keyCtrlHome,
-  keyExt + keyCtrlEnd,
-  keyExt + keyCtrlTab,   // and Ctrl+Shift+Tab, which differs in one flag bit
-  9,                     // Tab
-  20,                    // ^T
-  23                     // ^W
-]
-
-const u8[] bindAction = [
-  actLeft, actRight, actUp, actDown, actHome, actEnd, actDelete,
-  actPgUp, actPgDn, actBack, actEnter, actUndo, actSave, actRedo,
-  actFind, actAgain, actCopy, actCut, actPaste, actAll,
-  actGoto, actOpen, actRepl, actExplor,
-  actWordL, actWordR,
-  actTop, actBottom,
-  actCycle, actIndent, actNewDoc, actShut
+group bind[bindCount] {
+  u16 prefix
+  u16 key
+  u8  action
+} = [
+  [ 0, keyExt + keyLeft,      actLeft   ],
+  [ 0, keyExt + keyRight,     actRight  ],
+  [ 0, keyExt + keyUp,        actUp     ],
+  [ 0, keyExt + keyDown,      actDown   ],
+  [ 0, keyExt + keyHome,      actHome   ],
+  [ 0, keyExt + keyEnd,       actEnd    ],
+  [ 0, keyExt + keyDelete,    actDelete ],
+  [ 0, keyExt + keyPgUp,      actPgUp   ],
+  [ 0, keyExt + keyPgDn,      actPgDn   ],
+  [ 0, 8,                     actBack   ], // Backspace
+  [ 0, 13,                    actEnter  ], // Enter
+  [ 0, 26,                    actUndo   ], // ^Z
+  [ 0, 19,                    actSave   ], // ^S
+  [ 0, 25,                    actRedo   ], // ^Y
+  [ 0, 6,                     actFind   ], // ^F
+  [ 0, 12,                    actAgain  ], // ^L
+  [ 0, 3,                     actCopy   ], // ^C
+  [ 0, 24,                    actCut    ], // ^X
+  [ 0, 22,                    actPaste  ], // ^V
+  [ 0, 1,                     actAll    ], // ^A
+  [ 0, 7,                     actGoto   ], // ^G
+  [ 0, 15,                    actOpen   ], // ^O
+  [ 0, 18,                    actRepl   ], // ^R
+  [ 0, 2,                     actExplor ], // ^B
+  [ 0, keyExt + keyCtrlLeft,  actWordL  ],
+  [ 0, keyExt + keyCtrlRight, actWordR  ],
+  [ 0, keyExt + keyCtrlHome,  actTop    ],
+  [ 0, keyExt + keyCtrlEnd,   actBottom ],
+  [ 0, keyExt + keyCtrlTab,   actCycle  ], // and Ctrl+Shift+Tab, which differs in one flag bit
+  [ 0, 9,                     actIndent ], // Tab
+  [ 0, 20,                    actNewDoc ], // ^T
+  [ 0, 23,                    actShut   ]  // ^W
 ]
 
 // ---- the menu bar, driven (§67) ----------------------------------------------
@@ -2597,15 +2592,15 @@ u16 pending
 bool running
 
 u8 keyAction( u16 k ) {
-  for ( u16 i = 0; i < len( bindKey ); i++ ) {
-    if ( bindKey[i] == k && bindPrefix[i] == pending ) return bindAction[i]
+  for ( u16 i = 0; i < len( bind ); i++ ) {
+    if ( bind[i].key == k && bind[i].prefix == pending ) return bind[i].action
   }
   return actNone
 }
 
 bool keyIsPrefix( u16 k ) {
-  for ( u16 i = 0; i < len( bindPrefix ); i++ ) {
-    if ( bindPrefix[i] == k ) return true
+  for ( u16 i = 0; i < len( bind ); i++ ) {
+    if ( bind[i].prefix == k ) return true
   }
   return false
 }

@@ -438,10 +438,9 @@ the end has nowhere to get a plausible answer from.
 unmeasured key and the broken key being the same key is a coincidence a whole
 afternoon could go into. What settled it in a minute was counting the arrays.
 
-`npm run drift` holds the three lengths against each other now. They are arrays
-rather than a `group` for a reason §55 gave and §52 had already made untrue -
-nothing measured separates the two - so while the form cannot make the mistake
-impossible, something has to make it loud.
+`npm run drift` held the three lengths against each other for a while, because
+the form could not make the mistake impossible. The table is §52's rows now, a
+row per binding, and it can.
 
 ## The build assembled a fixture, and said ok
 

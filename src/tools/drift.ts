@@ -420,30 +420,23 @@ const sceneCount = (): number => {
   return found.length
 }
 
-// Three parallel `const` arrays that have to agree, scanned together by index.
-// Nothing in the language checks that, and when they drifted apart the symptom
-// was one key doing nothing - the *last* row, because that is the only index
-// that reads past the end of the short array rather than reading its neighbour.
+// The binding tables are a row per binding (§52), so a key, its prefix and its
+// action cannot fall out of step - that used to be three parallel arrays held
+// against each other here, and when they drifted apart the symptom was one key
+// doing nothing. The form makes the length check unnecessary now: a short row is
+// the parser's error and a wrong count the resolver's.
 //
-// They are arrays rather than a `group`, which §55 once explained by a group
-// taking no initialiser - untrue since §52, and a group's field emits the same
-// array, so no scan cost separates them either. Until the table moves, this is
-// the other half: if the form cannot make the mistake impossible, something has
-// to make it loud.
-// The third name, where there is one, is the column whose entries must all
-// differ. A repeated binding is the same class of silence as a short table: the
-// scan takes the first match and the second row simply never runs.
+// What the form cannot catch is a column whose entries must all differ. A key
+// bound twice is the same class of silence as a short table was: the scan takes
+// the first match and the second row simply never runs.
 //
 // **It compares the text, not the value.** `9` and `keyTab` are the same key and
 // this would not say so, which is worth knowing rather than working around -
 // copy-and-paste is the way these actually arrive, and copy-and-paste repeats the
 // spelling too.
-const parallelTables: [string, string[], string?][] = [
-  [
-    'projects/programs/apps/momoed/momoed.momo',
-    ['bindPrefix', 'bindKey', 'bindAction'],
-    'bindKey',
-  ],
+const uniqueColumns: [string, string, string][] = [
+  ['projects/programs/apps/momoed/momoed.momo', 'bind', 'key'],
+  ['projects/library/text/edloop/edloop.momo', 'bind', 'key'],
 ]
 
 const entryTextOf = (text: string, name: string): string[] | null => {
@@ -460,37 +453,6 @@ const entryTextOf = (text: string, name: string): string[] | null => {
     .split(',')
     .map((entry) => entry.trim())
     .filter((entry) => entry.length > 0)
-}
-
-const entriesOf = (text: string, name: string): number | null =>
-  entryTextOf(text, name)?.length ?? null
-
-const checkParallelTables = () => {
-  for (const [file, names] of parallelTables) {
-    const path = join(root, file)
-    if (!existsSync(path)) continue
-
-    const text = readText(path)
-    const counts = names.map((name) => [name, entriesOf(text, name)] as const)
-
-    const missing = counts.filter(([, n]) => n === null)
-    for (const [name] of missing) {
-      report(path, 1, `parallel table "${name}" not found - the check needs updating`)
-    }
-
-    const found = counts.filter((entry): entry is readonly [string, number] => entry[1] !== null)
-    if (found.length < 2) continue
-
-    const first = found[0][1]
-    if (found.every(([, n]) => n === first)) continue
-
-    report(
-      path,
-      1,
-      `parallel tables disagree: ${found.map(([name, n]) => `${name} ${n}`).join(
-)}`,
-    )
-  }
 }
 
 // The top-level children of an array literal, as source text, found by depth so
@@ -574,23 +536,37 @@ const checkMenuTables = () => {
   }
 }
 
-// A key bound twice is the same silence as a table one row short: the scan
-// takes the first match and the second row never runs at all. That is how
-// these arrive - a row copied, pasted and half edited.
+// A key bound twice: the scan takes the first match and the second row never
+// runs at all. That is how these arrive - a row copied, pasted and half edited.
+// The column is found by the field's position in the group's declaration, so a
+// field added or reordered moves the check with it.
 const checkDuplicateBindings = () => {
-  for (const [file, , unique] of parallelTables) {
-    if (!unique) continue
-
+  for (const [file, group, field] of uniqueColumns) {
     const path = join(root, file)
     if (!existsSync(path)) continue
 
-    const entries = entryTextOf(readText(path), unique)
-    if (entries === null) continue
+    const text = readText(path)
+    const head = new RegExp(`^group ${group}\\[[^\\]]*\\] \\{([^}]*)\\} = \\[`, 'm').exec(text)
+    if (head === null) {
+      report(path, 1, `group "${group}" with rows not found - the check needs updating`)
+      continue
+    }
+
+    const fields = (head[1] as string)
+      .split('\n')
+      .map((line) => line.replace(/\/\/.*$/, '').trim().split(/\s+/).pop() ?? '')
+      .filter((name) => name.length > 0)
+    const column = fields.indexOf(field)
+    if (column < 0) {
+      report(path, 1, `group "${group}" has no field "${field}" - the check needs updating`)
+      continue
+    }
 
     const seen = new Set<string>()
-
-    for (const entry of entries) {
-      if (seen.has(entry)) report(path, 1, `"${unique}" binds "${entry}" twice`)
+    for (const row of splitList(text, head.index + head[0].length - 1)) {
+      const entry = splitList(row, 0)[column]
+      if (entry === undefined) continue
+      if (seen.has(entry)) report(path, 1, `"${group}" binds "${entry}" twice`)
       seen.add(entry)
     }
   }
@@ -800,7 +776,6 @@ if (args[0] === '--since') {
   checkGrammar()
   checkCounts()
   checkScenes()
-  checkParallelTables()
   checkMenuTables()
   checkDuplicateBindings()
   checkHeadings()

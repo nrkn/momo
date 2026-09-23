@@ -53,6 +53,7 @@ actUndo:        equ     11
 actSave:        equ     12
 actTop:         equ     14
 actBottom:      equ     15
+bindCount:      equ     13
 keyQuit:        equ     17
 
 ; =========================================================== entry ====
@@ -3072,30 +3073,30 @@ viewRender:
 ; ============================================== u8 keyAction ====
 
 keyAction:
-; ---- for ( u16 i = 0; i < len( bindKey ); i++ ) {
+; ---- for ( u16 i = 0; i < len( bind ); i++ ) {
         mov     word [keyAction__i], 0
 .L334:
         mov     ax, [keyAction__i]
         cmp     ax, 13
         jae     .L336                       ; unsigned <
-; ---- if ( bindKey[i] == k && bindPrefix[i] == pending ) return bindAction[i]
+; ---- if ( bind[i].key == k && bind[i].prefix == pending ) return bind[i].action
         mov     ax, [keyAction__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
-        mov     ax, [bindKey + bx]
+        mov     ax, [bind__key + bx]
         mov     bx, [keyAction__k]
         cmp     ax, bx
         jne     .L338                       ; unsigned ==
         mov     ax, [keyAction__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
-        mov     ax, [bindPrefix + bx]
+        mov     ax, [bind__prefix + bx]
         mov     bx, [pending]
         cmp     ax, bx
         jne     .L338                       ; unsigned ==
         mov     ax, [keyAction__i]
         mov     bx, ax
-        mov     al, [bindAction + bx]
+        mov     al, [bind__action + bx]
         mov     [keyAction__ret], al        ; u8 -> u8, no widening
         ret
 .L338:
@@ -3110,17 +3111,17 @@ keyAction:
 ; ============================================== bool keyIsPrefix ====
 
 keyIsPrefix:
-; ---- for ( u16 i = 0; i < len( bindPrefix ); i++ ) {
+; ---- for ( u16 i = 0; i < len( bind ); i++ ) {
         mov     word [keyIsPrefix__i], 0
 .L342:
         mov     ax, [keyIsPrefix__i]
         cmp     ax, 13
         jae     .L344                       ; unsigned <
-; ---- if ( bindPrefix[i] == k ) return true
+; ---- if ( bind[i].prefix == k ) return true
         mov     ax, [keyIsPrefix__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
-        mov     ax, [bindPrefix + bx]
+        mov     ax, [bind__prefix + bx]
         mov     bx, [keyIsPrefix__k]
         cmp     ax, bx
         jne     .L346                       ; unsigned ==
@@ -4042,9 +4043,9 @@ motext__docNoRoom: times 2 db 0        ; u8[2]
 motext__docWhyNoRoom: times 2 db 0        ; u8[2]
 moview__row:    times 160 db 0        ; u8[160]
 source:         db      'alpha', 10, 'beta', 10, 'gamma', 10        ; u8[17] const
-bindPrefix:     dw      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 11, 11        ; u16[13] const
-bindKey:        dw      331, 333, 328, 336, 327, 335, 339, 8, 13, 26, 19, 20, 5        ; u16[13] const
-bindAction:     db      2, 3, 4, 5, 6, 7, 9, 8, 10, 11, 12, 14, 15        ; u8[13] const
+bind__prefix:   dw      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 11, 11        ; u16[13]
+bind__key:      dw      331, 333, 328, 336, 327, 335, 339, 8, 13, 26, 19, 20, 5        ; u16[13]
+bind__action:   db      2, 3, 4, 5, 6, 7, 9, 8, 10, 11, 12, 14, 15        ; u8[13]
 script:         dw      20448, 545, 20704, 18400, 11608, 7181, 11354, 11290, 11290, 9483, 4613,        ; u16[23] const
                 dw      3592, 18400, 19424, 19936, 21472, 20448, 21472, 18656, 20448, 21472,
                 dw      7955, 4113

@@ -159,6 +159,7 @@ actShut:        equ     33
 actSaveAs:      equ     34
 actQuit:        equ     35
 actPick:        equ     36
+bindCount:      equ     32
 keyQuit:        equ     17
 edTabWidth:     equ     2
 
@@ -14092,30 +14093,30 @@ dlgKey:
 ; ============================================== u8 keyAction ====
 
 keyAction:
-; ---- for ( u16 i = 0; i < len( bindKey ); i++ ) {
+; ---- for ( u16 i = 0; i < len( bind ); i++ ) {
         mov     word [keyAction__i], 0
 .L1969:
         mov     ax, [keyAction__i]
         cmp     ax, 32
         jae     .L1971                      ; unsigned <
-; ---- if ( bindKey[i] == k && bindPrefix[i] == pending ) return bindAction[i]
+; ---- if ( bind[i].key == k && bind[i].prefix == pending ) return bind[i].action
         mov     ax, [keyAction__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
-        mov     ax, [bindKey + bx]
+        mov     ax, [bind__key + bx]
         mov     bx, [keyAction__k]
         cmp     ax, bx
         jne     .L1973                      ; unsigned ==
         mov     ax, [keyAction__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
-        mov     ax, [bindPrefix + bx]
+        mov     ax, [bind__prefix + bx]
         mov     bx, [pending]
         cmp     ax, bx
         jne     .L1973                      ; unsigned ==
         mov     ax, [keyAction__i]
         mov     bx, ax
-        mov     al, [bindAction + bx]
+        mov     al, [bind__action + bx]
         mov     [keyAction__ret], al        ; u8 -> u8, no widening
         ret
 .L1973:
@@ -14130,17 +14131,17 @@ keyAction:
 ; ============================================== bool keyIsPrefix ====
 
 keyIsPrefix:
-; ---- for ( u16 i = 0; i < len( bindPrefix ); i++ ) {
+; ---- for ( u16 i = 0; i < len( bind ); i++ ) {
         mov     word [keyIsPrefix__i], 0
 .L1977:
         mov     ax, [keyIsPrefix__i]
         cmp     ax, 32
         jae     .L1979                      ; unsigned <
-; ---- if ( bindPrefix[i] == k ) return true
+; ---- if ( bind[i].prefix == k ) return true
         mov     ax, [keyIsPrefix__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
-        mov     ax, [bindPrefix + bx]
+        mov     ax, [bind__prefix + bx]
         mov     bx, [keyIsPrefix__k]
         cmp     ax, bx
         jne     .L1981                      ; unsigned ==
@@ -17477,10 +17478,10 @@ menuActs__len:  db      6, 7, 4, 1        ; u8[4] const
 menuActs:       dw      menuActs__0, menuActs__1, menuActs__2, menuActs__3        ; u16[4] const
 sExpTab:        db      'Explorer', 0        ; u8[9] const
 sNewTab:        db      '(untitled)', 0        ; u8[11] const
-bindPrefix:     times 32 dw 0        ; u16[32]
-bindKey:        dw      331, 333, 328, 336, 327, 335, 339, 329, 337, 8, 13, 26, 19, 25, 6, 12,        ; u16[32] const
+bind__prefix:   times 32 dw 0        ; u16[32]
+bind__key:      dw      331, 333, 328, 336, 327, 335, 339, 329, 337, 8, 13, 26, 19, 25, 6, 12,        ; u16[32]
                 dw      3, 24, 22, 1, 7, 15, 18, 2, 371, 372, 375, 373, 404, 9, 20, 23
-bindAction:     db      2, 3, 4, 5, 6, 7, 9, 15, 16, 8, 10, 11, 12, 17, 18, 19, 20, 21, 22, 23,        ; u8[32] const
+bind__action:   db      2, 3, 4, 5, 6, 7, 9, 15, 16, 8, 10, 11, 12, 17, 18, 19, 20, 21, 22, 23,        ; u8[32]
                 db      26, 27, 28, 29, 24, 25, 13, 14, 30, 31, 32, 33
 menuAlt:        dw      289, 274, 287, 303        ; u16[4] const
 numText__digits: times 5 db 0        ; u8[5]

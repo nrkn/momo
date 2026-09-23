@@ -39,37 +39,32 @@ const actQuit   = 13
 const actTop    = 14
 const actBottom = 15
 
-// Three const arrays rather than a `group`, and not as a style choice: a group's
-// fields are storage and take no initialiser, so a table known at compile time
-// cannot be written as one. §18 is for a pool filled at runtime; this is data.
+// A row per binding (§52), in the same shape as `momoed`'s, so that a key, its
+// prefix and its action cannot fall out of step - which the three parallel
+// arrays this used to be could, and in `momoed` once did.
 //
 // A prefix of 0 is a plain key. `keyExt + keyLeft` is std/key.momo's normalised
 // space, so nothing here spells a scancode or touches a flags byte.
-const u16[] bindPrefix = [
-  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  11, 11
-]
+const bindCount = 13
 
-const u16[] bindKey = [
-  keyExt + keyLeft,
-  keyExt + keyRight,
-  keyExt + keyUp,
-  keyExt + keyDown,
-  keyExt + keyHome,
-  keyExt + keyEnd,
-  keyExt + keyDelete,
-  8,                     // Backspace
-  13,                    // Enter
-  26,                    // ^Z
-  19,                    // ^S
-  20,                    // ^K ^T
-  5                      // ^K ^E
-]
-
-const u8[] bindAction = [
-  actLeft, actRight, actUp, actDown, actHome, actEnd, actDelete,
-  actBack, actEnter, actUndo, actSave,
-  actTop, actBottom
+group bind[bindCount] {
+  u16 prefix
+  u16 key
+  u8  action
+} = [
+  [  0, keyExt + keyLeft,   actLeft   ],
+  [  0, keyExt + keyRight,  actRight  ],
+  [  0, keyExt + keyUp,     actUp     ],
+  [  0, keyExt + keyDown,   actDown   ],
+  [  0, keyExt + keyHome,   actHome   ],
+  [  0, keyExt + keyEnd,    actEnd    ],
+  [  0, keyExt + keyDelete, actDelete ],
+  [  0, 8,                  actBack   ], // Backspace
+  [  0, 13,                 actEnter  ], // Enter
+  [  0, 26,                 actUndo   ], // ^Z
+  [  0, 19,                 actSave   ], // ^S
+  [ 11, 20,                 actTop    ], // ^K ^T
+  [ 11, 5,                  actBottom ]  // ^K ^E
 ]
 
 // ^Q is bound outside the table on purpose: the loop has to stop whatever the
@@ -79,15 +74,15 @@ const keyQuit = 17
 u16 pending
 
 u8 keyAction( u16 k ) {
-  for ( u16 i = 0; i < len( bindKey ); i++ ) {
-    if ( bindKey[i] == k && bindPrefix[i] == pending ) return bindAction[i]
+  for ( u16 i = 0; i < len( bind ); i++ ) {
+    if ( bind[i].key == k && bind[i].prefix == pending ) return bind[i].action
   }
   return actNone
 }
 
 bool keyIsPrefix( u16 k ) {
-  for ( u16 i = 0; i < len( bindPrefix ); i++ ) {
-    if ( bindPrefix[i] == k ) return true
+  for ( u16 i = 0; i < len( bind ); i++ ) {
+    if ( bind[i].prefix == k ) return true
   }
   return false
 }
