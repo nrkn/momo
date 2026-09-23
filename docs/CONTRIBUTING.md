@@ -13,12 +13,9 @@ console is kept as `_reference/yuki.txt`.
   it exists, then moves into `DESIGN.md`.
 
   Section numbers are **one namespace across all three**, stable and only ever
-  appended, because they are cited from source comments - §17 means `view`
-  permanently, and a number absent from `DESIGN.md` is in `PLAN.md` rather than
-  deleted. §21 is a redirect to where its contents went rather than a section.
+  appended; `DESIGN.md` opens with why, under **Numbering**.
 - **`DECISIONS.md`** - the record: what a choice cost, what was measured, what was
-  estimated and missed, what was tried and rejected. Same section numbers, so §18
-  is `group` there too - the number is the topic and the file is the aspect. It
+  estimated and missed, what was tried and rejected, under the same numbers. It
   exists because that material was interleaved with the description paragraph by
   paragraph, which is what made `DESIGN.md` hard to read straight through.
 - **`PEEPHOLES.md`** - the local rewrites the emitter applies, and how one
@@ -299,14 +296,9 @@ when the code and image it just printed came from an earlier build.** Being care
 was not working.
 
 **A "GENERATED - do not edit" file can be edited anyway, and the generator will
-not notice.** `mvdemo.momo` and `mvpic.momo` are emitted by the vector study, and
-both carried an `include "momovec/direct.momo"` that the study's emitter never
-wrote - added by hand on this side when `direct.momo` was extracted, and never
-taught to the generator. Regenerating would have silently removed it and
-`clip.momo` would have failed with `"mapX" is not declared`. Nothing said so for
-five commits, because nobody regenerated in between. **The check is to regenerate
-and diff**, and it is worth doing whenever either side of a generated file moves -
-it is the only thing that can tell you the two still agree.
+not notice.** Regenerate and diff whenever either side of a generated file moves -
+it is the only thing that can tell you the two still agree. `LESSONS.md` has the
+include that went missing for five commits.
 
 **`git status` can show a generated `.asm` as modified when `git diff` is empty.**
 The emitter writes CRLF, `core.autocrlf` is `input`, so the working tree and the
@@ -315,42 +307,22 @@ stored blob differ in line endings while comparing identical after normalisation
 
 ## Branches
 
-**Work happens on `main`.** Everything built so far went straight there - `far`,
-`view`, `group`, `local`, `peek`/`poke` and the whole peephole set - and none of
-them made anyone want a branch. Small and mid-sized changes are the normal case,
-and this is the whole of the rule for them.
+**Work happens on `main`.** Small and mid-sized changes are the normal case, and
+the test for one is whether you would mind leaving `main` in the state it reaches
+by the end of a session. Two things are worth a branch, and neither is size:
 
-Two things are worth branching for, and one of them has happened:
-
-- **A feature large enough that a half-finished `main` would cost more than the
-  merge does.** **momolo (DESIGN §36) is the instance** - a layout engine ported
-  chunk by chunk across more than one session, built on a `momolo` branch and
-  merged as a pull request. Where the line falls is still not written down,
-  because one crossing does not locate it, but it is no longer hypothetical. The
-  test for anything smaller is unchanged: whether you would mind leaving `main`
-  in the state your change reaches by the end of a session.
+- **A port too big for a half-finished `main`.** momolo (DESIGN §36) is the
+  instance - a layout engine ported chunk by chunk across more than one session,
+  built on a branch and merged as a pull request.
 - **Work that may not survive.** An experiment whose answer might be "no" wants to
-  be able to end without leaving anything behind, which is a different reason from
-  size. **§48 is the instance**, and it is a smaller one than the subset-the-
-  language example this used to give: the section's load-bearing claim was that it
-  was materially smaller than §39, `loader.ts` said otherwise before any code was
-  written, and the honest possibility was that the answer became "this costs what
-  §39 cost". It did not - the seam moved and the feature landed - but the branch
-  was opened for that and not for size, which is the distinction worth keeping.
+  be able to end without leaving anything behind. §48 is the instance: its premise
+  was that it cost materially less than §39, `loader.ts` said otherwise before any
+  code was written, and the branch was opened in case the answer became "this
+  costs what §39 cost". It did not, and the feature landed.
 
-This paragraph said for a while that neither case had come up, having been written
-before momolo and not read again afterwards. Then it said the second still had not,
-which lasted until §48. Both claims were predictions, and both were wrong in the
-same direction: **a prediction is the part of a document most worth re-reading once
-the thing it predicted has happened**, and this section has now demonstrated that
-about itself twice.
-
-What the two crossings say together, since two points do locate a line better than
-one: **neither was about size.** momolo was a port across more than one session
-where a half-finished `main` would have cost more than the merge did, and §48 was
-one session's work whose premise might not have survived contact. The test for
-anything else is still whether you would mind leaving `main` in the state your
-change reaches by the end of a session.
+This section predicted twice that a case had not come up, and was wrong both
+times: **a prediction is the part of a document most worth re-reading once the
+thing it predicted has happened.**
 
 ## Working practices
 
@@ -395,8 +367,8 @@ and its hardcoded `_heapw equ _heap`. Features that remove compiler special case
 while adding expressiveness have consistently been the right ones.
 
 **A feature that subsumes a special case is worth having whether or not the
-special case can be re-spelled in it.** Read what got retired carefully: the two
-are different claims.
+special case can be re-spelled in it.** The two are different claims; `LESSONS.md`
+has the one about `view` that only half survived.
 
 **AI-assisted work is welcome; unexamined work is not** - `LESSONS.md` has what
 that means in practice.
@@ -446,8 +418,7 @@ is a property of the machine: most of `PITFALLS.md` was found on 86Box rather
 than under DOSBox, and the keyboard is where that difference bit hardest. The golden tier still covers them, which
 is the regression coverage that matters for a compiler.
 
-`tennis` is the other game and the largest program here - six files,
-mode 13h, sprites, a palette, and a keyboard reader that masks IRQ1 and
+`tennis` is the other game - several files, mode 13h, sprites, a palette, and a keyboard reader that masks IRQ1 and
 talks to the 8042 directly. Most of `PITFALLS.md` was found in it, and found on
 86Box rather than under DOSBox. It blocks on input, so it is golden-tier only too.
 
