@@ -174,6 +174,19 @@ at all, which makes one a floor rather than a measurement.
   the compiler cannot read, and a wrong definition errors inside the library,
   naming the wrong party. Resolver-only, emits nothing, and the identity tier
   can say so.
+- **`require`.** §74 - a compile-time assertion over constants. The invariants
+  it would check exist today as comments beside capacities, which is the class
+  of claim that goes quietly wrong when the capacity moves. Folds with the
+  machinery the resolver already has, emits nothing.
+- **Ranged units.** §75 - `unit intensity = u8 <= 63`. §4's constant rule
+  extended to a unit's bound, checked at the sites §4 already checks; a
+  768-entry palette table validated wholesale is the case DECISIONS §1 paid
+  for. Unsigned upper bounds first, because every known customer is one.
+- **Table comprehensions.** §76 - `[ for ( i in 256 ) curve( i ) ]`, folded at
+  compile time. Deletes the generator-script special case for tables that are
+  pure functions of their index; composes with §74 and §75. The largest of the
+  three and the one whose `in`-over-a-count spelling must be decided together
+  with the Maybe entry that already holds it for loops.
 - **`alias`.** §46 - a compile-time name for one element or one group instance, at
   an index the program chooses. §45's `of` is this with the index owned by the
   compiler, so the substitution is already built and what is new is a capture rule;
@@ -2706,3 +2719,184 @@ already express "taken, deliberately" without one.
   else calls by contract, but the caller there is hardware and the signature
   question is different (`iret`, saved registers). Kept separate unless the
   designs turn out to rhyme.
+
+---
+
+## 74. `require` - a compile-time assertion
+
+**Undesigned until 2026-09-24; the folder it needs has existed since the
+beginning.** A top-level statement holding a constant expression; the resolver
+folds it, and zero is a compile error:
+
+```momo
+require maxCrossings * 2 <= 4096
+require textChunks * chunkBytes + logBytes <= textArena
+```
+
+The customer is every invariant currently living in a comment: motext's chunk
+arithmetic, momovec's derived `maxCoord`, the heap-partition chains §17
+recommends. The capacity assertions in tier 1 catch *totals* overflowing the
+segment; `require` catches **relationships between constants**, which nothing
+checks today and which is where a capacity edit goes quietly wrong - raise
+`maxCrossings` and the comment beside it stays agreeable.
+
+### The rules, and they are short
+
+- **Top level only**, like every other declaration-shaped thing. Inside a
+  routine it would read as a runtime check, which it is not - and a runtime
+  `assert` is a different feature with a different cost and its own number if
+  ever wanted. The refusal message says so.
+- **The expression must fold.** A runtime value in it is an error naming the
+  part that did not fold, not a check deferred to runtime.
+- **Zero fails.** The truthiness rule is `if`'s own, so there is nothing new to
+  remember; in practice every `require` is a comparison and folds to bool.
+- **Checked unconditionally**, whether or not anything nearby survives pruning.
+  A claim about constants is true or false at compile time; making it
+  pruning-sensitive would mean a wrong constant surfaces only when a routine
+  starts being used, which is the worst possible moment to learn it.
+- **No message argument.** The error quotes the line under a caret, and where
+  the expression is a comparison it names what each side folded to -
+  `the left side folds to 6144` - which is the half a reader cannot see. The
+  *why* belongs in a comment above, where every other why already lives.
+
+### What it costs
+
+Nothing at runtime and almost nothing to build: it emits no bytes, so the
+identity tier can hold a program with and without its `require` lines
+byte-identical, and the resolver work is folding an expression it already knows
+how to fold. §4's rule that typed folds truncate is what makes the answers
+trustworthy - before that rule, a `require` over typed consts could pass on a
+value the machine would wrap.
+
+### Unsettled
+
+- **Whether a library's `require` should name the program's constants.** It can
+  by construction - the merged program is one namespace - and that is the
+  feature: a library asserting `require viewRows <= 25` against a
+  program-declared const is §73's seam, met for numbers. Worth saying
+  explicitly once the first such use exists.
+- **The spelling.** `require` reads right and greps clean; whether it collides
+  with anything a program plausibly names is a grep away.
+
+---
+
+## 75. Ranged units
+
+**Undesigned until 2026-09-24.** §39's `unit` gains a bound, and the bound is
+checked wherever §4 already checks a constant:
+
+```momo
+unit intensity = u8 <= 63       // a VGA DAC value
+unit column = u8 < 80
+```
+
+The motivating class is real and recorded: DECISIONS §1's palette archaeology
+is about bytes that are 0-63 by *meaning* while `u8` says 0-255, and every
+screen library holds columns and rows the storage type cannot describe. A unit
+already refuses to mix with other units (§39); this lets it also refuse the
+constant 64.
+
+### The rule is §4's, extended, and that is the whole design
+
+§4 draws the line this feature stands on: **a constant that does not fit is an
+error; a runtime value narrows on the programmer's assertion.** A ranged unit
+applies the same line to the range. Every site where an untyped constant meets
+a declared type - initialiser, assignment, argument, return, array element -
+already runs the fit check, and the range check is one more comparison at
+exactly those sites. A runtime value passes unchecked, exactly as implicit
+narrowing does: declaring `intensity i` is the programmer's claim about
+runtime values and the compiler's about constant ones.
+
+**Array elements are the killer application.** A 768-byte palette declared
+`const intensity[768] pal = [ ... ]` has every byte held against 63 at compile
+time, wholesale - which is precisely the table the §1 incident was about.
+
+### What it does not do
+
+- **A cast does not clamp.** `intensity( x )` on a runtime value emits nothing,
+  as unit casts already do; on a constant out of range it is an error. Clamping
+  would be hidden runtime cost, and §22 already settled that hidden cost loses
+  to visible spelling.
+- **Mixing is untouched.** Storage combination stays §4's, unit combination
+  stays §39's; the range rides on top and only speaks when a constant lands.
+- **Arithmetic is not range-checked.** `i + 1` on an `intensity` keeps the unit
+  (§39's count rule) and nobody re-proves the range - but a *folded* result is
+  a constant, so it is checked wherever it lands, and §4's truncation rule is
+  what makes that sound.
+
+### Scope: unsigned storage, upper bound, deliberately
+
+Every known customer - intensity, column, row, scancode, mode number - is
+unsigned with an upper bound, so `u8 <= n` and `u8 < n` (and the u16 forms) are
+the build. A two-sided or signed range wants a spelling this language has
+already ruled out once: `i8 >= -40 <= 85` is a chained comparison, and §6 made
+comparison non-associative on purpose. Rather than invent a range token for a
+customer that does not exist, the two-sided form waits for one, and the
+declaration grammar leaves room for it.
+
+### Unsettled
+
+- **The two-sided spelling**, when a customer arrives. A second comparison
+  clause, a range token, or §45's `in` over a count are the candidates, and
+  each drags a different precedent behind it.
+- **Whether the range should feed §4's mixing arithmetic** - `intensity +
+  intensity` provably fits u8, so the combine could stay narrow. Refused for
+  now: it makes the range a participant in type inference rather than a check,
+  which is a bigger feature wearing this one's clothes.
+
+---
+
+## 76. Fold-time table comprehensions
+
+**Undesigned until 2026-09-24, and the largest of the three proposals it
+arrived with.** An array initialiser whose elements are computed by the folder
+rather than written out:
+
+```momo
+const u8 curve( u8 i ) = u8( i * i / 272 )
+const u8[256] gamma = [ for ( i in 256 ) curve( i ) ]
+```
+
+The body is any expression the folder can fold with `i` bound to each of
+0..n-1 - a parameterised const evaluated n times, which is machinery §8
+already has. An element that does not fold is an error naming the index. Every
+element then passes the same checks a written one does: fit, scale, and §75's
+range once it exists.
+
+### What it deletes
+
+The generator-script special case, for every table that is a pure function of
+its index. The pattern today is host-side emission into committed `.momo` -
+right for scene data, which is authored, and heavy for a gamma curve, which is
+derived. §32 names the sharpest instance: the PIT's input frequency cannot be
+written as a literal, so note tables are "generated elsewhere" - but an
+untyped const can be *arithmetic* that folds wide and exactly
+(`const pitHz = 1193 * 1000 + 182`), and a comprehension over that puts the
+whole table in the language, with a `require` beside it pinning the values
+that matter. The three proposals compose: §74 asserts the relationships, §75
+bounds the elements, this generates them.
+
+### The claims it can make
+
+Compile-time only, so the identity claim is goldenable: a comprehension and
+its written-out table emit byte-identical data, and a fixture can hold the
+pair. The folder's exactness rules are §4's, settled: typed operands truncate
+as the machine would, untyped arithmetic is exact to 2^53 with the fit check
+where each element lands.
+
+### Unsettled
+
+- **`in` over a count.** The Maybe tier already holds this for loops and
+  refuses it there because `in` would mean two things in one operand position.
+  A comprehension has no array operand position, so the count reading is
+  unambiguous *here* - but landing it here and not in loops makes the meanings
+  diverge by context, which is the same complaint from the other side. The two
+  entries should be decided together, whichever way it goes.
+- **Splicing.** A comprehension as one segment of a longer literal, for
+  sentinel-prefixed tables. Cheap to allow, easy to add later, not needed by
+  the first customer.
+- **Mapping an existing array.** `[ for ( v of pal ) v / 4 ]` reads naturally
+  and the elements are constants a const array already holds. A second form,
+  after the first earns its place.
+- **Nesting**, for §53's `u8[][]`. No customer; noted so it is a decision
+  rather than a discovery.

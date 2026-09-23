@@ -6694,6 +6694,9 @@ from it for as long as the count read "thirteen", and nothing could say so.
 | §50 | A layout DSL: content, layout and paint as three documents |
 | §63 | A document larger than the memory |
 | §73 | `expect` - a contract for the routine a library calls and the program defines |
+| §74 | `require` - a compile-time assertion over constants |
+| §75 | Ranged units - a `unit` with a bound, checked where constants already are |
+| §76 | Table comprehensions - array initialisers the folder computes |
 
 ---
 
