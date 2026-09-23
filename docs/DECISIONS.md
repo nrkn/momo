@@ -1582,6 +1582,93 @@ diagnostic paying for itself in one field.
 
 ---
 
+## 53. Nested arrays
+
+### The design's first build could not have been used
+
+Its scope said a runtime `menu[i]` could be indexed again, bound by `of`, or
+passed to a §19 array parameter - and §19 is not built. So as specified, a string
+in a list could reach no routine taking an address, which is every string routine
+in the repository, and the section's own headline example passed one to
+`labelPaint`. Reading the design against momoed's menu code before writing any of
+it is what found that, and `addr( menu[i] )` went into the first build.
+
+The length spine came in the same way, from the other end. The design put it out
+of scope, and momoed's rule that the action array decides how many items a menu
+has is `len( actions[m] )` with a runtime `m` - so without it the first customer
+would have kept a hand-written count, which was one of the things the conversion
+was for.
+
+Both are cases of a design written before its customer was examined. Neither
+would have been found by building the design as written and testing it against
+itself, because `nestarr` could have been written entirely inside the original
+scope and passed.
+
+### The printer decided where the child's label goes
+
+The first spelling put the child's label on the access in place of the parent's,
+which is what the emitter and pruning both want. It printed wrong for a private
+list: §14's lowering finds a private by its label, and the child's is not in the
+set the printer holds. So the parent's label stayed, the child's went beside it,
+and pruning learned to count that one instead.
+
+The cost of getting it the other way would not have been a failure. It would have
+kept a spine that nothing reads - the same shape as §51's, where the wrong pruning
+rule costs image bytes and says nothing.
+
+### A constant index crashed the emitter, because pruning was right
+
+The first run of `nestarr` stopped with `internal: unresolved symbol "digits"`.
+`digits` is only ever indexed at constants, so nothing read its spine and pruning
+dropped it - correctly - and the emitter then looked the spine up anyway, on the
+way to discovering it did not need it. The fix was order: a constant child is
+loaded before its parent is asked for.
+
+It is worth recording because it is the case this section exists for, arriving
+as a crash on the first program to exercise it. A fixture with only runtime
+indexes would have passed.
+
+### No second type-dependent lowering, which `CONTRIBUTING.md` was watching for
+
+`CONTRIBUTING.md` says a second lowering that needs operand types is the point at
+which hanging it off the node as `lowered` stops being cheaper than a rewrite
+pass. §53 looked like that case - an access whose meaning depends on the
+declaration's type - and is not one. The emitter handles a child access directly,
+beside the flat path; and the one rewrite, `of`'s slot, happens in the parser
+from syntax alone, because indexing a binding is only legal over an array of
+arrays. So `lowered` still has one user, and the threshold has not been crossed.
+
+### The parser's refusal moved, and its test followed without editing
+
+Indexing an `of` binding used to be refused in the parser. It had to move to the
+resolver, because the parser can no longer tell a flat target from a nested one,
+and `err-for-of-indexed` passed unchanged afterwards - its expected text is a
+substring of the new message on purpose, so a test written for the old stage held
+the new one.
+
+### The teeth
+
+Every guard was neutered by line and failed the files written for it, with one
+exception in method rather than result. The refusal of `menu[i]` alone could not
+be neutered by condition: the code after it relies on TypeScript narrowing
+`childIndex` through the `raise`, so a condition tsc cannot fold stops the build
+instead. It was checked by changing its message, which proves its two tests reach
+it and not that the refusal is the only thing stopping them. Without it the next
+line reads an index that is not there, so the failure would be a crash rather
+than a wrong program.
+
+The pruning rule and the constant-index rule each changed `nestarr.asm` and
+nothing else. That is the golden tier doing what the section says it does:
+holding which tables exist, which no amount of running can see.
+
+### What is still owed
+
+The measurement. The design said the spine against `nthStr`'s walk "belongs in
+`DECISIONS.md` once something is built", and `s6demo` redraws its menu per frame,
+which makes it the natural comparison. It waits for the sweep that converts it.
+
+---
+
 ## 1. Target
 
 ### A readability heuristic that was correct by accident, for a year

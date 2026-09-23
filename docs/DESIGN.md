@@ -3959,8 +3959,8 @@ else mentions.
 Any table whose entries are consumed by `peek`/`poke`, which is the interface
 `std/str.momo` already presents. §41's `momowad` directory is one: a lump of
 assets wants a table of where each begins, and the alternative is the same linear
-walk `nthStr` does. §52 has landed and §53 may never; this stands alone either
-way.
+walk `nthStr` does. §52 and §53 have both landed since; this would have stood
+alone either way.
 
 ---
 
@@ -4063,6 +4063,169 @@ this.
 So the claim is narrower than it first looks: **rows help where a row is what the
 writer edits and a column is what the program reads.** Where a column is both,
 the columns form was already right and this changes nothing.
+
+---
+
+## 53. Nested arrays, and the spine they need
+
+**Built.** `nestarr` runs every access in tier 2, including `of` inside `of`, and
+the `err-nested-*` files hold the refusals. The presenting problem:
+
+```momo
+const u8[][] menu = [ "File$", "Edit$", "View$", "Special$" ]
+
+for ( s of menu ) labelPaint( addr( s ), black, white )
+```
+
+Before this it was `"File$Edit$View$Special$"` and `nthStr( addr( sS6Menu ), i )`
+- a blob and a linear walk, chosen because §51's table could not be written. With
+§51 it can be, and the compiler writes it rather than the program.
+
+### The type grammar gains one `[]` and nothing else
+
+A string literal is already a `u8[]` literal, and `[ ... ]` is already an array
+literal. So the surface is not invented, it is admitted: an array literal's
+element may itself be an array literal, and a type may carry a second `[]`. The
+outer length comes from the literal, each inner length from its own element.
+Ragged is the normal case rather than a special one.
+
+### What is emitted
+
+```nasm
+menu__0:        db      'File$'
+menu__1:        db      'Edit$'
+menu__2:        db      'View$'
+menu__3:        db      'Special$'
+menu__len:      db      5, 5, 5, 8
+menu:           dw      menu__0, menu__1, menu__2, menu__3
+```
+
+The children are ordinary const arrays with manufactured labels, the same
+treatment §18 gives group fields and §7 gives sub-locals. The spine is §51's
+table, and the length spine is a second table beside it - bytes when every length
+fits one, which is every list of strings so far. All three are symbols like any
+other, so which of them reaches the image is pruning's decision rather than a rule
+of this section's.
+
+`menu[i][c]` for a runtime `i` reads the spine and then the byte:
+
+```nasm
+        mov     ax, [i]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [menu + bx]
+        mov     bx, [c]
+        add     bx, ax                      ; into the child
+        mov     al, [bx]
+```
+
+### A constant index emits no spine at all
+
+`menu[1][0]` is a byte load from `menu__1`, with no table read. So the spine is
+emitted only when something indexes it at runtime, and the length spine only when
+something asks a runtime length - §18's per-field tree-shaking one level up, and
+the same reasoning behind it. `nestarr` holds both cases against the golden
+tier: one list indexed at runtime has both tables, one only ever at constants has
+neither.
+
+**The access keeps its parent's label and names the child beside it.** The obvious
+spelling puts the child's label where the parent's was, and it prints wrong: a
+private list prints under its mangled name (§14), which the printer finds from the
+parent's label and cannot find from the child's. So the parent's stays, the child
+rides in `childLabel`, and pruning counts the second rather than the first. Getting
+this backwards does not fail anything visibly - it keeps a spine nothing reads.
+
+### `menu[i]` is an access, not a value, and §18 already refused the other reading
+
+`menu[i]` for a runtime `i` would be an expression whose type is an array, and
+Momo has never had one. §18 refuses `mob[i]` alone deliberately - *honest, since
+no record exists for them to denote*.
+
+The refusal does not transfer, because here a record does exist: `menu__1` is a
+real label with a real length. But the shape to give it is the one this
+repository has now chosen twice. §45: *`of` binds a name to an access, not a
+value, and that is the whole design*. So `menu[i]` may be:
+
+- **indexed again** - `menu[i][c]`;
+- **asked its address** - `addr( menu[i] )`, which is a constant index's label or
+  a runtime index's spine read;
+- **asked its length** - `len( menu[i] )`;
+- **bound by `of`**.
+
+It may not be stored, assigned, compared or returned, and it has no storage, so
+§12's footprint is unaffected by its existence.
+
+**`addr()` is the bridge, and the design this came from did not have it.** It
+offered a §19 array parameter as the way to hand a child to a routine, and §19 is
+not built - so a first build without `addr( menu[i] )` could not pass a string in
+a list to `putStr`, `strLen` or anything else that takes an address, which is
+every string routine there is. The headline example above was already doing it.
+
+### `len` of a child is a second spine
+
+`len( menu[1] )` folds. `len( menu[i] )` cannot - the compiler knows four lengths
+and not which one - so it reads the length spine. That was out of the first build
+in the design and came in because the first customer needed it: §67's menus treat
+the action array as the authority for how many items a menu has, which as an array
+of arrays is exactly `len( actions[m] )`.
+
+Once a length is addressable, **`$` becomes an interop convention rather than a
+data structure.** `putStr` and `int 21h` AH=09 still want it; `strLen` stops being
+on the path to anything. §20 has that question.
+
+### `of` loads the child once an iteration
+
+```momo
+for ( s of menu ) {
+  for ( c in s ) putChar( s[c] )
+}
+```
+
+Substituted naively, `s[c]` is `menu[ counter ][ c ]` - a spine load and then a
+byte load, per character, which would make the sugar slower than the blob it
+replaced. So an `of` over an array of arrays spends a second slot beside §45's
+counter: one word, loaded from the spine at the top of each iteration, which
+`s[c]` then reads through as `peek8( slot + c )`. `addr( s )` is the slot itself,
+and `len( s )` reads the length spine and takes no slot at all.
+
+**The parser decides this without knowing any types**, which is where §45 put
+`of` and where it has to stay. What makes that possible is that indexing a binding
+or taking its address is *only legal* when the target is an array of arrays - so
+writing either one is what asks for the slot, and over any other target the slot's
+own load is what the resolver refuses, in the binding's name. The refusal of
+indexing a binding used to be the parser's; it moved to the resolver with this,
+because the parser can no longer tell a flat target from a nested one.
+
+An `of` inside an `of` needs nothing more. The inner loop is built first, over the
+outer binding, and its accesses are then rewritten by the outer loop like any other
+use - so `for ( d of pi ) for ( n of d )` reads `n` through the outer slot.
+
+### Rules
+
+- **`const` only**, for the whole shape. The spine is labels and cannot change, so
+  a mutable nested array means a const spine and mutable leaves, and that split
+  needs a customer before it needs a spelling.
+- **Two levels.** Each level is another spine. A third is refused in the type and
+  through an `of` binding alike.
+- **`u8` leaves.** The spine is `u16` by construction, because it holds addresses
+  and §51 says those are words. `u16[][]` wants a scaled child index and nothing
+  has asked for one.
+- **Every length comes from the literal**, so neither pair of brackets takes a
+  size, and a child with nothing in it is refused - it would have no byte for its
+  label to name.
+- **A list of lists needs its type written.** An inferred one would have to guess
+  that it meant a spine.
+- **Top level only**, matching §18 and for the same reason: the children are
+  manufactured labels, and a routine-local one would need a scoped mangling that
+  buys nothing.
+- **`_ds` only**, which is §51's `far` carve-out again.
+- **No `addr()` of a child in an initialiser.** §51 admits a bare name; a child
+  there is in neither first build.
+
+### What was left out
+
+Mutable leaves, three levels, `u16[][]`, and `addr()` of a child in an
+initialiser. Each is a paragraph above, and none was needed by the first customer.
 
 ---
 
@@ -6387,7 +6550,7 @@ anything other than being shown.
 
 ## Sections designed, but not built
 
-Fourteen sections carry numbers but no text here, because what they describe does
+Thirteen sections carry numbers but no text here, because what they describe does
 not exist yet. All are in `PLAN.md`. The heading names no range deliberately - the
 set stopped being contiguous the moment one of them was built.
 
@@ -6406,7 +6569,6 @@ set stopped being contiguous the moment one of them was built.
 | §46 | `alias` - a name for an indexed access, which §45's `of` is one case of |
 | §49 | Named and default arguments, which is what §48's `cfg` carrier needs |
 | §50 | A layout DSL: content, layout and paint as three documents |
-| §53 | Nested arrays, and the spine they need |
 
 ---
 
@@ -6533,9 +6695,10 @@ questions.
   than the statically known one. That inversion is worth having in hand before
   anything is chosen, because it is the opposite of what the shapes suggest.
 
-  Two of the positions above are only writable once §53 exists, so this is not
-  waiting on a preference. It is waiting on being able to prototype more than one
-  answer.
+  Two of the positions above were only writable once §53 existed, and it does
+  now - its length spine is the counted form for static data. So this is not
+  waiting on a preference or on a capability. It is waiting on somebody
+  prototyping more than one answer.
 
 - **`asm { }` passthrough** for hand-written NASM. Probably not needed for a long time.
 
