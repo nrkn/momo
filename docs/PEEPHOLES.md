@@ -6,7 +6,7 @@ faster form that provably does the same thing.
 
 They live here rather than in `DESIGN.md` §9 for three reasons. They are a
 **catalogue with its own numbering**, cited by number from `emitter.ts` and from
-`shared/lib/std/rand.momo` - so a peephole number is a stable identifier in the
+the language tests that exercise one - so a peephole number is a stable identifier in the
 same way a `§` is, and must keep meaning the same rewrite. They are a **workflow**
 rather than a subsection: the list grows when somebody sweeps the emitted assembly
 looking for a shape that repeats. And at 209 lines they were three quarters of
@@ -96,10 +96,10 @@ in `simplerl`, and all three are the same shape - `map[ y * mapW + x ]` reached
 through a parameterised const.
 
 **15's figures are from a smaller repository.** "542 of 636 branches" was measured
-before the vector library landed. The proportion has held: 1,750 of 2,224
-conditional jumps are tightened now, against 542 of 636 then. The entry keeps its
-original numbers because they are what the change measured; this is what the same
-count says today.
+before the vector library landed. The proportion held: 1,750 of 2,224
+conditional jumps were tightened at the audit, against 542 of 636 then. The entry
+keeps its original numbers because they are what the change measured; this is
+what the same count said at the audit, and like the table it is not maintained.
 
 One thing worth knowing rather than fixing: **12 is exercised only by language
 tests.** It was found from a probe of a VRAM-to-VRAM copy, and no committed
@@ -255,9 +255,10 @@ rests on and the thing to revisit when they are built.
 
 **The largest single beneficiary is `nextRandom`**, which loses three loads
 per call - one per xorshift step, plus the `return`. That is the routine
-whose own comment in `std/rand.momo` says two thirds of its cost over the
-LCG is codegen rather than algorithm, so the peephole lands exactly where
-that note was pointing.
+whose header in `std/rand.momo` said, when this landed, that two thirds of its
+cost over the LCG was codegen rather than algorithm, so the peephole landed
+exactly where that note was pointing. The header now states the cost as it
+stands - roughly twice a power-of-two LCG's - rather than how it got there.
 
 **The teeth were checked by breaking it.** Letting the backward scan cross a
 label - the one protection above - makes `qsort` sort wrongly and `momolo`

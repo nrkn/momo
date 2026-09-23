@@ -58,8 +58,8 @@ needed correcting rather than rewriting.
 
 **Numbering.** Section numbers are stable and only ever appended. `group` was
 built where it sat rather than renumbered into the built range, because the
-numbers are cited from source comments and from each other - there are around 140
-such citations outside this file, so §17 means `view` permanently. §21 is a
+numbers are cited from source comments and from each other - hundreds of
+citations outside this file - so §17 means `view` permanently. §21 is a
 redirect rather than a section for the same reason: what was there is now §26-§33,
 and the number is kept because deleting it would break references while reusing it
 would silently point them somewhere else.
@@ -817,12 +817,13 @@ labels; `!` is a label swap. Value context is the fallback for
 Costs 2 bytes and a label per branch; always correct. `jumpIf` still emits this
 shape for every branch, because at the moment a forward jump is written there is
 nothing yet between it and its target to measure - and peephole 15 then takes it
-back wherever the target turns out to be in reach. 542 of 636 branches across the
-committed programs end up as a single `jcc`. The expanded form is what remains
+back wherever the target turns out to be in reach, which is most of them -
+`PEEPHOLES.md` has the proportion under 15, frozen at the dates it was counted
+rather than restated here. The expanded form is what remains
 where the body really is long, which is not theoretical: several bodies in the
 reference file exceed 128 bytes under this codegen.
 
-**Peepholes.** Fifteen local rewrites, catalogued in `PEEPHOLES.md` rather than
+**Peepholes.** The local rewrites are catalogued in `PEEPHOLES.md` rather than
 here. They carry their own numbering, are cited by number from `emitter.ts`, and
 the list grows whenever somebody sweeps the emitted assembly for a shape that
 repeats - a workflow rather than a subsection, and at 209 lines it was three
@@ -833,7 +834,7 @@ so they are worth knowing about from here. **14** removes a load of what the lin
 above just stored: a statement-boundary artefact that nothing in the expression
 path can see, because each statement is compiled correctly on its own and only
 the seam is wasteful. **15** takes back the inverted-jump expansion described
-above wherever the target turns out to be in reach - 542 of 636 branches - which
+above wherever the target turns out to be in reach, which is most branches, and
 is why the output is not littered with the idiom that paragraph describes.
 
 **Data wraps at 72 characters of values**, continuing with a fresh `db`/`dw` at
