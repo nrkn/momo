@@ -2225,18 +2225,25 @@ const actPick   = 36
 
 // ---- the menus (§67) ---------------------------------------------------------
 //
-// The titles are one array of arrays (§53) so that the bar's layout is **derived
-// rather than written twice**: what used to sit here was a label string and a
-// list of the columns its words started at, which is the same fact in two forms.
+// **A row per menu** (§70): its title, its labels, its actions, how many there
+// are, and the `Alt` key that opens it. They were five tables in the order of the
+// menus, one of them a list of scancodes whose only obligation was to agree with
+// the order of the titles; a row cannot disagree with itself.
 //
-// Each item is padded to a common width so the accelerator lines up. The box is
+// What a row cannot hold is a list, so each menu's title, labels and actions are
+// declared above it under the menu's own name and the row points at them. Nothing
+// is indexed by hand: `addr( mFile )` says which list, where `menuItems[0]` would
+// have said which position.
+//
+// Each label is padded to a common width so the accelerator lines up. The box is
 // still measured rather than assuming that, because a menu somebody edits later
-// should widen rather than overflow.
-const u8[][] menuNames = [ "File$", "Edit$", "Search$", "View$" ]
+// should widen rather than overflow. The bar's layout is derived from the titles,
+// so a menu renamed moves its own drop-down.
+const u8[] tFile   = "File$"
+const u8[] tEdit   = "Edit$"
+const u8[] tSearch = "Search$"
+const u8[] tView   = "View$"
 
-// A menu is menu, item, character - three levels, and §53 has two. So each menu's
-// labels are an array of arrays of their own and `menuItems` is §51's table over
-// them, which is the one place this reads a spine by hand: two bytes an item.
 const u8[][] mFile   = [ "New          ^T$",
                          "Open...      ^O$",
                          "Save         ^S$",
@@ -2259,28 +2266,43 @@ const u8[][] mSearch = [ "Find...      ^F$",
 
 const u8[][] mView   = [ "Explorer     ^B$" ]
 
-const u16[] menuItems = [ addr( mFile ), addr( mEdit ), addr( mSearch ), addr( mView ) ]
+const u8[] aFile   = [ actNewDoc, actOpen, actSave, actSaveAs, actShut, actQuit ]
+const u8[] aEdit   = [ actUndo, actRedo, actCut, actCopy, actPaste, actAll, actPick ]
+const u8[] aSearch = [ actFind, actAgain, actRepl, actGoto ]
+const u8[] aView   = [ actExplor ]
 
-// **The action array is the authority for how many items a menu has**, and its
-// length is §53's length spine. A menu's labels and its actions are an index
-// apart, which is the shape that cost a session in §55's binding tables - so
-// `npm run drift` holds each menu's label count against its action count, because
-// a label list shorter than its actions would read a word past its spine as an
-// address and draw whatever that pointed at.
-const u8[][] menuActs = [
-  [ actNewDoc, actOpen, actSave, actSaveAs, actShut, actQuit ],
-  [ actUndo, actRedo, actCut, actCopy, actPaste, actAll, actPick ],
-  [ actFind, actAgain, actRepl, actGoto ],
-  [ actExplor ]
+// **The action list is the authority for how many items a menu has** - `count`
+// is its length. A menu's labels and its actions are still an index apart, and a
+// label list shorter than its actions would read a word past its spine as an
+// address and draw whatever that pointed at, so `npm run drift` holds each row's
+// label count against its action count, and its `count` against the list it
+// names. `Alt`+letter reports the letter key's own scancode with nothing in the
+// low byte, which §57 measured, and there is no arithmetic from a letter to its
+// scancode - so the key is written in the row rather than derived from the title.
+const group menu[4] {
+  u16 title
+  u16 items
+  u16 acts
+  u8  count
+  u16 alt
+} = [
+  [ addr( tFile ),   addr( mFile ),   addr( aFile ),   len( aFile ),   keyExt + keyAltF ],
+  [ addr( tEdit ),   addr( mEdit ),   addr( aEdit ),   len( aEdit ),   keyExt + keyAltE ],
+  [ addr( tSearch ), addr( mSearch ), addr( aSearch ), len( aSearch ), keyExt + keyAltS ],
+  [ addr( tView ),   addr( mView ),   addr( aView ),   len( aView ),   keyExt + keyAltV ],
 ]
 
 // ---- what §67 asks the program (§37) ----
+//
+// `items` is the address of an array of arrays - its spine (§53) - so the label
+// of item `i` is the word at `items + 2 * i`, read by hand. That and the action
+// byte are the two reads through a row's address.
 
-u16 menuCount() => len( menuNames )
-u16 menuTitle( u16 m ) => addr( menuNames[m] )
-u16 menuItemCount( u16 m ) => len( menuActs[m] )
-u16 menuItemText( u16 m, u16 i ) => peek16( menuItems[m] + 2 * i )
-u8 menuAction( u16 m, u16 i ) => menuActs[m][i]
+u16 menuCount() => len( menu )
+u16 menuTitle( u16 m ) => menu[m].title
+u16 menuItemCount( u16 m ) => menu[m].count
+u16 menuItemText( u16 m, u16 i ) => peek16( menu[m].items + 2 * i )
+u8 menuAction( u16 m, u16 i ) => peek8( menu[m].acts + i )
 
 // Where each title starts on the bar, from the titles themselves - two spaces
 // between, one at the left. A menu renamed moves its own drop-down.
@@ -2357,21 +2379,6 @@ const group bind[bindCount] {
 ]
 
 // ---- the menu bar, driven (§67) ----------------------------------------------
-//
-// **The scancodes are in the order the menus are.** `Alt`+letter reports the
-// letter key's own scancode with nothing in the low byte, which §57 measured, and
-// there is no arithmetic from a letter to its scancode - so this is a table, and
-// the one thing it has to agree with is the order of `sMenuNames`.
-//
-// A disagreement is an `Alt` key that opens the wrong menu, which is visible on
-// the first press. Out of range is refused by `menuShow` rather than read past
-// the end of anything.
-const u16[] menuAlt = [
-  keyExt + keyAltF,
-  keyExt + keyAltE,
-  keyExt + keyAltS,
-  keyExt + keyAltV
-]
 
 sub openMenu( u16 m ) {
   message = 0
@@ -2388,8 +2395,8 @@ bool menuOpened( u16 k ) {
     return true
   }
 
-  for ( u16 m = 0; m < len( menuAlt ); m++ ) {
-    if ( k == menuAlt[m] ) {
+  for ( u16 m = 0; m < len( menu ); m++ ) {
+    if ( k == menu[m].alt ) {
       openMenu( m )
       return true
     }

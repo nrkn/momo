@@ -4169,7 +4169,9 @@ every string routine there is. The headline example above was already doing it.
 and not which one - so it reads the length spine. That was out of the first build
 in the design and came in because the first customer needed it: §67's menus treat
 the action array as the authority for how many items a menu has, which as an array
-of arrays is exactly `len( actions[m] )`.
+of arrays is exactly `len( actions[m] )`. That customer has since gone - the menus
+became rows (§70), and a row carries its count - so `nestarr` is what holds the
+length spine now, and no program uses it.
 
 Once a length is addressable, **`$` becomes an interop convention rather than a
 data structure.** `putStr` and `int 21h` AH=09 still want it; `strLen` stops being
@@ -7229,23 +7231,27 @@ something, an editor that stops.
 
 ### The action array is the authority
 
-A menu's labels are an array of arrays of their own (§53), named by §51's table
-`menuItems`, and the actions are one array of arrays whose child lengths are the
-item counts - `menuItemCount` is `len( menuActs[m] )`. Labels and actions are an
-index apart, which is the shape that cost a session in §55's binding tables.
+**A menu is a row** of a `const group` (§70): its title, its labels, its actions,
+their count and the `Alt` key that opens it. A row holds scalars, so the three
+lists are declared under the menu's own name - `tFile`, `mFile`, `aFile` - and the
+row points at them by address. The count is `len( aFile )`, so the action list is
+what decides how many items there are. Labels and actions are still an index
+apart, which is the shape that cost a session in §55's binding tables.
 
 **It used to fail visibly and does not now.** As blobs walked by `nthStr`, an
 action array longer than its labels drew blank rows and one shorter hid rows, so
 a pair that had drifted showed the wrong *word* before it ran the wrong command.
 A label list shorter than its actions now reads a word past its spine as an
-address and draws whatever that points at. So `npm run drift` holds each menu's
-label count against its action count, which is §55's answer for the same shape:
-if the form cannot make the mistake impossible, something has to make it loud.
+address and draws whatever that points at. So `npm run drift` holds each row's
+label count against its action count, and its count against the list it names,
+which is §55's answer for the same shape: if the form cannot make the mistake
+impossible, something has to make it loud.
 
 Three levels - menu, item, character - is one more than §53 has, which is why the
-labels are a list per menu with a table over them rather than one declaration.
-`menuItemText` reads that table's spine by hand, two bytes an item, and it is the
-one place in the program that does.
+labels are a list per menu rather than one declaration. `menuItemText` reads a
+list's spine through the row's address by hand, two bytes an item, and
+`menuAction` reads an action byte the same way; those are the two places in the
+program that do.
 
 What is on the menus is not written down here. They are only commands the editor
 already has, the tables in `momoed.momo` are readable, and a list in prose would
@@ -7404,13 +7410,17 @@ reads and a string only that column names, and neither is in its image.
 - **Rows or columns, as §52.** The rows form is the reason for this, and it
   lowers to the columns form, so `const` carries through either spelling.
 
-### What it does not reach yet
+### A row points at lists by name, never by position
 
-`momoed`'s menus are the next table this could hold - a title, a list of labels,
-a list of actions and an `Alt` key per menu, in four parallel tables today. Two
-things stand between them and a row per menu. A title lives in an array of
-arrays, and §53 refuses `addr( menuNames[0] )` in an initialiser; and the labels
-and actions are lists whose lengths differ per menu, which a row of scalars can
-point at but not hold. The first is a small relaxation of §53 and the second is
-what the row would be made of anyway, so this is a design to finish rather than a
-limit to record.
+`momoed`'s menus are the second customer: a row per menu, holding the addresses
+of a title, a list of labels and a list of actions declared above it, with a
+count and an `Alt` key beside them. Five tables in menu order became one.
+
+**A list's child is not what a row should point at.** Keeping the titles in one
+array of arrays would have needed `addr( menuNames[0] )` in row 0, which §53
+refuses in an initialiser - and the refusal turned out to be doing a job. A
+constant index written into a row is the menu's position written down a second
+time, which is the pairing the rows exist to remove. So each list is named for
+its menu and the row says `addr( tFile )`, which names the list rather than a
+place in one. That refusal stays until something wants a child in a table for
+a reason that is not this.

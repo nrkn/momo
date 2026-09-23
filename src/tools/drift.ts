@@ -439,11 +439,12 @@ const uniqueColumns: [string, string, string][] = [
   ['projects/library/text/edloop/edloop.momo', 'bind', 'key'],
 ]
 
+// Declarations are aligned by hand, so the space before `=` is any width.
 const entryTextOf = (text: string, name: string): string[] | null => {
-  const at = text.indexOf(`] ${name} = [`)
-  if (at < 0) return null
+  const found = new RegExp(`\\] ${name}\\s*= \\[`).exec(text)
+  if (found === null) return null
 
-  const open = text.indexOf('[', at + name.length)
+  const open = found.index + found[0].length - 1
   const close = text.indexOf(']', open)
   if (open < 0 || close < 0) return null
 
@@ -493,44 +494,65 @@ const splitList = (text: string, open: number): string[] => {
   return children
 }
 
-// §67's menus in `momoed`. A menu's labels are an array of arrays of its own,
-// named by §51's table `menuItems`, and the actions are one array of arrays whose
-// child lengths are the item counts. The two are an index apart, and a label list
-// shorter than its actions reads a word past its spine as an address - which draws
-// whatever that points at rather than anything that says why. §55's tables were
+// A group written as rows (§52, §70), read back as the source text of each cell
+// keyed by field name - so a field added or reordered moves every check with it.
+// Null when the group or its rows are not there, which callers report rather
+// than skip.
+const groupRows = (text: string, group: string): Map<string, string>[] | null => {
+  const head = new RegExp(`^(?:const )?group ${group}\\[[^\\]]*\\] \\{([^}]*)\\} = \\[`, 'm').exec(text)
+  if (head === null) return null
+
+  const fields = (head[1] as string)
+    .split('\n')
+    .map((line) => line.replace(/\/\/.*$/, '').trim().split(/\s+/).pop() ?? '')
+    .filter((name) => name.length > 0)
+
+  return splitList(text, head.index + head[0].length - 1).map((row) => {
+    const cells = splitList(row, 0)
+    return new Map(fields.map((field, i) => [field, cells[i] ?? ''] as [string, string]))
+  })
+}
+
+// §67's menus in `momoed`, a row per menu (§70). A row points at a list of labels
+// and a list of actions and carries a count, and nothing in the language holds
+// those three against each other. A label list shorter than its actions reads a
+// word past its spine as an address - which draws whatever that points at rather
+// than anything that says why - and a count naming a different list from the
+// actions it goes with is the same mistake one column over. §55's tables were
 // made loud the same way, for the same reason.
-const menuTables: [string, string, string][] = [
-  ['projects/programs/apps/momoed/momoed.momo', 'menuItems', 'menuActs'],
-]
+const menuTables: [string, string][] = [['projects/programs/apps/momoed/momoed.momo', 'menu']]
+
+const nameIn = (cell: string, form: 'addr' | 'len'): string | undefined =>
+  new RegExp(`^${form}\\(\\s*(\\w+)\\s*\\)$`).exec(cell)?.[1]
 
 const checkMenuTables = () => {
-  for (const [file, labels, actions] of menuTables) {
+  for (const [file, group] of menuTables) {
     const path = join(root, file)
     if (!existsSync(path)) continue
 
     const text = readText(path)
-    const menus = entryTextOf(text, labels)
-    const acts = childrenOf(text, actions)
-    if (menus === null || acts === null) {
-      report(path, 1, `menu table "${menus === null ? labels : actions}" not found - the check needs updating`)
+    const rows = groupRows(text, group)
+    if (rows === null) {
+      report(path, 1, `menu group "${group}" with rows not found - the check needs updating`)
       continue
     }
 
-    if (menus.length !== acts.length) {
-      report(path, 1, `"${labels}" names ${menus.length} menus and "${actions}" has ${acts.length}`)
-      continue
-    }
+    rows.forEach((row, m) => {
+      const items = nameIn(row.get('items') ?? '', 'addr')
+      const acts = nameIn(row.get('acts') ?? '', 'addr')
+      const counted = nameIn(row.get('count') ?? '', 'len')
+      const labels = items === undefined ? null : childrenOf(text, items)
+      const actions = acts === undefined ? null : entryTextOf(text, acts)
 
-    menus.forEach((entry, m) => {
-      const name = /^addr\(\s*(\w+)\s*\)$/.exec(entry)?.[1]
-      const items = name === undefined ? null : childrenOf(text, name)
-      if (name === undefined || items === null) {
-        report(path, 1, `"${labels}" entry "${entry}" is not addr() of a declared list`)
+      if (items === undefined || labels === null || acts === undefined || actions === null) {
+        report(path, 1, `menu ${m} does not name a declared label list and action list - the check needs updating`)
         return
       }
-      const count = splitList(acts[m] as string, 0).length
-      if (items.length !== count) {
-        report(path, 1, `menu ${m} has ${items.length} labels in "${name}" and ${count} actions`)
+      if (counted !== acts) {
+        report(path, 1, `menu ${m} counts "${row.get('count')}" but its actions are "${acts}"`)
+      }
+      if (labels.length !== actions.length) {
+        report(path, 1, `menu ${m} has ${labels.length} labels in "${items}" and ${actions.length} actions in "${acts}"`)
       }
     })
   }
@@ -538,34 +560,24 @@ const checkMenuTables = () => {
 
 // A key bound twice: the scan takes the first match and the second row never
 // runs at all. That is how these arrive - a row copied, pasted and half edited.
-// The column is found by the field's position in the group's declaration, so a
-// field added or reordered moves the check with it.
 const checkDuplicateBindings = () => {
   for (const [file, group, field] of uniqueColumns) {
     const path = join(root, file)
     if (!existsSync(path)) continue
 
-    const text = readText(path)
-    const head = new RegExp(`^(?:const )?group ${group}\\[[^\\]]*\\] \\{([^}]*)\\} = \\[`, 'm').exec(text)
-    if (head === null) {
+    const rows = groupRows(readText(path), group)
+    if (rows === null) {
       report(path, 1, `group "${group}" with rows not found - the check needs updating`)
       continue
     }
-
-    const fields = (head[1] as string)
-      .split('\n')
-      .map((line) => line.replace(/\/\/.*$/, '').trim().split(/\s+/).pop() ?? '')
-      .filter((name) => name.length > 0)
-    const column = fields.indexOf(field)
-    if (column < 0) {
+    if (rows.length > 0 && !rows[0]?.has(field)) {
       report(path, 1, `group "${group}" has no field "${field}" - the check needs updating`)
       continue
     }
 
     const seen = new Set<string>()
-    for (const row of splitList(text, head.index + head[0].length - 1)) {
-      const entry = splitList(row, 0)[column]
-      if (entry === undefined) continue
+    for (const row of rows) {
+      const entry = row.get(field) ?? ''
       if (seen.has(entry)) report(path, 1, `"${group}" binds "${entry}" twice`)
       seen.add(entry)
     }

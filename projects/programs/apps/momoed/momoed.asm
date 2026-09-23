@@ -13481,28 +13481,28 @@ repaint:
 ; ============================================== u16 menuCount ====
 
 menuCount:
-; ---- u16 menuCount() => len( menuNames )
+; ---- u16 menuCount() => len( menu )
         mov     word [menuCount__ret], 4
         ret
 
 ; ============================================== u16 menuTitle ====
 
 menuTitle:
-; ---- u16 menuTitle( u16 m ) => addr( menuNames[m] )
+; ---- u16 menuTitle( u16 m ) => menu[m].title
         mov     ax, [menuTitle__m]
         shl     ax, 1                       ; word elements
         mov     bx, ax
-        mov     ax, [menuNames + bx]
+        mov     ax, [menu__title + bx]
         mov     [menuTitle__ret], ax
         ret
 
 ; ============================================== u16 menuItemCount ====
 
 menuItemCount:
-; ---- u16 menuItemCount( u16 m ) => len( menuActs[m] )
+; ---- u16 menuItemCount( u16 m ) => menu[m].count
         mov     ax, [menuItemCount__m]
         mov     bx, ax
-        mov     al, [menuActs__len + bx]
+        mov     al, [menu__count + bx]
         xor     ah, ah                      ; u8 -> u16
         mov     [menuItemCount__ret], ax
         ret
@@ -13510,11 +13510,11 @@ menuItemCount:
 ; ============================================== u16 menuItemText ====
 
 menuItemText:
-; ---- u16 menuItemText( u16 m, u16 i ) => peek16( menuItems[m] + 2 * i )
+; ---- u16 menuItemText( u16 m, u16 i ) => peek16( menu[m].items + 2 * i )
         mov     ax, [menuItemText__m]
         shl     ax, 1                       ; word elements
         mov     bx, ax
-        mov     ax, [menuItems + bx]
+        mov     ax, [menu__items + bx]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [menuItemText__i]
         shl     ax, 1                       ; * 2 is << 1
@@ -13529,14 +13529,15 @@ menuItemText:
 ; ============================================== u8 menuAction ====
 
 menuAction:
-; ---- u8 menuAction( u16 m, u16 i ) => menuActs[m][i]
+; ---- u8 menuAction( u16 m, u16 i ) => peek8( menu[m].acts + i )
         mov     ax, [menuAction__m]
         shl     ax, 1                       ; word elements
         mov     bx, ax
-        mov     ax, [menuActs + bx]
+        mov     ax, [menu__acts + bx]
         mov     bx, [menuAction__i]
-        add     bx, ax                      ; into the child
-        mov     al, [bx]
+        add     ax, bx
+        mov     bx, ax
+        mov     al, [bx]                    ; peek8 - unchecked, by design
         mov     [menuAction__ret], al       ; u8 -> u8, no widening
         ret
 
@@ -13603,19 +13604,19 @@ menuOpened:
         mov     byte [menuOpened__ret], 1
         ret
 .L1863:
-; ---- for ( u16 m = 0; m < len( menuAlt ); m++ ) {
+; ---- for ( u16 m = 0; m < len( menu ); m++ ) {
         mov     word [menuOpened__m], 0
 .L1866:
         mov     ax, [menuOpened__m]
         cmp     ax, 4
         jae     .L1868                      ; unsigned <
-; ---- if ( k == menuAlt[m] ) {
+; ---- if ( k == menu[m].alt ) {
         mov     ax, [menuOpened__k]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [menuOpened__m]
         shl     ax, 1                       ; word elements
         mov     bx, ax
-        mov     ax, [menuAlt + bx]
+        mov     ax, [menu__alt + bx]
         mov     bx, ax
         pop     ax
         cmp     ax, bx
@@ -17442,11 +17443,10 @@ sPickEol:       db      '  no - ends a line$'        ; u8[19] const
 sPickSmall:     db      'screen too small for the picker$'        ; u8[32] const
 rowBuf:         times 80 dw 0        ; u16[80]
 numBuf:         times 5 db 0        ; u8[5]
-menuNames__0:   db      'File$'        ; u8[5] const
-menuNames__1:   db      'Edit$'        ; u8[5] const
-menuNames__2:   db      'Search$'        ; u8[7] const
-menuNames__3:   db      'View$'        ; u8[5] const
-menuNames:      dw      menuNames__0, menuNames__1, menuNames__2, menuNames__3        ; u16[4] const
+tFile:          db      'File$'        ; u8[5] const
+tEdit:          db      'Edit$'        ; u8[5] const
+tSearch:        db      'Search$'        ; u8[7] const
+tView:          db      'View$'        ; u8[5] const
 mFile__0:       db      'New          ^T$'        ; u8[16] const
 mFile__1:       db      'Open...      ^O$'        ; u8[16] const
 mFile__2:       db      'Save         ^S$'        ; u8[16] const
@@ -17469,13 +17469,15 @@ mSearch__3:     db      'Go to Line   ^G$'        ; u8[16] const
 mSearch:        dw      mSearch__0, mSearch__1, mSearch__2, mSearch__3        ; u16[4] const
 mView__0:       db      'Explorer     ^B$'        ; u8[16] const
 mView:          dw      mView__0        ; u16[1] const
-menuItems:      dw      mFile, mEdit, mSearch, mView        ; u16[4] const
-menuActs__0:    db      32, 27, 12, 34, 33, 35        ; u8[6] const
-menuActs__1:    db      11, 17, 21, 20, 22, 23, 36        ; u8[7] const
-menuActs__2:    db      18, 19, 28, 26        ; u8[4] const
-menuActs__3:    db      29        ; u8[1] const
-menuActs__len:  db      6, 7, 4, 1        ; u8[4] const
-menuActs:       dw      menuActs__0, menuActs__1, menuActs__2, menuActs__3        ; u16[4] const
+aFile:          db      32, 27, 12, 34, 33, 35        ; u8[6] const
+aEdit:          db      11, 17, 21, 20, 22, 23, 36        ; u8[7] const
+aSearch:        db      18, 19, 28, 26        ; u8[4] const
+aView:          db      29        ; u8[1] const
+menu__title:    dw      tFile, tEdit, tSearch, tView        ; u16[4] const
+menu__items:    dw      mFile, mEdit, mSearch, mView        ; u16[4] const
+menu__acts:     dw      aFile, aEdit, aSearch, aView        ; u16[4] const
+menu__count:    db      6, 7, 4, 1        ; u8[4] const
+menu__alt:      dw      289, 274, 287, 303        ; u16[4] const
 sExpTab:        db      'Explorer', 0        ; u8[9] const
 sNewTab:        db      '(untitled)', 0        ; u8[11] const
 bind__prefix:   times 32 dw 0        ; u16[32]
@@ -17483,7 +17485,6 @@ bind__key:      dw      331, 333, 328, 336, 327, 335, 339, 329, 337, 8, 13, 26, 
                 dw      3, 24, 22, 1, 7, 15, 18, 2, 371, 372, 375, 373, 404, 9, 20, 23
 bind__action:   db      2, 3, 4, 5, 6, 7, 9, 15, 16, 8, 10, 11, 12, 17, 18, 19, 20, 21, 22, 23,        ; u8[32] const
                 db      26, 27, 28, 29, 24, 25, 13, 14, 30, 31, 32, 33
-menuAlt:        dw      289, 274, 287, 303        ; u16[4] const
 numText__digits: times 5 db 0        ; u8[5]
 putNumber__digits: times 5 db 0        ; u8[5]
 

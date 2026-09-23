@@ -1749,6 +1749,43 @@ group's own check and fires before the array is consulted. The flag is kept - it
 is what a later reader of the listing sees, and what any future path to a field
 that bypasses the group would meet - but it is not what the refusal rests on.
 
+### The menus did not need the relaxation they were blocked on
+
+§70 was written saying `momoed`'s menus waited on one thing: a title lived in an
+array of arrays, and §53 refuses `addr( menuNames[0] )` in an initialiser. The
+plan was to allow a constant child there and then convert.
+
+Writing the row first showed the relaxation was the wrong fix. `addr( menuNames[0] )`
+in row 0 writes the menu's position a second time - once as the row's place in
+the group and once as the index - which is the pairing the rows were built to
+remove, reintroduced one level down. Naming each title for its menu, as the labels
+and actions already were, left nothing indexed by hand. So the refusal stayed, and
+the reason it stayed is written into §70.
+
+The conversion was neutral in size: the five tables and the row hold the same 36
+bytes, and the code grew by two, because an action is now a `peek8` through the
+row's address where it was a child of an array of arrays.
+
+### It took the length spine's only customer
+
+§53 pulled its length spine into the first build because the menus needed
+`len( menuActs[m] )`. A row carries its count, so the menus stopped asking, and
+the length spine is now held by `nestarr` and used by nothing. That is the
+repository's own warning about building for a consumer arriving from the other
+side: the consumer was real, and was replaced within the day by a better shape
+for the same data. The feature stays - it is tested, cheap when unused, and the
+first ragged list somebody walks at runtime will want it - but the claim that a
+program needs it is no longer true, and §53 says so.
+
+### The drift check followed the data
+
+The menu check now reads the group's rows by field name - a field added or
+reordered moves it - and gained a column: a count must name the same list as the
+actions beside it, since `len( aFile )` next to `addr( aEdit )` would count one
+menu with another's length. Dropping a label, dropping an action and pointing a
+count at the wrong list were each reported. The binding tables' duplicate-key
+check reads rows the same way now, through one routine.
+
 ### The teeth
 
 Every guard failed the file written for it: the single-instance refusal, the
