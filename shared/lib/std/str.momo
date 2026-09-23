@@ -131,6 +131,14 @@ i16 strCmp( a16 a, a16 b ) {
   }
 }
 
+// `ch` upper-cased when it is an ASCII lower-case letter, and unchanged when it
+// is anything else - which is all a comparison that ignores case needs.
+//
+// **A routine rather than a parameterised const**, because the body names `ch`
+// three times and the usual caller hands it a byte read through a call, which §8
+// refuses to substitute. A const would need a temporary at each of those.
+u8 strUpper( u8 ch ) => ch >= 'a' && ch <= 'z' ? ch - 32 : ch
+
 // The ADDRESS of the first `ch`, or 0 when there is none. Zero is a safe sentinel
 // rather than a magic number: a .COM is loaded at 0x100, so no byte a Momo
 // program can name lives at offset 0.

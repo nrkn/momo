@@ -51,8 +51,8 @@ sub initPal {
   for( i = 0; i < palSize; i++ ){
     pIndex = i * 3
 
-    setPaletteColor( 
-      i, palette[ pIndex ], palette[ pIndex + 1 ], palette[ pIndex + 2 ] 
+    setPaletteColor(
+      i, palette[ pIndex ], palette[ pIndex + 1 ], palette[ pIndex + 2 ]
     )
   }
 }

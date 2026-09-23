@@ -21,7 +21,7 @@ const playH = playBottom - playTop + 1
 const centerX = ( playLeft + playRight ) / 2
 const scoreTop = 84
 const scoreY = scoreTop + 1
-// per player 
+// per player
 const u8[] scoreXTens = [ 44, 101 ]
 const u8[] scoreXOnes = [ 51, 108 ]
 
@@ -65,7 +65,7 @@ const grid hitWindow = hitLead + paddleH * subgridScale
 // word blitting
 
 // halved for word, but scoreTop doubled for view doubling - cancels out
-const scoreTopWord = scoreTop * screenW 
+const scoreTopWord = scoreTop * screenW
 
 const screenWord = ( screenW * screenH ) / 2
 

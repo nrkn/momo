@@ -387,6 +387,27 @@ nthStr:
         mov     [nthStr__ret], ax
         ret
 
+; ============================================== u8 strUpper ====
+
+strUpper:
+; ---- u8 strUpper( u8 ch ) => ch >= 'a' && ch <= 'z' ? ch - 32 : ch
+        mov     al, [strUpper__ch]
+        cmp     al, 97                      ; byte operands, no widening
+        jb      .L26                        ; unsigned >=
+        mov     al, [strUpper__ch]
+        cmp     al, 122                     ; byte operands, no widening
+        ja      .L26                        ; unsigned <=
+        mov     al, [strUpper__ch]
+        xor     ah, ah                      ; u8 -> u16
+        sub     ax, 32
+        jmp     .L27
+.L26:
+        mov     al, [strUpper__ch]
+        xor     ah, ah                      ; u8 -> u16
+.L27:
+        mov     [strUpper__ret], al         ; narrowed to u8
+        ret
+
 ; ============================================== bool menuUp ====
 
 menuUp:
@@ -409,27 +430,6 @@ menuItemAt:
 ; ---- u16  menuItemAt() => curItem
         mov     ax, [momenu__curItem]
         mov     [menuItemAt__ret], ax
-        ret
-
-; ============================================== u8 momenu__fold ====
-
-momenu__fold:
-; ---- local u8 fold( u8 c ) => c >= 'a' && c <= 'z' ? c - 32 : c
-        mov     al, [momenu__fold__c]
-        cmp     al, 97                      ; byte operands, no widening
-        jb      .L26                        ; unsigned >=
-        mov     al, [momenu__fold__c]
-        cmp     al, 122                     ; byte operands, no widening
-        ja      .L26                        ; unsigned <=
-        mov     al, [momenu__fold__c]
-        xor     ah, ah                      ; u8 -> u16
-        sub     ax, 32
-        jmp     .L27
-.L26:
-        mov     al, [momenu__fold__c]
-        xor     ah, ah                      ; u8 -> u16
-.L27:
-        mov     [momenu__fold__ret], al     ; narrowed to u8
         ret
 
 ; ============================================== u16 momenu__itemsHere ====
@@ -498,22 +498,22 @@ menuOpenFor:
         jb      .L39                        ; unsigned <
         jmp     .L38
 .L39:
-; ---- if ( fold( peek8( menuTitle( m ) ) ) == fold( c ) ) {
+; ---- if ( strUpper( peek8( menuTitle( m ) ) ) == strUpper( c ) ) {
         mov     ax, [menuOpenFor__m]
         mov     [menuTitle__m], ax
         call    menuTitle
         mov     ax, [menuTitle__ret]
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
-        mov     [momenu__fold__c], al       ; u8 -> u8, no widening
-        call    momenu__fold
-        mov     al, [momenu__fold__ret]
+        mov     [strUpper__ch], al          ; u8 -> u8, no widening
+        call    strUpper
+        mov     al, [strUpper__ret]
         xor     ah, ah                      ; u8 -> u16
         push    ax                          ; save lhs: rhs is not a leaf
         mov     al, [menuOpenFor__c]
-        mov     [momenu__fold__c], al       ; u8 -> u8, no widening
-        call    momenu__fold
-        mov     al, [momenu__fold__ret]
+        mov     [strUpper__ch], al          ; u8 -> u8, no widening
+        call    strUpper
+        mov     al, [strUpper__ret]
         xor     ah, ah                      ; u8 -> u16
         mov     bx, ax
         pop     ax
@@ -635,7 +635,7 @@ menuJump:
         div     bx
         mov     ax, dx                      ; remainder
         mov     [menuJump__item], ax
-; ---- if ( fold( peek8( menuItemText( curMenu, item ) ) ) == fold( c ) ) {
+; ---- if ( strUpper( peek8( menuItemText( curMenu, item ) ) ) == strUpper( c ) ) {
         mov     ax, [momenu__curMenu]
         mov     [menuItemText__m], ax
         mov     ax, [menuJump__item]
@@ -644,15 +644,15 @@ menuJump:
         mov     ax, [menuItemText__ret]
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
-        mov     [momenu__fold__c], al       ; u8 -> u8, no widening
-        call    momenu__fold
-        mov     al, [momenu__fold__ret]
+        mov     [strUpper__ch], al          ; u8 -> u8, no widening
+        call    strUpper
+        mov     al, [strUpper__ret]
         xor     ah, ah                      ; u8 -> u16
         push    ax                          ; save lhs: rhs is not a leaf
         mov     al, [menuJump__c]
-        mov     [momenu__fold__c], al       ; u8 -> u8, no widening
-        call    momenu__fold
-        mov     al, [momenu__fold__ret]
+        mov     [strUpper__ch], al          ; u8 -> u8, no widening
+        call    strUpper
+        mov     al, [strUpper__ret]
         xor     ah, ah                      ; u8 -> u16
         mov     bx, ax
         pop     ax
@@ -973,14 +973,14 @@ strParts__ret:  dw      0        ; u16
 nthStr__at:     dw      0        ; u16
 nthStr__n:      dw      0        ; u16
 nthStr__ret:    dw      0        ; u16
+strUpper__ch:   db      0        ; u8
+strUpper__ret:  db      0        ; u8
 momenu__showing: db      0        ; bool
 momenu__curMenu: dw      0        ; u16
 momenu__curItem: dw      0        ; u16
 menuUp__ret:    db      0        ; bool
 menuAt__ret:    dw      0        ; u16
 menuItemAt__ret: dw      0        ; u16
-momenu__fold__c: db      0        ; u8
-momenu__fold__ret: db      0        ; u8
 momenu__itemsHere__ret: dw      0        ; u16
 menuShow__m:    dw      0        ; u16
 menuOpenFor__c: db      0        ; u8

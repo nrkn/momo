@@ -72,6 +72,15 @@ sub keyboardEnd {
   out8( picMask, in8( picMask ) & ~irqKbd )
 }
 
+// The pair as a bracket (§48), declared here because this file owns the two
+// routines. A masked IRQ1 left behind is a dead keyboard at the DOS prompt, so
+// this is a close that must not be skipped - which the compiler now emits.
+//
+//   keyboard {
+//     ...
+//   }
+bracket keyboard = keyboardBegin / keyboardEnd
+
 local sub applyKey( u8 key, bool pressed ) {
   if ( key == scW ) held[ leftPlayer ].up = pressed
   else if ( key == scS ) held[ leftPlayer ].down = pressed
@@ -81,7 +90,7 @@ local sub applyKey( u8 key, bool pressed ) {
   else if ( key == scDown ) held[ rightPlayer ].down = pressed
   else if ( key == scLeft ) held[ rightPlayer ].left = pressed
   else if ( key == scRight ) held[ rightPlayer ].right = pressed
-  else if ( key == scEsc ){ 
+  else if ( key == scEsc ){
     isEsc = pressed
 
     if( pressed ) wasEsc = true
