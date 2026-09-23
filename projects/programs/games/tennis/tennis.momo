@@ -49,13 +49,6 @@ group ball {
 // Volleys in the current rally, not a property of the ball.
 u8 volleyCount
 
-// -- start
-
-saveMode()
-setMode( modeGfx256 )
-initPal()
-keyboardBegin()
-
 // -- main
 
 sub drawBackground( u16 color ) {
@@ -463,11 +456,17 @@ sub start {
   drawBall()
 }
 
-start()
+// -- run
 
-while( isRunning ) tick()
+// Two pairs that must close, and the compiler emits both closes (§48): the mode
+// is std/mode.momo's to put back, and the keyboard is t_kbd.momo's to unmask.
+videoMode {
+  setMode( modeGfx256 )
+  initPal()
 
-// -- end
+  keyboard {
+    start()
 
-keyboardEnd()
-restoreMode()
+    while( isRunning ) tick()
+  }
+}

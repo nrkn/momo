@@ -94,14 +94,14 @@ netBottom:      equ     77
 ; =========================================================== entry ====
 
 __entry:
-; ---- saveMode()
+; ---- videoMode {
         call    saveMode
 ; ---- setMode( modeGfx256 )
         mov     byte [setMode__id], 2
         call    setMode
 ; ---- initPal()
         call    initPal
-; ---- keyboardBegin()
+; ---- keyboard {
         call    keyboardBegin
 ; ---- start()
         call    start
@@ -114,9 +114,9 @@ __entry:
 .L2:
         jmp     .L1
 .L3:
-; ---- keyboardEnd()
+; ---- }
         call    keyboardEnd
-; ---- restoreMode()
+; ---- }
         call    restoreMode
 
 ; ---- implicit exit ----
