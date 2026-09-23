@@ -353,7 +353,7 @@ const harnessTally = (): number[] => {
   }
 
   const tally = output.match(
-    /(\d+)\/(\d+) passed\s+\((\d+) compile tests, (\d+) golden, (\d+) type, (\d+) lex, (\d+) round trip, (\d+) identity, (\d+) subset, (\d+) machine\)/,
+    /(\d+)\/(\d+) passed\s+\((\d+) compile tests, (\d+) golden, (\d+) capacity, (\d+) type, (\d+) lex, (\d+) round trip, (\d+) identity, (\d+) subset, (\d+) machine\)/,
   )
   // `fail` returns never, and never-narrowing needs the annotation on the const
   // rather than on the arrow - so it is returned rather than called.
@@ -364,7 +364,7 @@ const harnessTally = (): number[] => {
 const checkCounts = () => {
   const text = readText(contributingPath)
   const starts = lineStartsOf(text)
-  const [total, , , , , , , subset] = harnessTally()
+  const [total, , , , , , , , subset] = harnessTally()
 
   // The sentence wraps at 80 columns, so every gap here is `\s+` rather than a
   // space - a literal one matches the file only until somebody rewraps it. The

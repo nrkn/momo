@@ -40,7 +40,8 @@ import {
   sharedRoot,
 } from './cli.js'
 import { filesOf, runDos } from './dos.js'
-import { compile } from '../momo/compile.js'
+import { footprintOf, staticOverflow } from './footprint.js'
+import { compile, type Compilation } from '../momo/compile.js'
 import { formatError, isMomoError, type MomoError } from '../momo/diagnostics.js'
 import { tokenize } from '../momo/lexer.js'
 import { load } from '../momo/loader.js'
@@ -374,7 +375,9 @@ const goldenTests = (): number => {
 
     let assembly: string
     try {
-      assembly = compile(file, sharedRoot, sources).assembly
+      const compilation = compile(file, sharedRoot, sources)
+      compiled.set(file, compilation)
+      assembly = compilation.assembly
     } catch (error) {
       check(name, false, describe(sources, error))
       continue
@@ -385,6 +388,39 @@ const goldenTests = (): number => {
   }
 
   return cases.length
+}
+
+// ---- static capacity ---------------------------------------------------------
+//
+// `npm run memory` was the only thing that reported a program too big for its
+// segment, and nothing ran it: raising a capacity put an image at 69,630 bytes
+// against 65,536, `momoc` said `ok`, and the program built, ran and hung. So its
+// two failures are asked of every project here - a heap already gone, and views
+// already reaching past it - with the data standing in for the image, which is
+// the least the image can be. Code needs NASM and is not counted, so this can
+// pass a program `npm run memory` would still refuse after a build; it cannot
+// fail one that fits.
+
+// Filled by the golden tier, which has just compiled every project.
+const compiled = new Map<string, Compilation>()
+
+const capacityTests = (): number => {
+  const projects = allProjects().filter((name) => existsSync(entryFor(name)))
+
+  for (const project of projects) {
+    const file = entryFor(project)
+    const sources = new Map<string, string>()
+
+    try {
+      const footprint = footprintOf(compiled.get(file) ?? compile(file, sharedRoot, sources))
+      const overflow = staticOverflow(footprint)
+      check(`capacity ${project}`, overflow === null, overflow ?? '')
+    } catch (error) {
+      check(`capacity ${project}`, false, describe(sources, error))
+    }
+  }
+
+  return projects.length
 }
 
 // ---- desugar round trip ------------------------------------------------------
@@ -563,6 +599,7 @@ lexAssertions()
 const lexCount = passed + failures.length - typeCount
 const compileCount = compileTests()
 const goldenCount = goldenTests()
+const capacityCount = capacityTests()
 // ---- pairs that have to emit the same instructions ---------------------------
 //
 // Where a feature claims to cost nothing, this is the claim rather than an
@@ -658,7 +695,7 @@ for (const failure of failures) console.error(`  FAIL  ${failure}`)
 const total = passed + failures.length
 console.log(
   `\n${passed}/${total} passed` +
-    `  (${compileCount} compile tests, ${goldenCount} golden, ${typeCount} type` +
+    `  (${compileCount} compile tests, ${goldenCount} golden, ${capacityCount} capacity, ${typeCount} type` +
     `, ${lexCount} lex, ${roundTripCount} round trip, ${identityCount} identity, ${subsetCount} subset` +
     `, ${machineCount} machine)`,
 )

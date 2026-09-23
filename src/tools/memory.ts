@@ -4,7 +4,8 @@
 //
 // Everything here is exact rather than estimated, because Momo has no dynamic
 // allocation of any kind: every variable and array is a fixed size known at
-// compile time, and the call graph is proven acyclic by the resolver.
+// compile time, and the call graph is proven acyclic by the resolver. The
+// figures are `footprint.ts`'s, which tier 1 also holds every project to.
 //
 // Code size is the one figure that comes from outside - it needs NASM - so it
 // is reported only when a build exists.
@@ -13,14 +14,9 @@ import { existsSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { buildRoot, entryFor, fail, failWith, sharedRoot } from './cli.js'
-import { entryName, interruptReserve, stackBytes } from '../momo/analysis.js'
+import { footprintOf, heapLeft, pspSize } from './footprint.js'
+import { interruptReserve } from '../momo/analysis.js'
 import { compile } from '../momo/compile.js'
-import { widthOf } from '../momo/types.js'
-
-// A .COM is loaded at offset 0x100, after the 256-byte PSP, and DOS points SP
-// at the top of the same 64K segment.
-const pspSize = 0x100
-const segmentEnd = 0xfffe
 
 const row = (name: string, value: string, indent = 0) =>
   console.log(`  ${' '.repeat(indent)}${name.padEnd(24 - indent)}${value.padStart(12)}`)
@@ -35,80 +31,8 @@ const main = async () => {
   const sources = new Map<string, string>()
 
   try {
-    const resolved = compile(file, sharedRoot, sources)
-    const { temporaries } = resolved
-
-    let reserved = 0
-    let scalars = 0
-    let arrays = 0
-    let arrayCount = 0
-    let viewCount = 0
-    let heapViews = 0
-    let heapClaim = 0
-
-    for (const symbol of resolved.symbols) {
-      // An alias has no bytes of its own - a register byte half, `_heapw`, or a
-      // view. Counting one would report storage that was never allocated, and
-      // double-count what its parent already contributed. Only the ones the
-      // program wrote are worth reporting; arrays carry no `builtin` flag, so for
-      // those the one builtin alias is named.
-      if ((symbol.kind === 'var' || symbol.kind === 'array') && symbol.alias) {
-        const builtin = symbol.kind === 'var' ? symbol.builtin : symbol.label === '_heapw'
-        if (builtin) continue
-
-        // A view over `_heap` is a different thing from a view into an array, and
-        // the difference is §13: **the heap emits no storage**, so there are no
-        // bytes above for this one to be a share of. It is a claim on memory
-        // nothing else counted - a static capacity, and until this it was the one
-        // kind this tool could not see. `view u8[60000] big = _heap[0]` compiled
-        // clean and was reported as an alias with the whole heap still free.
-        //
-        // Views compose to a real parent, so `_heap` here also catches a view of
-        // `_heapw` and a view of a view.
-        if (symbol.alias.parent === '_heap') {
-          const bytes = symbol.kind === 'array'
-            ? symbol.length * widthOf(symbol.elementType)
-            : widthOf(symbol.type)
-
-          // The furthest extent rather than the sum. §17's type punning puts two
-          // views over the same bytes deliberately - `view u16[50] words =
-          // bytes[0]` beside the bytes - and adding those would report twice the
-          // memory anybody claimed. What a layout needs is where it reaches.
-          heapClaim = Math.max(heapClaim, symbol.alias.byteOffset + bytes)
-          heapViews += 1
-          continue
-        }
-
-        viewCount += 1
-        continue
-      }
-      // A segment register has no bytes either, for the same reason an alias
-      // does not: the read is an instruction rather than a load (§35), and
-      // nothing is reserved for it in the data section.
-      if (symbol.kind === 'var' && symbol.segment) continue
-      if (symbol.kind === 'var') {
-        if (symbol.builtin) reserved += widthOf(symbol.type)
-        else scalars += widthOf(symbol.type)
-        continue
-      }
-      if (symbol.kind === 'array') {
-        // The heap is reported on its own, below, and is not in the image.
-        if (symbol.dynamic) continue
-        arrays += symbol.length * widthOf(symbol.elementType)
-        arrayCount += 1
-      }
-    }
-
-    const data = reserved + scalars + arrays
-
-    // Calls are statements only, so an expression stack is always empty at a
-    // call - no two subs ever have temporaries live at the same time.
-    const { maxDepth, deepestPath } = resolved.callGraph
-    let worstTemporaries = 0
-    for (const depth of temporaries.values()) {
-      if (depth > worstTemporaries) worstTemporaries = depth
-    }
-    const stack = stackBytes(resolved.callGraph, temporaries)
+    const footprint = footprintOf(compile(file, sharedRoot, sources))
+    const { reserved, scalars, arrays, arrayCount, viewCount, heapViews, heapClaim, data, stack } = footprint
 
     console.log(`\n${project}.momo\n`)
 
@@ -170,15 +94,14 @@ const main = async () => {
 
     console.log()
     row('stack (worst case)', `${stack} bytes`)
-    row('max call depth', `${maxDepth}`, 2)
-    row('max temporaries', `${worstTemporaries}`, 2)
+    row('max call depth', `${footprint.maxDepth}`, 2)
+    row('max temporaries', `${footprint.worstTemporaries}`, 2)
     row('+ interrupt reserve', `${interruptReserve}`, 2)
 
-    const path = deepestPath.map((name) => (name === entryName ? 'entry' : name)).join(' > ')
-    console.log(`\n  deepest path            ${path}`)
+    console.log(`\n  deepest path            ${footprint.deepestPath.join(' > ')}`)
 
     if (imageSize !== null) {
-      const heap = segmentEnd - pspSize - imageSize - stack - interruptReserve
+      const heap = heapLeft(footprint, imageSize)
       console.log()
       row('heap (_hsize)', `${heap} bytes`)
       if (heap <= 0) {
