@@ -17,15 +17,13 @@
 // bytes, so chunk `c` is the paragraph `c` past the base and no index ever has to
 // hold more than one chunk.
 //
-// **Everything followed it out.** The chunk links, the line tables and the undo
-// log were views over the heap the text had vacated - which was right while the
-// heap was where the room was, and stopped being right as each one grew. They are
-// all past the segment now, laid out by `textInit` from the block DOS gave us.
+// **Everything else is out there with it** - the chunk links, the line tables and
+// the undo log, laid out by `textInit` from the same block. DESIGN §58 has the
+// order they left the heap in.
 //
-// Nothing of any of it is in the image, which is the rule the first move settled
-// and the second kept: **capacity lives past the segment and the image is for
-// code.** An ordinary array is emitted as `times N db 0` and puts every byte of
-// capacity into the `.COM`; a `far` region emits nothing at all.
+// Nothing of any of it is in the image: **capacity lives past the segment and the
+// image is for code.** An ordinary array is emitted as `times N db 0` and puts
+// every byte of capacity into the `.COM`; a `far` region emits nothing at all.
 //
 // **So this library claims no heap**, and `textHeap` is zero.
 //
@@ -120,10 +118,9 @@ local u16 textBase
 local u16 srcSeg
 local u16 dstSeg
 
-// **The records followed the text out.** They were views over the heap, which
-// cost the image nothing and cost the *segment* three bytes a chunk and four a
-// line - so the ceiling stopped being the text and became a table describing
-// it. Past the segment there is no table to run out of.
+// **The records are past the segment too.** Inside it they would cost three
+// bytes a chunk and four a line, and the ceiling would be the table describing
+// the text rather than the text. DECISIONS §58 has what moving them bought.
 //
 // Four regions rather than one, because each is reached at a `u16` offset and
 // together they are more than 64 KB. They are laid out in order from the base
@@ -193,17 +190,13 @@ local sub atSrc( u16 c ) {
 // forces it is that a group's fields are storage: they would be emitted as
 // `times N db 0` and put every byte of capacity into the `.COM`, which at this
 // size is tens of kilobytes of zeros on disk.
-//
-// They were views over the heap for one step, which is what the text vacated by
-// leaving. Then they outgrew that too, and followed it.
 local far u16[maxChunks] chunkNext = nextSeg
 local far u8[maxChunks]  chunkUsed = usedSeg
 
-// **A high-water mark and a list of what came back**, which is what removes the
-// walk that used to thread every chunk onto a free list at startup. At this
-// capacity that walk is twenty-four thousand far writes, and a far write is not
-// a near one - it is about a second on a 4.77 MHz machine, spent building a
-// list that a counter describes for nothing.
+// **A high-water mark and a list of what came back**, so nothing is threaded onto
+// a free list at startup. At this capacity that would be a far write per chunk on
+// every file opened, building a list a counter describes for nothing; DECISIONS
+// §58 has the walk this replaced and what it cost.
 //
 // `chunkHigh` is the lowest chunk never handed out; `chunkFree` is the head of
 // the returned ones. Taking prefers the returned list, so a long session reuses
@@ -255,20 +248,14 @@ local const opJoin   = 4
 // The run is kept as marked entries rather than as a count on one entry
 // because redo has to put the characters back, and a single entry with a
 // count has nowhere to keep them.
-// **Past the segment, like the text and the records.** It was views over the
-// heap, on the principle that capacity lives in the heap and code lives in the
-// image - which was right while there was heap to live in, and stopped being so
-// when this was the last large thing inside 64 KB. Fourteen kilobytes of near
-// memory for a log that is written once per keystroke and read only when
-// somebody presses `^Z`.
+// **Past the segment, like the text and the records.** Inside it the log would be
+// fourteen kilobytes of near memory for something written once per keystroke and
+// read only when somebody presses `^Z`. Out here it is what makes a second
+// document affordable: a log each, where there is room for them.
 //
 // The cost is five `ES` reloads on a push instead of five near writes, against a
-// keystroke that `drawrate` measured in tens of milliseconds. The gain is the
-// fourteen kilobytes, and that **`textHeap` is zero now** - this library claims
-// no near memory at all, so a program gets the whole heap for its own.
-//
-// It is also what makes a second document affordable: a log each, out there,
-// where there is room for them.
+// keystroke that `drawrate` measured in tens of milliseconds. DESIGN §58 has the
+// move and what it bought.
 local const opParas   = maxUndo / chunkSize
 local const lineParas = ( maxUndo * 2 ) / chunkSize
 local const logParas  = opParas * 3 + lineParas * 2
