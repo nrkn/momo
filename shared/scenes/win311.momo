@@ -51,16 +51,20 @@ include "lib/moflow.momo"
 // ---- the content ----------------------------------------------------------
 
 const u8[] sProgMan  = "Program Manager$"
-const u8[] sMenu     = "File$Options$Window$Help$"
-const menuCount      = 4
+// Lists are arrays of arrays (§53), so each count is the list's own length
+// rather than a number written beside it and kept in step by hand.
+const u8[][] sMenu   = [ "File$", "Options$", "Window$", "Help$" ]
+const menuCount      = len( sMenu )
 
 const u8[] sAccTitle = "Accessories$"
-const u8[] sAccNames = "Write$Paintbrush$Terminal$Notepad$Calculator$Clock$Cardfile$Recorder$"
-const accCount       = 8
+const u8[][] sAccNames = [ "Write$", "Paintbrush$", "Terminal$", "Notepad$",
+                           "Calculator$", "Clock$", "Cardfile$", "Recorder$" ]
+const accCount         = len( sAccNames )
 
-const u8[] sMainTitle = "Main$"
-const u8[] sMainNames = "File Manager$Control Panel$Print Manager$MS-DOS Prompt$Windows Setup$PIF Editor$"
-const mainCount       = 6
+const u8[] sMainTitle   = "Main$"
+const u8[][] sMainNames = [ "File Manager$", "Control Panel$", "Print Manager$",
+                            "MS-DOS Prompt$", "Windows Setup$", "PIF Editor$" ]
+const mainCount         = len( sMainNames )
 
 const u8[] sAbout    = "About Program Manager$"
 const u8[] sMsWin    = "Microsoft Windows$"
@@ -156,7 +160,7 @@ sub menuBar {
   cfg.gap = 2 * u
   panel( lightGray ) {
     for ( u16 i = 0; i < menuCount; i++ ) {
-      labelPaint( nthStr( addr( sMenu ), i ), black, lightGray )
+      labelPaint( addr( sMenu[i] ), black, lightGray )
     }
   }
 
@@ -196,6 +200,11 @@ sub progIcon( u16 name ) {
 // left to find out. moflow answers which icons go on which row, and this emits
 // them - the split that exists because Momo has neither closures nor the
 // address of a routine.
+//
+// `names` is the address of an array of arrays - its spine (§53) - because a
+// list cannot be passed to a routine and an address can. So the name of icon `n`
+// is the word at `names + 2 * n`, read by hand; §19's array parameters would be
+// the typed way to say this, and are not built.
 sub w311Group( u16 title, u16 names, u16 count, u16 width ) {
   u16 inner
 
@@ -227,7 +236,7 @@ sub w311Group( u16 title, u16 names, u16 count, u16 width ) {
           cfg.gap = u
           box {
             for ( u16 k = 0; k < flowRow[ r ].count; k++ ) {
-              progIcon( nthStr( names, flowRow[ r ].first + k ) )
+              progIcon( peek16( names + 2 * ( flowRow[ r ].first + k ) ) )
             }
           }
         }

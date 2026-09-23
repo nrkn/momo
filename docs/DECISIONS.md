@@ -1661,11 +1661,48 @@ The pruning rule and the constant-index rule each changed `nestarr.asm` and
 nothing else. That is the golden tier doing what the section says it does:
 holding which tables exist, which no amount of running can see.
 
-### What is still owed
+### The measurement, and the premise it was owed on
 
-The measurement. The design said the spine against `nthStr`'s walk "belongs in
-`DECISIONS.md` once something is built", and `s6demo` redraws its menu per frame,
-which makes it the natural comparison. It waits for the sweep that converts it.
+The design said the spine against `nthStr`'s walk "belongs in `DECISIONS.md` once
+something is built", and that `s6demo`'s menu is redrawn per frame. **It is not.**
+`s6demo` builds each window once and waits for a key, so there is no frame to
+price - the claim was written about a program nobody had read. What there is, is
+one build of the scene, and that is what was measured.
+
+Static, from the emitted assembly both sides of the conversion, with the timings
+this file uses everywhere else (the accumulator forms at 10, `8 + EA` otherwise,
+`jcc` taken at 16, `inc word [mem]` at 21). `nthStr` costs 128 cycles to enter
+and leave, 129 per character walked and 138 per `$`; a spine read at the call
+site is four instructions.
+
+| lookups in one build | calls | before | after |
+|---|---|---|---|
+| menu labels | 4 | 4,996 | 292 |
+| icon widths | 8 | 43,656 | 328 |
+| icon labels | 8 | 43,960 | 632 |
+| Finder rows, three columns | 15 | 38,475 | 1,095 |
+| memory bar names | 3 | 6,120 | 219 |
+| **all** | **38** | **137,207** | **2,566** |
+
+**53 times, or 28.8 ms against 0.5 at 4.77 MHz.** The icons are two thirds of it,
+because a walk to the eighth name passes the seven before it, and they are walked
+twice - once to measure and once to draw. That is the shape the design predicted
+in words - a fixed cost against a cost that grows with the data - and it is the
+growth that the table shows: a list of eight is already most of the bill.
+
+**Part of the saving at each call site is not the walk.** A call inside an
+argument makes §7 evaluate every argument onto the stack before storing any, so
+`labelPaint( nthStr( ... ), black, white )` pushed and popped all three; with no
+call left in the arguments they are stored directly. The call site alone went
+from 140 cycles to 73 before counting a byte of the walk. It is small beside the
+walk - a few percent of a menu lookup - but nobody would have looked for it,
+because the push/pop was never in the routine being replaced.
+
+`nthStr` left the images of `s6demo`, `pmdemo` and `mlolayer` with it. It stays in
+the library: `keyprobe` walks prompts that may have been read from a file, and
+`momenu`'s fixture has an empty menu that §53 refuses. So the design's closing
+line, that nothing further was needed "to delete `nthStr`", assumed every blob was
+static, and two are not.
 
 ---
 

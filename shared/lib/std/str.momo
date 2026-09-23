@@ -60,13 +60,14 @@ sub strCopy( u16 to, u16 from ) {
 //
 // This exists because a table of addresses could not be written down: addr() is
 // a link-time constant and an array initialiser was folded before there was
-// anything to point at. §51 made `const u16[] at = [ addr( a ), addr( b ) ]`
-// legal, so a table is the other choice now rather than an impossible one.
+// anything to point at. §51 made the table writable and §53 writes it for you -
+// `const u8[][] names = [ "Write$", "Paintbrush$" ]` and `addr( names[1] )` - so
+// for a list the compiler can see, that is the choice now. DECISIONS §53 priced
+// the difference at fifty times over the lookups one build of `s6demo` makes.
 //
-// Walking is linear where a table would index, which for the handful of strings
-// a caller indexes this way is nothing - and a blob is the maintainable half of
-// the trade anyway, since an offset table written by hand has to be recomputed
-// whenever a string changes length.
+// What keeps this is the list the compiler cannot see: a run of strings read
+// from a file into a buffer, which `keyprobe` walks through here, and an empty
+// list, which §53 refuses and `momenu`'s fixture needs.
 //
 // Past the end it returns the address of the byte after the last terminator,
 // which is not a string. Nothing here can check n, for the same reason nothing

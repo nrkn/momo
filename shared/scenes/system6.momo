@@ -42,12 +42,15 @@ include "lib/moflow.momo"
 
 // ---- the content ----------------------------------------------------------
 
-const u8[] sS6Menu   = "File$Edit$View$Special$"
-const s6MenuCount    = 4
+// Lists are arrays of arrays (§53), so each count is the list's own length
+// rather than a number written beside it and kept in step by hand.
+const u8[][] sS6Menu = [ "File$", "Edit$", "View$", "Special$" ]
+const s6MenuCount    = len( sS6Menu )
 const u8[] sS6Finder = "Finder$"
 
-const u8[] sS6Icons  = "Macintosh HD$Documents$Applications$System Folder$Utilities$Games$Scrapbook$Trash$"
-const s6IconCount    = 8
+const u8[][] sS6Icons = [ "Macintosh HD$", "Documents$", "Applications$", "System Folder$",
+                          "Utilities$", "Games$", "Scrapbook$", "Trash$" ]
+const s6IconCount     = len( sS6Icons )
 
 const u8[] sHdTitle  = "Macintosh HD$"
 const u8[] sColName  = "Name$"
@@ -55,19 +58,20 @@ const u8[] sColSize  = "Size$"
 const u8[] sColKind  = "Kind$"
 
 // Three parallel runs rather than one run of triples, because a column is what a
-// caller indexes and a row is not.
-const u8[] sRowNames = "System Folder$Applications$MacPaint$Read Me$Empty Folder$"
-const u8[] sRowSizes = "1,142K$3,806K$284K$4K$--$"
-const u8[] sRowKinds = "folder$folder$application$document$folder$"
-const s6RowCount     = 5
+// caller indexes and a row is not. They have to be the same length, and the
+// count is taken from the first.
+const u8[][] sRowNames = [ "System Folder$", "Applications$", "MacPaint$", "Read Me$", "Empty Folder$" ]
+const u8[][] sRowSizes = [ "1,142K$", "3,806K$", "284K$", "4K$", "--$" ]
+const u8[][] sRowKinds = [ "folder$", "folder$", "application$", "document$", "folder$" ]
+const s6RowCount       = len( sRowNames )
 
 const u8[] sAboutTitle = "About This Macintosh$"
 const u8[] sTotalMem   = "Total Memory:$"
 const u8[] sMemFigure  = "4,096K$"
-const u8[] sBarNames   = "System Software$MacPaint$Finder$"
-const s6BarCount       = 3
+const u8[][] sBarNames = [ "System Software$", "MacPaint$", "Finder$" ]
+const s6BarCount       = len( sBarNames )
 
-// Plain integers, so this one CAN be a table - it is addresses that cannot.
+// One size per bar, in the order of the names above.
 const u16[] barSize = [ 6, 3, 2 ]
 
 const u8[] sSaveAsk  = "Save changes to the document before closing?$"
@@ -231,13 +235,13 @@ sub finderRow( u16 i ) {
   cfgGrowW()
   cfgFixedH( lineHeight )
   panel( white ) {
-    labelPaint( nthStr( addr( sRowNames ), i ), black, white )
+    labelPaint( addr( sRowNames[i] ), black, white )
 
     cfgGrowW()
     box {
     }
 
-    labelPaint( nthStr( addr( sRowSizes ), i ), black, white )
+    labelPaint( addr( sRowSizes[i] ), black, white )
 
     cfgFixedW( 3 * u )
     box {
@@ -245,7 +249,7 @@ sub finderRow( u16 i ) {
 
     cfgFixedW( 12 * u )
     panel( white ) {
-      labelPaint( nthStr( addr( sRowKinds ), i ), black, white )
+      labelPaint( addr( sRowKinds[i] ), black, white )
     }
   }
 }
@@ -311,7 +315,7 @@ sub memoryBar( u16 i ) {
   panel( white ) {
     cfgFixedW( 16 * u )
     panel( white ) {
-      labelPaint( nthStr( addr( sBarNames ), i ), black, white )
+      labelPaint( addr( sBarNames[i] ), black, white )
     }
 
     cfgGrowW()
@@ -403,7 +407,7 @@ sub desktopIcon( u16 name ) {
 
 sub buildS6Screen {
   for ( u16 i = 0; i < s6IconCount; i++ ) {
-    flowW[i] = strLen( nthStr( addr( sS6Icons ), i ) ) + 2 * s6Pad
+    flowW[i] = strLen( addr( sS6Icons[i] ) ) + 2 * s6Pad
   }
 
   packRows( s6IconCount, 80 * u - 2 * u, u )
@@ -418,7 +422,7 @@ sub buildS6Screen {
     cfg.gap = 2 * u
     panel( white ) {
       for ( u16 i = 0; i < s6MenuCount; i++ ) {
-        labelPaint( nthStr( addr( sS6Menu ), i ), black, white )
+        labelPaint( addr( sS6Menu[i] ), black, white )
       }
 
       cfgGrowW()
@@ -444,7 +448,7 @@ sub buildS6Screen {
           cfg.gap = u
           box {
             for ( u16 k = 0; k < flowRow[ r ].count; k++ ) {
-              desktopIcon( nthStr( addr( sS6Icons ), flowRow[ r ].first + k ) )
+              desktopIcon( addr( sS6Icons[ flowRow[ r ].first + k ] ) )
             }
           }
         }
