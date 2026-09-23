@@ -1,0 +1,15 @@
+// A private array of arrays prints under its mangled name (§14), and so must
+// every access to it - including a constant one, which names the child while
+// keeping the parent's label so that the printer has something to lower (§53).
+local const u8[][] names = [ "one$", "two$" ]
+
+u16 i
+u16 at
+u8  b
+
+at = addr( names[1] )
+at = addr( names[i] )
+b = names[0][1]
+b = names[i][1]
+at = len( names[i] )
+at = len( names[0] )

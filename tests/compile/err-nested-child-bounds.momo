@@ -1,0 +1,5 @@
+// EXPECT-ERROR: out of bounds for "menu[ 1 ]"
+// A constant child is its own array, so a constant index into it is checked against its own length.
+const u8[][] menu = [ "one$", "two$" ]
+u8 b
+b = menu[1][4]

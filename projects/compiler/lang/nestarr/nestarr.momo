@@ -1,0 +1,61 @@
+// nestarr.momo - an array of arrays (§53): children, a spine, and a length spine.
+//
+// Every access is read back and printed, because the claim is about which bytes
+// each one reaches, and only running shows that. What the golden tier holds is
+// which tables exist: `menu` is indexed at runtime and so has its spine, `digits`
+// only ever at constants and so has none, and only `menu` is asked a runtime
+// length - so only `menu` has a length spine in the image.
+
+include "lib/std/io.momo"
+
+const u8[][] menu = [ "File$", "Edit$", "Search$", "View$" ]
+
+// Numbers rather than text, and ragged: a child is any list of bytes.
+const u8[][] digits = [ [ 3, 1, 4 ], [ 1, 5 ], [ 9, 2, 6, 5 ] ]
+
+u16 i
+u16 c
+
+// ---- a runtime index: the spine is read ----
+
+for ( i = 0; i < len( menu ); i++ ) {
+  putStr( addr( menu[i] ) )           // File, Edit, Search, View
+  newline()
+}
+
+// A runtime child and a runtime byte within it.
+i = 2
+c = 1
+putChar( menu[i][c] )                 // e, from Search
+putChar( menu[i][c + 2] )             // r
+putChar( menu[i][0] )                 // S
+newline()
+
+// A runtime length, which reads the length spine.
+for ( i = 0; i < len( menu ); i++ ) {
+  putNumber( len( menu[i] ) )         // 5575 - each counts its $
+}
+newline()
+
+// ---- a constant index: the child's own label, and no spine ----
+
+putStr( addr( menu[1] ) )             // Edit
+newline()
+putChar( menu[3][0] )                 // V
+newline()
+
+putNumber( len( digits ) )            // 3
+putChar( ' ' )
+putNumber( len( digits[2] ) )         // 4
+putChar( ' ' )
+putNumber( digits[0][2] )             // 4
+putChar( ' ' )
+c = 1
+putNumber( digits[1][c] )             // 5
+newline()
+
+// Every byte of one constant child, walked with a runtime index.
+for ( c = 0; c < len( digits[2] ); c++ ) {
+  putNumber( digits[2][c] )           // 9265
+}
+newline()

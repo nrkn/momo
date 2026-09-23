@@ -1,0 +1,6 @@
+// EXPECT-ERROR: declared at the top level
+// Its children are labels of their own, which a routine-local one would need a scoped mangling for.
+sub show {
+  const u8[][] menu = [ "one$" ]
+}
+show()

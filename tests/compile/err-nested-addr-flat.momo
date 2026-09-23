@@ -1,0 +1,5 @@
+// EXPECT-ERROR: addr() takes the name alone
+// Only a child of an array of arrays has an address of its own.
+u8[4] buf
+u16 at
+at = addr( buf[1] )

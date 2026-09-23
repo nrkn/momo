@@ -1,0 +1,6 @@
+// EXPECT-ERROR: is an array - index it again
+// menu[i] is an access with no value of its own - §18 refuses mob[i] the same way.
+const u8[][] menu = [ "one$", "two$" ]
+u16 i
+u16 at
+at = menu[i]

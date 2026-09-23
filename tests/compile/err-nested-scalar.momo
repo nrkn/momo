@@ -1,0 +1,3 @@
+// EXPECT-ERROR: each element of an array of arrays is an array
+// A child is a list of bytes, so a bare number is not one.
+const u8[][] names = [ "one$", 2 ]

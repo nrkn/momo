@@ -46,6 +46,9 @@ export type TypeNode = Located & {
   frac: number
   array: boolean
   size: Expression | null // `u8[4]` has one, `u8[]` does not
+  // `u8[][]`: an array of arrays (§53). Only ever set with `array`, and never with
+  // a size - every length comes from the literal.
+  nested?: boolean
   // The unit this was written as, when it was written as one (DESIGN §39).
   // `name` and `frac` are the storage it stands for, exactly as they are for a
   // fixed-point spelling - so everything downstream that wants storage keeps
@@ -154,6 +157,15 @@ export type IndexExpression = Located & {
   type: 'IndexExpression'
   array: Identifier
   index: Expression
+  // `menu[i][c]`: the index into the child an array of arrays holds (§53).
+  childIndex?: Expression
+  // Set by the resolver when `index` folds, so the access names the child
+  // directly and no spine is read. `array.label` stays the parent's, because
+  // that is what prints; pruning counts this instead of it.
+  childLabel?: string
+  // Set when §45's `of` wrote this access, so a refusal can name the binding the
+  // program wrote rather than the counter it did not.
+  fromOf?: string
 }
 
 export type CastExpression = Located & {
@@ -171,6 +183,11 @@ export type CastExpression = Located & {
 export type AddrExpression = Located & {
   type: 'AddrExpression'
   target: Identifier
+  // `addr( menu[i] )`: which child of an array of arrays (§53). A constant one
+  // is the child's label; a runtime one is a read of the spine.
+  index?: Expression
+  childLabel?: string // as on IndexExpression
+  fromOf?: string // as on IndexExpression
 }
 
 // Folds to the declared length of an array. The target keeps no `label`: unlike
@@ -179,6 +196,12 @@ export type AddrExpression = Located & {
 export type LenExpression = Located & {
   type: 'LenExpression'
   target: Identifier
+  // `len( menu[i] )` (§53). A constant index folds; a runtime one reads the
+  // length spine, and only then is `label` set - to that spine, which is the one
+  // case where asking a length reads storage and so has to keep it.
+  index?: Expression
+  label?: string
+  fromOf?: string // as on IndexExpression
   // What the target prints as, which is not the same question. The printer needs
   // a private's mangled name to lower `local` (§14), and pruning collects the
   // `label` key by name - so this is deliberately called something else, and

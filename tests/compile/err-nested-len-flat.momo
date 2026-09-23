@@ -1,0 +1,5 @@
+// EXPECT-ERROR: len() takes the name alone
+// A flat array has one length, asked for by its name.
+u8[4] buf
+u16 n
+n = len( buf[1] )

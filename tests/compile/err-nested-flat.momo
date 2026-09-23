@@ -1,0 +1,5 @@
+// EXPECT-ERROR: is not an array of arrays
+// A flat array has one level, so a second index has nothing to reach.
+const u8[] flat = [ 1, 2, 3 ]
+u8 b
+b = flat[0][1]

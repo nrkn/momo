@@ -351,14 +351,24 @@ export const parse = (tokens: Token[]): Program => {
       // addr(x) and len(x) share a shape: a keyword, one parenthesised name,
       // never an expression. Both are reserved words, so neither can be shadowed
       // and neither needs the symbol table to parse.
+      //
+      // Or one name and one index, for a child of an array of arrays (§53) -
+      // `addr( menu[i] )` is how that child reaches a routine taking an address.
       if (token.text === 'addr' || token.text === 'len') {
         advance()
         expect('op', '(')
         const name = expect('ident')
+        let index: Expression | null = null
+        if (at('op', '[')) {
+          advance()
+          index = parseExpression()
+          expect('op', ']')
+        }
         expect('op', ')')
         return {
           type: token.text === 'addr' ? 'AddrExpression' : 'LenExpression',
           target: { type: 'Identifier', name: name.text, file: name.file, line: name.line, col: name.col },
+          ...(index ? { index } : {}),
           file: token.file,
           line: token.line,
           col: token.col,
@@ -484,10 +494,20 @@ export const parse = (tokens: Token[]): Program => {
           identifier.field = expect('ident').text
         }
 
+        // `menu[i][c]` (§53). Only after a plain index: a group field is a
+        // scalar, so there is nothing under `mob[i].x` to index.
+        let childIndex: Expression | null = null
+        if (identifier.field === undefined && at('op', '[')) {
+          advance()
+          childIndex = parseExpression()
+          expect('op', ']')
+        }
+
         return {
           type: 'IndexExpression',
           array: identifier,
           index,
+          ...(childIndex ? { childIndex } : {}),
           file: token.file,
           line: token.line,
           col: token.col,
@@ -522,6 +542,7 @@ export const parse = (tokens: Token[]): Program => {
     const token = expect('type')
     const read = readType(token)
     let array = false
+    let nested = false
     let size: Expression | null = null
 
     if (at('op', '[')) {
@@ -531,12 +552,25 @@ export const parse = (tokens: Token[]): Program => {
       expect('op', ']')
     }
 
+    // §53. Every length of an array of arrays comes from its literal, so neither
+    // pair of brackets takes a size - and two levels is all there is.
+    if (array && at('op', '[')) {
+      const second = advance()
+      nested = true
+      if (size !== null || !at('op', ']')) {
+        raise(second, 'an array of arrays takes its lengths from its literal - write "u8[][]"')
+      }
+      expect('op', ']')
+      if (at('op', '[')) raise(peek(), 'an array of arrays has two levels, not three')
+    }
+
     return {
       type: 'TypeNode',
       name: read.name,
       frac: read.frac,
       unit: read.unit,
       array,
+      ...(nested ? { nested } : {}),
       size,
       file: token.file,
       line: token.line,
@@ -1291,10 +1325,20 @@ export const parse = (tokens: Token[]): Program => {
       identifier.field = expect('ident').text
     }
 
+    // Parsed so the resolver can say why it is refused - an array of arrays is
+    // const - rather than the parser saying only that it expected `=`.
+    let childIndex: Expression | null = null
+    if (identifier.field === undefined && at('op', '[')) {
+      advance()
+      childIndex = parseExpression()
+      expect('op', ']')
+    }
+
     return {
       type: 'IndexExpression',
       array: identifier,
       index,
+      ...(childIndex ? { childIndex } : {}),
       file: name.file,
       line: name.line,
       col: name.col,

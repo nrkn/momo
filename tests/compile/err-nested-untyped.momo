@@ -1,0 +1,3 @@
+// EXPECT-ERROR: needs its type written
+// An inferred list of lists would have to guess it meant a spine.
+const names = [ "one$", "two$" ]

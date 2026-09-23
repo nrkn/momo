@@ -1,0 +1,5 @@
+// EXPECT-ERROR: out of bounds for "menu"
+// The first index is checked against the number of children.
+const u8[][] menu = [ "one$", "two$" ]
+u8 b
+b = menu[2][0]

@@ -66,6 +66,7 @@ const printType = (node: TypeNode): string => {
   // the unit is exactly what the type checking is about.
   const name = node.unit ?? spell(node.name, node.frac)
   if (!node.array) return name
+  if (node.nested) return `${name}[][]`
   if (!node.size) return `${name}[]`
   return `${name}[${printExpression(node.size)}]`
 }
@@ -125,6 +126,10 @@ const ownerLabel = (node: { field?: string; label?: string }): string | undefine
   node.field !== undefined && node.label !== undefined
     ? node.label.slice(0, -(node.field.length + 2))
     : node.label
+
+// The one child of an array of arrays that addr() or len() is asking about (§53).
+const printChildIndex = (index: Expression | undefined): string =>
+  index ? `[ ${printExpression(index)} ]` : ''
 
 export const printExpression = (node: Expression): string => {
   switch (node.type) {
@@ -202,7 +207,8 @@ export const printExpression = (node: Expression): string => {
     // cannot simply be printed with it.
     case 'IndexExpression': {
       const field = node.array.field === undefined ? '' : `.${node.array.field}`
-      return `${lowered(node.array.name, ownerLabel(node.array))}[ ${printExpression(node.index)} ]${field}`
+      const child = node.childIndex ? `[ ${printExpression(node.childIndex)} ]` : ''
+      return `${lowered(node.array.name, ownerLabel(node.array))}[ ${printExpression(node.index)} ]${field}${child}`
     }
 
     case 'CastExpression':
@@ -221,10 +227,10 @@ export const printExpression = (node: Expression): string => {
       return `mulshr8( ${printExpression(node.left)}, ${printExpression(node.right)} )`
 
     case 'AddrExpression':
-      return `addr( ${lowered(node.target.name, node.target.label)} )`
+      return `addr( ${lowered(node.target.name, node.target.label)}${printChildIndex(node.index)} )`
 
     case 'LenExpression':
-      return `len( ${lowered(node.target.name, node.targetLabel)} )`
+      return `len( ${lowered(node.target.name, node.targetLabel)}${printChildIndex(node.index)} )`
 
     case 'PeekExpression':
       return `peek${node.width === 1 ? '8' : '16'}( ${printExpression(node.address)} )`

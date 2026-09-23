@@ -1,0 +1,4 @@
+// EXPECT-ERROR: is a const array and cannot be assigned
+// An array of arrays is const all the way down in the first build.
+const u8[][] menu = [ "one$", "two$" ]
+menu[0][1] = 65

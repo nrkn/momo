@@ -306,7 +306,53 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     if (widening) widen('u8')
   }
 
+  // §53. A constant first index names the child, so this is an ordinary load
+  // from it and no spine is read. A runtime one reads the spine into AX and
+  // indexes from there, through BX as every other runtime index is.
+  const emitChildLoad = (node: IndexExpression, widening: boolean) => {
+    const childIndex = node.childIndex as Expression
+
+    // Before the parent is looked up, because it may well not exist: nothing
+    // read its spine, so pruning dropped it, which is the point.
+    if (node.childLabel !== undefined) {
+      emitIndexLoad(
+        { ...node, array: { ...node.array, label: node.childLabel }, index: childIndex, childIndex: undefined },
+        widening,
+      )
+      return
+    }
+
+    const nested = symbolFor(node.array.label)
+    if (nested.kind !== 'array' || !nested.nested) throw new Error('internal: not nested')
+
+    // The spine is a word array, so reading it is the flat path with the second
+    // index dropped.
+    emitIndexLoad({ ...node, childIndex: undefined }, false)
+
+    const fixed = constOf(childIndex)
+    if (fixed !== null) {
+      ins('mov', 'bx, ax', 'the child')
+      ins('mov', `al, [${fixed === 0 ? 'bx' : `bx + ${fixed}`}]`)
+    } else if (isLeaf(childIndex)) {
+      loadIntoBx(childIndex)
+      ins('add', 'bx, ax', 'into the child')
+      ins('mov', 'al, [bx]')
+    } else {
+      ins('push', 'ax', 'save the child while its index is computed')
+      emitExpression(childIndex)
+      ins('pop', 'bx')
+      ins('add', 'bx, ax', 'into the child')
+      ins('mov', 'al, [bx]')
+    }
+    if (widening) widen(nested.nested.elementType)
+  }
+
   const emitIndexLoad = (node: IndexExpression, widening = true) => {
+    if (node.childIndex) {
+      emitChildLoad(node, widening)
+      return
+    }
+
     const symbol = symbolFor(node.array.label)
 
     if (symbol.kind === 'far') {
@@ -380,9 +426,15 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     // in every byte copy through video memory - which is the inner loop of a
     // blitter, and the one place it is least affordable.
     if (node.type === 'IndexExpression') {
-      const symbol = symbolFor(node.array.label)
+      // A child at a constant index is its own array, and its parent may have
+      // been pruned (§53).
+      const symbol = symbolFor(node.childLabel ?? node.array.label)
       if (symbol.kind !== 'array' && symbol.kind !== 'far') return null
-      return widthOf(symbol.elementType) === 1 ? symbol.elementType : null
+      // A child's element, not the spine's word (§53).
+      const element = node.childIndex && symbol.kind === 'array' && symbol.nested
+        ? symbol.nested.elementType
+        : symbol.elementType
+      return widthOf(element) === 1 ? element : null
     }
 
     // peek8 is a bare byte load like any other, which is what makes
@@ -824,8 +876,32 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
       return
     }
 
+    // A child of an array of arrays (§53) at a constant index is its own label,
+    // and at a runtime one is whatever the spine holds there.
     if (node.type === 'AddrExpression') {
-      ins('mov', `ax, ${symbolFor(node.target.label).label}`, 'link-time constant')
+      if (node.index && node.childLabel === undefined) {
+        emitIndexLoad(
+          { type: 'IndexExpression', array: node.target, index: node.index, file: node.file, line: node.line, col: node.col },
+          false,
+        )
+        return
+      }
+      const label = node.childLabel ?? node.target.label
+      ins('mov', `ax, ${symbolFor(label).label}`, 'link-time constant')
+      return
+    }
+
+    // Only a runtime child's length reaches here - every other len() folded -
+    // and it is a read of the length spine the resolver named (§53).
+    if (node.type === 'LenExpression') {
+      emitIndexLoad({
+        type: 'IndexExpression',
+        array: { ...node.target, label: node.label },
+        index: node.index as Expression,
+        file: node.file,
+        line: node.line,
+        col: node.col,
+      })
       return
     }
 

@@ -93,6 +93,10 @@ export type MomoSymbol =
       // The heap has no compile-time length: no storage, no bounds checks.
       dynamic: boolean
       alias?: Alias
+      // Set on the spine of an array of arrays (§53), whose `values` are its
+      // children's labels. The children and the length spine are symbols of
+      // their own, named here so an access can find them.
+      nested?: { elementType: ValueType; children: string[]; lengths: string }
     }
   // `owner` marks a fn's parameter or return slot, so pruning keeps it alive
   // whenever the fn itself is reachable - the call site writes it even if the
@@ -174,6 +178,11 @@ export type MomoSymbol =
       count: number | null // null is the single-instance form: no index
       fields: { name: string; symbol: MomoSymbol }[]
     }
+
+type ArraySymbol = Extract<MomoSymbol, { kind: 'array' }>
+
+// The spine of an array of arrays (§53).
+type NestedSymbol = ArraySymbol & { nested: NonNullable<ArraySymbol['nested']> }
 
 export type ResolveResult = {
   program: Program
@@ -966,6 +975,32 @@ export const resolve = (program: Program): ResolveResult => {
       }
 
       node.array.label = symbol.label
+
+      // §53. `menu[i]` alone is an access with nothing to be - §18's refusal for
+      // `mob[i]`, and for the same reason: no value of an array type exists.
+      if (node.childIndex || symbol.nested) {
+        const nested = nestedOr(symbol, node, node.array.name, node.fromOf, 'it takes one index')
+        if (!node.childIndex) {
+          const shown = node.fromOf ?? `${node.array.name}[ ... ]`
+          raise(
+            node,
+            `"${shown}" is an array - index it again, or use addr( ${shown} ) or len( ${shown} )`,
+          )
+        }
+
+        checkIndex(nested, node.index)
+        const at = node.index.constValue
+        if (at !== null && at !== undefined) {
+          const child = childOf(nested, at)
+          node.childLabel = child.label
+          checkIndex(child, node.childIndex, `${node.array.name}[ ${at} ]`)
+        } else if (resolveExpression(node.childIndex).type === 'bool') {
+          raise(node.childIndex, 'array index must be numeric')
+        }
+
+        return annotate(node, { type: nested.nested.elementType, value: null, frac: 0, unit: null })
+      }
+
       checkIndex(symbol, node.index)
       return annotate(node, { type: symbol.elementType, value: null, frac: symbol.frac ?? 0, unit: symbol.unit ?? null })
     }
@@ -1033,6 +1068,17 @@ export const resolve = (program: Program): ResolveResult => {
         raise(node, `addr() has no meaning for "${node.target.name}" - it is in another segment`)
       }
       node.target.label = symbol.label
+
+      // §53: the address of one child, which is how a string in a list reaches
+      // every routine that takes an address. A constant index is the child's own
+      // label; a runtime one reads the spine.
+      if (node.index) {
+        const nested = nestedOr(symbol, node, node.target.name, node.fromOf, 'addr() takes the name alone')
+        checkIndex(nested, node.index)
+        const at = node.index.constValue
+        if (at !== null && at !== undefined) node.childLabel = childOf(nested, at).label
+      }
+
       return annotate(node, { type: 'u16', value: null, frac: 0, unit: null })
     }
 
@@ -1043,6 +1089,22 @@ export const resolve = (program: Program): ResolveResult => {
       // For printing only - see the note on the node. Not `label`, which is what
       // pruning reads and what this expression deliberately does not set.
       node.targetLabel = symbol.label
+
+      // §53: one child's length. A constant index folds like every other len();
+      // a runtime one reads the length spine, and that read is the one thing
+      // here that is storage, so it is the one thing that sets `label`.
+      if (node.index) {
+        const nested = nestedOr(symbol, node, node.target.name, node.fromOf, 'len() takes the name alone')
+        checkIndex(nested, node.index)
+        const at = node.index.constValue
+        if (at !== null && at !== undefined) {
+          return annotate(node, { type: 'untyped', value: childOf(nested, at).length, frac: 0, unit: null })
+        }
+        const lengths = lookup(nested.nested.lengths)
+        if (!lengths || lengths.kind !== 'array') throw new Error('internal: the length spine went missing')
+        node.label = lengths.label
+        return annotate(node, { type: lengths.elementType, value: null, frac: 0, unit: null })
+      }
 
       // On a group it is the instance count (§19). The single-instance form has
       // none: asking for its length mistakes which form you are holding, and
@@ -1417,10 +1479,18 @@ export const resolve = (program: Program): ResolveResult => {
 
     const values: ArrayValue[] = []
     for (const element of init.elements) {
+      // A list of lists is §53's, and only its own declaration reads one.
+      if (element.type === 'StringLiteral' || element.type === 'ArrayLiteral') {
+        raise(element, 'a list of arrays needs its type written - "const u8[][] name = [ ... ]"')
+      }
+
       // §51. The refusals of a sub, a const and a far region are addr()'s own,
       // raised by resolving it, so an initialiser inherits them rather than
       // restating them.
       if (element.type === 'AddrExpression') {
+        if (element.index) {
+          raise(element, 'only addr() of a name can go in an initialiser, not of a child (§53)')
+        }
         if (!addresses) {
           raise(
             element,
@@ -1474,6 +1544,104 @@ export const resolve = (program: Program): ResolveResult => {
       values.push(value)
     }
     return values
+  }
+
+  // §53. The children are ordinary const arrays under manufactured names, the
+  // spine is §51's table of their addresses, and the lengths are a second table
+  // beside it. All three are symbols like any other, so pruning decides which
+  // reach the image: a constant index names a child and reads neither table.
+  const declareNested = (
+    name: string,
+    typeNode: TypeNode,
+    init: Expression,
+    at: Location,
+    local = false,
+  ) => {
+    if (locals) {
+      raise(at, 'an array of arrays is declared at the top level - its children are labels of their own')
+    }
+    if (typeNode.name !== 'u8' || typeNode.frac !== 0 || typeNode.unit !== undefined) {
+      raise(typeNode, 'an array of arrays holds u8 - "u8[][]" is the only one there is so far')
+    }
+    if (init.type !== 'ArrayLiteral') {
+      raise(init, 'an array of arrays is a list of arrays - [ "one$", [ 1, 2 ] ]')
+    }
+    if (init.elements.length === 0) raise(init, 'an array of arrays needs at least one child')
+
+    const children: string[] = []
+    const lengths: number[] = []
+
+    init.elements.forEach((element, i) => {
+      if (element.type !== 'StringLiteral' && element.type !== 'ArrayLiteral') {
+        raise(element, 'each element of an array of arrays is an array - a string, or [ ... ]')
+      }
+
+      const values = arrayValuesFrom(element, 'u8')
+      if (values.length === 0) raise(element, 'a child of an array of arrays needs at least one element')
+
+      const childName = `${name}__${i}`
+      declare(
+        {
+          kind: 'array', name: childName, label: labelFor(childName, local), elementType: 'u8',
+          length: values.length, readonly: true, values, dynamic: false,
+          fromString: element.type === 'StringLiteral',
+        },
+        element,
+        local,
+      )
+      children.push(childName)
+      lengths.push(values.length)
+    })
+
+    // Bytes where every length fits one, which is every string list so far.
+    const lengthsName = `${name}__len`
+    declare(
+      {
+        kind: 'array', name: lengthsName, label: labelFor(lengthsName, local),
+        elementType: lengths.every((n) => n <= 255) ? 'u8' : 'u16',
+        length: lengths.length, readonly: true, values: lengths, dynamic: false,
+      },
+      at,
+      local,
+    )
+
+    declare(
+      {
+        kind: 'array', name, label: labelFor(name, local), elementType: 'u16',
+        length: children.length, readonly: true,
+        values: children.map((child) => ({ label: labelFor(child, local) })),
+        dynamic: false,
+        nested: { elementType: 'u8', children, lengths: lengthsName },
+      },
+      at,
+      local,
+    )
+  }
+
+  // The child an array of arrays holds at a constant index, which checkIndex
+  // has already held against the count.
+  const childOf = (symbol: MomoSymbol, at: number): ArraySymbol => {
+    if (symbol.kind !== 'array' || !symbol.nested) throw new Error('internal: not nested')
+    const child = lookup(symbol.nested.children[at] as string)
+    if (!child || child.kind !== 'array') throw new Error('internal: a child went missing')
+    return child
+  }
+
+  // Everything that indexes past the first level asks for an array of arrays
+  // here, so the refusal is worded once. An `of` binding gets its own wording,
+  // because the program wrote the binding and never saw the access it became.
+  const nestedOr = (
+    symbol: MomoSymbol,
+    at: Location,
+    name: string,
+    fromOf: string | undefined,
+    what: string,
+  ): NestedSymbol => {
+    if (symbol.kind === 'array' && symbol.nested) return symbol as NestedSymbol
+    if (fromOf !== undefined) {
+      raise(at, `"${fromOf}" is one element of "${name}", so it cannot be indexed and has no address of its own`)
+    }
+    raise(at, `"${name}" is not an array of arrays, so ${what}`)
   }
 
   const declareArray = (
@@ -1537,6 +1705,11 @@ export const resolve = (program: Program): ResolveResult => {
     }
 
     if (node.typeNode.array) {
+      // §53's rule, for the whole shape: the spine is labels and cannot change,
+      // and mutable leaves under a const spine want a customer first.
+      if (node.typeNode.nested) {
+        raise(node, `an array of arrays is const - write "const u8[][] ${node.name} = [ ... ]"`)
+      }
       node.label = labelFor(node.name, node.local)
       declareArray(node.name, node.typeNode, node.init, false, node, node.local)
       return
@@ -2038,6 +2211,11 @@ export const resolve = (program: Program): ResolveResult => {
     const isArrayInit = node.init.type === 'ArrayLiteral' || node.init.type === 'StringLiteral'
 
     if (node.typeNode?.array || isArrayInit) {
+      if (node.typeNode?.nested) {
+        declareNested(node.name, node.typeNode, node.init, node, node.local)
+        return
+      }
+
       if (node.typeNode?.array) {
         declareArray(node.name, node.typeNode, node.init, true, node, node.local)
         return
@@ -2289,6 +2467,10 @@ export const resolve = (program: Program): ResolveResult => {
     }
 
     if (symbol.kind !== 'array') raise(target, `"${target.array.name}" is not an array`)
+    // Before the const check, so an `of` binding over a flat array hears that it
+    // is one element rather than that something else is const. An array of
+    // arrays then falls to the const check, which is the true answer for it.
+    if (target.childIndex) nestedOr(symbol, target, target.array.name, target.fromOf, 'it takes one index')
     if (symbol.readonly) {
       raise(target, `"${target.array.name}" is a const array and cannot be assigned`)
     }

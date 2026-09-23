@@ -1,0 +1,3 @@
+// EXPECT-ERROR: takes its lengths from its literal
+// Every length comes from the literal, so neither pair of brackets takes one.
+const u8[2][] names = [ "one$", "two$" ]

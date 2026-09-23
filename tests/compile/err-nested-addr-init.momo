@@ -1,0 +1,4 @@
+// EXPECT-ERROR: not of a child
+// §51 admits addr() of a name; a child in an initialiser is not in either first build.
+const u8[][] menu = [ "one$", "two$" ]
+const u16[] t = [ addr( menu[1] ) ]

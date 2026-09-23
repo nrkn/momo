@@ -308,6 +308,18 @@ export const prune = <S extends PrunableSymbol>(result: {
 
     if (inTable && node.type === 'AddrExpression') return
 
+    // A constant index into an array of arrays names the child and reads no
+    // spine (§53). The parent's label stays on the access because that is what
+    // prints, so it is skipped here rather than counted.
+    if (typeof node.childLabel === 'string') {
+      used.add(node.childLabel)
+      for (const key of Object.keys(node)) {
+        if (key === 'array' || key === 'target' || key === 'childLabel') continue
+        walk(node[key], inTable)
+      }
+      return
+    }
+
     // A declaration's own label is not a use - only references count.
     if (node.type === 'VariableDeclaration' || node.type === 'ConstDeclaration') {
       const init = node.init as { type?: string } | null

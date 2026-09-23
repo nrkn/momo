@@ -1,0 +1,3 @@
+// EXPECT-ERROR: needs at least one element
+// A child with nothing in it has no byte for its label to name.
+const u8[][] names = [ "one$", [] ]

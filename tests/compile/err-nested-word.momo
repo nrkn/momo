@@ -1,0 +1,3 @@
+// EXPECT-ERROR: holds u8
+// u16[][] is out of the first build, which is strings and byte lists.
+const u16[][] names = [ [ 1, 2 ] ]
