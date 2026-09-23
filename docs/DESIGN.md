@@ -6693,6 +6693,7 @@ from it for as long as the count read "thirteen", and nothing could say so.
 | §49 | Named and default arguments, which is what §48's `cfg` carrier needs |
 | §50 | A layout DSL: content, layout and paint as three documents |
 | §63 | A document larger than the memory |
+| §73 | `expect` - a contract for the routine a library calls and the program defines |
 
 ---
 

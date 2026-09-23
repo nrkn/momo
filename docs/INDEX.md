@@ -87,6 +87,7 @@ text for.
 | 70 | `const group` - rows of data that nothing may write | [section](DESIGN.md#70-const-group---rows-of-data-that-nothing-may-write) |  | [section](DECISIONS.md#70-const-group) |
 | 71 | `a16` - an address that says so | [section](DESIGN.md#71-a16---an-address-that-says-so) |  | [section](DECISIONS.md#71-a16) |
 | 72 | The machine - emitted assembly, run without DOSBox | [section](DESIGN.md#72-the-machine---emitted-assembly-run-without-dosbox) |  | [section](DECISIONS.md#72-the-machine) |
+| 73 | `expect` - the forward-call seam gets a contract | listed | [section](PLAN.md#73-expect---the-forward-call-seam-gets-a-contract) |  |
 
 ## Unnumbered headings
 

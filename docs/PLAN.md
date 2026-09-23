@@ -43,6 +43,20 @@ nine unrelated things under one number, and exactly the same mistake is availabl
 here. Each of these takes its own number when it is designed, and enters Todo when
 something wants it.
 
+**The register the entry points are heading for** is part of the destination
+too, and it is already visible rather than hoped for: `tennis` now closes with
+`videoMode { ... keyboard { start() ... } }`, which reads as a script because
+everything hard sits in libraries behind three mechanisms - brackets for
+structure, the §37 seam for the program's own routines, and §11's pruning making
+the library tax zero. That front-facing register is held by the example
+programs and by `STYLE.md`, deliberately not by a named subset: a dialect would
+be a second thing to test and hold against drift. The libraries' half of the
+same destination is **toolkit under surface** - `motext` under `moview`,
+`mofind` and `morange` is the existing instance - where a consumer the surface
+does not fit reaches into the toolkit and pays, via pruning, for exactly what
+it touches. The seam wants §73's contract; the surfaces want §49's arguments;
+neither wants a new kind of thing.
+
 It is also the likeliest thing to reach `CONTRIBUTING.md`'s first case for a
 branch, and by some margin.
 
@@ -148,6 +162,18 @@ at all, which makes one a floor rather than a measurement.
   its own defaults, which is what `cfgReset` already does by hand. Measured: max
   arity in the whole corpus is 6, a box carries 2.2 settings on average, and the
   frequent ones are not a prefix - so it is both halves or neither.
+- **The layout DSL.** §50 - the shape held in the study and now has a Momo
+  spelling: brackets for the layout tree, §52's rows for the content and paint
+  tables, cross-document names as consts so the resolver checks the references,
+  and a text format that compiles to the same spelling a person writes.
+  momoed's dialogs are the named first consumer - its chrome, never its
+  document. Sequenced behind §49, deliberately: without named arguments the
+  openers re-grow the `cfg` carrier this retires.
+- **`expect`.** §73 - a contract for the forward-call seam. Five libraries
+  already document the routine they expect the program to define, in comments
+  the compiler cannot read, and a wrong definition errors inside the library,
+  naming the wrong party. Resolver-only, emits nothing, and the identity tier
+  can say so.
 - **`alias`.** §46 - a compile-time name for one element or one group instance, at
   an index the program chooses. §45's `of` is this with the index owned by the
   compiler, so the substitution is already built and what is new is a capture rule;
@@ -1895,6 +1921,32 @@ everything.
 The mechanism is a lookup that finds the **last** lump registered under a name,
 which makes load order the whole of the policy.
 
+### Override below the lump is open, and graph-shaped data is why
+
+PWAD override is name-granular and **flat**: the unit of replacement is a whole
+lump, and for a palette or a font that is the right unit. The scene work makes
+data graph-shaped - §50's layout refers to content by name, and anything the
+schema study describes can hold references to other records - and then the
+question is whether the lump stays the override unit.
+
+Two positions, and the second is strictly later rather than an alternative:
+
+- **The lump stays the unit.** Overriding one node means shipping the lump that
+  contains it, whole. Coarse, but load order stays the entire policy and
+  nothing a patch does can dangle a reference - the graph arrives and leaves in
+  one piece.
+- **Named nodes join the namespace.** Fine-grained patching of one item in a
+  scene - and now a patch can dangle a reference or close a cycle, so loading
+  gains a mandatory validation walk. The walk is the shape `analysis.ts`
+  already does for calls, and cheap for the same reason, but it has to exist
+  before the first fine-grained patch does, not after.
+
+What decides it is the schema study, already in Probably: a schema knows which
+fields are references, so the validator is generated once rather than written
+per lump type. Until that audit happens the first position is the default, and
+it is compatible with the second later - names inside a lump cost nothing
+before anything resolves them.
+
 ### Where the bytes go
 
 §38's constraint applies in full: DOS reads into the program's own segment, so a
@@ -2318,10 +2370,12 @@ than a conclusion already reached.
 
 ## 50. A layout DSL: three documents
 
-**Not built, and the design is worth keeping whether or not it is.** It comes
-from the layout study, which built a working prototype of it and then closed with
-the prototype still in TypeScript. `STUDIES.md`'s rule says anything worth citing
-has to be brought across first, and this is the thing that was worth bringing.
+**Not built. The shape is settled and the spelling now has a candidate.** The
+design comes from the layout study, which built a working prototype and closed
+with it still in TypeScript; `STUDIES.md`'s rule says anything worth citing has
+to be brought across first, and this was the thing worth bringing. What has
+changed since this section was first written is §48: brackets did not exist when
+the study closed, and they are the shape the Momo side of this wants.
 
 A scene is three text documents rather than one:
 
@@ -2359,34 +2413,120 @@ turned a flat card into a bevelled one with no edit to content or layout.
 
 The **shape** is settled - three documents with those three jobs, content
 referred to by name, paint keyed by kind or role, layout wins and crossings
-recorded. The **spelling** is not. The syntax was picked for ease of parsing
-rather than designed, and reads better than that origin deserves, which is a
-reason to keep using it rather than a reason to keep it. Three things were owed
-before arguing about syntax: documents as files rather than strings, diagnostics
-past `no content named x`, and any validation of one document against another -
-an unreferenced content item and a paint rule matching nothing are both quietly
-fine today, and both are exactly what the crossing report already showed is worth
-counting rather than debating.
+recorded. The **spelling** of the text format is not. The study's syntax was
+picked for ease of parsing rather than designed, and reads better than that
+origin deserves, which is a reason to keep using it rather than a reason to keep
+it. Three things were owed before arguing about syntax: documents as files
+rather than strings, diagnostics past `no content named x`, and any validation
+of one document against another - an unreferenced content item and a paint rule
+matching nothing are both quietly fine today, and both are exactly what the
+crossing report already showed is worth counting rather than debating.
+
+### One vocabulary, two spellings
+
+The study's DSL was a text format parsed on the host, compiling to a call
+sequence. §48 changes what that sequence can look like: a bracket body is a tree
+whose close cannot be skipped, which is exactly the property a construction
+block needs - a `panel { row { ... } }` document cannot half-build. So the
+target the text compiler emits and the spelling a hand-written scene uses
+**converge on one bracket vocabulary**, and the generated `.momo` stops being a
+second register nobody writes by hand. That deletes a special case rather than
+adding one: today's generated scenes are `build` call sequences a person would
+not write, and this makes the tool emit what a person would.
+
+**Only layout is a tree, and drafting this section is what said so.** The first
+sketch gave each aspect its own bracket vocabulary, and two of the three refused
+it: content is named items in columns and paint is rules in columns, and Momo
+already has the spelling for a table - §52's rows over a `const group` (§70).
+So the division of labour is brackets where there is nesting and rows where
+there is not:
+
+```momo
+const group content[3] {
+  a16 name   a16 kind   a16 text
+} = [
+  [ addr( nFind ),   kLabel, addr( tFind ) ],
+  [ addr( nNeedle ), kField, 0 ],
+  [ addr( nStatus ), kLabel, 0 ],
+]
+
+prompt {
+  row {
+    put( cFind )
+    put( cNeedle )
+    put( cStatus )
+  }
+}
+```
+
+**A cross-document name compiles to a `const`**, which is the part that makes
+the three-document split cheaper here than it was in the study: the content
+compiler emits `const cNeedle = 1` beside the tables, layout's `put( cNeedle )`
+is an ordinary reference, and a dangling one is the resolver's own
+`"cNeedle" is not declared` rather than a diagnostic this tool has to write.
+The validation the study still owed - the unreferenced item, the rule matching
+nothing - falls to the text compiler's report, next to the crossings it already
+records.
+
+### §49 goes first
+
+A layout node carries settings, and without named arguments the openers either
+take them positionally - `box( 1, 0, 40, 12, 2 )` is the `cfg` carrier's trap
+with more digits - or keep the carrier this section would otherwise retire. §49
+measured the shape (2.2 settings per open, and the frequent ones are not a
+prefix) and concluded both halves or neither; this is the consumer that makes
+the conclusion actionable. Sequenced behind it, deliberately.
+
+### The first consumer is momoed's chrome, not its document
+
+momoed lays its prompt, question box and panels out by hand today, and includes
+no momolo at all - the editing surface is `moview`'s, and stays so: a text
+buffer scrolling under a cursor earns its directness. The dialogs are the other
+kind of screen - small trees, rebuilt often, fiddly by hand - which is the
+terrain a layout DSL pays for. Starting there also makes momoed the first
+momolo consumer outside the fixtures and demos, which is the forcing function
+the toolkit restructuring in **Where this is going** waits on.
 
 ### It is a compiler targeting Momo source, not something that runs on an 8086
 
-This is the decision that keeps it small, and the study reached it from the other
-side: its own port plan cut the DSL, on the grounds that its emitter is
-recursive, its parsers are regex-driven, and it builds maps of strings - and that
-the *output* of the tool is a momolo call sequence, which is what a Momo program
+This is the decision that keeps it small, and the study reached it from the
+other side: its own port plan cut the DSL, on the grounds that its emitter is
+recursive, its parsers are regex-driven, and it builds maps of strings - and
+that the *output* of the tool is a call sequence, which is what a Momo program
 should be handed.
 
-So it is a build-time tool under `src/tools/`, emitting `.momo`, in the shape the
-vector work already uses. That also settles what it costs to be wrong about the
-syntax: a generated file and a regeneration, not a language feature.
+So it is a build-time tool under `src/tools/`, emitting `.momo` in the bracket
+spelling above, in the shape the vector work already uses. That also settles
+what it costs to be wrong about the text syntax: a generated file and a
+regeneration, not a language feature. **A scene parsed at runtime is a
+different feature and belongs to §41**: a lump is the binary a scene compiles
+to when it should be loaded rather than built in, and putting a parser on the
+target before there is a wad to read from would be building the expensive half
+first.
 
-### Why it is not being built now
+### Unsettled
 
-Nothing has wanted it. The scenes here are written by hand and are legible that
-way, and a scene format earns its keep when there are more scenes than a person
-wants to read - which is a threshold this repository has not reached. The reason
-to write the design down anyway is that it was *tested and it held*, and the
-study that tested it is closed: this is the only place the result survives.
+- **Bracket names are program-wide.** §48 deliberately does not consult
+  `local`, so a vocabulary claims `row`, `put` and friends for every program
+  that includes it. One toolkit owning the words is fine; the day a second
+  vocabulary wants `frame`, the answer is a prefix or a `local bracket`, and
+  that is a §48-shaped decision to make when it pinches rather than now.
+- **What paint keys on.** The study ran with kind and role both live and both
+  held; whether Momo-side paint tables carry both from the start or grow the
+  second key when a scene wants it is open.
+- **One file or three.** The study used three documents as three files. The
+  bracket spelling makes one file per scene possible; whether the split
+  survives contact with a real scene directory is for momoed's dialogs to
+  answer.
+
+### Why it is only now being built
+
+For a long time nothing wanted it: scenes were written by hand and legible that
+way. momoed's dialogs are the first named consumer, which moves this from "a
+design worth keeping" to sequenced work - §49, then the layout vocabulary over
+momoed's chrome, then the text format once there are more scenes than a person
+wants to read. The study's result survives only here, which is why the settled
+half was written down long before anything moved.
 
 ---
 
@@ -2501,3 +2641,68 @@ new storage model underneath it.
 **The condition for building it is a document somebody needs to edit and cannot.**
 That has not happened yet, and PROVENANCE is emphatic about what building for a
 consumer that does not exist costs.
+
+---
+
+## 73. `expect` - the forward-call seam gets a contract
+
+**Undesigned until 2026-09-24, and named now because the seam it covers is
+already load-bearing.** A library file may call a routine the program defines,
+and it compiles to a direct `call` (DESIGN §37) - `momovec` binds `plot` this
+way, `moview` binds `viewRow`, `mofield` binds `fieldCopyOut`, `momenu` binds
+four table routines, and `edloop`'s `nextKey` is the trick's whole payoff. The
+contract is real in every case and the compiler cannot see it: `moview.momo`'s
+header says `sub viewRow( u16 y, a16 at, u16 n )` in a comment, and `momenu`
+documents its four the same way.
+
+### What goes wrong today
+
+Define `viewRow` with the wrong signature and the error lands at the call site
+*inside* `moview` - a diagnostic pointing into library code the program's
+author did not write, naming the wrong party. Define nothing and
+`"viewRow" is not declared` does the same. The library knows exactly what it
+wants and has nowhere to say it.
+
+### The shape
+
+```momo
+expect sub viewRow( u16 y, a16 at, u16 n )
+expect u16 nextKey()
+```
+
+Top level of the file that makes the calls, one per expected routine. The
+resolver holds the program's definition against every expectation that names
+it: a mismatch is reported against the *program's* declaration, quoting the
+library's line; an absence is reported once, naming the library that wants the
+routine, rather than at every call site. Two files may expect the same name -
+`tiger` and `tigerpic` both feed `plot` - and must agree with each other for
+the same reason they must agree with the definition.
+
+**It emits nothing.** The call is the same direct `call` it is today, so the
+identity tier can assert the feature costs zero instructions - the same claim
+§48 makes and tests.
+
+**Pruning decides whether an expectation binds.** An `expect` whose calls are
+all pruned asks for nothing: include `moview`, never open a view, and the
+program owes no `viewRow`. That is the rule everything else already follows -
+what survives pruning is what must resolve.
+
+### What it is not
+
+Not §19's routine parameters and not function pointers: the binding is still by
+name, at compile time, exactly as it is now. Not a default body - an `expect`
+with a fallback implementation is a different feature with a different §, and
+the empty-`plot`-as-filter trick in `clippath.momo` shows the library side can
+already express "taken, deliberately" without one.
+
+### Unsettled
+
+- **Whether a `local` routine can satisfy one.** The seam is cross-file by
+  nature, so instinct says no - but momoed satisfying `momenu`'s four from its
+  own file is a real case to check before the rule is written.
+- **The spelling.** `expect` reads right at the use site; whether it collides
+  with anything a program plausibly names is a grep away.
+- **Whether `expect` also serves §24.** A handler is another routine something
+  else calls by contract, but the caller there is hardware and the signature
+  question is different (`iret`, saved registers). Kept separate unless the
+  designs turn out to rhyme.
