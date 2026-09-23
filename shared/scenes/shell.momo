@@ -94,7 +94,7 @@ const foxMinW      = 5          // "quick", "brown" and "jumps" all tie
 // compiler's rather than the caller's - and needs no closure to do it.
 
 // A caption above a strip of content.
-sub stripOpen( u16 caption ) {
+sub stripOpen( a16 caption ) {
   cfgCol()
   cfgGrowW()
   boxOpen()
@@ -120,7 +120,7 @@ bracket strip = stripOpen / stripClose
 // A centred label on a coloured panel. The width is whatever the caller left in
 // cfg, which works because cfg is not spent until the box opens - so the four
 // wrappers below differ only in how they set it.
-local sub swatchBody( u16 at, u8 bg ) {
+local sub swatchBody( a16 at, u8 bg ) {
   cfgInsetX( u )
   cfg.alignMain = alignCenter
   panel( bg ) {
@@ -128,21 +128,21 @@ local sub swatchBody( u16 at, u8 bg ) {
   }
 }
 
-sub swatchFit( u16 at, u8 bg ) => swatchBody( at, bg )
+sub swatchFit( a16 at, u8 bg ) => swatchBody( at, bg )
 
-sub swatchGrow( u16 at, u8 bg ) {
+sub swatchGrow( a16 at, u8 bg ) {
   cfgGrowW()
   swatchBody( at, bg )
 }
 
-sub swatchFixed( u16 at, u8 bg, u16 n ) {
+sub swatchFixed( a16 at, u8 bg, u16 n ) {
   cfgFixedW( n )
   swatchBody( at, bg )
 }
 
 // A grow with a ceiling, so the candidate drops out of the convergence loop when
 // it reaches it.
-sub swatchCapped( u16 at, u8 bg, u16 n ) {
+sub swatchCapped( a16 at, u8 bg, u16 n ) {
   cfgGrowW()
   cfg.wMax = n
   swatchBody( at, bg )
@@ -311,7 +311,7 @@ sub buildCapped {
 // once both reach their longest word the rest overflows rather than crushing
 // them.
 
-sub squeezeTrack( u16 caption, u16 width ) {
+sub squeezeTrack( a16 caption, u16 width ) {
   strip( caption ) {
     cfgFixedW( width )
     cfg.gap = u
@@ -372,7 +372,7 @@ sub buildOverflow {
 // Ported because `end` appears nowhere else: without this scene leadFor's third
 // branch never runs on either axis.
 
-sub alignCell( u16 at, u8 main, u8 cross ) {
+sub alignCell( a16 at, u8 main, u8 cross ) {
   cfgFixedW( 12 * u )
   cfgFixedH( 3 * lineHeight )
   cfg.alignMain = main
@@ -382,7 +382,7 @@ sub alignCell( u16 at, u8 main, u8 cross ) {
   }
 }
 
-sub alignRow( u16 a, u16 b, u16 c, u8 cross ) {
+sub alignRow( a16 a, a16 b, a16 c, u8 cross ) {
   cfgGrowW()
   cfg.gap = u
   box {
@@ -415,7 +415,7 @@ sub buildAlignment {
 // momolo never learns it is text - the same string three times, and every
 // difference on screen comes from the column it was put in.
 
-sub wrapCol( u16 caption, u16 width ) {
+sub wrapCol( a16 caption, u16 width ) {
   cfgCol()
   cfgFixedW( width )
   panel( darkGray ) {

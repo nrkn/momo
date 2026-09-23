@@ -1245,7 +1245,7 @@ longestWord:
 ; ============================================== sub paraAuto ====
 
 paraAuto:
-; ---- sub paraAuto( u16 at, u8 fg, u8 bg ) => paraPaint( at, longestWord( at ), fg, bg )
+; ---- sub paraAuto( a16 at, u8 fg, u8 bg ) => paraPaint( at, longestWord( at ), fg, bg )
         mov     ax, [paraAuto__at]
         push    ax                          ; argument evaluated before any is stored
         mov     ax, [paraAuto__at]
@@ -5206,7 +5206,7 @@ w311Group:
         pop     ax
         cmp     ax, bx
         jae     .L649                       ; unsigned <
-; ---- progIcon( peek16( names + 2 * ( flowRow[ r ].first + k ) ) )
+; ---- progIcon( a16( peek16( names + 2 * ( flowRow[ r ].first + k ) ) ) )
         mov     ax, [w311Group__names]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [w311Group__r]

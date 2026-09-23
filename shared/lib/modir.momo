@@ -57,7 +57,7 @@ bool listOverflowed() => listFull_
 
 // The address of entry `i`'s name, ASCIZ - the form `fileOpen` takes, so a caller
 // that wants to open what is selected needs no copy.
-u16 listName( u16 i ) => addr( listNames ) + order[i] * listNameMax
+a16 listName( u16 i ) => addr( listNames ) + order[i] * listNameMax
 
 bool listIsDir( u16 i ) => listDir[ order[i] ] != 0
 
@@ -67,8 +67,8 @@ bool listIsDir( u16 i ) => listDir[ order[i] ] != 0
 // half because DOS hands names back uppercased, so there is no case to fold -
 // and doing it anyway would be a fold that nothing could ever exercise.
 local bool before( u16 slot, u16 other ) {
-  u16 a
-  u16 b
+  a16 a
+  a16 b
   u8  ca
   u8  cb
 
@@ -127,16 +127,16 @@ local sub insertSorted( u16 slot ) {
 //
 // It sorts to the front on its own: it is a directory, and '.' is below every
 // letter.
-local bool isDot( u16 at ) => peek8( at ) == '.' && peek8( at + 1 ) == 0
+local bool isDot( a16 at ) => peek8( at ) == '.' && peek8( at + 1 ) == 0
 
 // Enumerate `pattern` and build the list. `attr` is §38's - `dirNormal` for files
 // alone, `dirDirectory` to include subdirectories, which sort to the front.
 //
 // The list is rebuilt from nothing every time, because a directory is not ours
 // and anything may have written to it since.
-sub listLoad( u16 pattern, u8 attr ) {
+sub listLoad( a16 pattern, u8 attr ) {
   u16 slot
-  u16 to
+  a16 to
   u16 n
 
   listCount_ = 0
@@ -173,8 +173,8 @@ sub listLoad( u16 pattern, u8 attr ) {
 
 // True when `i` names the file at `at`, so a caller can mark the one it has open
 // without holding an index that a reload would invalidate.
-bool listIsNamed( u16 i, u16 at ) {
-  u16 a
+bool listIsNamed( u16 i, a16 at ) {
+  a16 a
   u8  ca
   u8  cb
 

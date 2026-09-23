@@ -58,7 +58,7 @@ __entry:
 .L6:
         jmp     .L5
 .L7:
-; ---- putStr( peek16( outer[0] ) )          // inner
+; ---- putStr( a16( peek16( outer[0] ) ) )          // inner
         mov     ax, [outer]
         mov     bx, ax
         mov     ax, [bx]                    ; peek16 - unchecked, by design

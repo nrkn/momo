@@ -1,0 +1,9 @@
+// EXPECT-ERROR: an address moves by a plain count
+// A unit is a measured quantity, not a count, so it does not move an address.
+unit px = u16
+px w
+u8[8] buf
+a16 at
+a16 other
+u16 n
+at = at + w

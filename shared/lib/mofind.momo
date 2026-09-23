@@ -50,7 +50,7 @@ local u8 fold( u8 ch ) => ( ch >= 'a' && ch <= 'z' ) ? ch - 32 : ch
 // const string or a slice without any of them being the one shape this expects.
 // A pattern longer than the maximum is cut rather than refused: it is a person's
 // typing, not a file.
-sub findSet( u16 at, u16 n ) {
+sub findSet( a16 at, u16 n ) {
   if ( n > findMax ) n = findMax
 
   patLen = n

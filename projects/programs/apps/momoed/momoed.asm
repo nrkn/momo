@@ -6049,7 +6049,7 @@ fieldSet:
 ; ============================================== u16 fieldAddr ====
 
 fieldAddr:
-; ---- u16 fieldAddr()   => addr( fieldBuf )
+; ---- a16 fieldAddr()   => addr( fieldBuf )
         mov     ax, mofield__fieldBuf       ; link-time constant
         mov     [fieldAddr__ret], ax
         ret
@@ -7598,7 +7598,7 @@ dirNext:
 ; ============================================== u16 dirName ====
 
 dirName:
-; ---- u16 dirName() => addr( dirBlock ) + dirNameAt
+; ---- a16 dirName() => addr( dirBlock ) + dirNameAt
         mov     ax, dir__dirBlock           ; link-time constant
         add     ax, 30
         mov     [dirName__ret], ax
@@ -7665,7 +7665,7 @@ listOverflowed:
 ; ============================================== u16 listName ====
 
 listName:
-; ---- u16 listName( u16 i ) => addr( listNames ) + order[i] * listNameMax
+; ---- a16 listName( u16 i ) => addr( listNames ) + order[i] * listNameMax
         mov     ax, modir__listNames        ; link-time constant
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [listName__i]
@@ -7883,7 +7883,7 @@ modir__insertSorted:
 ; ============================================== bool modir__isDot ====
 
 modir__isDot:
-; ---- local bool isDot( u16 at ) => peek8( at ) == '.' && peek8( at + 1 ) == 0
+; ---- local bool isDot( a16 at ) => peek8( at ) == '.' && peek8( at + 1 ) == 0
         mov     ax, [modir__isDot__at]
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
@@ -10028,7 +10028,7 @@ dlgCount:
 ; ============================================== u16 dlgButton ====
 
 dlgButton:
-; ---- u16 dlgButton( u16 i ) => addr( sButtons[i] )
+; ---- a16 dlgButton( u16 i ) => addr( sButtons[i] )
         mov     ax, [dlgButton__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -11611,7 +11611,7 @@ statusClip:
 ; ============================================== sub statusText ====
 
 statusText:
-; ---- sub statusText( u16 x, u16 at ) => statusClip( x, at, cols )
+; ---- sub statusText( u16 x, a16 at ) => statusClip( x, at, cols )
         mov     ax, [statusText__x]
         mov     [statusClip__x], ax
         mov     ax, [statusText__at]
@@ -12330,7 +12330,7 @@ toggleExplorer:
 ; ============================================== bool isUp ====
 
 isUp:
-; ---- bool isUp( u16 at ) => peek8( at ) == '.' && peek8( at + 1 ) == '.' &&
+; ---- bool isUp( a16 at ) => peek8( at ) == '.' && peek8( at + 1 ) == '.' &&
 ; ---- peek8( at + 2 ) == 0
         mov     ax, [isUp__at]
         mov     bx, ax
@@ -14205,7 +14205,7 @@ menuCount:
 ; ============================================== u16 menuTitle ====
 
 menuTitle:
-; ---- u16 menuTitle( u16 m ) => menu[m].title
+; ---- a16 menuTitle( u16 m ) => menu[m].title
         mov     ax, [menuTitle__m]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -14227,7 +14227,7 @@ menuItemCount:
 ; ============================================== u16 menuItemText ====
 
 menuItemText:
-; ---- u16 menuItemText( u16 m, u16 i ) => peek16( menu[m].items + 2 * i )
+; ---- a16 menuItemText( u16 m, u16 i ) => a16( peek16( menu[m].items + 2 * i ) )
         mov     ax, [menuItemText__m]
         shl     ax, 1                       ; word elements
         mov     bx, ax

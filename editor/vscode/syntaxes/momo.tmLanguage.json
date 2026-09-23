@@ -87,7 +87,7 @@
           }
         },
         {
-          "match": "\\b(u8|i8|u16|i16|bool)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(?=\\()",
+          "match": "\\b(u8|i8|u16|i16|bool|a16)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(?=\\()",
           "captures": {
             "1": {
               "name": "storage.type.momo"
@@ -98,7 +98,7 @@
           }
         },
         {
-          "match": "\\b(const)\\s+(u8|i8|u16|i16|bool)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(?=\\()",
+          "match": "\\b(const)\\s+(u8|i8|u16|i16|bool|a16)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(?=\\()",
           "captures": {
             "1": {
               "name": "keyword.declaration.momo"
@@ -161,7 +161,7 @@
     },
     "types": {
       "name": "storage.type.momo",
-      "match": "\\b(u8|i8|u16|i16|bool)\\b"
+      "match": "\\b(u8|i8|u16|i16|bool|a16)\\b"
     },
     "builtins": {
       "name": "variable.language.momo",

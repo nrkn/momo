@@ -14,7 +14,7 @@ sub repe { _dl = 4 }
 sub repz { _dl = 5 }
 sub repne { _dl = 6 }
 sub repnz { _dl = 7 }
-sub a16 { _dl = 8 }
+// `a16` was here, and §71 made it a type - which retires the collision.
 sub o32 { _dl = 9 }
 sub bnd { _dl = 10 }
 
@@ -34,7 +34,6 @@ repe()
 repz()
 repne()
 repnz()
-a16()
 o32()
 bnd()
 

@@ -28,7 +28,7 @@ sub t {
   roll = strLen(addr(status))
   strCopy(addr(copy), addr(status))
   roll = u16(strCmp(addr(copy), addr(status)))
-  roll = strFind(addr(status), '/')
+  roll = strFind(addr(status), '/') - addr(status)
   memCopy(addr(copy), addr(status), 4)
   memFill(addr(copy), len(copy), 0)
 

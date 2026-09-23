@@ -935,7 +935,7 @@ u16 lineLength( u16 ln ) => ln < lineCount ? lineLen[ln] : 0
 // were actually there. One walk of the chain however long the line is, which is
 // the whole read interface: there is deliberately no "character at" call for a
 // caller to put in a loop.
-u16 lineSlice( u16 ln, u16 col, u16 count, u16 at ) {
+u16 lineSlice( u16 ln, u16 col, u16 count, a16 at ) {
   u16 c
   u16 left
   u16 done
@@ -1060,15 +1060,15 @@ u16 lineColAt( u16 ln, u16 cell, u16 stop ) {
 // the row. After that an output position is its own display column - column
 // `from + ( p - at )` - so nothing counts columns while copying, and a byte is at
 // least one cell, which bounds each chunk's copy before it starts.
-u16 lineCells( u16 ln, u16 from, u16 cells, u16 stop, u16 at ) {
+u16 lineCells( u16 ln, u16 from, u16 cells, u16 stop, a16 at ) {
   u16 c
   u16 i
   u16 n
   u16 w
   u16 cell
-  u16 out
-  u16 end
-  u16 base
+  a16 out
+  a16 end
+  a16 base
   u8  b
 
   if ( ln >= lineCount ) return 0
@@ -1617,7 +1617,7 @@ local u16 saveWrote
 
 u16 textWrote() => saveWrote
 
-local bool putOut( u16 handle, u16 at, u16 n ) {
+local bool putOut( u16 handle, a16 at, u16 n ) {
   u16 sent
 
   sent = fileWrite( handle, at, n )

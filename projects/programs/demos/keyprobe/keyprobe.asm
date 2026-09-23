@@ -956,7 +956,7 @@ usingConfig:
 ; ============================================== u16 promptsAt ====
 
 promptsAt:
-; ---- u16 promptsAt()  => usingConfig() ? addr( cfg ) : addr( prompts )
+; ---- a16 promptsAt()  => usingConfig() ? addr( cfg ) : addr( prompts )
         call    usingConfig
         mov     al, [usingConfig__ret]
         xor     ah, ah                      ; bool -> u16

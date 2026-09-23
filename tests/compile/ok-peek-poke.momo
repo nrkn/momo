@@ -5,13 +5,13 @@ include "lib/std/str.momo"
 u8[8]  bytes
 u16[4] words
 u8     one
-u16    at
+a16    at
 u16    i
 u8     b
 u16    w
 bool   flag
 
-u16 addressOf() => addr( bytes )
+a16 addressOf() => addr( bytes )
 
 // A constant address folds like any other expression, and a computed one is the
 // whole point of these four existing.

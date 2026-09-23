@@ -29,7 +29,7 @@ const u8[] tView    = "Explorer$\0"
 const u8[] tFile    = "New$Open$Save$\0"
 const u8[] tNothing = "\0"
 
-u16 menuBlob( u16 m ) {
+a16 menuBlob( u16 m ) {
   if ( m == 0 ) return addr( tEdit )
   if ( m == 1 ) return addr( tView )
   if ( m == 2 ) return addr( tFile )
@@ -38,10 +38,10 @@ u16 menuBlob( u16 m ) {
 }
 
 u16 menuCount() => strParts( addr( tTitles ) )
-u16 menuTitle( u16 m ) => nthStr( addr( tTitles ), m )
+a16 menuTitle( u16 m ) => nthStr( addr( tTitles ), m )
 
 u16 menuItemCount( u16 m ) => strParts( menuBlob( m ) )
-u16 menuItemText( u16 m, u16 i ) => nthStr( menuBlob( m ), i )
+a16 menuItemText( u16 m, u16 i ) => nthStr( menuBlob( m ), i )
 
 // ---- driving it ----
 

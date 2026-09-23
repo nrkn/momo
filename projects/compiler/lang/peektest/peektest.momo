@@ -11,14 +11,14 @@ u8[8]  bytes
 u16[4] words
 u8     scratch
 
-u16 at
+a16 at
 u16 total
 u16 seq
 
 // §7 evaluates arguments left to right, and a poke has two. Nothing about the
 // emitted code shows which order it chose, so these record it: each appends its
 // own digit, and the address is the left argument.
-u16 whereTo() {
+a16 whereTo() {
   seq = seq * 10 + 1
   return addr( bytes )
 }

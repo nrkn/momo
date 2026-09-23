@@ -1,0 +1,7 @@
+// EXPECT-ERROR: "-=" makes a plain count, and the left side is an address
+// at - other is the count between them, which is not what at holds.
+u8[8] buf
+a16 at
+a16 other
+u16 n
+at -= other

@@ -4131,7 +4131,7 @@ shell__swatchBody:
 ; ============================================== sub swatchFit ====
 
 swatchFit:
-; ---- sub swatchFit( u16 at, u8 bg ) => swatchBody( at, bg )
+; ---- sub swatchFit( a16 at, u8 bg ) => swatchBody( at, bg )
         mov     ax, [swatchFit__at]
         mov     [shell__swatchBody__at], ax
         mov     al, [swatchFit__bg]

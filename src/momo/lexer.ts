@@ -13,7 +13,9 @@
 // ending in a trailing binary operator.
 
 import { raise } from './diagnostics.js'
-import { canEndStatement, keywords, operators, typeNames, type Token, type TokenKind } from './tokens.js'
+import {
+  builtinUnits, canEndStatement, keywords, operators, typeNames, type Token, type TokenKind,
+} from './tokens.js'
 
 const isDigit = (ch: string): boolean => ch >= '0' && ch <= '9'
 
@@ -292,8 +294,11 @@ export const tokenize = (source: string, file: string): Token[] => {
         continue
       }
 
-      if (typeNames.includes(text)) push('type', text, startLine, startCol)
-      else if (keywords.includes(text)) push('keyword', text, startLine, startCol)
+      if (typeNames.includes(text)) {
+        push('type', text, startLine, startCol)
+        const storage = builtinUnits[text]
+        if (storage !== undefined) tokens[tokens.length - 1].storage = storage
+      } else if (keywords.includes(text)) push('keyword', text, startLine, startCol)
       else push('ident', text, startLine, startCol)
 
       continue

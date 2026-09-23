@@ -1,0 +1,3 @@
+// EXPECT-ERROR: its rules are not a unit's to inherit
+// A unit standing for a16 would have the address arithmetic under a unit's name.
+unit ptr = a16

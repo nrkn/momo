@@ -289,7 +289,7 @@ sub runKeys( u16 n ) {
 
 // ---- showing it ----
 
-sub viewRow( u16 y, u16 at, u16 n ) {
+sub viewRow( u16 y, a16 at, u16 n ) {
   for ( u16 i = 0; i < n; i++ ) {
     putChar( peek8( at + i ) )
   }

@@ -76,7 +76,7 @@ local sub dirSetDTA {
 
 // AH=4Eh. `at` is an ASCIZ pattern - `"*.*\0"`, or a path with wildcards in the
 // last element. `attr` is what to include *besides* ordinary files.
-bool dirFirst( u16 at, u8 attr ) {
+bool dirFirst( a16 at, u8 attr ) {
   dirSetDTA()
 
   _ah = 0x4E
@@ -105,7 +105,7 @@ bool dirNext() {
 // the form DOS takes back - so it can be handed straight to `fileOpen` without a
 // copy. A caller that wants to print it copies out `dirNameLen` bytes and adds
 // its own terminator, which is one loop in the program that knows what it wants.
-u16 dirName() => addr( dirBlock ) + dirNameAt
+a16 dirName() => addr( dirBlock ) + dirNameAt
 
 u16 dirNameLen() {
   u16 n

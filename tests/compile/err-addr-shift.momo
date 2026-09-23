@@ -1,0 +1,7 @@
+// EXPECT-ERROR: cannot apply ">>" to an address
+// Halving a place is not a place either; u16( at ) says the bits are meant.
+u8[8] buf
+a16 at
+a16 other
+u16 n
+n = at >> 1

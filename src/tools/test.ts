@@ -516,6 +516,7 @@ const goldenCount = goldenTests()
 // files say different things, on purpose.
 const identityPairs: [string, string, string][] = [
   ['units leave no trace (§39)', 'ok-unit-typed.momo', 'ok-unit-plain.momo'],
+  ['an address type leaves no trace (§71)', 'ok-addr-typed.momo', 'ok-addr-plain.momo'],
   [
     'a counter declared in a for leaves no trace (§44)',
     'ok-for-decl-sugar.momo',

@@ -1,0 +1,45 @@
+// Every a16 shape that must work (§71). `ok-addr-plain.momo` is the same program
+// in u16 with a cast at each boundary instead, and the two must emit the same
+// instructions: the type is checking and nothing else.
+
+u8[16] buf
+const u8[] msg = "hello$"
+const a16 psp = 0x80
+
+a16 at
+a16 end
+u16 n
+u16 i
+u8  b
+
+a16 skip( a16 p, u16 by ) => p + by
+
+at = addr( buf )
+end = at + len( buf )               // an address moves by a count
+n = end - at                        // and two of them subtract to one
+at = 2 + at                         // from either side
+at = at - n
+at += 3
+at -= 1
+at++
+at--
+
+while ( at < end ) {
+  poke8( at, 0 )
+  at++
+}
+
+at = skip( addr( buf ), i )         // through a parameter and a return
+if ( at == 0 ) n = 1                // the 0 that strFind returns for none
+if ( !at ) n = 2
+at = i > 0 ? at : 0
+
+b = peek8( psp + i )                // a typed const is an address too
+b = peek8( 0x81 )                   // and so is a literal
+
+_dx = addr( msg )                   // a register takes an address as it is
+at = a16( _bx )                     // and gives one back only by a cast
+n = u16( at ) >> 1                  // the bits, when it is the bits that are meant
+
+poke16( at, peek16( at + 2 ) )
+at = a16( peek16( at ) )            // an address stored in memory

@@ -1,0 +1,3 @@
+// EXPECT-ERROR: "a16" is built in
+// The built-in unit cannot be declared over.
+unit a16 = u16

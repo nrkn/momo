@@ -1,0 +1,7 @@
+// EXPECT-ERROR: cannot apply "-" to an address
+// A negative place means nothing.
+u8[8] buf
+a16 at
+a16 other
+u16 n
+n = u16( -at )

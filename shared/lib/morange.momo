@@ -40,7 +40,7 @@ bool rangeCopied() => copyFit
 // `at`. At most `max` bytes, and the count written is returned - so a caller
 // with a fixed clipboard finds out that it did not all fit rather than being
 // told about it later by a corrupted heap.
-u16 rangeCopy( u16 fromLn, u16 fromCol, u16 toLn, u16 toCol, u16 at, u16 max ) {
+u16 rangeCopy( u16 fromLn, u16 fromCol, u16 toLn, u16 toCol, a16 at, u16 max ) {
   u16 done
   u16 last
   u16 c0
@@ -146,7 +146,7 @@ sub rangeDelete( u16 fromLn, u16 fromCol, u16 toLn, u16 toCol ) {
 // what makes a pasted span of three lines three lines rather than one with two
 // control characters in it. A carriage return is dropped, the same way
 // `textLoad` drops one, so a span that came from a file pastes clean.
-sub rangeInsert( u16 ln, u16 col, u16 at, u16 n ) {
+sub rangeInsert( u16 ln, u16 col, a16 at, u16 n ) {
   u8 ch
 
   undoStep {
@@ -331,7 +331,7 @@ include "lib/mofind.momo"
 
 // The pattern is §59's, already set by `findSet`, because the caller had to set
 // it to have something to replace. Returns how many were replaced.
-u16 rangeReplaceAll( u16 at, u16 n ) {
+u16 rangeReplaceAll( a16 at, u16 n ) {
   u16 ln
   u16 col
   u16 count

@@ -1066,6 +1066,13 @@ is the feature working rather than a defect, but it means a unit pays off inside
 a body of code that shares it and costs at the edge where it meets one that does
 not.
 
+### Five holes nothing had reached
+
+A unit parameter, a unit return and a typed const each lost their unit, and the
+printer dropped a return's - none of it reachable from `unittest`, all of it
+found because §71 could not work until it was closed. The list, and the gap in
+compound assignment that was left open, are under DECISIONS §71.
+
 ---
 ## 38. File I/O
 
@@ -1793,6 +1800,92 @@ field with no data, the write, and the admission of addresses, which also failed
 `cgroup`'s round trip because the printed program could not be compiled without
 it. Treating a column's addresses as table data changed exactly one line of
 `cgroup.asm` - `sUnused` came back.
+
+---
+
+## 71. `a16`
+
+### A reviewer's suggestion, and the one change it needed
+
+The suggestion was a built-in unit over `u16` for addresses, with §39's mixing
+rules and `addr()` returning it. The type was right and the rules were not, and
+the reason could be seen before anything was written: under §39 a typed
+unitless value beside a unit is an error, so `peek8( at + i )` - the line
+`std/str.momo` is made of - would have needed a cast in every loop. §39 is
+built for quantities that add to themselves. An address is a place, and a place
+plus a place is nothing; the rules became places and distances, and the rest of
+the design followed from that one substitution.
+
+### Drafted, and what the draft settled
+
+It was written before it was argued further, and the migration answered the
+three things the discussion had left open:
+
+- **Strict, not lenient.** A `peek` that still took a plain `u16` would have made
+  the type opt-in, which is where §39 ended up - `tennis` asked for units and
+  never declared one. Strict meant migrating the corpus, and the corpus was the
+  measurement: 39 `.momo` files outside the tests, about 170 declarations
+  retyped from `u16`, and four casts in all. Three are `a16( peek16( ... ) )`,
+  reading an address that was stored as a word - `addrtab`, `win311` and
+  `momoed`'s menus - and one is `u16( strFind( ... ) )`, to print one. One typed
+  const, `dirtest`'s PSP offset, did the rest.
+- **Registers take an address; they give one back only by a cast.** No program
+  needed the second direction. `ok-addr-typed` writes it once so it is held.
+- **§51's constants stay admitted.** A table ending in 0 is the sentinel shape,
+  and it is the same untyped-constant rule every unit already follows.
+
+Code already written as places and distances needed nothing. `motext`'s
+`lineCells` moves three addresses through a row and took no casts, which is the
+best evidence the rules match how this code was already being written.
+
+### What naming had been carrying
+
+The case for the type was that `at` means an address by convention only. The
+migration counted it: eight parameters named `at` hold an index - `undoEntry`,
+`redoEntry`, `fieldRemove`, `candRemove`, and momovec's `mapX` and `mapY` in
+both `direct` and `zoom`, which take a vertex - with more among `motext`'s locals
+and one in `momoed` that is a slot number, and `askAt` is a screen column.
+Twenty-four `u16 at` declarations survived the migration, and a strict `peek` is
+what now says none of them is read through as an address in our segment: they
+are undo slots, chunk offsets, vertex indices, video and far-memory offsets, and
+one table index. Renaming them is a separate change, so its `.asm` diff - parameters are
+labels - can be read on its own.
+
+### It found five holes in §39
+
+None of these was reachable from `unittest`, and `a16` could not work until each
+was closed - which is the only reason they were found:
+
+- a unit parameter lost its unit inside the body, in both places the parameter
+  was declared;
+- a call to a fn returning a unit lost it, because the routine's symbol never
+  recorded `returnUnit`;
+- so `return` inside such a fn checked against a plain type, and a fn declared
+  to return a unit could not return a value of it at all - only a constant;
+- a typed scalar const dropped its unit;
+- the printer spelled a fn's return type by its storage, which the round trip
+  would have caught the first time a program had one.
+
+Each has an `err-unit-*` file now. **§39's compound assignment still ignores
+units** - `px x; x += someMs` compiles - because `x op= e` checks storage only.
+§71 checks it for `a16` and left the general case alone, which is a known gap
+rather than a decision.
+
+### The teeth
+
+Every guard failed a file written for it, with one exception: the unit written
+onto a parameter's *global* symbol. The body reads the parameter through the
+routine's local scope, which has its own copy, so nothing reads the global
+one's unit and neutering it changed nothing. It is kept for the same reason
+`frac` sits beside it, and it is untested because it is unread.
+
+### What it did not cost
+
+The instruction stream is identical across every project but one, compared with
+source quotes stripped: the only change is `prefixes`, which lost its `a16`
+routine because a type cannot name one, and printed a smaller sum to match. The
+identity pair holds that as a test from here on. Tier 2 ran all 62 programs green
+on the migrated corpus.
 
 ---
 

@@ -1,0 +1,7 @@
+// EXPECT-ERROR: write a16( ... ) if the other side is an address
+// Unlike at + n there is no reading of at < n that is not a mix-up. A constant is fine.
+u8[8] buf
+a16 at
+a16 other
+u16 n
+if ( at < n ) n = 0

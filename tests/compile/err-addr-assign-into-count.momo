@@ -1,0 +1,7 @@
+// EXPECT-ERROR: "+=" makes an address, and the left side is plain u16
+// n + at is a place, and n is a count.
+u8[8] buf
+a16 at
+a16 other
+u16 n
+n += at

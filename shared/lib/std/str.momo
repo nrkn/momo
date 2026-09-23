@@ -24,7 +24,7 @@
 const strEnd = '$'
 
 // Length not counting the terminator.
-u16 strLen( u16 at ) {
+u16 strLen( a16 at ) {
   u16 n
   n = 0
 
@@ -38,7 +38,7 @@ u16 strLen( u16 at ) {
 // Copies up to and including the terminator, so the destination is a string
 // afterwards. The destination must have room for strLen(from) + 1 bytes; nothing
 // here can check that.
-sub strCopy( u16 to, u16 from ) {
+sub strCopy( a16 to, a16 from ) {
   u16 i
   u8  ch
 
@@ -80,7 +80,7 @@ sub strCopy( u16 to, u16 from ) {
 // **Counted rather than written down beside it**, which is the whole reason it
 // is here: a count in a second place is a count that disagrees the first time
 // somebody adds a line to the blob and not to the number.
-u16 strParts( u16 at ) {
+u16 strParts( a16 at ) {
   u16 n
   u16 i
 
@@ -95,7 +95,7 @@ u16 strParts( u16 at ) {
   return n
 }
 
-u16 nthStr( u16 at, u16 n ) {
+a16 nthStr( a16 at, u16 n ) {
   u16 i
   u16 seen
 
@@ -113,7 +113,7 @@ u16 nthStr( u16 at, u16 n ) {
 // Negative, zero or positive on the first differing byte, like C's strcmp. i16
 // because the difference of two bytes is signed - and because returning it,
 // rather than -1/0/1, lets a caller sort as well as test.
-i16 strCmp( u16 a, u16 b ) {
+i16 strCmp( a16 a, a16 b ) {
   u16 i
   u8  ca
   u8  cb
@@ -137,7 +137,7 @@ i16 strCmp( u16 a, u16 b ) {
 //
 // Searching for '$' finds the terminator, which is the useful answer - it is the
 // same address strLen would have you compute.
-u16 strFind( u16 at, u8 ch ) {
+a16 strFind( a16 at, u8 ch ) {
   u16 i
   u8  c
 
@@ -156,13 +156,13 @@ u16 strFind( u16 at, u8 ch ) {
 // Forward copy, so it is memcpy rather than memmove: overlapping regions where
 // `to` is above `from` will copy bytes over themselves. Deliberate - the reverse
 // loop that fixes it costs every caller that does not need it.
-sub memCopy( u16 to, u16 from, u16 count ) {
+sub memCopy( a16 to, a16 from, u16 count ) {
   for ( u16 i = 0; i < count; i++ ) {
     poke8( to + i, peek8( from + i ) )
   }
 }
 
-sub memFill( u16 at, u16 count, u8 value ) {
+sub memFill( a16 at, u16 count, u8 value ) {
   for ( u16 i = 0; i < count; i++ ) {
     poke8( at + i, value )
   }
@@ -187,7 +187,7 @@ sub memFill( u16 at, u16 count, u8 value ) {
 //
 // Returns the length of the table, which is what a caller hands to `nthStr`
 // alongside the address it already had.
-u16 strLines( u16 at, u16 bytes ) {
+u16 strLines( a16 at, u16 bytes ) {
   u16 out
   u8  ch
   bool atStart
@@ -256,7 +256,7 @@ const numMaxDigits = 5
 // Decimal text of `n` at `at`. Returns the length, and 1 for zero rather than 0 -
 // a number always has at least one digit, and a caller advancing by what it wrote
 // would otherwise overwrite the zero with whatever came next.
-u16 numText( u16 at, u16 n ) {
+u16 numText( a16 at, u16 n ) {
   u8[numMaxDigits] digits
   u16 i
 
@@ -291,7 +291,7 @@ u16 numText( u16 at, u16 n ) {
 // the test bite turned a three-column field into 65,534 bytes of padding, which
 // is a wider failure than the one the branch is written for and worth knowing is
 // behind the same comparison.
-u16 numRight( u16 at, u16 n, u16 width, u8 pad ) {
+u16 numRight( a16 at, u16 n, u16 width, u8 pad ) {
   u16 used
   u16 blank
 
@@ -324,7 +324,7 @@ u16 numWidth( u16 n ) {
 // Four uppercase hex digits, always four - a scancode written as `73E0` and one
 // written as `0F` are being read as a pair by somebody comparing rows, and
 // variable width is what makes that hard. `keyprobe` had this and now shares it.
-u16 numHex( u16 at, u16 n ) {
+u16 numHex( a16 at, u16 n ) {
   u8 nib
 
   for ( u16 i = 0; i < 4; i++ ) {
@@ -352,7 +352,7 @@ local u16 numValue
 
 u16 strValue() => numValue
 
-bool strNumber( u16 at, u16 n ) {
+bool strNumber( a16 at, u16 n ) {
   u8 ch
 
   numValue = 0

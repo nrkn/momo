@@ -11,7 +11,7 @@ push:           equ     256
 ; =========================================================== entry ====
 
 __entry:
-; ---- total = wait() + lock() + rep() + repe() + repz() + repne() + repnz() + a16()
+; ---- total = wait() + lock() + rep() + repe() + repz() + repne() + repnz()
         call    wait_
         mov     ax, [wait___ret]
         push    ax                          ; save lhs: rhs is not a leaf
@@ -47,12 +47,6 @@ __entry:
         push    ax                          ; save lhs: rhs is not a leaf
         call    repnz_
         mov     ax, [repnz___ret]
-        mov     bx, ax
-        pop     ax
-        add     ax, bx
-        push    ax                          ; save lhs: rhs is not a leaf
-        call    a16_
-        mov     ax, [a16___ret]
         mov     bx, ax
         pop     ax
         add     ax, bx
@@ -349,13 +343,6 @@ repnz_:
         mov     word [repnz___ret], 64
         ret
 
-; ============================================== u16 a16_ ====
-
-a16_:
-; ---- u16 a16() => 128
-        mov     word [a16___ret], 128
-        ret
-
 ; ============================================== u16 a32_ ====
 
 a32_:
@@ -488,7 +475,6 @@ repe___ret:     dw      0        ; u16
 repz___ret:     dw      0        ; u16
 repne___ret:    dw      0        ; u16
 repnz___ret:    dw      0        ; u16
-a16___ret:      dw      0        ; u16
 a32___ret:      dw      0        ; u16
 o16___ret:      dw      0        ; u16
 o32___ret:      dw      0        ; u16

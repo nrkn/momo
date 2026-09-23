@@ -1,0 +1,7 @@
+// EXPECT-ERROR: an address only moves by + and -
+// Scaling a place is not a place, whatever it would be for a unit (§39).
+u8[8] buf
+a16 at
+a16 other
+u16 n
+at = at * 2

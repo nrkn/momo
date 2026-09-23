@@ -484,7 +484,7 @@ dirNext:
 ; ============================================== u16 dirName ====
 
 dirName:
-; ---- u16 dirName() => addr( dirBlock ) + dirNameAt
+; ---- a16 dirName() => addr( dirBlock ) + dirNameAt
         mov     ax, dir__dirBlock           ; link-time constant
         add     ax, 30
         mov     [dirName__ret], ax

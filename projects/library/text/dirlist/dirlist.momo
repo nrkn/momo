@@ -58,13 +58,13 @@ const u8[] sJump   = "jump:$"
 
 u16 handle
 
-sub make( u16 at ) {
+sub make( a16 at ) {
   handle = fileCreate( at )
   fileWrite( handle, addr( payload ), 1 )
   fileClose( handle )
 }
 
-sub remove( u16 at ) {
+sub remove( a16 at ) {
   _ah = 0x41
   _dx = at
   int 0x21
@@ -73,13 +73,13 @@ sub remove( u16 at ) {
 // AH=39h and AH=3Ah. §38 leaves directories out of the library and this is a
 // fixture rather than a capability - `dirtest` reaches past the library for
 // delete in the same way and for the same reason.
-sub makeDir( u16 at ) {
+sub makeDir( a16 at ) {
   _ah = 0x39
   _dx = at
   int 0x21
 }
 
-sub removeDir( u16 at ) {
+sub removeDir( a16 at ) {
   _ah = 0x3A
   _dx = at
   int 0x21
@@ -92,7 +92,7 @@ sub removeDir( u16 at ) {
 u8[listNameMax + 1] shown
 
 sub showName( u16 i ) {
-  u16 at
+  a16 at
   u16 n
 
   at = listName( i )

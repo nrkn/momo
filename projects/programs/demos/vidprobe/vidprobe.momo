@@ -120,7 +120,7 @@ sub cellAt( u16 x, u16 y, u8 ch, u8 attr ) {
   vram[ y * cols + x ] = u16( ch ) | ( u16( attr ) << 8 )
 }
 
-sub textAt( u16 x, u16 y, u16 at, u8 attr ) {
+sub textAt( u16 x, u16 y, a16 at, u8 attr ) {
   u16 i
   i = 0
 

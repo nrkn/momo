@@ -28,7 +28,7 @@ u8[6]         partial = [ 1, 2, 3 ] // tail zero-filled
 u8[]          table   = [ 2, 4, 6, 8 ]
 
 u16  value
-u16  strAddr
+a16  strAddr
 u8   char
 u8   hash
 i16  signedAcc = -1                 // negative literal -> i16

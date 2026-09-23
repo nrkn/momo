@@ -65,7 +65,7 @@ sub showAll {
 
 // moview is included for `textBytes` and the buffer it brings; nothing here
 // renders, so this is the seam being declared and not used.
-sub viewRow( u16 y, u16 at, u16 n ) {
+sub viewRow( u16 y, a16 at, u16 n ) {
 }
 
 // ---- entry ----

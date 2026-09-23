@@ -1,0 +1,7 @@
+// EXPECT-ERROR: cannot put a16 in plain u16
+// addr() makes an a16, and a plain u16 is not one.
+u8[8] buf
+a16 at
+a16 other
+u16 n
+n = addr( buf )

@@ -1,5 +1,5 @@
 // EXPECT-ERROR: not declared above this
 // An initialiser is resolved where it stands, so a table names what is above
 // it. Code can name a later global; this cannot, and the message says why.
-const u16[] names = [ addr( late ) ]
+const a16[] names = [ addr( late ) ]
 const u8[] late = "late$"

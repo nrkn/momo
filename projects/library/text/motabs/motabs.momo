@@ -22,7 +22,7 @@ const u8[] source = "\tx\n"
 const cellsMax = 40
 u8[cellsMax] cells
 
-sub showCells( u16 at, u16 n ) {
+sub showCells( a16 at, u16 n ) {
   for ( u16 i = 0; i < n; i++ ) {
     if ( peek8( at + i ) == ' ' ) putChar( '.' )
     else putChar( peek8( at + i ) )
@@ -36,7 +36,7 @@ sub slice( u16 ln, u16 from, u16 n ) {
 }
 
 // The routine the window calls: the same printing as `slice`.
-sub viewRow( u16 y, u16 at, u16 n ) {
+sub viewRow( u16 y, a16 at, u16 n ) {
   showCells( at, n )
 }
 

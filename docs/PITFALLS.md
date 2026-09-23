@@ -187,7 +187,7 @@ linker.
 const u8[] names = "Write$Paintbrush$Terminal$"
 
 // The address of the nth string in a run of $-terminated ones.
-u16 nthStr( u16 at, u16 n ) {
+a16 nthStr( a16 at, u16 n ) {
   u16 i
   u16 seen
 
@@ -210,8 +210,9 @@ written out by hand has to be recomputed every time a string changes length. The
 blob is the only thing that has to stay right.
 
 **Since 2026-09-23 this is something that used to be true.** DESIGN §51 admits a
-bare `addr()` in a `const u16[]` initialiser, and the table at the top of this
-entry compiles to `dw sOne, sTwo` with NASM filling it in. The blob still works;
+bare `addr()` in a `const` table's initialiser, and the table at the top of this
+entry compiles to `dw sOne, sTwo` with NASM filling it in - declared `const a16[]`
+since §71, which is what an address is now. The blob still works;
 it is no longer the only way.
 
 ---

@@ -1,0 +1,8 @@
+// EXPECT-ERROR: cannot put px in plain u16
+// A unit parameter carries its unit inside the body (§39) - it used not to.
+unit px = u16
+u16 n
+sub f( px a ) {
+  n = a
+}
+f( 1 )

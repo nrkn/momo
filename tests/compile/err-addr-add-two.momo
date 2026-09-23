@@ -1,0 +1,7 @@
+// EXPECT-ERROR: cannot add two addresses
+// Two places do not sum to a place (§71).
+u8[8] buf
+a16 at
+a16 other
+u16 n
+at = at + other

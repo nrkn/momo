@@ -1,4 +1,4 @@
-// EXPECT-ERROR: peek8 needs a u16 address - this is i16
+// EXPECT-ERROR: peek8 needs an address - this is plain i16
 i16 offset
 u8 b
 offset = 100

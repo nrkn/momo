@@ -29,14 +29,14 @@ const clipMax = 64
 u8[clipMax] clip
 u16 clipLen
 
-sub fieldCopyOut( u16 at, u16 n ) {
+sub fieldCopyOut( a16 at, u16 n ) {
   if ( n > clipMax ) n = clipMax
 
   memCopy( addr( clip ), at, n )
   clipLen = n
 }
 
-u16 fieldPasteIn( u16 at, u16 max ) {
+u16 fieldPasteIn( a16 at, u16 max ) {
   u16 n
 
   n = 0
@@ -52,7 +52,7 @@ u16 fieldPasteIn( u16 at, u16 max ) {
 
 // Straight onto the clipboard, so a paste can be tested without a copy first -
 // including the newline case, which no copy out of a one-line field could make.
-sub setClip( u16 at, u16 n ) {
+sub setClip( a16 at, u16 n ) {
   memCopy( addr( clip ), at, n )
   clipLen = n
 }
@@ -64,7 +64,7 @@ sub press( u16 k ) {
 }
 
 sub show {
-  u16 at
+  a16 at
   at = fieldAddr()
 
   for ( u16 i = 0; i < fieldLength(); i++ ) {
@@ -79,7 +79,7 @@ sub show {
 // The bytes as numbers, because what the section below puts in the field is
 // exactly the set a terminal would not show and a `.expected` could not hold.
 sub showBytes {
-  u16 at
+  a16 at
   at = fieldAddr()
 
   for ( u16 i = 0; i < fieldLength(); i++ ) {

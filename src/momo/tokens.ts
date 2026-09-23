@@ -43,7 +43,16 @@ export type Token = {
 // declared unit names to this kind before the parser sees them. The parser stays
 // context-free that way, and the type-or-identifier line stays in the stage that
 // already draws it.
-export const typeNames = ['u8', 'i8', 'u16', 'i16', 'bool']
+//
+// `a16` is the one built-in that is also a unit (§71): an offset in our own
+// segment, stored as a u16. The lexer gives it the storage a declared unit gets,
+// so the parser decodes it by the path §39 already made and never learns the
+// difference.
+export const typeNames = ['u8', 'i8', 'u16', 'i16', 'bool', 'a16']
+
+// What each built-in unit is stored as. One entry, and a table rather than a
+// comparison so the lexer and the resolver cannot disagree about the spelling.
+export const builtinUnits: Record<string, string> = { a16: 'u16' }
 
 export const keywords = [
   'const',

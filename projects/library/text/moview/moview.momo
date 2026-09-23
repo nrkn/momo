@@ -40,7 +40,7 @@ u16 got
 // The routine moview calls, and the only thing that would differ in an editor.
 // A trailing bar makes an empty row visible as a row rather than as a blank
 // line, which is what a window past the end of the buffer produces.
-sub viewRow( u16 y, u16 at, u16 n ) {
+sub viewRow( u16 y, a16 at, u16 n ) {
   for ( u16 i = 0; i < n; i++ ) {
     putChar( peek8( at + i ) )
   }
@@ -142,7 +142,7 @@ showAt()
 
 const u8[] second = "alpha\nbravo\ncharlie\ndelta\necho\nfoxtrot\ngolf\nhotel\0"
 
-sub typeIn( u16 at ) {
+sub typeIn( a16 at ) {
   while ( peek8( at ) != 0 ) {
     textLoad( peek8( at ) )
     at++

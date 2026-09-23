@@ -844,7 +844,7 @@ menuCount:
 ; ============================================== u16 menuTitle ====
 
 menuTitle:
-; ---- u16 menuTitle( u16 m ) => nthStr( addr( tTitles ), m )
+; ---- a16 menuTitle( u16 m ) => nthStr( addr( tTitles ), m )
         mov     ax, tTitles                 ; link-time constant
         mov     [nthStr__at], ax
         mov     ax, [menuTitle__m]
@@ -871,7 +871,7 @@ menuItemCount:
 ; ============================================== u16 menuItemText ====
 
 menuItemText:
-; ---- u16 menuItemText( u16 m, u16 i ) => nthStr( menuBlob( m ), i )
+; ---- a16 menuItemText( u16 m, u16 i ) => nthStr( menuBlob( m ), i )
         mov     ax, [menuItemText__m]
         mov     [menuBlob__m], ax
         call    menuBlob

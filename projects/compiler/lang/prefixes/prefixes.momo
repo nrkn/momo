@@ -15,7 +15,8 @@
 include "lib/std/io.momo"
 
 // Prefixes. All fifteen were rejected as labels before they were mangled,
-// checked one name at a time.
+// checked one name at a time. Fourteen are here: `a16` became a type in §71,
+// and a type cannot name anything, so that collision is retired rather than mangled.
 u16 wait() => 1
 u16 lock() => 2
 u16 rep() => 4
@@ -23,7 +24,6 @@ u16 repe() => 8
 u16 repz() => 16
 u16 repne() => 32
 u16 repnz() => 64
-u16 a16() => 128
 u16 a32() => 256
 u16 o16() => 512
 u16 o32() => 1024
@@ -44,7 +44,7 @@ u16 add() => 16
 
 u16 total
 
-total = wait() + lock() + rep() + repe() + repz() + repne() + repnz() + a16()
+total = wait() + lock() + rep() + repe() + repz() + repne() + repnz()
 total = total + a32() + o16() + o32() + xacquire() + xrelease() + bnd() + nobnd()
 
 putNumber( total )

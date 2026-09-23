@@ -1,0 +1,7 @@
+// EXPECT-ERROR: a count less an address is not a place
+// Subtraction runs one way: a place less a count, or a place less a place.
+u8[8] buf
+a16 at
+a16 other
+u16 n
+at = n - at

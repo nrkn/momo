@@ -14,7 +14,7 @@ const u8[] present = "CFTEST.ASM\0"
 const u8[] missing = "NOSUCH.XYZ\0"
 
 // AH=3Dh open, AL=0 read-only, DS:DX -> name.
-sub openFile( u16 at ) {
+sub openFile( a16 at ) {
   _ah = 0x3D
   _al = 0
   _dx = at

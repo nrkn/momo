@@ -51,7 +51,7 @@ u16 perSecond( u16 done, u16 spent ) {
   return done / spent * ticksPerSecond + ( done % spent ) * ticksPerSecond / spent
 }
 
-sub report( u16 label, u16 done, u16 spent ) {
+sub report( a16 label, u16 done, u16 spent ) {
   putStr( label )
   putNumber( done )
   putStr( addr( sLines ) )

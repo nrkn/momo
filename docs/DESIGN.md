@@ -235,8 +235,11 @@ end of the routine.
 
 ## 3. Types
 
-`u8` `i8` `u16` `i16` `bool`
+`u8` `i8` `u16` `i16` `bool` `a16`
 
+- `a16` is an address in our own segment, stored as a `u16` (§71). It is what
+  `addr()` makes and all `peek` and `poke` take, and its arithmetic is places
+  and distances: a count moves it, and two of them subtract to a count.
 - `bool` is one byte with `true`/`false` literals; comparisons produce it.
 - **Only a bool may be assigned to one.** The store is a raw byte - no
   normalisation is emitted - so admitting a scalar would let a bool hold 2,
@@ -248,7 +251,8 @@ end of the routine.
   meets a declared type: initialisers, assignments, arguments and returns.
   Reading a bool into arithmetic remains free, since it is genuinely 0 or 1.
 - `if` accepts any scalar - non-zero is true, so `if (arr[i])` works.
-- Fixed-size arrays only. No pointers, no structs, no floats.
+- Fixed-size arrays only. No pointers, no structs, no floats. An `a16` is not a
+  pointer: it has no element type and nothing dereferences it (§71).
 
 **Core rule: all arithmetic happens in 16 bits; narrowing happens only on store.**
 `AL`/`AH` are never used as independent registers. Bytes exist as a memory width,
@@ -622,7 +626,9 @@ rule narrower than "mnemonics are safe": `add:`, `ret:`, `nop:` and `cbw:` all
 assemble, while `wait:`, `lock:`, `rep:` and the rest do not. All fifteen are in
 the mangled set, checked one name at a time rather than taken from a list - the
 count is worth stating because the shape of the mistake was assuming the
-category rather than testing it.
+category rather than testing it. `a16` is among them and can no longer be
+written as a name, because §71 made it a type; it stays in the set, which is
+NASM's vocabulary rather than Momo's.
 
 **The colon is what makes a mnemonic safe, and the sentence above was half
 right.** `add:` does assemble - as a *routine* label, which is the only place the
@@ -976,10 +982,10 @@ poke8( at, value )            poke16( at, value )
 - **`peek` is an expression, `poke` is a statement.** §6 keeps effects out of
   expressions, and a store is an effect. `peek8(at) = 5` is rejected with a
   message naming `poke8`, since that is what it was reaching for.
-- **The address is a `u16` offset in our own segment.** Signed types are rejected
-  rather than widened: a negative offset means nothing, and §4 already refuses to
-  mix `u16` with signed, so an `i16` address would need a cast somewhere - better
-  at the call than silently. Another segment is `far`'s job (§16).
+- **The address is an `a16`, an offset in our own segment (§71).** A constant is
+  one too. Any other number is refused, `u16` included - this used to refuse only
+  signed types, which was the most it could check while every number looked the
+  same. Another segment is `far`'s job (§16).
 - **The value follows the same fit rule a declared `u8` or `u16` would**, bool rule
   included, because a raw byte store is exactly the case that rule exists for.
 - **Nothing is bounds-checked, and nothing can be.** There is no length to check a
@@ -1013,7 +1019,7 @@ emit one copy total, smaller and indirect. Twenty different messages want these;
 two large buffers want §19.
 
 ```momo
-sub fill( u16 at, u16 count, u8 value ) {
+sub fill( a16 at, u16 count, u8 value ) {
   for ( i = 0; i < count; i++ ) {
     poke8( at + i, value )
   }
@@ -3253,6 +3259,10 @@ one and becomes a number. But it means a unit is most useful inside a body of co
 that shares it, and least useful at the edge where that code meets a library that
 does not.
 
+**`a16` is the exception, and the reason is who owns the edge.** It is built in,
+`std` takes it wherever it takes an address, and the compiler makes and consumes
+it at both ends - so there is no library it has to be cast to reach (§71).
+
 ---
 
 ## 44. Declaring the counter in a `for`
@@ -3892,7 +3902,7 @@ two rest on:
 const u8[] sOne = "one$"
 const u8[] sTwo = "two$"
 
-const u16[] names = [ addr( sOne ), addr( sTwo ) ]
+const a16[] names = [ addr( sOne ), addr( sTwo ) ]
 ```
 
 emits `names: dw sOne, sTwo`, and NASM fills the table in. Before this it was
@@ -3938,10 +3948,10 @@ else mentions.
 
 ### Rules
 
-- **`u16` elements only.** An address does not fit in a `u8`, and §10 already
-  fixes an address at one word in our own segment. An inferred table holding one
-  is `u16`, and a number beside it has to fit that word - `-1` is refused rather
-  than making the table `i16`.
+- **`a16` elements only.** An address is an `a16` (§71), so a table of them is
+  declared `const a16[]`, and a `u16` or a `u8` table cannot hold one. An inferred
+  table holding one is `a16`, and a number beside it has to fit that word - `-1`
+  is refused rather than making the table `i16`.
 - **`const` only.** A writable table of addresses is a pointer array in all but
   name, and nothing has wanted one. A writable `group` field is storage, so this
   refuses a column of addresses there too; a `const group`'s column is admitted,
@@ -5269,7 +5279,7 @@ It holds a top line, a left column, a size and a cursor, and renders by handing
 one row at a time to a routine **the program defines**:
 
 ```momo
-sub viewRow( u16 y, u16 at, u16 n )
+sub viewRow( u16 y, a16 at, u16 n )
 ```
 
 ### The routine being the program's is what makes an editor testable
@@ -6715,8 +6725,8 @@ questions.
   `std/str.momo` holds two designs in one file without saying so:
 
   ```momo
-  sub memCopy( u16 to, u16 from, u16 count )   // counted
-  sub strCopy( u16 to, u16 from )              // sentinel
+  sub memCopy( a16 to, a16 from, u16 count )   // counted
+  sub strCopy( a16 to, a16 from )              // sentinel
   ```
 
   `memCopy` and `memFill` need no convention at all, because the caller passes
@@ -7412,7 +7422,7 @@ refusals, and `momoed`'s and `edloop`'s binding tables are the first customers.
 
 ```momo
 const group colour[3] {
-  u16 name
+  a16 name
   u8  level
 } = [
   [ addr( sRed ),   10 ],
@@ -7471,3 +7481,137 @@ time, which is the pairing the rows exist to remove. So each list is named for
 its menu and the row says `addr( tFile )`, which names the list rather than a
 place in one. That refusal stays until something wants a child in a table for
 a reason that is not this.
+
+---
+
+## 71. `a16` - an address that says so
+
+**Built.** `ok-addr-typed` is the worked example (§14), `ok-addr-plain` is its
+identity pair, and the `err-addr-*` files hold the refusals. Every address in
+`shared/lib/` and `projects/` carries it.
+
+```momo
+u8[16] buf
+a16 at
+a16 end
+u16 n
+
+at  = addr( buf )
+end = at + len( buf )     // an address moves by a count
+n   = end - at            // and two of them subtract to one
+poke8( at, 0 )            // peek and poke take nothing else
+```
+
+Before this an address was a `u16`, and which `u16`s were addresses was a matter
+of naming. `memCopy( u16 to, u16 from, u16 count )` is three words, two of them
+places and one a distance, with the order held by convention. The convention
+was weaker than it looked: the migration found `at` naming an undo-log slot, a
+field column, a candidate index and a vertex, and `askAt` naming a screen
+column, beside all the `at`s that were addresses. It is `memCopy( a16 to, a16 from, u16 count )`
+now, and swapping the arguments is a compile error.
+
+### It is a unit for storage, and not for arithmetic
+
+§39 was nearly the right tool. A unit is checked on a third axis beside storage
+and scale, costs nothing in the emitter, and makes `addr()`'s result a thing the
+checker can tell apart from a count - so `a16` rides on exactly that machinery.
+What it cannot use is §39's algebra. A unit's values are all the same kind of
+quantity, so `px + px` is px. An address is a place and a count is a distance,
+and places do not add:
+
+| | |
+|---|---|
+| `a16 + count`, `count + a16` | `a16` - a place moved |
+| `a16 - count` | `a16` |
+| `a16 - a16` | a plain count - the distance between them |
+| `a16 + a16` | an error - the sum is not a place |
+| `count - a16` | an error |
+| `a16` against `a16` or a constant | `bool` |
+| `a16` against a typed count | an error |
+| `*`, `/`, `%`, `&`, `\|`, `^`, a shift, unary `-` or `~` | an error - `u16( at )` when it is the bits that are meant |
+| `!at` | `bool` - it asks whether this is the 0 that means none |
+| `a16` with a unit value | an error - a measured quantity is not a count |
+
+**A typed count moves an address**, where §39 refuses a typed unitless value
+beside a unit. `at + i` with a runtime `i` is the line every buffer loop is made
+of, and refusing it would put a cast in all of them. Comparison is the other way
+round: there is a reading of `at + i` that is not a mix-up and none of `at < i`,
+so a typed count is refused there, and a constant - `strFind`'s 0 for none -
+still compares.
+
+The payoff is that code already written as places and distances needed nothing.
+`motext`'s `lineCells` moves three addresses through a row, `base = out - i` and
+`from + base + i - at`, and took no casts at all.
+
+### Built in, which is what makes it not viral
+
+§39 closes on units being viral at a library boundary: `std` takes plain types,
+so a unit is cast at every edge. That is true of units a program declares and
+false of this one, because the compiler owns both ends - `addr()` makes an
+`a16` and `peek`, `poke` and §51's tables take one - and `std` takes `a16`
+wherever it takes an address. There is no edge for it to be cast at.
+
+The lexer marks `a16` as a type carrying the storage `u16`, the same token a
+declared unit becomes, so the parser decodes it by §39's path and learns nothing.
+It may not be declared again, and a unit may not stand for it - `unit ptr = a16`
+would put this table under a unit's name. It also retires a collision: `a16` is
+one of NASM's prefixes (§7), and a type cannot name anything.
+
+### Where it goes without a cast, and where one is honest
+
+- **Into a word register.** `_dx = addr( msg )` is how most addresses reach an
+  `int 0x21`, and a cast at every one would be a cast nobody reads.
+- **Out of a register only by a cast.** `a16( _bx )` is DOS handing an address
+  back, and that is the cast worth writing.
+- **From a constant**, which adopts it as it adopts any unit: `peek8( 0x81 )`,
+  `const a16 psp = 0x80`, a table ending in 0.
+- **Out of memory only by a cast.** `a16( peek16( row + 2 * i ) )` reads an
+  address that was stored as a word, and `peek16` cannot know what the word was.
+  This is the one cast the corpus writes more than once, and it is a real
+  reinterpretation rather than noise.
+- **Into a plain number by `u16( at )`**, to print one or take its bits.
+
+### An offset in our own segment, and only that
+
+`a16` means what §10 means by an address: DS-relative, reachable by `peek` and
+`poke`. An offset into video memory or a far region stays a `u16` - `mopaint`'s
+`drawRun` has a `base` that indexes `vram` beside an `at` that is an address,
+and the type is now what tells them apart. There is no `a32`. A far pointer is
+the runtime view §17 refuses.
+
+### No pointee, and that is the line to hold
+
+§17 refuses a runtime `view` because a declared, typed, tracked pointer would
+make everything want to be one. `a16` is typed and tracked, and has neither of
+the things that would make it that: **no element type and no dereference.**
+`peek8` and `poke16` still name the width at every use, and still look unsafe
+there. `a16<u8>`, or `p[i]` on an address, would be the runtime view under
+another name.
+
+The cost of the line is known. `poke16( at + i, v )` with `i` counting words
+rather than bytes is a stride bug, and only a pointee type could catch it.
+
+### What it cost
+
+Nothing at runtime, asserted rather than argued: `ok-addr-typed` and
+`ok-addr-plain` are the same program with and without the type, and the
+identity tier requires them to emit the same instructions. A cast to or from
+`a16` emits nothing.
+
+A name, too. `a16` is a type token now, and a program that used it as an
+identifier has to rename it - the two NASM tests did.
+
+### Rules
+
+- **`peek` and `poke` take an `a16` or a constant.** A `u16` was a number before
+  it got there, and which number is the question the type exists for.
+- **`addr()` is an `a16`.** A table of them is `const a16[]`, and a table
+  inferred from them is one.
+- **A compound assignment lands in its target's kind.** `at += n` moves an
+  address; `at -= other` makes a count and `n += at` makes an address, and both
+  are refused.
+- **`?:` follows comparison.** Both arms addresses, or one an address and the
+  other a constant.
+- **A callback the program defines (§37) says `a16` where an address crosses** -
+  `viewRow`, `menuTitle`, `fieldCopyOut` - so the program writing one is told
+  which of its arguments is a place.

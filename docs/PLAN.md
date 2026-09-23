@@ -743,7 +743,7 @@ page somebody would be on when they make the same mistake again.
 **What all three share is reading this as "arrays in routines".** It is
 compile-time monomorphisation, and the test is one question: *is the argument a
 name that is known when the program is compiled?* If it is not, the answer is
-`peek`/`poke` and a `u16` address, per the table above - which is what
+`peek`/`poke` and an `a16` address (§71), per the table above - which is what
 `std/str.momo` and `mopaint`'s `drawText` already do.
 
 ### Nothing is queuing for it, which is worth saying plainly
@@ -751,7 +751,7 @@ name that is known when the program is compiled?* If it is not, the answer is
 The four routines named at the top of this section were the case for it:
 `memcpy`, `fill`, `strLen` and `drawString`. **All four now exist, and not one of
 them is written this way.** `std/str.momo` has `strLen`, `strCopy`, `memCopy` and
-`memFill`, every one of them a `u16` address and `peek8`/`poke8` - its header says
+`memFill`, every one of them an `a16` address and `peek8`/`poke8` - its header says
 outright that it "could not be written before peek8/poke8 existed" - and
 `mopaint`'s `drawText` takes an address for the same reason.
 

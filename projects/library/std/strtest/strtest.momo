@@ -16,7 +16,7 @@ const u8[] path  = "hp 10/10$"
 u8[16] buffer
 u8[16] other
 
-u16 found
+a16 found
 
 // ---- entry ----
 
@@ -58,7 +58,7 @@ putNumber( found - addr( path ) )           // 5
 newline()
 
 // Absent gives 0, which no real address can be.
-putNumber( strFind( addr( path ), 'z' ) )   // 0
+putNumber( u16( strFind( addr( path ), 'z' ) ) )   // 0
 newline()
 
 // Searching for the terminator finds it, at the length.
@@ -90,7 +90,7 @@ const u8[] nBig  = "120000"
 const u8[] nMax  = "65535"
 const u8[] nOver = "65536"
 
-sub showNum( u16 at, u16 n ) {
+sub showNum( a16 at, u16 n ) {
   putNumber( u16( strNumber( at, n ) ) )
   putChar( ' ' )
   putNumber( strValue() )
@@ -200,7 +200,7 @@ newline()                                   // 000F
 
 u8[128] lines
 
-sub loadLines( u16 at, u16 n ) {
+sub loadLines( a16 at, u16 n ) {
   memCopy( addr( lines ), at, n )
 }
 
@@ -228,7 +228,7 @@ sub showLines( u16 n ) {
   newline()
 }
 
-u16 countStrs( u16 at, u16 bytes ) {
+u16 countStrs( a16 at, u16 bytes ) {
   u16 n
   n = 0
 

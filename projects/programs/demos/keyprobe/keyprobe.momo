@@ -135,7 +135,7 @@ u8[16] cfgArg
 
 bool takeArg() {
   u16 n
-  u16 at
+  a16 at
   u16 out
 
   n = peek8( 0x80 )
@@ -169,7 +169,7 @@ sub loadConfig {
   u16 got
   u16 n
   u16 size
-  u16 opened
+  a16 opened
 
   cfgLen = 0
 
@@ -207,7 +207,7 @@ sub loadConfig {
 
 bool usingConfig() => cfgLen > 0
 
-u16 promptsAt()  => usingConfig() ? addr( cfg ) : addr( prompts )
+a16 promptsAt()  => usingConfig() ? addr( cfg ) : addr( prompts )
 u16 promptsLen() => usingConfig() ? cfgLen : len( prompts )
 
 sub addChar( u8 c ) {
@@ -217,7 +217,7 @@ sub addChar( u8 c ) {
   reportAt++
 }
 
-sub addStr( u16 at ) {
+sub addStr( a16 at ) {
   u16 i
   i = 0
 
@@ -233,7 +233,7 @@ sub addStr( u16 at ) {
 // straight into the hex - `...if there is none3920 032E` - which is a row that
 // reads as one word and a number. The column is for the common case and the
 // space is for the row that does not fit it.
-sub addPadded( u16 at, u16 width ) {
+sub addPadded( a16 at, u16 width ) {
   u16 i
   i = 0
 
@@ -290,7 +290,7 @@ u16 shiftFlags() {
 
 // ---- counting the prompts ----
 
-u16 countStrings( u16 at, u16 bytes ) {
+u16 countStrings( a16 at, u16 bytes ) {
   u16 n
   n = 0
 
@@ -303,7 +303,7 @@ u16 countStrings( u16 at, u16 bytes ) {
 // ---- entry ----
 
 u16 total
-u16 label
+a16 label
 u16 code
 u16 flags
 u16 handle

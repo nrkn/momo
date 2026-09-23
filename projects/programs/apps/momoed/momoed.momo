@@ -225,7 +225,7 @@ const askWith = 5
 const askSave = 6
 
 u8  asking
-u16 askLabel
+a16 askLabel
 
 // Where the field starts, **measured from the label rather than written down**.
 // It used to be a const that had to agree with the width of one string; with
@@ -237,7 +237,7 @@ u16 askAt
 // `message` is an address of a `$` string or 0, shown beside whichever status
 // line is up and cleared by the next key - so a "not found" is visible until the
 // person does something and then is not.
-u16 message
+a16 message
 
 // Whether the last search in this prompt landed on something, which is the one
 // thing the renderer needs that §59 cannot answer on its own - `findLine` and
@@ -338,7 +338,7 @@ const u8[] sPickSmall = "screen too small for the picker$"
 // explorer that will is what has to move the DTA first.
 bool takeName() {
   u16 n
-  u16 at
+  a16 at
   u16 out
 
   n = peek8( 0x80 )
@@ -393,7 +393,7 @@ sub buildPattern {
 // `fileOpen` is a path and not a name that happens to work from here. Returns
 // the length, because the caller needs it and counting it twice is how the two
 // answers come to differ.
-u16 buildOpenPath( u16 nameAt ) {
+u16 buildOpenPath( a16 nameAt ) {
   u16 n
 
   memCopy( addr( openPath ), addr( dirPath ), dirPathLen )
@@ -500,7 +500,7 @@ bool saveFile() {
 // Which of the three limits, and what the machine had. **A file that ran out of
 // lines and one that ran out of text want different numbers raised**, and the
 // message that said neither had been the wrong half of the answer twice.
-u16 whyNotOpened() {
+a16 whyNotOpened() {
   if ( textWhyNoRoom() == whyLines ) return addr( sNoLines )
   if ( textWhyNoRoom() == whyChunks ) return addr( sNoChunk )
   if ( textWhyNoRoom() == whyBlock ) return addr( sNoMem )
@@ -548,7 +548,7 @@ sub rowPut( u16 x, u8 ch, u8 attr ) {
 // `stop` rather than the screen edge, because a row has more than one thing on
 // it and they are not all at the left - which is the clipping `statusClip` was
 // written for and is now the only place it lives.
-sub rowStr( u16 x, u16 at, u16 stop, u8 attr ) {
+sub rowStr( u16 x, a16 at, u16 stop, u8 attr ) {
   u16 i
   i = 0
 
@@ -581,7 +581,7 @@ sub rowBlit( u16 y, u16 from, u16 to ) {
 // it runs the two loops it has always run, because that is the scroll path and
 // `drawrate` is what says the difference matters. Everything below the guard is
 // new and costs nothing to the rows that do not take it.
-sub viewRow( u16 y, u16 at, u16 n ) {
+sub viewRow( u16 y, a16 at, u16 n ) {
   u16 base
   u16 hi
   u16 ln
@@ -697,7 +697,7 @@ sub viewRow( u16 y, u16 at, u16 n ) {
 
 sub drawMenus {
   u16 x
-  u16 at
+  a16 at
   bool lit
 
   rowFill( 0, cols, ' ', attrStatus )
@@ -736,14 +736,14 @@ const dlgExit      = 1
 const dlgOverwrite = 2
 
 u8  dlgWhy
-u16 dlgQuestion
-u16 dlgSubject
+a16 dlgQuestion
+a16 dlgSubject
 u16 dlgPick
 
 bool dlgUp() => dlgWhy != dlgNone
 
 u16 dlgCount() => len( sButtons )
-u16 dlgButton( u16 i ) => addr( sButtons[i] )
+a16 dlgButton( u16 i ) => addr( sButtons[i] )
 
 u8 fold( u8 c ) => c >= 'a' && c <= 'z' ? c - 32 : c
 
@@ -807,7 +807,7 @@ u16 dlgButtonX( u16 i ) {
   return x
 }
 
-sub dlgOpen( u8 why, u16 question, u16 subject ) {
+sub dlgOpen( u8 why, a16 question, a16 subject ) {
   message     = 0
   dlgWhy      = why
   dlgQuestion = question
@@ -855,7 +855,7 @@ sub dlgBlank {
 // the rule that costs no attribute - which is what mode 7 could not have spared.
 sub dlgButtons {
   u16 x
-  u16 at
+  a16 at
   u16 n
   u8  a
 
@@ -877,7 +877,7 @@ sub dlgButtons {
   rowBlit( dlgY() + 4, dlgX(), dlgX() + dlgW() )
 }
 
-sub dlgText( u16 y, u16 at ) {
+sub dlgText( u16 y, a16 at ) {
   dlgBlank()
   rowStr( dlgX() + 2, at, dlgX() + dlgW() - 1, attrStatus )
   rowBlit( y, dlgX(), dlgX() + dlgW() )
@@ -1021,7 +1021,7 @@ sub drawMenuBox {
 //
 // 92 and 58 rather than escapes, the same pair `takeName` splits on: a drive
 // letter ends a directory as surely as a backslash does.
-u16 baseName( u16 at ) {
+a16 baseName( a16 at ) {
   u16 last
   u16 i
 
@@ -1040,7 +1040,7 @@ u16 baseName( u16 at ) {
 // flag into `docNames` and `docDirty` when you switch *away*, so for the document
 // in front of you those arrays hold the state as of the last switch and
 // `fileName` and `dirty` hold the truth. Every tab but one reads the arrays.
-u16 tabNameAt( u16 d ) {
+a16 tabNameAt( u16 d ) {
   if ( d == textDoc() ) {
     if ( !haveName ) return addr( sNewTab )
     return baseName( addr( fileName ) )
@@ -1057,7 +1057,7 @@ bool tabDirty( u16 d ) => d == textDoc() ? dirty : docDirty[d] != 0
 // the explorer's trick fourteen columns away and the reason the obvious
 // arrangement is inverted here. It also costs no attribute, which mode 7 could
 // not have spared.
-u16 drawTab( u16 x, u16 at, bool live, bool star ) {
+u16 drawTab( u16 x, a16 at, bool live, bool star ) {
   u8  a
   u16 n
 
@@ -1120,7 +1120,7 @@ sub drawTabs {
 sub drawExplorer {
   u16 h
   u16 i
-  u16 at
+  a16 at
   u16 n
   u16 thumbTop
   u16 thumbEnd
@@ -1180,7 +1180,7 @@ sub drawExplorer {
 // right and is 30 long, so it ran under the numbers, which were drawn after it
 // and won - leaving "file does not 1it :1 not op", a refusal made unreadable by
 // the one thing on screen that never changes.
-sub statusClip( u16 x, u16 at, u16 stop ) {
+sub statusClip( u16 x, a16 at, u16 stop ) {
   u16 i
   i = 0
 
@@ -1190,7 +1190,7 @@ sub statusClip( u16 x, u16 at, u16 stop ) {
   }
 }
 
-sub statusText( u16 x, u16 at ) => statusClip( x, at, cols )
+sub statusText( u16 x, a16 at ) => statusClip( x, at, cols )
 
 // The directory the panel is showing. Empty is where the editor was started,
 // which DOS spells as nothing and a person reads as `.`.
@@ -1247,7 +1247,7 @@ sub statusNumber( u16 x, u16 n ) {
 // rather than copied, which is the same reason `textSave` hands DOS each chunk
 // where it lies: nothing here needs a second copy of anything.
 sub statusField( u16 x ) {
-  u16 at
+  a16 at
   at = fieldAddr()
 
   for ( u16 i = 0; i < fieldLength() && x + i < cols; i++ ) {
@@ -1472,7 +1472,7 @@ sub toggleExplorer {
 }
 
 // `..` is the only entry that moves rather than opens.
-bool isUp( u16 at ) => peek8( at ) == '.' && peek8( at + 1 ) == '.' &&
+bool isUp( a16 at ) => peek8( at ) == '.' && peek8( at + 1 ) == '.' &&
                       peek8( at + 2 ) == 0
 
 // Another `..\` on the end. **DOS resolves the path and this does not have to**
@@ -1513,7 +1513,7 @@ sub goUp {
   dirPathLen = n
 }
 
-sub goDown( u16 nameAt ) {
+sub goDown( a16 nameAt ) {
   u16 n
 
   n = 0
@@ -1529,7 +1529,7 @@ sub goDown( u16 nameAt ) {
   dirPathLen = dirPathLen + n + 1
 }
 
-sub descend( u16 nameAt ) {
+sub descend( a16 nameAt ) {
   if ( isUp( nameAt ) ) {
     goUp()
   } else {
@@ -1864,7 +1864,7 @@ sub pickBlitRow( u16 y ) {
   rowBlit( pickY + y, pickX, pickX + pickW )
 }
 
-sub pickText( u16 x, u16 at ) {
+sub pickText( u16 x, a16 at ) {
   rowStr( pickX + x, at, pickX + pickW, attrStatus )
 }
 
@@ -1980,7 +1980,7 @@ sub composePickInfo {
 // A rule with something written along it - the title and the key hints both sit
 // on one - which is two things on one row and so has to be composed before any of
 // it is written, the same as everything else here.
-sub pickRuleRow( u16 y, u8 left, u8 right, u16 label ) {
+sub pickRuleRow( u16 y, u8 left, u8 right, a16 label ) {
   pickRuleInto( left, right )
   pickText( 2, label )
   pickBlitRow( y )
@@ -2292,9 +2292,9 @@ const u8[] aView   = [ actExplor ]
 // low byte, which §57 measured, and there is no arithmetic from a letter to its
 // scancode - so the key is written in the row rather than derived from the title.
 const group menu[4] {
-  u16 title
-  u16 items
-  u16 acts
+  a16 title
+  a16 items
+  a16 acts
   u8  count
   u16 alt
 } = [
@@ -2311,9 +2311,9 @@ const group menu[4] {
 // byte are the two reads through a row's address.
 
 u16 menuCount() => len( menu )
-u16 menuTitle( u16 m ) => menu[m].title
+a16 menuTitle( u16 m ) => menu[m].title
 u16 menuItemCount( u16 m ) => menu[m].count
-u16 menuItemText( u16 m, u16 i ) => peek16( menu[m].items + 2 * i )
+a16 menuItemText( u16 m, u16 i ) => a16( peek16( menu[m].items + 2 * i ) )
 u8 menuAction( u16 m, u16 i ) => peek8( menu[m].acts + i )
 
 // Where each title starts on the bar, from the titles themselves - two spaces
@@ -2518,7 +2518,7 @@ sub saveAsCommit {
 // Whether there is something there to lose. `fileCreate` truncates before a byte
 // is written, so this has to be asked *before* the save rather than reported
 // after it.
-bool fileHere( u16 at ) {
+bool fileHere( a16 at ) {
   u16 h
 
   h = fileOpen( at, fileReadOnly )
@@ -2820,7 +2820,7 @@ sub actSpan {
 // would agree with this one sometimes, which is worse than not having it: the
 // thing a person expects is to copy in the document and paste into the find
 // prompt, and that is only possible because the field asks rather than owns.
-sub fieldCopyOut( u16 at, u16 n ) {
+sub fieldCopyOut( a16 at, u16 n ) {
   if ( n > clipBytes ) n = clipBytes
 
   memCopy( addr( clip ), at, n )
@@ -2834,7 +2834,7 @@ sub fieldCopyOut( u16 at, u16 n ) {
 //
 // The program enforces it rather than the field, because the program is what
 // knows what its clipboard can contain.
-u16 fieldPasteIn( u16 at, u16 max ) {
+u16 fieldPasteIn( a16 at, u16 max ) {
   u16 n
 
   n = 0
@@ -2933,7 +2933,7 @@ sub prefillFromSelection {
   fieldSelectAll()
 }
 
-sub promptOpen( u8 what, u16 label ) {
+sub promptOpen( u8 what, a16 label ) {
   u16 i
 
   i = 0
@@ -2998,7 +2998,7 @@ sub doGoto {
 // unsaved changes are refused, and a refusal puts back the file it was showing
 // because `loadFile` empties the buffer before it discovers the new one will not
 // fit. A second open path gets to rediscover both.
-bool openNamed( u16 at, u16 n ) {
+bool openNamed( a16 at, u16 n ) {
   if ( dirty ) {
     message = addr( sDirty )
     return false

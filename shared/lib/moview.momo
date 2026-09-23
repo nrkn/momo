@@ -3,7 +3,7 @@
 // It holds a top line, a left column and a size, keeps a cursor inside them, and
 // renders by handing one row at a time to a routine **the program defines**:
 //
-//   sub viewRow( u16 y, u16 at, u16 n )
+//   sub viewRow( u16 y, a16 at, u16 n )
 //
 // That is the seam `tiger` and `tigerpic` share over `plot`, and it is why this
 // can be tested at all. A program that prints rows is a tier-2 test with a

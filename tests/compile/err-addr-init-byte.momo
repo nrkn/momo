@@ -1,4 +1,4 @@
-// EXPECT-ERROR: an address is a u16
-// An address is a word in our segment (§10), so a byte table cannot hold one.
+// EXPECT-ERROR: an address is an a16, so an array of u8
+// An address is an a16 (§71), and a byte table is not a table of them.
 u8[4] a
 const u8[] names = [ addr( a ) ]

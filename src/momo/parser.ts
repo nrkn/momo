@@ -1735,7 +1735,8 @@ const nextOfSlot = (file: string): string => `ofa__${fileTag(file)}__${ofSlots++
           hoist({
             type: 'VariableDeclaration',
             name: slotName,
-            typeNode: { type: 'TypeNode', name: 'u16', frac: 0, array: false, size: null, ...spot },
+            // An address, so §71's type: the body reads through it with peek.
+            typeNode: { type: 'TypeNode', name: 'u16', frac: 0, unit: 'a16', array: false, size: null, ...spot },
             init: null,
             ...spot,
             endLine: name.line,

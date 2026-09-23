@@ -58,6 +58,6 @@ v = words[i]
 v = pair
 b = first
 v = len( tail )                     // the view's own length, not its parent's
-v = addr( mid )                     // an alias has an address like any storage
+v = u16( addr( mid ) )              // an alias has an address like any storage
 mapData[i] = 3
 entities[i] = 4

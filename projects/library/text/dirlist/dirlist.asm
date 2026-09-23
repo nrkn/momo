@@ -640,7 +640,7 @@ dirNext:
 ; ============================================== u16 dirName ====
 
 dirName:
-; ---- u16 dirName() => addr( dirBlock ) + dirNameAt
+; ---- a16 dirName() => addr( dirBlock ) + dirNameAt
         mov     ax, dir__dirBlock           ; link-time constant
         add     ax, 30
         mov     [dirName__ret], ax
@@ -735,7 +735,7 @@ listOverflowed:
 ; ============================================== u16 listName ====
 
 listName:
-; ---- u16 listName( u16 i ) => addr( listNames ) + order[i] * listNameMax
+; ---- a16 listName( u16 i ) => addr( listNames ) + order[i] * listNameMax
         mov     ax, modir__listNames        ; link-time constant
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [listName__i]
@@ -953,7 +953,7 @@ modir__insertSorted:
 ; ============================================== bool modir__isDot ====
 
 modir__isDot:
-; ---- local bool isDot( u16 at ) => peek8( at ) == '.' && peek8( at + 1 ) == 0
+; ---- local bool isDot( a16 at ) => peek8( at ) == '.' && peek8( at + 1 ) == 0
         mov     ax, [modir__isDot__at]
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design

@@ -42,7 +42,7 @@ group st[maxElements] {
   u8  fg
   // addr() of a $-terminated string, or 0 for an element with no text. A .COM
   // loads at 0x100, so no byte a Momo program can name lives at offset 0.
-  u16 text
+  a16 text
   u8  border
   u8  borderColor
   // Where this element's wrapped lines start in the line table, and how many. A
@@ -68,7 +68,7 @@ const maxLines = 64
 local u16[maxParas] paraEl
 local u16           paraCount
 
-local u16[maxLines] lineAt
+local a16[maxLines] lineAt
 local u8[maxLines]  lineLen
 local u16           lineTop
 
@@ -168,7 +168,7 @@ bracket textured = panelTextured / closeBox
 //
 // The minimum propagates up the tree, so this decides how far any ancestor can
 // later be compressed - a layout decision wearing a typographic name.
-sub labelPaint( u16 at, u8 fg, u8 bg ) {
+sub labelPaint( a16 at, u8 fg, u8 bg ) {
   u16 i
   u16 n
 
@@ -185,7 +185,7 @@ sub labelPaint( u16 at, u8 fg, u8 bg ) {
 // constant because the string is - so shrink gets the right answer with no
 // runtime word-breaking. Breaking it into lines to *draw* is what still needs
 // the reflow seam.
-sub paraPaint( u16 at, u16 minW, u8 fg, u8 bg ) {
+sub paraPaint( a16 at, u16 minW, u8 fg, u8 bg ) {
   u16 i
   u16 n
 
@@ -209,7 +209,7 @@ sub paraPaint( u16 at, u16 minW, u8 fg, u8 bg ) {
 // compile-time constant and writing it down costs nothing. A scene with fourteen
 // captions is the case where writing it down is fourteen chances to be wrong
 // about a string the compiler is holding anyway, so this works it out instead.
-u16 longestWord( u16 at ) {
+u16 longestWord( a16 at ) {
   u16 best
   u16 n
   u16 i
@@ -237,7 +237,7 @@ u16 longestWord( u16 at ) {
 }
 
 // paraPaint with the minimum measured rather than passed.
-sub paraAuto( u16 at, u8 fg, u8 bg ) => paraPaint( at, longestWord( at ), fg, bg )
+sub paraAuto( a16 at, u8 fg, u8 bg ) => paraPaint( at, longestWord( at ), fg, bg )
 
 // ---- the reflow -----------------------------------------------------------
 
@@ -252,7 +252,7 @@ sub paraAuto( u16 at, u8 fg, u8 bg ) => paraPaint( at, longestWord( at ), fg, bg
 // cannot collapse anything, so this is equivalent only where the source already
 // has single spaces - which every scene here does. A source with double spaces
 // would measure short.
-local u16 wrapInto( u16 at, u16 limit ) {
+local u16 wrapInto( a16 at, u16 limit ) {
   u16 lim
   u16 n
   u16 i
@@ -410,7 +410,7 @@ local sub drawFrame( u16 x, u16 y, u16 w, u16 h, u8 b, u8 attr ) {
 
 // A run of exactly `count` characters, for a wrapped line - which is a slice of a
 // longer string and so has no terminator of its own.
-local sub drawRun( u16 at, u16 count, u16 x, u16 y, u8 attr ) {
+local sub drawRun( a16 at, u16 count, u16 x, u16 y, u8 attr ) {
   u16 base
 
   if ( y >= screenRows ) return
@@ -427,7 +427,7 @@ local sub drawRun( u16 at, u16 count, u16 x, u16 y, u8 attr ) {
   }
 }
 
-local sub drawText( u16 at, u16 x, u16 y, u8 attr ) {
+local sub drawText( a16 at, u16 x, u16 y, u8 attr ) {
   u16 i
   u16 base
   u8  ch

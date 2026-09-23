@@ -1,0 +1,45 @@
+// `ok-addr-typed.momo` with every address held in a u16, and a cast wherever one
+// meets something that wants an address. The identity tier requires the two to
+// emit the same instructions (§71).
+
+u8[16] buf
+const u8[] msg = "hello$"
+const psp = 0x80
+
+u16 at
+u16 end
+u16 n
+u16 i
+u8  b
+
+u16 skip( u16 p, u16 by ) => p + by
+
+at = u16( addr( buf ) )
+end = at + len( buf )
+n = end - at
+at = 2 + at
+at = at - n
+at += 3
+at -= 1
+at++
+at--
+
+while ( at < end ) {
+  poke8( a16( at ), 0 )
+  at++
+}
+
+at = skip( u16( addr( buf ) ), i )
+if ( at == 0 ) n = 1
+if ( !at ) n = 2
+at = i > 0 ? at : 0
+
+b = peek8( a16( psp + i ) )
+b = peek8( 0x81 )
+
+_dx = u16( addr( msg ) )
+at = _bx
+n = at >> 1
+
+poke16( a16( at ), peek16( a16( at + 2 ) ) )
+at = peek16( a16( at ) )

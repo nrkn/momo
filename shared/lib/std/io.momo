@@ -34,7 +34,7 @@ sub putChar(u8 c) {
 // scans for the byte itself, so the routine needs a '$' without ever naming
 // `strEnd`. Everything else in the libraries that stops at one chose to rather
 // than had to, which is the question in DESIGN §20.
-sub putStr(u16 at) {
+sub putStr(a16 at) {
   _ah = 0x09
   _dx = at
   int 0x21

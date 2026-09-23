@@ -41,7 +41,7 @@ const u8[] sTail    = "tail: $"
 
 // ---- three files that were not there ----
 
-sub make( u16 at, u16 bytes ) {
+sub make( a16 at, u16 bytes ) {
   handle = fileCreate( at )
   fileWrite( handle, addr( payload ), bytes )
   fileClose( handle )
@@ -128,7 +128,7 @@ newline()
 // whole area a find block would land in.
 
 const u8[] guard = "0123456789abcdefghijklmn"
-const psp = 0x80
+const a16 psp = 0x80
 
 sub layGuard {
   for ( u16 i = 0; i < len( guard ); i++ ) {
@@ -160,7 +160,7 @@ newline()
 // a test that leaves three files behind makes the *next* run's enumeration a
 // different one.
 
-sub remove( u16 at ) {
+sub remove( a16 at ) {
   _ah = 0x41
   _dx = at
   int 0x21

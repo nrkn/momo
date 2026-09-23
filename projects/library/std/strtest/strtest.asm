@@ -136,7 +136,7 @@ __entry:
         call    putNumber
 ; ---- newline()
         call    newline
-; ---- putNumber( strFind( addr( path ), 'z' ) )   // 0
+; ---- putNumber( u16( strFind( addr( path ), 'z' ) ) )   // 0
         mov     ax, path                    ; link-time constant
         mov     [strFind__at], ax
         mov     byte [strFind__ch], 122

@@ -14,9 +14,9 @@ const u8[] sBlue   = "blue$"
 const u8[] sUnused = "unused$"
 
 const group colour[3] {
-  u16 name
+  a16 name
   u8  level
-  u16 spare
+  a16 spare
 } = [
   [ addr( sRed ),   10, addr( sUnused ) ],
   [ addr( sGreen ), 20, addr( sUnused ) ],

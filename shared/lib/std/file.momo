@@ -43,7 +43,7 @@ bool fileFailed() => fileBad
 u16 fileError() => fileErr
 
 // AH=3Dh. Returns a handle, or 0 if it failed.
-u16 fileOpen( u16 at, u8 mode ) {
+u16 fileOpen( a16 at, u8 mode ) {
   _ah = 0x3D
   _al = mode
   _dx = at
@@ -55,7 +55,7 @@ u16 fileOpen( u16 at, u8 mode ) {
 
 // AH=3Ch - creates, or truncates one that is already there. Attribute 0 is an
 // ordinary file.
-u16 fileCreate( u16 at ) {
+u16 fileCreate( a16 at ) {
   _ah = 0x3C
   _cx = 0
   _dx = at
@@ -76,7 +76,7 @@ sub fileClose( u16 handle ) {
 // AH=3Fh. Returns the bytes actually read, which is short of `count` at end of
 // file and 0 on failure - so a caller that needs to tell those apart asks
 // `fileFailed()`.
-u16 fileRead( u16 handle, u16 at, u16 count ) {
+u16 fileRead( u16 handle, a16 at, u16 count ) {
   _ah = 0x3F
   _bx = handle
   _cx = count
@@ -88,7 +88,7 @@ u16 fileRead( u16 handle, u16 at, u16 count ) {
 }
 
 // AH=40h. A short write is how DOS reports a full disk, and is not an error.
-u16 fileWrite( u16 handle, u16 at, u16 count ) {
+u16 fileWrite( u16 handle, a16 at, u16 count ) {
   _ah = 0x40
   _bx = handle
   _cx = count

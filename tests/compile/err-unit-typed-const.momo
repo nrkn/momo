@@ -1,0 +1,6 @@
+// EXPECT-ERROR: cannot put px in plain u16
+// A const declared with a unit keeps it (§39) - it used not to.
+unit px = u16
+u16 n
+const px w = 40
+n = w

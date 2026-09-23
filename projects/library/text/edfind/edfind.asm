@@ -2706,7 +2706,7 @@ fieldClear:
 ; ============================================== u16 fieldAddr ====
 
 fieldAddr:
-; ---- u16 fieldAddr()   => addr( fieldBuf )
+; ---- a16 fieldAddr()   => addr( fieldBuf )
         mov     ax, mofield__fieldBuf       ; link-time constant
         mov     [fieldAddr__ret], ax
         ret

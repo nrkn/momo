@@ -1,0 +1,7 @@
+// EXPECT-ERROR: cannot put plain u16 in a16
+// A register takes an address without a cast; giving one back is the cast worth reading.
+u8[8] buf
+a16 at
+a16 other
+u16 n
+at = _bx

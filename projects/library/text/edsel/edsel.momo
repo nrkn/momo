@@ -269,7 +269,7 @@ sub clipShow {
 
 // The span in screen columns, which is the arithmetic `momoed` does against
 // cells. A row of text, then a row of marks under it.
-sub viewRow( u16 y, u16 at, u16 n ) {
+sub viewRow( u16 y, a16 at, u16 n ) {
   u16 ln
   u16 c0
   u16 c1

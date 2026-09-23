@@ -266,7 +266,7 @@ export const printStatement = (node: Statement, depth = 0): string => {
     }
 
     case 'ConstFunctionDeclaration': {
-      const type = node.returnType ? `${spell(node.returnType, node.returnFrac)} ` : ''
+      const type = node.returnType ? `${node.returnUnit ?? spell(node.returnType, node.returnFrac)} ` : ''
       return (
         `${pad}const ${type}${declared(node)}${printParams(node.params)}` +
         ` = ${printExpression(node.body)}`
@@ -318,7 +318,7 @@ export const printStatement = (node: Statement, depth = 0): string => {
     // written bare.
     case 'RoutineDeclaration': {
       const head = node.returnType
-        ? `${spell(node.returnType, node.returnFrac)} ${declared(node)}`
+        ? `${node.returnUnit ?? spell(node.returnType, node.returnFrac)} ${declared(node)}`
         : `sub ${declared(node)}`
       const params =
         node.returnType || node.params.length ? printParams(node.params) : ''

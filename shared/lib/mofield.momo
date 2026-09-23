@@ -48,7 +48,7 @@ sub fieldClear {
 
 // `n` bytes at `at`, with the cursor left at the end - which is where a person
 // wants it when a prompt opens with the last thing they typed still in it.
-sub fieldSet( u16 at, u16 n ) {
+sub fieldSet( a16 at, u16 n ) {
   fieldMarked = false
 
   if ( n > fieldMax ) n = fieldMax
@@ -71,8 +71,8 @@ sub fieldSet( u16 at, u16 n ) {
 // point, because copying in a document and pasting in a prompt is the thing a
 // person expects and two clipboards cannot do.
 //
-//   sub fieldCopyOut( u16 at, u16 n )
-//   u16 fieldPasteIn( u16 at, u16 max )
+//   sub fieldCopyOut( a16 at, u16 n )
+//   u16 fieldPasteIn( a16 at, u16 max )
 //
 // A paste **stops at the first newline** rather than flattening it. A clipboard
 // holding three lines pasted into one line has to lose something either way, and
@@ -80,7 +80,7 @@ sub fieldSet( u16 at, u16 n ) {
 // them invents a line nobody copied. That is the program's to enforce: it knows
 // what its clipboard holds.
 
-u16 fieldAddr()   => addr( fieldBuf )
+a16 fieldAddr()   => addr( fieldBuf )
 u16 fieldLength() => fieldLen
 u16 fieldCursor() => fieldCur
 

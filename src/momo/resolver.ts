@@ -30,6 +30,7 @@ import { basename } from 'node:path'
 
 import { alwaysReturns, buildCallGraph, fallsThrough, type CallGraph } from './analysis.js'
 import { lowerBrackets } from './brackets.js'
+import { builtinUnits } from './tokens.js'
 import { raise, type Location } from './diagnostics.js'
 import {
   combineRanges,
@@ -267,6 +268,16 @@ export const builtinGlobalNames: string[] = [
 // is irrelevant. Everything else combines both operands.
 const shiftOps = ['<<', '>>']
 const comparisonOps = ['<', '<=', '>', '>=', '==', '!=']
+
+// §71. The unit `addr()` returns and `peek` and `poke` take. It is a unit for
+// storage and printing, and it is not one for arithmetic: see combineAddress.
+const addressUnit = 'a16'
+
+// The registers an address may be handed to without a cast. Most addresses end
+// up in DX for an `int 0x21`, and a cast at every one would be a cast nobody
+// reads. The other direction - a register read as an address - is the cast
+// worth writing, so it is not admitted.
+const addressRegisters = ['_ax', '_bx', '_cx', '_dx', '_si', '_di']
 
 // NASM words that cannot be used as a label even WITH a colon. That last part
 // is the whole rule: ordinary mnemonics are deliberately absent because a colon
@@ -589,6 +600,9 @@ export const resolve = (program: Program): ResolveResult => {
     at: Location,
   ): string | null => {
     if (left.unit === null && right.unit === null) return null
+    if (left.unit === addressUnit || right.unit === addressUnit) {
+      return combineAddress(left, right, operator, at)
+    }
 
     const describeUnit = (side: Resolved): string =>
       side.unit ?? (side.type === 'untyped' ? `the count ${side.value}` : `plain ${side.type}`)
@@ -641,6 +655,67 @@ export const resolve = (program: Program): ResolveResult => {
       at,
       `cannot apply "${operator}" to ${describeUnit(left)} and ${describeUnit(right)}` +
         ` - write ${unit}( ... ) if that is what it is`,
+    )
+  }
+
+  // §71. An address is a point and a plain number is a distance, which is a
+  // different algebra from a unit's: `px + px` is px, and `a16 + a16` is nothing
+  // at all. So an address moves by a count in either direction, two of them
+  // subtract to the count between them, and nothing else combines. A typed count
+  // is admitted where §39 would refuse it, because `at + i` with a runtime `i`
+  // is the line every buffer loop is made of.
+  const combineAddress = (
+    left: Resolved,
+    right: Resolved,
+    operator: string,
+    at: Location,
+  ): string | null => {
+    const isAddress = (side: Resolved): boolean => side.unit === addressUnit
+    const isCount = (side: Resolved): boolean => side.unit === null
+    const describeSide = (side: Resolved): string =>
+      side.unit === addressUnit
+        ? 'an address'
+        : side.unit ?? (side.type === 'untyped' ? `the count ${side.value}` : `plain ${side.type}`)
+    const pair = `${describeSide(left)} and ${describeSide(right)}`
+
+    if (operator === '+') {
+      if ((isAddress(left) && isCount(right)) || (isCount(left) && isAddress(right))) return addressUnit
+      if (isAddress(left) && isAddress(right)) {
+        raise(at, 'cannot add two addresses - the sum is not a place; add a count to one of them')
+      }
+      raise(at, `cannot apply "+" to ${pair} - an address moves by a plain count`)
+    }
+
+    if (operator === '-') {
+      // The distance between two places is a count, and says so by carrying no
+      // unit - `strFind( at, ch ) - at` is an index.
+      if (isAddress(left) && isAddress(right)) return null
+      if (isAddress(left) && isCount(right)) return addressUnit
+      raise(
+        at,
+        `cannot apply "-" to ${pair} - a count less an address is not a place;` +
+          ' subtract a count from the address, or two addresses for the count between them',
+      )
+    }
+
+    // Comparing two places, or a place against a constant - the 0 that
+    // `strFind` returns for "none" is the case that has to work. A typed count
+    // is refused here as §39 refuses it, because unlike `at + i` there is no
+    // reading of `at < i` that is not a mix-up.
+    if (comparisonOps.includes(operator) || operator === '?:') {
+      if (isAddress(left) && isAddress(right)) return addressUnit
+      const other = isAddress(left) ? right : left
+      if (other.type === 'untyped' && other.unit === null) return addressUnit
+      raise(
+        at,
+        `cannot apply "${operator}" to ${pair} - write a16( ... ) if the other side is an address`,
+      )
+    }
+
+    raise(
+      at,
+      `cannot apply "${operator}" to ${pair} - an address only moves by + and -,` +
+        ' and cast it to u16 if it is the bits that are meant',
     )
   }
 
@@ -1080,7 +1155,7 @@ export const resolve = (program: Program): ResolveResult => {
         if (at !== null && at !== undefined) node.childLabel = childOf(nested, at).label
       }
 
-      return annotate(node, { type: 'u16', value: null, frac: 0, unit: null })
+      return annotate(node, { type: 'u16', value: null, frac: 0, unit: addressUnit })
     }
 
     if (node.type === 'LenExpression') {
@@ -1204,6 +1279,15 @@ export const resolve = (program: Program): ResolveResult => {
     if (node.type === 'UnaryExpression') {
       const argument = resolveExpression(node.argument)
 
+      // §71. `!p` asks whether an address is the 0 that means none, which is a
+      // question; `-p` and `~p` are arithmetic, and there is none on a place.
+      if (argument.unit === addressUnit && node.operator !== '!') {
+        raise(
+          node,
+          `cannot apply "${node.operator}" to an address - cast it to u16 if it is the bits that are meant`,
+        )
+      }
+
       if (node.operator === '!') {
         const value = argument.value === null ? null : argument.value === 0 ? 1 : 0
         return annotate(node, { type: 'bool', value, frac: 0, unit: null })
@@ -1300,6 +1384,14 @@ export const resolve = (program: Program): ResolveResult => {
           node,
           `a shift count cannot be ${spell(right.type, right.frac)}` +
             ' - it counts bits, so it has no scale',
+        )
+      }
+
+      // §71. Halving a place is not a place, and shifting by one is nonsense.
+      if (left.unit === addressUnit || right.unit === addressUnit) {
+        raise(
+          node,
+          `cannot apply "${node.operator}" to an address - cast it to u16 if it is the bits that are meant`,
         )
       }
 
@@ -1465,6 +1557,7 @@ export const resolve = (program: Program): ResolveResult => {
     elementType: ValueType | null,
     elementFrac = 0,
     addresses = false,
+    elementUnit: string | null = null,
   ): ArrayValue[] => {
     if (!init) return []
 
@@ -1499,8 +1592,9 @@ export const resolve = (program: Program): ResolveResult => {
               ' addresses is a pointer array in all but name',
           )
         }
-        if ((elementType !== null && elementType !== 'u16') || elementFrac !== 0) {
-          raise(element, `an address is a u16, so an array of ${elementType} cannot hold one`)
+        if (elementType !== null && elementUnit !== addressUnit) {
+          const spelling = elementUnit ?? spell(elementType, elementFrac)
+          raise(element, `an address is an a16, so an array of ${spelling} cannot hold one (§71)`)
         }
         // An initialiser is resolved where it stands, as every other one is, so
         // what it names has to be above it. Code can name a later global and
@@ -1654,7 +1748,7 @@ export const resolve = (program: Program): ResolveResult => {
     local = false,
   ) => {
     const elementType = typeNode.name
-    const values = arrayValuesFrom(init, elementType, typeNode.frac, readonly)
+    const values = arrayValuesFrom(init, elementType, typeNode.frac, readonly, typeNode.unit ?? null)
 
     let length: number
     if (typeNode.size) {
@@ -1843,6 +1937,16 @@ export const resolve = (program: Program): ResolveResult => {
   const unitStorage = new Map<string, string>()
 
   const resolveUnitDeclaration = (node: UnitDeclaration) => {
+    if (builtinUnits[node.name] !== undefined) {
+      raise(node, `"${node.name}" is built in - it cannot be declared again (§71)`)
+    }
+    if (node.storage.unit === addressUnit) {
+      raise(
+        node.storage,
+        `a unit stands for a plain type, and ${addressUnit} is an address -` +
+          ' its rules are not a unit\'s to inherit (§71)',
+      )
+    }
     if (node.storage.unit !== undefined) {
       raise(
         node.storage,
@@ -2046,7 +2150,9 @@ export const resolve = (program: Program): ResolveResult => {
     }
 
     // A const group's column is a const array, so §51's addresses are admitted.
-    const values = arrayValuesFrom(field.init, field.typeNode.name, field.typeNode.frac, node.readonly === true)
+    const values = arrayValuesFrom(
+      field.init, field.typeNode.name, field.typeNode.frac, node.readonly === true, field.typeNode.unit ?? null,
+    )
     if (values.length !== count) {
       raise(
         field.init,
@@ -2249,6 +2355,9 @@ export const resolve = (program: Program): ResolveResult => {
           name: node.name,
           label: labelFor(node.name, node.local),
           elementType,
+          // §71. A table holding an address is a table of them, so an element
+          // read back out is an address too.
+          unit: values.some((value) => typeof value !== 'number') ? addressUnit : undefined,
           length: values.length,
           readonly: true,
           values,
@@ -2290,6 +2399,7 @@ export const resolve = (program: Program): ResolveResult => {
         label: labelFor(node.name, node.local),
         type: declaredType,
         frac: node.typeNode ? node.typeNode.frac : 0,
+        unit: node.typeNode?.unit,
         value,
       },
       node,
@@ -2299,25 +2409,27 @@ export const resolve = (program: Program): ResolveResult => {
 
   // ---- statements -----------------------------------------------------------
 
-  // An address is a u16 offset in our own segment. Signed types are rejected
-  // outright rather than allowed to widen: a negative offset is never meaningful,
-  // and §4's rule is that u16 does not mix with signed, so an i16 address would
-  // have to be cast somewhere anyway - better at the call than silently here.
+  // An address is an a16 - a u16 offset in our own segment that says so (§71).
+  // Before that this refused signed types and let any u16 through, which was the
+  // most it could check when every number looked the same.
   const checkAddress = (node: Expression, what: string) => {
     const resolved = resolveExpression(node)
 
     if (resolved.type === 'bool') {
       raise(node, `${what} needs an address - a bool is not one`)
     }
-    if (isSigned(resolved.type)) {
-      raise(
-        node,
-        `${what} needs a u16 address - this is ${resolved.type}, so write u16(...)` +
-          ' if the value really is an offset',
-      )
-    }
     if (resolved.type === 'untyped' && resolved.value !== null && !fits(resolved.value, 'u16')) {
       raise(node, `address ${resolved.value} does not fit in 16 bits`)
+    }
+    // §71. An address, or a constant - a literal offset is written where it is
+    // read, and says what it is by being there. Anything else was a number
+    // before it got here, and which number is the question the type exists for.
+    if (resolved.unit !== addressUnit && !(resolved.type === 'untyped' && resolved.unit === null)) {
+      const from = resolved.unit ?? `plain ${describeType(resolved)}`
+      raise(
+        node,
+        `${what} needs an address - this is ${from}, so write a16(...) if it is one`,
+      )
     }
   }
 
@@ -2558,7 +2670,12 @@ export const resolve = (program: Program): ResolveResult => {
       const value = resolveExpression(node.value)
 
       if (node.operator === '=') {
-        checkAssignable(value, target.type, target.frac, node.value, target.unit)
+        // §71. A word register takes an address as it is - see addressRegisters.
+        const toRegister =
+          value.unit === addressUnit &&
+          node.target.type === 'Identifier' &&
+          addressRegisters.includes(node.target.name)
+        checkAssignable(value, target.type, target.frac, node.value, toRegister ? addressUnit : target.unit)
         return
       }
 
@@ -2581,8 +2698,25 @@ export const resolve = (program: Program): ResolveResult => {
 
       // `x op= e` is `x = x op e`, so the mixing rule applies to the pair.
       const operator = node.operator.slice(0, -1)
-      if (shiftOps.includes(operator)) return
+      if (shiftOps.includes(operator)) {
+        if (target.unit === addressUnit || value.unit === addressUnit) {
+          raise(node, `cannot apply "${node.operator}" to an address - cast it to u16 if it is the bits that are meant`)
+        }
+        return
+      }
       combineOperands(target, value, operator, node)
+
+      // §71, and the pair has to land back in the target. `at += n` moves an
+      // address and is still one; `at -= other` is a count, and `n += at` is an
+      // address, and neither is what the left side holds.
+      if (target.unit === addressUnit || value.unit === addressUnit) {
+        const unit = combineUnits(target, value, operator, node)
+        if (unit !== target.unit) {
+          const from = unit === addressUnit ? 'an address' : unit ?? 'a plain count'
+          const to = target.unit === addressUnit ? 'an address' : target.unit ?? `plain ${describeType(target)}`
+          raise(node, `"${node.operator}" makes ${from}, and the left side is ${to}`)
+        }
+      }
       return
     }
 
@@ -2790,6 +2924,7 @@ export const resolve = (program: Program): ResolveResult => {
         params,
         returnType: node.returnType,
         returnFrac: node.returnFrac,
+        returnUnit: node.returnUnit,
         retLabel,
       },
       node,
@@ -2804,6 +2939,7 @@ export const resolve = (program: Program): ResolveResult => {
         label: parameter.label,
         type: parameter.type,
         frac: parameter.frac,
+        unit: parameter.unit,
         builtin: false,
         init: 0,
         owner: routineLabel,
@@ -2846,6 +2982,7 @@ export const resolve = (program: Program): ResolveResult => {
         label: parameter.label,
         type: parameter.type,
         frac: parameter.frac,
+        unit: parameter.unit,
         builtin: false,
         init: 0,
         owner: node.name,

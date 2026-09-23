@@ -1,0 +1,7 @@
+// EXPECT-ERROR: peek8 needs an address - this is plain u16
+// A u16 was a number before it got here, and which number is the question.
+u8[8] buf
+a16 at
+a16 other
+u16 n
+n = peek8( n )

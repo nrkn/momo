@@ -1257,7 +1257,7 @@ longestWord:
 ; ============================================== sub paraAuto ====
 
 paraAuto:
-; ---- sub paraAuto( u16 at, u8 fg, u8 bg ) => paraPaint( at, longestWord( at ), fg, bg )
+; ---- sub paraAuto( a16 at, u8 fg, u8 bg ) => paraPaint( at, longestWord( at ), fg, bg )
         mov     ax, [paraAuto__at]
         push    ax                          ; argument evaluated before any is stored
         mov     ax, [paraAuto__at]

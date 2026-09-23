@@ -32,7 +32,7 @@ const u8[] sNoMatch = "not found$"
 const u8[] sWrapped = "wrapped$"
 
 bool prompting
-u16  message
+a16  message
 
 // ---- the ten lines under test ----
 
@@ -112,7 +112,7 @@ sub step( u16 k ) {
 // §56 asks the program for this and nothing here draws, so it is the seam's
 // cost of admission rather than a routine - `viewRender` is never reached from
 // this program. What a window paints has `moview` for it.
-sub viewRow( u16 y, u16 at, u16 n ) {
+sub viewRow( u16 y, a16 at, u16 n ) {
 }
 
 // §60 asks for these two and this program never presses `^C` or `^V`, so they
@@ -123,17 +123,17 @@ sub viewRow( u16 y, u16 at, u16 n ) {
 // The clipboard `mofield` has a project of its own for, and `momoed` has the one
 // that matters - the shared one, where a copy out of the document is what a
 // paste into a prompt gets.
-sub fieldCopyOut( u16 at, u16 n ) {
+sub fieldCopyOut( a16 at, u16 n ) {
 }
 
-u16 fieldPasteIn( u16 at, u16 max ) {
+u16 fieldPasteIn( a16 at, u16 max ) {
   return 0
 }
 
 // ---- showing it ----
 
 sub frame {
-  u16 at
+  a16 at
 
   putNumber( viewLine() )
   putChar( ':' )
@@ -157,7 +157,7 @@ sub frame {
   newline()
 }
 
-sub type( u16 at, u16 n ) {
+sub type( a16 at, u16 n ) {
   for ( u16 i = 0; i < n; i++ ) {
     step( peek8( at + i ) )
   }

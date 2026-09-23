@@ -126,7 +126,7 @@ sub s6BoxButton {
 }
 
 // One row using every sizing rule there is - see the header.
-sub s6TitleBar( u16 title ) {
+sub s6TitleBar( a16 title ) {
   cfgGrowW()
   cfgFixedH( lineHeight )
   cfg.alignCross = alignCenter
@@ -208,7 +208,7 @@ sub s6ScrollBar( bool vertical, u16 thumbAt ) {
 
 // A window is its own layout, so this opens one and leaves it open - the caller
 // writes the body inside it and the bracket closes both boxes.
-sub s6WindowOpen( u16 title ) {
+sub s6WindowOpen( a16 title ) {
   cfgCol()
   cfgGrowW()
   cfgGrowH()
@@ -359,7 +359,7 @@ sub buildS6About {
 
 // A two-unit border is what marks the default button, which is the one piece of
 // Macintosh chrome that survives the drop to a character cell unchanged.
-sub dialogButton( u16 caption, u8 thickness ) {
+sub dialogButton( a16 caption, u8 thickness ) {
   cfgInsetX( 2 * u )
   cfg.alignMain = alignCenter
   framed( white, thickness, black ) {
@@ -398,7 +398,7 @@ sub buildS6Dialog {
 // string. The packing does not need the items to be alike.
 const s6Pad = 1
 
-sub desktopIcon( u16 name ) {
+sub desktopIcon( a16 name ) {
   cfgInsetX( s6Pad )
   panel( white ) {
     labelPaint( name, black, white )

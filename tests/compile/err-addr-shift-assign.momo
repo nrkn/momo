@@ -1,0 +1,7 @@
+// EXPECT-ERROR: cannot apply ">>=" to an address
+// The compound form checks what the plain form does.
+u8[8] buf
+a16 at
+a16 other
+u16 n
+at >>= 1
