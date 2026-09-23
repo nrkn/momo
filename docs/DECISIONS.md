@@ -2366,6 +2366,17 @@ and `edsel` exercise scrolling, the goal column and selection, and their output
 did not move, which is what a change that should cost nothing on a line without a
 tab looks like when it is checked rather than claimed.
 
+**The teeth were taken in DOSBox rather than by the golden tier**, because every
+guard here changes what a program prints rather than only what it emits. Each of
+the ten - both mappings, the four tab cases in `lineCells`, and the window's
+scroll, goal and vertical motion - was neutered by line and failed `motabs`. One
+neuter was written as `b != 9 || i > 999`, which is the same condition while a
+chunk is sixteen bytes, and passed; it was a neuter that changed nothing rather
+than a guard that did nothing, and written the other way round it failed.
+
+**What no tier reaches is `momoed`'s half** - the cursor, the status column, the
+Tab key and the two overlays - which is the part a person checks on a screen.
+
 ---
 
 ## 57. `key`
