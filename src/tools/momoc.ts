@@ -1,28 +1,29 @@
 // The Momo compiler: <project>.momo -> <project>.asm
 //
 //   npm run momoc -- smoke
+//   npm run momoc:all        every project, and every tests/compile/ok- fixture
 //
 // Writes the generated assembly next to the source, so `npm start -- smoke`
-// picks it up and assembles it in DOSBox.
+// picks it up and assembles it in DOSBox. `--all` is also how a deliberate
+// codegen change is adopted, so it writes every file the golden tier compares -
+// the ok- fixtures' included, which no project exercises the shapes of.
 
 import { existsSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
 
-import { allProjects, asmFor, entryFor, fail, sharedRoot } from './cli.js'
+import { allProjects, asmBeside, asmFor, entryFor, fail, okTests, sharedRoot } from './cli.js'
 import { compile } from '../momo/compile.js'
 import { formatError, isMomoError } from '../momo/diagnostics.js'
 
 // Returns true on success. Errors are printed rather than thrown, so `--all`
 // reports every failing project instead of stopping at the first - which is why
 // this does not use `failWith`, the only tool that does not.
-const compileProject = async (project: string): Promise<boolean> => {
-  const file = entryFor(project)
+const compileFile = async (file: string, output: string): Promise<boolean> => {
   if (!existsSync(file)) {
     console.error(`error: source not found: "${file}"`)
     return false
   }
 
-  const output = asmFor(project)
   const sources = new Map<string, string>()
 
   try {
@@ -48,9 +49,12 @@ const main = async () => {
     ? allProjects().filter((name) => existsSync(entryFor(name)))
     : [project]
 
+  const jobs: [string, string][] = projects.map((name) => [entryFor(name), asmFor(name)])
+  if (all) for (const file of okTests()) jobs.push([file, asmBeside(file)])
+
   let failed = 0
-  for (const name of projects) {
-    if (!(await compileProject(name))) failed += 1
+  for (const [file, output] of jobs) {
+    if (!(await compileFile(file, output))) failed += 1
   }
 
   if (failed > 0) process.exit(1)

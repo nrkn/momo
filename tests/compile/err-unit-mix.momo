@@ -1,4 +1,5 @@
 // EXPECT-ERROR: different units do not combine
+// EXPECT-AT: 9:14
 // Two units of the same storage are still two units. This is the whole point.
 unit px = u16
 unit ms = u16

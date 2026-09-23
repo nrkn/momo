@@ -1,2 +1,3 @@
 // EXPECT-ERROR: a decimal point cannot follow a hex or binary literal
+// EXPECT-AT: 3:13
 u16 a = 0x10.5

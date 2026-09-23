@@ -1,4 +1,5 @@
 // EXPECT-ERROR: cannot put ms in px
+// EXPECT-AT: 7:5
 unit px = u16
 unit ms = u16
 px a

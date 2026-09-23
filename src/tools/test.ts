@@ -10,28 +10,39 @@
 // Keeping the expectation inside the file means test and assertion cannot drift
 // apart, and there is no manifest to forget to update.
 //
+// A test may also pin where the error is reported, as a line or a line and a
+// 1-based column in the test file itself:
+//
+//   // EXPECT-AT: 7:12
+//
+// Opt-in, because the message alone passes a diagnostic that has drifted to the
+// wrong line, and a caret on the wrong line is most of what makes one useless.
+//
 // Also runs the type-lattice assertions, which are the one place unit tests earn
 // their keep: `combineRanges` and `truncate` encode facts about 16-bit integers,
 // not design choices we might revisit.
 
-import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join, resolve as resolvePath } from 'node:path'
 
 import {
   allProjects,
   argsFor,
+  asmBeside,
   asmFor,
   compileTestsDir as compileDir,
   designPath,
   entryFor,
   expectedFor,
+  okTests,
   projectDir,
   sharedRoot,
 } from './cli.js'
 import { filesOf, runDos } from './dos.js'
-import { compile } from '../momo/compile.js'
-import { formatError, isMomoError } from '../momo/diagnostics.js'
+import { footprintOf, staticOverflow } from './footprint.js'
+import { compile, type Compilation } from '../momo/compile.js'
+import { formatError, isMomoError, type MomoError } from '../momo/diagnostics.js'
 import { tokenize } from '../momo/lexer.js'
 import { load } from '../momo/loader.js'
 import { printProgram } from '../momo/printer.js'
@@ -215,6 +226,36 @@ const expectedError = (source: string): string | null => {
   return null
 }
 
+// `// EXPECT-AT: <line>[:<col>]`. A header that says EXPECT-AT and does not
+// parse is reported rather than skipped - a typo there would otherwise turn the
+// assertion off without a word.
+type ExpectedAt = { line: number; col: number | null } | { malformed: string }
+
+const expectedAt = (source: string): ExpectedAt | null => {
+  for (const line of source.split('\n')) {
+    const header = line.match(/^\s*\/\/\s*EXPECT-AT:\s*(.*?)\s*$/)
+    if (!header) continue
+    const at = header[1].match(/^(\d+)(?::(\d+))?$/)
+    if (!at) return { malformed: header[1] }
+    return { line: Number(at[1]), col: at[2] === undefined ? null : Number(at[2]) }
+  }
+  return null
+}
+
+// Null when the error is where the test says it is, else what was wrong.
+const positionMismatch = (file: string, at: ExpectedAt | null, error: MomoError): string | null => {
+  if (at === null) return null
+  if ('malformed' in at) return `EXPECT-AT "${at.malformed}" is not <line> or <line>:<col>`
+
+  const got = error.momo
+  const wanted = at.col === null ? `${at.line}` : `${at.line}:${at.col}`
+  const actual = at.col === null ? `${got.line}` : `${got.line}:${got.col}`
+  if (resolvePath(got.file) !== resolvePath(file)) {
+    return `expected at ${wanted}, got ${got.file}:${got.line}:${got.col} - another file`
+  }
+  return wanted === actual ? null : `expected at ${wanted}, got ${actual}`
+}
+
 const compileTests = () => {
   const files = readdirSync(compileDir)
     .filter((name) => name.endsWith('.momo'))
@@ -222,7 +263,9 @@ const compileTests = () => {
 
   for (const name of files) {
     const file = join(compileDir, name)
-    const expect = expectedError(readFileSync(file, 'utf8'))
+    const text = readFileSync(file, 'utf8')
+    const expect = expectedError(text)
+    const at = expectedAt(text)
     const sources = new Map<string, string>()
 
     let error: unknown = null
@@ -233,6 +276,10 @@ const compileTests = () => {
     }
 
     if (!expect) {
+      if (at !== null) {
+        check(name, false, 'EXPECT-AT with no EXPECT-ERROR - a position is only asserted for an error')
+        continue
+      }
       check(name, error === null, error instanceof Error ? error.message : String(error))
       continue
     }
@@ -248,11 +295,14 @@ const compileTests = () => {
     }
 
     const formatted = formatError(sources, error)
-    check(
-      name,
-      error.message.includes(expect),
-      `expected "${expect}"\n    got      "${error.message}"\n${formatted}`,
-    )
+    if (!error.message.includes(expect)) {
+      check(name, false, `expected "${expect}"\n    got      "${error.message}"\n${formatted}`)
+      continue
+    }
+
+    // One assertion per file either way, so the tally stays the file count.
+    const misplaced = positionMismatch(file, at, error)
+    check(name, misplaced === null, `${misplaced}\n${formatted}`)
   }
 
   return files.length
@@ -260,7 +310,8 @@ const compileTests = () => {
 
 // ---- golden output ---------------------------------------------------------
 //
-// Compile every project and compare against the .asm committed beside it.
+// Compile every project and every ok- fixture, and compare against the .asm
+// committed beside it.
 //
 // The compile tests above only ask WHETHER a program compiles, never what it
 // emits, and tier 2 needs DOSBox - so between them there was nothing watching
@@ -299,30 +350,74 @@ const firstDifference = (actual: string, expected: string): string | null => {
   return shown.join('\n')
 }
 
+// The ok- fixtures are here too. The round trip below compiles each of them
+// twice, but through the same emitter both times, so a codegen regression in a
+// shape only a fixture exercises - every `far` shape, every `view` shape - would
+// agree with itself there and pass. Their committed .asm is what can disagree.
 const goldenTests = (): number => {
   // Projects with no .momo are hand-written assembly, and have nothing to
   // compare against.
-  const projects = allProjects().filter((name) => existsSync(entryFor(name)))
+  const cases: { name: string; file: string; golden: string }[] = allProjects()
+    .filter((name) => existsSync(entryFor(name)))
+    .map((name) => ({ name, file: entryFor(name), golden: asmFor(name) }))
 
-  for (const project of projects) {
-    const goldenPath = asmFor(project)
+  for (const file of okTests()) {
+    cases.push({ name: basename(asmBeside(file)), file, golden: asmBeside(file) })
+  }
+
+  for (const { name, file, golden } of cases) {
     const sources = new Map<string, string>()
 
-    if (!existsSync(goldenPath)) {
-      check(project, false, `nothing committed at ${project}.asm`)
+    if (!existsSync(golden)) {
+      check(name, false, `nothing committed at ${basename(golden)}`)
       continue
     }
 
     let assembly: string
     try {
-      assembly = compile(entryFor(project), sharedRoot, sources).assembly
+      const compilation = compile(file, sharedRoot, sources)
+      compiled.set(file, compilation)
+      assembly = compilation.assembly
     } catch (error) {
-      check(project, false, describe(sources, error))
+      check(name, false, describe(sources, error))
       continue
     }
 
-    const difference = firstDifference(assembly, readFileSync(goldenPath, 'utf8'))
-    check(project, difference === null, difference ?? '')
+    const difference = firstDifference(assembly, readFileSync(golden, 'utf8'))
+    check(name, difference === null, difference ?? '')
+  }
+
+  return cases.length
+}
+
+// ---- static capacity ---------------------------------------------------------
+//
+// `npm run memory` was the only thing that reported a program too big for its
+// segment, and nothing ran it: raising a capacity put an image at 69,630 bytes
+// against 65,536, `momoc` said `ok`, and the program built, ran and hung. So its
+// two failures are asked of every project here - a heap already gone, and views
+// already reaching past it - with the data standing in for the image, which is
+// the least the image can be. Code needs NASM and is not counted, so this can
+// pass a program `npm run memory` would still refuse after a build; it cannot
+// fail one that fits.
+
+// Filled by the golden tier, which has just compiled every project.
+const compiled = new Map<string, Compilation>()
+
+const capacityTests = (): number => {
+  const projects = allProjects().filter((name) => existsSync(entryFor(name)))
+
+  for (const project of projects) {
+    const file = entryFor(project)
+    const sources = new Map<string, string>()
+
+    try {
+      const footprint = footprintOf(compiled.get(file) ?? compile(file, sharedRoot, sources))
+      const overflow = staticOverflow(footprint)
+      check(`capacity ${project}`, overflow === null, overflow ?? '')
+    } catch (error) {
+      check(`capacity ${project}`, false, describe(sources, error))
+    }
   }
 
   return projects.length
@@ -342,12 +437,10 @@ const goldenTests = (): number => {
 // `; ---- ` lines come out and everything else has to match: every instruction,
 // every label, every inline comment about a widening or a jump choice.
 
-const roundTripRoot = mkdtempSync(join(tmpdir(), 'momo-roundtrip-'))
-
 const codeOnly = (assembly: string): string[] =>
   asLines(assembly).filter((line) => !line.startsWith('; ---- '))
 
-const roundTripTests = (): number => {
+const roundTripCases = (scratch: string): number => {
   const cases: { name: string; file: string }[] = []
 
   for (const project of allProjects()) {
@@ -357,11 +450,7 @@ const roundTripTests = (): number => {
 
   // The ok- files carry syntax no project happens to use - every `far` shape,
   // every `view` shape - so they are where the printer's coverage comes from.
-  for (const name of readdirSync(compileDir).sort()) {
-    if (name.startsWith('ok-') && name.endsWith('.momo')) {
-      cases.push({ name, file: join(compileDir, name) })
-    }
-  }
+  for (const file of okTests()) cases.push({ name: basename(file), file })
 
   let asserted = 0
 
@@ -381,7 +470,7 @@ const roundTripTests = (): number => {
 
       // Written out rather than compiled from memory, so the round trip goes
       // through the same lexer and loader entry point everything else does.
-      const copy = join(roundTripRoot, `${name.replace(/\.momo$/, '')}.momo`)
+      const copy = join(scratch, `${name.replace(/\.momo$/, '')}.momo`)
       writeFileSync(copy, printed, 'utf8')
 
       const again = compile(copy, sharedRoot, new Map()).assembly
@@ -415,6 +504,17 @@ const roundTripTests = (): number => {
   }
 
   return asserted
+}
+
+// The printed copies get a directory of their own, removed however the run
+// ends - including by a throw no case caught.
+const roundTripTests = (): number => {
+  const scratch = mkdtempSync(join(tmpdir(), 'momo-roundtrip-'))
+  try {
+    return roundTripCases(scratch)
+  } finally {
+    rmSync(scratch, { recursive: true, force: true })
+  }
 }
 
 // ---- instruction subset ------------------------------------------------------
@@ -508,6 +608,7 @@ lexAssertions()
 const lexCount = passed + failures.length - typeCount
 const compileCount = compileTests()
 const goldenCount = goldenTests()
+const capacityCount = capacityTests()
 // ---- pairs that have to emit the same instructions ---------------------------
 //
 // Where a feature claims to cost nothing, this is the claim rather than an
@@ -575,7 +676,9 @@ const machineTests = (): number => {
     asserted += 1
 
     const args = existsSync(argsFor(project)) ? readFileSync(argsFor(project), 'utf8').trim() : ''
-    const expected = cleanOutput(readFileSync(expectedFor(project), 'utf8'))
+    // latin1, byte for byte, as the machine's output is and as tier 2 reads both
+    // sides - the two tiers compare by one rule (e2e.ts has why).
+    const expected = cleanOutput(readFileSync(expectedFor(project), 'latin1'))
 
     try {
       const run = runDos(readFileSync(asmFor(project), 'utf8'), { files: filesOf(projectDir(project)), args })
@@ -603,7 +706,7 @@ for (const failure of failures) console.error(`  FAIL  ${failure}`)
 const total = passed + failures.length
 console.log(
   `\n${passed}/${total} passed` +
-    `  (${compileCount} compile tests, ${goldenCount} golden, ${typeCount} type` +
+    `  (${compileCount} compile tests, ${goldenCount} golden, ${capacityCount} capacity, ${typeCount} type` +
     `, ${lexCount} lex, ${roundTripCount} round trip, ${identityCount} identity, ${subsetCount} subset` +
     `, ${machineCount} machine)`,
 )

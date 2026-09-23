@@ -1,3 +1,4 @@
 // EXPECT-ERROR: this view runs off the end of "bar"
+// EXPECT-AT: 4:1
 u8[100] bar
 view u8[50] q = bar[75]

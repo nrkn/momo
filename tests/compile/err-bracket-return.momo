@@ -1,4 +1,5 @@
 // EXPECT-ERROR: return inside a bracket body would skip the close
+// EXPECT-AT: 14:18
 // §48: the close is emitted at the end of the body, so an early exit past it is
 // exactly the failure the feature exists to remove.
 u16 n = 0

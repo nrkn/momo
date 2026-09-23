@@ -1,7 +1,7 @@
 // Run a project in the interpreter rather than in DOSBox (§72).
 //
 //   npm run trace -- smoke
-//   npm run trace:profile -- tennis
+//   npm run trace:profile -- dirlist
 //
 // Compiles the project, runs the result in `machine.ts` inside the DOS of
 // `dos.ts`, prints what it printed, and then what it cost: instructions exactly,
@@ -49,6 +49,8 @@ const main = () => {
 
   if (!profile) return
 
+  // Ranked by cycles, so the share is of cycles too, and both are shown beside
+  // the instruction count rather than under its name.
   const rows = [...run.profile].filter(([, counts]) => counts.instructions > 0)
   rows.sort((a, b) => b[1].cycles - a[1].cycles)
   console.log('')
@@ -56,7 +58,7 @@ const main = () => {
     const share = ((100 * counts.cycles) / cycles).toFixed(1).padStart(5)
     console.log(
       `  ${(routine || '(top level)').padEnd(28)} ${counts.instructions.toLocaleString('en').padStart(14)}` +
-        ` instr  ${share}%`,
+        ` instr ${counts.cycles.toLocaleString('en').padStart(14)} cycles  ${share}% of cycles`,
     )
   }
 }

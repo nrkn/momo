@@ -1,4 +1,5 @@
 // EXPECT-ERROR: cannot add two addresses
+// EXPECT-AT: 8:9
 // Two places do not sum to a place (§71).
 u8[8] buf
 a16 at

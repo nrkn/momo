@@ -198,6 +198,7 @@ npm test                      # tier 1: compile, golden .asm, types, lexing, the
 npm run test:e2e              # tier 2: run in DOSBox headless, compare output
 
 npm run grammar               # regenerate the grammar from tokens.ts
+npm run index                 # regenerate docs/INDEX.md, every § and which file holds it
 npm run editor:install        # copy the extension to ~/.vscode/extensions
 
 npm run drift                 # counts, cross-references and paths; exits 1 on a finding
@@ -490,7 +491,7 @@ The cost of waiting is that the first thing a visitor reads is the weakest
 document in the repo. That trade is made deliberately, and preferred to shipping a
 second draft in the same voice as the first.
 
-624 tier-1 assertions, 64 e2e programs, all green. `npm test` prints the tier 1
+748 tier-1 assertions, 64 e2e programs, all green. `npm test` prints the tier 1
 breakdown, and `npm run drift` holds both figures against the harness and the
 committed expectations. Both have drifted before, which is why a script reads
 them now.
