@@ -4990,6 +4990,24 @@ window slicing a line to count its tabs would be a second pass over every row it
 drew. `lineCells` is one loop with the tab test inside it, and costs about what
 `lineSlice` does on a line that holds no tab.
 
+### What a document indents with
+
+`textIndent` guesses it, for an editor deciding what Tab should type: 0 for tabs,
+a width for spaces, or the caller's fallback when nothing is indented. It is here
+for §55's reason - it is behaviour a headless tier can run, so it lives below the
+editor - and because it reads lines, which is this file's business.
+
+**Tabs win when more lines start with a tab than with a space.** The width is the
+step between neighbouring lines that occurs most often, not the smallest indent: a
+C comment's ` * ` is a one-space indent in a file indented by four, and the step a
+file takes going a level deeper is what its width actually is. A blank line, or
+one of nothing but spaces, is skipped rather than measured, so a blank line inside
+a block does not make the line after it look like a step from nothing. Ties go to
+the smaller step.
+
+It reads the first sixteen bytes of each of the first `lines` lines, because a
+guess does not need the whole file and an open should not pay for one.
+
 ### Rules
 
 - **The chain is walked once per line, never once per character.** `lineSlice` is
@@ -6377,6 +6395,9 @@ language feature.
 - **No door loses unsaved work.** `^O` and `^W` refuse and say so; `^Q` asks,
   because §69 needed three answers and they do not. All three are about **any**
   open document, since the one holding unsaved work may not be the one on screen.
+- **What Tab types is the document's**, guessed from the file on open and shown
+  in the status line. How far the key indents and how wide a tab looks are
+  separate questions, and the second is §56's.
 - **A refusal says which limit.** Lines, text and memory are three problems and
   one sentence cannot be all of them.
 - **A load stops at the first refusal**, rather than reading to the end of a
@@ -6979,12 +7000,26 @@ the one key a person indenting a line reaches for - so the trade was made the
 other way: **browser-style cycling on `Ctrl+Tab`, and Tab is the document's
 again.**
 
-It types spaces to the next stop rather than a literal tab. When this was
-written that was also what kept §56 from having to learn about display columns,
-and it noted that a file *containing* tabs rendered one to a column regardless -
-a gap that was its own piece of work. §56 has since learned them: a file's tabs
-show at a stop of eight, and the key still types spaces, now measured to the next
-stop on the screen rather than by byte count.
+When this was written it typed spaces to the next multiple of two, which was
+also what kept §56 from having to learn about display columns - and a file
+*containing* tabs rendered one to a column regardless, a gap that was its own
+piece of work. §56 has since learned them, and a file's tabs show at a stop of
+eight.
+
+**What it types now is the document's.** Each document carries an indent - a
+tab, or spaces at a width - guessed when it is opened by §54's `textIndent` from
+how the file is already indented, so a Makefile gets tabs and this repository's
+sources get two spaces without anybody choosing. A new file, or one with nothing
+indented, gets four: the common width, where eight is a lot of screen and two is
+one author's preference. It is saved and restored with the rest of a document on
+a switch, shown in the status line as `TAB` or `SP` and a width - because a
+person should know what the key will do before pressing it - and View >
+Indentation cycles it through tabs, two, four and eight.
+
+Spaces are measured on the screen, so a line already holding a tab indents to
+where it looks as if it should, and they are measured at the cursor the indent
+lands on - after a selection is removed, which moves it - rather than where the
+key was pressed. A tab is one byte, and §56 puts the cursor on the next stop.
 
 ### The explorer is a slot in the ring
 

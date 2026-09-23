@@ -2485,6 +2485,40 @@ than a guard that did nothing, and written the other way round it failed.
 **What no tier reaches is `momoed`'s half** - the cursor, the status column, the
 Tab key and the two overlays - which is the part a person checks on a screen.
 
+### What Tab types, and a fixture that could not tell
+
+Once tabs displayed properly, the Tab key's spaces became the odd one out: a
+person tabbing through a tab-indented file got spaces to a multiple of two, which
+is this repository's convention and not the file's. The key now types what the
+document indents with, guessed on open, and the default for a file with nothing
+to go on moved from two to four at the author's own suggestion - two had been a
+preference written into an editor meant for other people's files too.
+
+**The width is a step, not a minimum**, and that was decided before any code: the
+smallest indent in a C file is the one space of a comment's ` * `, and a guess
+built on it would indent every C file by one.
+
+**Two neuters changed nothing, and they meant different things.**
+
+- Skipping a blank line when measuring the next line's step was untested, not
+  weak. The fixture's only blank line sat between two unindented lines, where
+  measuring from it gives the same answer. A second fixture puts blank lines
+  inside a block, where measuring from a depth of 0 turns every line after one
+  into a step of four and outvotes the twos; with the skip neutered it answers
+  4, and it fails.
+- Counting only steps that go deeper turned out to be carried twice. A shallower
+  line's difference is negative, which as an unsigned number is enormous and
+  fails the bound on the step table anyway - so taking `s > last` out changes
+  nothing, and nothing could, short of counting outdents by their size. Doing
+  that gives the same answer on any file whose indentation goes back the way it
+  came, which is every file. The explicit test stays because it says what the
+  arithmetic only happens to do.
+
+**While `typeIndent` was being written**, the old code turned out to measure the
+spaces to the next stop before a selection was removed, though removing one moves
+the cursor to where the selection began. It is measured where the indent lands
+now.
+
 ---
 
 ## 57. `key`

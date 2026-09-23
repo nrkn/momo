@@ -295,6 +295,11 @@ __entry:
         mov     [guess__at], ax
         mov     word [guess__n], 4
         call    guess
+; ---- guess( addr( byGaps ), len( byGaps ) )    // 2 - a blank line is not a neighbour
+        mov     ax, byGaps                  ; link-time constant
+        mov     [guess__at], ax
+        mov     word [guess__n], 33
+        call    guess
 ; ---- refill( addr( byFour ), len( byFour ) )
         mov     ax, byFour                  ; link-time constant
         mov     [refill__at], ax
@@ -3634,6 +3639,8 @@ byTwo:          db      'a', 10, 10, '  b', 10, '    c', 10, '  d', 10, 'e', 10 
 byFour:         db      '/*', 10, ' * x', 10, ' */', 10, 'f {', 10, '    a', 10, '    if {', 10,        ; u8[49] const
                 db      '        b', 10, '    }', 10, '}', 10
 flat:           db      'a', 10, 'b', 10        ; u8[4] const
+byGaps:         db      'f', 10, '  g', 10, '    a', 10, 10, '    b', 10, 10, '    c', 10, 10,        ; u8[33] const
+                db      '    d', 10
 putNumber__digits: times 5 db 0        ; u8[5]
 
 ; ============================================================ heap ====

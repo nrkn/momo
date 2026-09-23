@@ -152,6 +152,10 @@ const u8[] byTwo    = "a\n\n  b\n    c\n  d\ne\n"
 const u8[] byFour   = "/*\n * x\n */\nf {\n    a\n    if {\n        b\n    }\n}\n"
 const u8[] flat     = "a\nb\n"
 
+// Blank lines inside a block. Measured against a blank line's depth of 0, each
+// line after one would be a step of four, and they would outvote the twos.
+const u8[] byGaps   = "f\n  g\n    a\n\n    b\n\n    c\n\n    d\n"
+
 sub refill( a16 at, u16 n ) {
   textClear()
   for ( u16 i = 0; i < n; i++ ) {
@@ -169,6 +173,7 @@ guess( addr( byTabs ), len( byTabs ) )    // 0 - more lines start with a tab
 guess( addr( byTwo ), len( byTwo ) )      // 2 - across a blank line
 guess( addr( byFour ), len( byFour ) )    // 4 - the comment's step of one loses
 guess( addr( flat ), len( flat ) )        // 4 - nothing indented, the fallback
+guess( addr( byGaps ), len( byGaps ) )    // 2 - a blank line is not a neighbour
 
 // Only the lines it is told to read: the step in `byFour` is not until line 4.
 refill( addr( byFour ), len( byFour ) )
