@@ -291,7 +291,8 @@ export const printStatement = (node: Statement, depth = 0): string => {
           return `${indent(depth + 1)}${printType(field.typeNode)} ${field.name}${init}`
         })
         .join('\n')
-      return `${pad}group ${declared(node)}${count} {\n${fields}\n${indent(depth)}}`
+      const readonly = node.readonly ? 'const ' : ''
+      return `${pad}${readonly}group ${declared(node)}${count} {\n${fields}\n${indent(depth)}}`
     }
 
     case 'FarDeclaration': {

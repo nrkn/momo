@@ -1,0 +1,36 @@
+// cgroup.momo - a const group (§70): rows of data that nothing may write.
+//
+// Read back through `of` and through an index, because the claim is that each
+// row's columns are the row that was written, and that a column of §51's
+// addresses points where it says. What the golden tier holds is the pruning:
+// `spare` is a column nothing reads, so it is not in the image, and neither is
+// `sUnused`, which only that column names.
+
+include "lib/std/io.momo"
+
+const u8[] sRed    = "red$"
+const u8[] sGreen  = "green$"
+const u8[] sBlue   = "blue$"
+const u8[] sUnused = "unused$"
+
+const group colour[3] {
+  u16 name
+  u8  level
+  u16 spare
+} = [
+  [ addr( sRed ),   10, addr( sUnused ) ],
+  [ addr( sGreen ), 20, addr( sUnused ) ],
+  [ addr( sBlue ),  30, addr( sUnused ) ],
+]
+
+for ( c of colour ) {
+  putStr( c.name )                    // red10, green20, blue30
+  putNumber( c.level )
+  newline()
+}
+
+u16 i
+i = 2
+putStr( colour[i].name )              // blue
+putNumber( len( colour ) )            // 3
+newline()

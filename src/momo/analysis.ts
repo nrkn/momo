@@ -327,6 +327,14 @@ export const prune = <S extends PrunableSymbol>(result: {
       return
     }
 
+    // A group's columns are data in the same way, and a const group's may hold
+    // addresses (§70) - kept by the fixpoint while their column is, like §51's.
+    if (node.type === 'GroupDeclaration') {
+      walk(node.count)
+      for (const field of node.fields as { init?: unknown }[]) walk(field.init, true)
+      return
+    }
+
     // Nor a view's, and nothing inside one is a use either: the parent is
     // deliberately left unlabelled by the resolver, and the offset has already
     // folded into the alias, so a const that only appears there is genuinely

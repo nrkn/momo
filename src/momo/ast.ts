@@ -337,6 +337,8 @@ export type GroupDeclaration = Spanned & {
   count: Expression | null
   fields: GroupField[]
   local?: boolean
+  // `const group` (§70): every field is data and none can be written.
+  readonly?: boolean
   // §52. True when the data arrived as rows and the parser transposed it. Carried
   // only so a length error can be phrased in the form the author actually wrote -
   // the instance count is a constant expression, so the count check cannot happen

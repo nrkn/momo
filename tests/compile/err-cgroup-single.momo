@@ -1,0 +1,7 @@
+// EXPECT-ERROR: a const group has rows
+// One instance of constants is a set of consts, which `const` writes and folds
+// without giving each one storage (§70).
+const group player {
+  u8 x
+  u8 y
+} = [ 10, 20 ]

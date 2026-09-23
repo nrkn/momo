@@ -177,6 +177,7 @@ export type MomoSymbol =
       label: string
       count: number | null // null is the single-instance form: no index
       fields: { name: string; symbol: MomoSymbol }[]
+      readonly?: boolean // `const group` (§70)
     }
 
 type ArraySymbol = Extract<MomoSymbol, { kind: 'array' }>
@@ -2044,7 +2045,8 @@ export const resolve = (program: Program): ResolveResult => {
       )
     }
 
-    const values = arrayValuesFrom(field.init, field.typeNode.name, field.typeNode.frac)
+    // A const group's column is a const array, so §51's addresses are admitted.
+    const values = arrayValuesFrom(field.init, field.typeNode.name, field.typeNode.frac, node.readonly === true)
     if (values.length !== count) {
       raise(
         field.init,
@@ -2090,6 +2092,16 @@ export const resolve = (program: Program): ResolveResult => {
       if (count <= 0) raise(node.count, 'group count must be positive')
     }
 
+    // §70. One instance of constants is a set of consts, which `const` already
+    // writes and folds for nothing - a group would give each one storage.
+    if (node.readonly && count === null) {
+      raise(
+        node,
+        `a const group has rows - one instance of constants is a set of consts,` +
+          ` which "const" writes without storage`,
+      )
+    }
+
     const seen = new Set<string>()
     const fields: { name: string; symbol: MomoSymbol }[] = []
 
@@ -2098,6 +2110,11 @@ export const resolve = (program: Program): ResolveResult => {
         raise(field, `duplicate field "${field.name}" in group "${node.name}"`)
       }
       seen.add(field.name)
+
+      // A column nobody can write and nobody gave data is zeros for ever.
+      if (node.readonly && !field.init) {
+        raise(field, `field "${field.name}" of const group "${node.name}" has no data, so it would be zero for ever`)
+      }
 
       const label = `${labelFor(node.name, node.local)}__${field.name}`
       claimLabel(label, field, `field "${field.name}" of group "${node.name}"`)
@@ -2116,7 +2133,7 @@ export const resolve = (program: Program): ResolveResult => {
               kind: 'array', name: label, label, elementType: field.typeNode.name,
               frac: field.typeNode.frac,
               unit: field.typeNode.unit,
-              length: count, readonly: false,
+              length: count, readonly: node.readonly === true,
               values: columnValues(node, field, count),
               dynamic: false,
               fromString: field.init?.type === 'StringLiteral',
@@ -2130,7 +2147,10 @@ export const resolve = (program: Program): ResolveResult => {
     }
 
     declare(
-      { kind: 'group', name: node.name, label: labelFor(node.name, node.local), count, fields },
+      {
+        kind: 'group', name: node.name, label: labelFor(node.name, node.local), count, fields,
+        ...(node.readonly ? { readonly: true } : {}),
+      },
       node,
       node.local,
     )
@@ -2410,6 +2430,12 @@ export const resolve = (program: Program): ResolveResult => {
       return annotate(target, resolveGroupField(target, null))
     }
     if (target.type === 'IndexExpression' && target.array.field !== undefined) {
+      // §70. Worded for the group rather than left to the field's array, whose
+      // name is a mangled one the program never wrote.
+      const group = lookup(target.array.name)
+      if (group?.kind === 'group' && group.readonly) {
+        raise(target, `"${target.array.name}" is a const group and cannot be assigned`)
+      }
       return annotate(target, resolveGroupField(target.array, target.index))
     }
 

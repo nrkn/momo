@@ -546,7 +546,7 @@ const checkDuplicateBindings = () => {
     if (!existsSync(path)) continue
 
     const text = readText(path)
-    const head = new RegExp(`^group ${group}\\[[^\\]]*\\] \\{([^}]*)\\} = \\[`, 'm').exec(text)
+    const head = new RegExp(`^(?:const )?group ${group}\\[[^\\]]*\\] \\{([^}]*)\\} = \\[`, 'm').exec(text)
     if (head === null) {
       report(path, 1, `group "${group}" with rows not found - the check needs updating`)
       continue

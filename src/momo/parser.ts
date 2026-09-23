@@ -617,8 +617,13 @@ export const parse = (tokens: Token[]): Program => {
     | ConstDeclaration
     | ConstFunctionDeclaration
     | FarDeclaration
-    | ViewDeclaration => {
+    | ViewDeclaration
+    | GroupDeclaration => {
     const start = expect('keyword', 'const')
+
+    // `const group` (§70), the same adjective again: a group whose fields are
+    // data nothing may write.
+    if (at('keyword', 'group')) return { ...parseGroupDeclaration(), readonly: true }
 
     // `const far` - read-only region. The order matches §16 and reads as an
     // adjective on `far`, which is what it is.

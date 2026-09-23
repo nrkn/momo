@@ -1,0 +1,11 @@
+// EXPECT-ERROR: is a const group and cannot be assigned
+// Worded for the group, not for the mangled array its field became (§70).
+const group pal[2] {
+  u8 r
+  u8 g
+} = [
+  [ 1, 2 ],
+  [ 3, 4 ],
+]
+
+pal[0].r = 9

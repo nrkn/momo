@@ -2317,7 +2317,7 @@ const u8[] sNewTab = "(untitled)\0"
 // column for that.
 const bindCount = 32
 
-group bind[bindCount] {
+const group bind[bindCount] {
   u16 prefix
   u16 key
   u8  action

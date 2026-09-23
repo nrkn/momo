@@ -17479,9 +17479,9 @@ menuActs:       dw      menuActs__0, menuActs__1, menuActs__2, menuActs__3      
 sExpTab:        db      'Explorer', 0        ; u8[9] const
 sNewTab:        db      '(untitled)', 0        ; u8[11] const
 bind__prefix:   times 32 dw 0        ; u16[32]
-bind__key:      dw      331, 333, 328, 336, 327, 335, 339, 329, 337, 8, 13, 26, 19, 25, 6, 12,        ; u16[32]
+bind__key:      dw      331, 333, 328, 336, 327, 335, 339, 329, 337, 8, 13, 26, 19, 25, 6, 12,        ; u16[32] const
                 dw      3, 24, 22, 1, 7, 15, 18, 2, 371, 372, 375, 373, 404, 9, 20, 23
-bind__action:   db      2, 3, 4, 5, 6, 7, 9, 15, 16, 8, 10, 11, 12, 17, 18, 19, 20, 21, 22, 23,        ; u8[32]
+bind__action:   db      2, 3, 4, 5, 6, 7, 9, 15, 16, 8, 10, 11, 12, 17, 18, 19, 20, 21, 22, 23,        ; u8[32] const
                 db      26, 27, 28, 29, 24, 25, 13, 14, 30, 31, 32, 33
 menuAlt:        dw      289, 274, 287, 303        ; u16[4] const
 numText__digits: times 5 db 0        ; u8[5]

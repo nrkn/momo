@@ -47,7 +47,7 @@ const actBottom = 15
 // space, so nothing here spells a scancode or touches a flags byte.
 const bindCount = 13
 
-group bind[bindCount] {
+const group bind[bindCount] {
   u16 prefix
   u16 key
   u8  action
