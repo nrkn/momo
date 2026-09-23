@@ -206,8 +206,7 @@ value, low frequency - which is exactly what an em dash is not.
 
 This makes the documents consistent with the code rather than introducing a new
 rule: the source comments have used ` - ` from the beginning, in hundreds of
-asides, and nobody has ever minded. There is now no em dash anywhere in `src/` -
-the one this used to count against has since gone.
+asides, and nobody has ever minded. There is no em dash anywhere in `src/`.
 
 There is a small loss, and it is worth naming. In prose full of `-o` and
 `u8 -> u16`, a hyphen aside is a shade more ambiguous than an em dash would be.
@@ -252,3 +251,15 @@ than every time by a writer.
   port, and neither was written down until the second one needed it - which is
   why it is here rather than being inferred from whichever project you happened
   to read first.
+- **A public name a library exports carries that library's prefix** - `flowRow`,
+  `screenCols`, `strEnd`, `textHeap`. The prefix is a namespace: it tells a reader
+  of the program which file a name came from, which is the question they have. A
+  name only one file reads wants `local` (§11) instead.
+
+  **The ported engines are the exception.** momolo exports `el`, `cfg`, `begin`
+  and `leaf`, and mopaint beside it `st`, `vram` and `cellW`, because they keep
+  the names of what they were ported from: a port is held against its study, and
+  the names are part of what lets the two be read side by side. Renaming them
+  would churn every scene and §36's text, and `cfg` has its own way out already,
+  in §49's defaults. momovec's `cx`, `cy` and `rowCount` are the same case for
+  §37. Everything new takes the prefix.
