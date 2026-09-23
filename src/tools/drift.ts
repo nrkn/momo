@@ -10,7 +10,8 @@
 // Mode A is everything a script can decide: whether a §N cross-reference agrees
 // with that section's status line in DESIGN.md, whether a backticked path or an
 // `npm run` script exists, whether the committed grammar is what tokens.ts
-// generates today, whether CONTRIBUTING.md's counts match the harness, and
+// generates today and the committed INDEX.md what the headings do, whether
+// CONTRIBUTING.md's counts match the harness, and
 // whether an uncommitted edit has taken a heading out of a document.
 //
 // Mode B decides nothing at all. It collects the terms a diff touched and prints
@@ -324,6 +325,39 @@ const checkGrammar = () => {
     editorGrammar,
     at + 1,
     `stale - tokens.ts or resolver.ts has moved since; run npm run grammar` +
+      ` (committed "${(b[at] ?? '').trim()}", generated "${(a[at] ?? '').trim()}")`,
+  )
+}
+
+// ---- (c) the section index, the same way --------------------------------------
+//
+// `index.ts` takes the path to write as an argument, and reads the documents
+// from the repository - which is what is being checked against.
+
+const indexPath = join(docsDir, 'INDEX.md')
+
+const checkIndex = () => {
+  const generator = join(root, 'dist', 'tools', 'index.js')
+  if (!existsSync(generator)) fail(`no ${show(generator)} - run npm run compile first`)
+
+  const fresh = join(mkdtempSync(join(tmpdir(), 'momo-drift-index-')), 'INDEX.md')
+  execFileSync(process.execPath, [generator, fresh], { cwd: root, stdio: 'pipe' })
+
+  if (!existsSync(indexPath)) {
+    report(indexPath, 1, 'no committed index - run npm run index')
+    return
+  }
+
+  const a = readText(fresh).split('\n')
+  const b = readText(indexPath).split('\n')
+  let at = 0
+  while (at < a.length && at < b.length && a[at] === b[at]) at += 1
+  if (at === a.length && at === b.length) return
+
+  report(
+    indexPath,
+    at + 1,
+    `stale - a numbered heading has moved since; run npm run index` +
       ` (committed "${(b[at] ?? '').trim()}", generated "${(a[at] ?? '').trim()}")`,
   )
 }
@@ -802,6 +836,7 @@ if (args[0] === '--since') {
   checkStatusReferences(designStatuses())
   checkQuotedPaths()
   checkGrammar()
+  checkIndex()
   checkCounts()
   checkScenes()
   checkMenuTables()

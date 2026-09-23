@@ -201,6 +201,7 @@ npm test                      # tier 1: compile, golden .asm, types, lexing, the
 npm run test:e2e              # tier 2: run in DOSBox headless, compare output
 
 npm run grammar               # regenerate the grammar from tokens.ts
+npm run index                 # regenerate docs/INDEX.md, every § and which file holds it
 npm run editor:install        # copy the extension to ~/.vscode/extensions
 
 npm run drift                 # counts, cross-references and paths; exits 1 on a finding
