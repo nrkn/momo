@@ -1848,8 +1848,9 @@ and one in `momoed` that is a slot number, and `askAt` is a screen column.
 Twenty-four `u16 at` declarations survived the migration, and a strict `peek` is
 what now says none of them is read through as an address in our segment: they
 are undo slots, chunk offsets, vertex indices, video and far-memory offsets, and
-one table index. Renaming them is a separate change, so its `.asm` diff - parameters are
-labels - can be read on its own.
+one table index. They were renamed in the commit after this one, so that its
+`.asm` diff - parameters and locals are labels - could be read on its own, and
+`at` has named an address ever since; `STYLE.md` holds the convention.
 
 ### It found five holes in §39
 

@@ -96,7 +96,7 @@ u16[screenH + 1] runStart
 
 sub sortCrossings {
   u16 y
-  u16 at
+  u16 slot
   u16 running
   u16 from
   u16 to
@@ -130,11 +130,11 @@ sub sortCrossings {
 
   for ( u16 i = 0; i < crossingCount; i++ ) {
     y = cy[i]
-    at = runStart[y] + rowCount[y]
+    slot = runStart[y] + rowCount[y]
 
-    sy_[at] = cy[i]
-    sx_[at] = cx[i]
-    sd_[at] = cdir[i]
+    sy_[slot] = cy[i]
+    sx_[slot] = cx[i]
+    sd_[slot] = cdir[i]
 
     rowCount[y] += 1
   }

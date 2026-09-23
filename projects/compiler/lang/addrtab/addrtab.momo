@@ -46,12 +46,12 @@ for ( u16 i in names ) {
 putNumber( len( names ) )             // 3
 newline()
 
-u16 at
-at = 0
-while ( tail[at] != 0 ) {
-  putStr( tail[at] )                  // three, one
+u16 k
+k = 0
+while ( tail[k] != 0 ) {
+  putStr( tail[k] )                  // three, one
   newline()
-  at++
+  k++
 }
 
 putStr( a16( peek16( outer[0] ) ) )          // inner

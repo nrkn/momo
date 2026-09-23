@@ -671,7 +671,7 @@ mofield__fieldKill:
         jbe     .L54                        ; unsigned >
 ; ---- fieldRemove( from )
         mov     ax, [mofield__fieldKill__from]
-        mov     [mofield__fieldRemove__at], ax
+        mov     [mofield__fieldRemove__col], ax
         call    mofield__fieldRemove
 ; ---- to--
         dec     word [mofield__fieldKill__to]
@@ -761,15 +761,15 @@ mofield__fieldPasteAt:
 ; ============================================== sub mofield__fieldRemove ====
 
 mofield__fieldRemove:
-; ---- if ( at >= fieldLen ) return
-        mov     ax, [mofield__fieldRemove__at]
+; ---- if ( col >= fieldLen ) return
+        mov     ax, [mofield__fieldRemove__col]
         mov     bx, [mofield__fieldLen]
         cmp     ax, bx
         jb      .L67                        ; unsigned >=
         ret
 .L67:
-; ---- for ( u16 i = at; i + 1 < fieldLen; i++ ) {
-        mov     ax, [mofield__fieldRemove__at]
+; ---- for ( u16 i = col; i + 1 < fieldLen; i++ ) {
+        mov     ax, [mofield__fieldRemove__col]
         mov     [mofield__fieldRemove__i], ax
 .L70:
         mov     ax, [mofield__fieldRemove__i]
@@ -981,7 +981,7 @@ fieldKey:
         dec     word [mofield__fieldCur]
 ; ---- fieldRemove( fieldCur )
         mov     ax, [mofield__fieldCur]
-        mov     [mofield__fieldRemove__at], ax
+        mov     [mofield__fieldRemove__col], ax
         call    mofield__fieldRemove
 .L114:
         jmp     .L112
@@ -997,7 +997,7 @@ fieldKey:
         test    ax, ax
         jnz     .L121
         mov     ax, [mofield__fieldCur]
-        mov     [mofield__fieldRemove__at], ax
+        mov     [mofield__fieldRemove__col], ax
         call    mofield__fieldRemove
 .L121:
         jmp     .L119
@@ -1369,7 +1369,7 @@ fieldFrom__ret: dw      0        ; u16
 fieldTo__ret:   dw      0        ; u16
 mofield__fieldKill__ret: db      0        ; bool
 mofield__fieldInsert__ch: db      0        ; u8
-mofield__fieldRemove__at: dw      0        ; u16
+mofield__fieldRemove__col: dw      0        ; u16
 fieldPut__ch:   db      0        ; u8
 fieldKey__k:    dw      0        ; u16
 fieldKey__ret:  db      0        ; u8

@@ -453,21 +453,21 @@ local sub lineSeek( u16 ln, u16 col ) {
 // same column. Those three are the runs worth joining and nothing else is:
 // splitting a line is deliberate, and so is joining one.
 local bool continuesRun( u8 op, u16 ln, u16 col ) {
-  u16 at
+  u16 slot
 
   if ( breakRun || undoDone == 0 ) return false
 
-  at = ( undoHead + undoDone - 1 ) % maxUndo
-  if ( logLine[at] != ln || logOp[at] != op ) return false
+  slot = ( undoHead + undoDone - 1 ) % maxUndo
+  if ( logLine[slot] != ln || logOp[slot] != op ) return false
 
-  if ( op == opInsert ) return logCol[at] + 1 == col
-  if ( op == opDelete ) return logCol[at] == col || logCol[at] == col + 1
+  if ( op == opInsert ) return logCol[slot] + 1 == col
+  if ( op == opDelete ) return logCol[slot] == col || logCol[slot] == col + 1
 
   return false
 }
 
 local sub undoPush( u8 op, u16 ln, u16 col, u8 ch ) {
-  u16 at
+  u16 slot
   bool joins
 
   if ( undoing ) return
@@ -505,12 +505,12 @@ local sub undoPush( u8 op, u16 ln, u16 col, u8 ch ) {
     undoDone--
   }
 
-  at = ( undoHead + undoCount ) % maxUndo
-  logOp[at]       = op
-  logLine[at]     = ln
-  logCol[at]      = col
-  logCh[at]       = ch
-  logJoin[at] = joins ? 1 : 0
+  slot = ( undoHead + undoCount ) % maxUndo
+  logOp[slot]       = op
+  logLine[slot]     = ln
+  logCol[slot]      = col
+  logCh[slot]       = ch
+  logJoin[slot] = joins ? 1 : 0
 
   undoCount++
   undoDone++
@@ -679,7 +679,7 @@ sub lineAppend( u16 ln, u8 ch ) => lineInsert( ln, lineLen[ln], ch )
 // for a second policy to get wrong.
 local sub chunkMerge( u16 ln, u16 c, u16 prev ) {
   u16 d
-  u16 at
+  u16 base
   u16 n
 
   d = chunkNext[c]
@@ -687,14 +687,14 @@ local sub chunkMerge( u16 ln, u16 c, u16 prev ) {
   if ( d != 0 && chunkUsed[c] + chunkUsed[d] <= chunkSize ) {
     atSrc( d )
     atDst( c )
-    at = chunkUsed[c]
+    base = chunkUsed[c]
     n  = chunkUsed[d]
 
     for ( u16 i = 0; i < n; i++ ) {
-      dst[ at + i ] = src[i]
+      dst[ base + i ] = src[i]
     }
 
-    chunkUsed[c] = at + n
+    chunkUsed[c] = base + n
     chunkNext[c] = chunkNext[d]
     chunkGive( d )
     return
@@ -844,35 +844,35 @@ sub lineJoin( u16 ln ) {
 // One entry backwards. Every arm is an ordinary operation, which is what keeps
 // this short: there is no inverse of anything here, only the other one of a
 // pair.
-local sub undoEntry( u16 at ) {
-  undoAtLine = logLine[at]
-  undoAtCol  = logCol[at]
+local sub undoEntry( u16 slot ) {
+  undoAtLine = logLine[slot]
+  undoAtCol  = logCol[slot]
 
-  if ( logOp[at] == opInsert ) {
-    lineDelete( logLine[at], logCol[at] )
-  } else if ( logOp[at] == opDelete ) {
-    lineInsert( logLine[at], logCol[at], logCh[at] )
-  } else if ( logOp[at] == opSplit ) {
-    lineJoin( logLine[at] )
-  } else if ( logOp[at] == opJoin ) {
-    lineSplit( logLine[at], logCol[at] )
+  if ( logOp[slot] == opInsert ) {
+    lineDelete( logLine[slot], logCol[slot] )
+  } else if ( logOp[slot] == opDelete ) {
+    lineInsert( logLine[slot], logCol[slot], logCh[slot] )
+  } else if ( logOp[slot] == opSplit ) {
+    lineJoin( logLine[slot] )
+  } else if ( logOp[slot] == opJoin ) {
+    lineSplit( logLine[slot], logCol[slot] )
   }
 }
 
 // One entry forwards - the same four operations the other way round, which is
 // why redo needed no new machinery beyond remembering what was inserted.
-local sub redoEntry( u16 at ) {
-  undoAtLine = logLine[at]
-  undoAtCol  = logCol[at]
+local sub redoEntry( u16 slot ) {
+  undoAtLine = logLine[slot]
+  undoAtCol  = logCol[slot]
 
-  if ( logOp[at] == opInsert ) {
-    lineInsert( logLine[at], logCol[at], logCh[at] )
-  } else if ( logOp[at] == opDelete ) {
-    lineDelete( logLine[at], logCol[at] )
-  } else if ( logOp[at] == opSplit ) {
-    lineSplit( logLine[at], logCol[at] )
-  } else if ( logOp[at] == opJoin ) {
-    lineJoin( logLine[at] )
+  if ( logOp[slot] == opInsert ) {
+    lineInsert( logLine[slot], logCol[slot], logCh[slot] )
+  } else if ( logOp[slot] == opDelete ) {
+    lineDelete( logLine[slot], logCol[slot] )
+  } else if ( logOp[slot] == opSplit ) {
+    lineSplit( logLine[slot], logCol[slot] )
+  } else if ( logOp[slot] == opJoin ) {
+    lineJoin( logLine[slot] )
   }
 }
 
@@ -880,7 +880,7 @@ local sub redoEntry( u16 at ) {
 // marked as continuing the same run. A `joinPrev` that is false ends it, which
 // is why the first entry of a run never carries one.
 sub undoOnce {
-  u16 at
+  u16 slot
   bool more
 
   if ( undoDone == 0 ) return
@@ -890,9 +890,9 @@ sub undoOnce {
 
   while ( more ) {
     undoDone--
-    at = ( undoHead + undoDone ) % maxUndo
-    undoEntry( at )
-    more = logJoin[at] != 0 && undoDone > 0
+    slot = ( undoHead + undoDone ) % maxUndo
+    undoEntry( slot )
+    more = logJoin[slot] != 0 && undoDone > 0
   }
 
   breakRun = true
@@ -902,7 +902,7 @@ sub undoOnce {
 // One user action forward, which is the same run read the other way: the entry
 // at the cursor, and every following one marked as continuing it.
 sub redoOnce {
-  u16 at
+  u16 slot
   bool more
 
   if ( undoDone >= undoCount ) return
@@ -911,8 +911,8 @@ sub redoOnce {
   more = true
 
   while ( more ) {
-    at = ( undoHead + undoDone ) % maxUndo
-    redoEntry( at )
+    slot = ( undoHead + undoDone ) % maxUndo
+    redoEntry( slot )
     undoDone++
 
     more = false
@@ -1021,7 +1021,7 @@ u16 lineCellOf( u16 ln, u16 col, u16 stop ) {
 u16 lineColAt( u16 ln, u16 cell, u16 stop ) {
   u16 c
   u16 col
-  u16 at
+  u16 pos
   u16 w
   u16 n
 
@@ -1029,7 +1029,7 @@ u16 lineColAt( u16 ln, u16 cell, u16 stop ) {
 
   c = lineHead[ln]
   col = 0
-  at = 0
+  pos = 0
 
   while ( c != 0 ) {
     atDst( c )
@@ -1037,9 +1037,9 @@ u16 lineColAt( u16 ln, u16 cell, u16 stop ) {
 
     for ( u16 i = 0; i < n; i++ ) {
       w = 1
-      if ( dst[i] == 9 ) w = stop - at % stop
-      if ( at + w > cell ) return col
-      at += w
+      if ( dst[i] == 9 ) w = stop - pos % stop
+      if ( pos + w > cell ) return col
+      pos += w
       col++
     }
 
@@ -1345,7 +1345,7 @@ sub textInit {
   u16 room
   u16 avail
   u16 spare
-  u16 at
+  u16 seg
 
   lineCount  = 0
   chunkFree  = 0
@@ -1424,32 +1424,32 @@ sub textInit {
   // Then a set of per-document regions apiece. The log is fixed by `maxUndo`
   // rather than by the machine - a log is a window on history and a bigger one
   // stops being better where a person would rather have the text.
-  at = usedSeg + ( chunkLimit + 15 ) / 16
+  seg = usedSeg + ( chunkLimit + 15 ) / 16
 
   for ( u16 d = 0; d < maxDocs; d++ ) {
-    docHeadSeg[d] = at
-    at = at + headParas
+    docHeadSeg[d] = seg
+    seg = seg + headParas
 
-    docLenSeg[d] = at
-    at = at + lenParas
+    docLenSeg[d] = seg
+    seg = seg + lenParas
 
-    docLogOp[d] = at
-    at = at + opParas
+    docLogOp[d] = seg
+    seg = seg + opParas
 
-    docLogLine[d] = at
-    at = at + lineParas
+    docLogLine[d] = seg
+    seg = seg + lineParas
 
-    docLogCol[d] = at
-    at = at + lineParas
+    docLogCol[d] = seg
+    seg = seg + lineParas
 
-    docLogCh[d] = at
-    at = at + opParas
+    docLogCh[d] = seg
+    seg = seg + opParas
 
-    docLogJoin[d] = at
-    at = at + opParas
+    docLogJoin[d] = seg
+    seg = seg + opParas
   }
 
-  textBase = at
+  textBase = seg
 
   // Compared rather than added, so a high base cannot wrap past the end and
   // come back looking like room - the same care `blockFits` takes.

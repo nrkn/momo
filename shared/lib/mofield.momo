@@ -175,10 +175,10 @@ local sub fieldPasteAt {
 
 local u8[fieldMax] pasteBuf
 
-local sub fieldRemove( u16 at ) {
-  if ( at >= fieldLen ) return
+local sub fieldRemove( u16 col ) {
+  if ( col >= fieldLen ) return
 
-  for ( u16 i = at; i + 1 < fieldLen; i++ ) {
+  for ( u16 i = col; i + 1 < fieldLen; i++ ) {
     fieldBuf[i] = fieldBuf[i + 1]
   }
 

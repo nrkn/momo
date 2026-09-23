@@ -232,7 +232,7 @@ a16 askLabel
 // five strings that is four more chances to be a column out, and the caret
 // sitting beside what it is editing is exactly the kind of wrong that gets
 // noticed last.
-u16 askAt
+u16 askCol
 
 // `message` is an address of a `$` string or 0, shown beside whichever status
 // line is up and cleared by the next key - so a "not found" is visible until the
@@ -1295,10 +1295,10 @@ sub composeStatus {
 
   if ( prompting() ) {
     statusText( 0, askLabel )
-    statusField( askAt )
+    statusField( askCol )
 
     if ( message != 0 ) {
-      statusText( askAt + fieldLength() + 2, message )
+      statusText( askCol + fieldLength() + 2, message )
 
       // The one message with a number in it, and the number goes after the
       // words rather than into them. **The offset is measured rather than
@@ -1307,7 +1307,7 @@ sub composeStatus {
       // string, and then it is a column out in the one place a person is
       // reading a number.
       if ( message == addr( sDone ) ) {
-        statusNumber( askAt + fieldLength() + 2 + strLen( message ), askCount )
+        statusNumber( askCol + fieldLength() + 2 + strLen( message ), askCount )
       }
     }
 
@@ -1375,7 +1375,7 @@ sub placeCursor {
   }
 
   if ( prompting() ) {
-    moveTo( u8( askAt + fieldCursor() ), u8( rows - 1 ) )
+    moveTo( u8( askCol + fieldCursor() ), u8( rows - 1 ) )
     return
   }
 
@@ -1643,18 +1643,18 @@ sub goToSlot( u16 slot ) {
 // than shown empty, which is the whole of "an unused tab is invisible": there is
 // nothing to look at and nothing to land on.
 sub cycleDoc( bool forward ) {
-  u16 at
+  u16 slot
   u16 by
 
-  at = expFocus ? expSlot : textDoc()
+  slot = expFocus ? expSlot : textDoc()
   by = forward ? 1 : cycleSize - 1
 
   for ( u16 i = 0; i < cycleSize; i++ ) {
-    at = ( at + by ) % cycleSize
-    if ( slotLive( at ) ) break
+    slot = ( slot + by ) % cycleSize
+    if ( slotLive( slot ) ) break
   }
 
-  goToSlot( at )
+  goToSlot( slot )
 }
 
 // `^T`. An empty, unnamed document in the first free slot - which is what a new
@@ -2943,7 +2943,7 @@ sub promptOpen( u8 what, a16 label ) {
 
   asking   = what
   askLabel = label
-  askAt    = i
+  askCol    = i
   message  = 0
   onMatch  = false
 

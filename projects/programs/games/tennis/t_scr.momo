@@ -42,16 +42,16 @@ local const pxIndex( u16 x, u16 y ) = y * screenW + x
 local const screenWNext = screenW + 1
 
 sub setPixel( u16 x, u16 y, u8 color ) {
-  u16 at
+  u16 pix
 
   // logical to screen - both unsigned, so * 2 reduces to the same shl
-  at = pxIndex( x * 2, y * 2 )
+  pix = pxIndex( x * 2, y * 2 )
   
   // later this becomes two statements instead of four
-  pixels[ at ] = color
-  pixels[ at + 1 ] = color
-  pixels[ at + screenW ] = color
-  pixels[ at + screenWNext ] = color
+  pixels[ pix ] = color
+  pixels[ pix + 1 ] = color
+  pixels[ pix + screenW ] = color
+  pixels[ pix + screenWNext ] = color
 }
 
 // neither of these need to call pset - it's just easier for now - much more

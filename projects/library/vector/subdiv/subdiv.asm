@@ -28,45 +28,45 @@ __entry:
         jb      .L4                         ; unsigned <
         jmp     .L3
 .L4:
-; ---- at = c * 6
+; ---- base = c * 6
         mov     ax, [c]
         mov     bx, 6
         mul     bx                          ; low 16 bits are sign-agnostic
-        mov     [at_], ax
+        mov     [base], ax
 ; ---- drawQuadAny(
-; ---- cx0[ at ], cx0[ at + 1 ], cx0[ at + 2 ],
-; ---- cx0[ at + 3 ], cx0[ at + 4 ], cx0[ at + 5 ],
+; ---- cx0[ base ], cx0[ base + 1 ], cx0[ base + 2 ],
+; ---- cx0[ base + 3 ], cx0[ base + 4 ], cx0[ base + 5 ],
 ; ---- true, false
 ; ---- )
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [cx0 + bx]
         mov     [drawQuadAny__x0], ax
-        mov     ax, [at_]
+        mov     ax, [base]
         inc     ax
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [cx0 + bx]
         mov     [drawQuadAny__y0], ax
-        mov     ax, [at_]
+        mov     ax, [base]
         add     ax, 2
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [cx0 + bx]
         mov     [drawQuadAny__x1], ax
-        mov     ax, [at_]
+        mov     ax, [base]
         add     ax, 3
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [cx0 + bx]
         mov     [drawQuadAny__y1], ax
-        mov     ax, [at_]
+        mov     ax, [base]
         add     ax, 4
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [cx0 + bx]
         mov     [drawQuadAny__x2], ax
-        mov     ax, [at_]
+        mov     ax, [base]
         add     ax, 5
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -1605,7 +1605,7 @@ drawQuadAny__wantPixels: db      0        ; bool
 drawQuadAny__wantEdges: db      0        ; bool
 plot__x:        dw      0        ; i16
 plot__y:        dw      0        ; i16
-at_:            dw      0        ; u16
+base:           dw      0        ; u16
 putNumber__i:   db      0        ; u8
 drawLine__dx:   dw      0        ; i16
 drawLine__dy:   dw      0        ; i16

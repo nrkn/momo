@@ -481,7 +481,7 @@ sortCrossings:
         mov     al, [cy + bx]
         xor     ah, ah                      ; u8 -> u16
         mov     [sortCrossings__y], ax
-; ---- at = runStart[y] + rowCount[y]
+; ---- slot = runStart[y] + rowCount[y]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [runStart + bx]
@@ -493,26 +493,26 @@ sortCrossings:
         mov     bx, ax
         pop     ax
         add     ax, bx
-        mov     [sortCrossings__at], ax
-; ---- sy_[at] = cy[i]
+        mov     [sortCrossings__slot], ax
+; ---- sy_[slot] = cy[i]
         mov     ax, [sortCrossings__i]
         mov     bx, ax
         mov     al, [cy + bx]
-        mov     bx, [sortCrossings__at]
+        mov     bx, [sortCrossings__slot]
         mov     [sy_ + bx], al
-; ---- sx_[at] = cx[i]
+; ---- sx_[slot] = cx[i]
         mov     ax, [sortCrossings__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [cx_ + bx]
-        mov     bx, [sortCrossings__at]
+        mov     bx, [sortCrossings__slot]
         shl     bx, 1                       ; word elements
         mov     [sx_ + bx], ax
-; ---- sd_[at] = cdir[i]
+; ---- sd_[slot] = cdir[i]
         mov     ax, [sortCrossings__i]
         mov     bx, ax
         mov     al, [cdir + bx]
-        mov     bx, [sortCrossings__at]
+        mov     bx, [sortCrossings__slot]
         mov     [sd_ + bx], al
 ; ---- rowCount[y] += 1
         mov     ax, [sortCrossings__y]
@@ -965,12 +965,12 @@ pathOutside:
         mov     byte [pathOutside__ret], 0
         ret
 .L158:
-; ---- at = pathPointStart[ pathIndex ]
+; ---- pt = pathPointStart[ pathIndex ]
         mov     ax, [pathOutside__pathIndex]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [pathPointStart + bx]
-        mov     [pathOutside__at], ax
+        mov     [pathOutside__pt], ax
 ; ---- loX = 32767
         mov     word [pathOutside__loX], 32767
 ; ---- loY = 32767
@@ -999,14 +999,14 @@ pathOutside:
         mov     al, [opKind + bx]
         xor     ah, ah                      ; u8 -> u16
         mov     [pathOutside__op], ax
-; ---- vx = mapX( at )
-        mov     ax, [pathOutside__at]
+; ---- vx = mapX( pt )
+        mov     ax, [pathOutside__pt]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [px + bx]
         mov     [pathOutside__vx], ax
-; ---- vy = mapY( at )
-        mov     ax, [pathOutside__at]
+; ---- vy = mapY( pt )
+        mov     ax, [pathOutside__pt]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [py + bx]
@@ -1043,24 +1043,24 @@ pathOutside:
         mov     ax, [pathOutside__vy]
         mov     [pathOutside__hiY], ax
 .L174:
-; ---- at += 1
-        mov     ax, [pathOutside__at]
+; ---- pt += 1
+        mov     ax, [pathOutside__pt]
         inc     ax
-        mov     [pathOutside__at], ax
+        mov     [pathOutside__pt], ax
 ; ---- if ( op == opQuad ) {
         mov     ax, [pathOutside__op]
         cmp     ax, 2
         je      .L179                       ; unsigned ==
         jmp     .L177
 .L179:
-; ---- vx = mapX( at )
-        mov     ax, [pathOutside__at]
+; ---- vx = mapX( pt )
+        mov     ax, [pathOutside__pt]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [px + bx]
         mov     [pathOutside__vx], ax
-; ---- vy = mapY( at )
-        mov     ax, [pathOutside__at]
+; ---- vy = mapY( pt )
+        mov     ax, [pathOutside__pt]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [py + bx]
@@ -1097,10 +1097,10 @@ pathOutside:
         mov     ax, [pathOutside__vy]
         mov     [pathOutside__hiY], ax
 .L189:
-; ---- at += 1
-        mov     ax, [pathOutside__at]
+; ---- pt += 1
+        mov     ax, [pathOutside__pt]
         inc     ax
-        mov     [pathOutside__at], ax
+        mov     [pathOutside__pt], ax
 .L177:
 .L162:
         inc     word [pathOutside__k]
@@ -1145,12 +1145,12 @@ walkPath:
         jz      .L199
         ret
 .L199:
-; ---- at = pathPointStart[ pathIndex ]
+; ---- pt = pathPointStart[ pathIndex ]
         mov     ax, [walkPath__pathIndex]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [pathPointStart + bx]
-        mov     [walkPath__at], ax
+        mov     [walkPath__pt], ax
 ; ---- inSubpath = false
         mov     byte [walkPath__inSubpath], 0
 ; ---- startX = 0
@@ -1245,22 +1245,22 @@ walkPath:
 .L218:
 .L213:
 .L209:
-; ---- curX = mapX( at )
-        mov     ax, [walkPath__at]
+; ---- curX = mapX( pt )
+        mov     ax, [walkPath__pt]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [px + bx]
         mov     [walkPath__curX], ax
-; ---- curY = mapY( at )
-        mov     ax, [walkPath__at]
+; ---- curY = mapY( pt )
+        mov     ax, [walkPath__pt]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [py + bx]
         mov     [walkPath__curY], ax
-; ---- at += 1
-        mov     ax, [walkPath__at]
+; ---- pt += 1
+        mov     ax, [walkPath__pt]
         inc     ax
-        mov     [walkPath__at], ax
+        mov     [walkPath__pt], ax
 ; ---- startX = curX
         mov     ax, [walkPath__curX]
         mov     [walkPath__startX], ax
@@ -1277,22 +1277,22 @@ walkPath:
         je      .L223                       ; unsigned ==
         jmp     .L221
 .L223:
-; ---- toX = mapX( at )
-        mov     ax, [walkPath__at]
+; ---- toX = mapX( pt )
+        mov     ax, [walkPath__pt]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [px + bx]
         mov     [walkPath__toX], ax
-; ---- toY = mapY( at )
-        mov     ax, [walkPath__at]
+; ---- toY = mapY( pt )
+        mov     ax, [walkPath__pt]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [py + bx]
         mov     [walkPath__toY], ax
-; ---- at += 1
-        mov     ax, [walkPath__at]
+; ---- pt += 1
+        mov     ax, [walkPath__pt]
         inc     ax
-        mov     [walkPath__at], ax
+        mov     [walkPath__pt], ax
 ; ---- if ( !outsideY( curY, toY, toY ) ) {
         mov     ax, [walkPath__curY]
         mov     [outsideY__a], ax
@@ -1329,36 +1329,36 @@ walkPath:
         mov     [walkPath__curY], ax
         jmp     .L222
 .L221:
-; ---- ctlX = mapX( at )
-        mov     ax, [walkPath__at]
+; ---- ctlX = mapX( pt )
+        mov     ax, [walkPath__pt]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [px + bx]
         mov     [walkPath__ctlX], ax
-; ---- ctlY = mapY( at )
-        mov     ax, [walkPath__at]
+; ---- ctlY = mapY( pt )
+        mov     ax, [walkPath__pt]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [py + bx]
         mov     [walkPath__ctlY], ax
-; ---- toX = mapX( at + 1 )
-        mov     ax, [walkPath__at]
+; ---- toX = mapX( pt + 1 )
+        mov     ax, [walkPath__pt]
         inc     ax
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [px + bx]
         mov     [walkPath__toX], ax
-; ---- toY = mapY( at + 1 )
-        mov     ax, [walkPath__at]
+; ---- toY = mapY( pt + 1 )
+        mov     ax, [walkPath__pt]
         inc     ax
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [py + bx]
         mov     [walkPath__toY], ax
-; ---- at += 2
-        mov     ax, [walkPath__at]
+; ---- pt += 2
+        mov     ax, [walkPath__pt]
         add     ax, 2
-        mov     [walkPath__at], ax
+        mov     [walkPath__pt], ax
 ; ---- if ( !outsideY( curY, ctlY, toY ) ) {
         mov     ax, [walkPath__curY]
         mov     [outsideY__a], ax
@@ -1933,7 +1933,7 @@ plot__y:        dw      0        ; i16
 putNumber__i:   db      0        ; u8
 sortCrossings__i: dw      0        ; u16
 sortCrossings__y: dw      0        ; u16
-sortCrossings__at: dw      0        ; u16
+sortCrossings__slot: dw      0        ; u16
 sortCrossings__running: dw      0        ; u16
 sortCrossings__from: dw      0        ; u16
 sortCrossings__to: dw      0        ; u16
@@ -1950,7 +1950,7 @@ drawLine__curX: dw      0        ; i16
 drawLine__curY: dw      0        ; i16
 drawLine__dir:  db      0        ; i8
 pathOutside__k: dw      0        ; u16
-pathOutside__at: dw      0        ; u16
+pathOutside__pt: dw      0        ; u16
 pathOutside__op: dw      0        ; u16
 pathOutside__count: dw      0        ; u16
 pathOutside__loX: dw      0        ; i16
@@ -1960,7 +1960,7 @@ pathOutside__hiY: dw      0        ; i16
 pathOutside__vx: dw      0        ; i16
 pathOutside__vy: dw      0        ; i16
 walkPath__k:    dw      0        ; u16
-walkPath__at:   dw      0        ; u16
+walkPath__pt:   dw      0        ; u16
 walkPath__op:   dw      0        ; u16
 walkPath__curX: dw      0        ; i16
 walkPath__curY: dw      0        ; i16

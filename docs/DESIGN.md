@@ -724,7 +724,7 @@ it transforms or not.
 - **The body may call a fn.** The expansion contains the call; the const itself still
   emits none of its own.
 
-Which is what makes `momovec/direct.momo` free: `const i16 mapX( u16 at ) = px[ at ]`
+Which is what makes `momovec/direct.momo` free: `const i16 mapX( u16 pt ) = px[ pt ]`
 substitutes to exactly the array index it replaced, measured as byte-identical
 instructions across ten geometry projects.
 

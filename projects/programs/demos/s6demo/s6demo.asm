@@ -2672,8 +2672,8 @@ fitSize:
 ; ============================================== sub size__candRemove ====
 
 size__candRemove:
-; ---- for ( u16 j = at; j + 1 < candLen; j++ ) {
-        mov     ax, [size__candRemove__at]
+; ---- for ( u16 j = i; j + 1 < candLen; j++ ) {
+        mov     ax, [size__candRemove__i]
         mov     [size__candRemove__j], ax
 .L238:
         mov     ax, [size__candRemove__j]
@@ -2994,7 +2994,7 @@ size__growInto:
         jb      .L304                       ; unsigned >=
         mov     ax, [size__growInto__j]
         dec     ax
-        mov     [size__candRemove__at], ax
+        mov     [size__candRemove__i], ax
         call    size__candRemove
 .L304:
 .L289:
@@ -3307,7 +3307,7 @@ size__shrinkFrom:
         ja      .L372                       ; unsigned <=
         mov     ax, [size__shrinkFrom__j]
         dec     ax
-        mov     [size__candRemove__at], ax
+        mov     [size__candRemove__i], ax
         call    size__candRemove
 .L372:
 .L357:
@@ -6023,7 +6023,7 @@ paintLayer__dy: dw      0        ; u16
 fitSize__i:     dw      0        ; u16
 size__bfsLen:   dw      0        ; u16
 size__candLen:  dw      0        ; u16
-size__candRemove__at: dw      0        ; u16
+size__candRemove__i: dw      0        ; u16
 size__growInto__xAxis: db      0        ; bool
 size__growInto__surplus: dw      0        ; u16
 size__shrinkFrom__xAxis: db      0        ; bool

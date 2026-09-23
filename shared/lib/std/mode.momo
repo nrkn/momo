@@ -236,13 +236,13 @@ local u16[screenMaxRows] rowBase
 // address becomes a lookup and an add, with no multiply, and it works with a
 // stride that was not known until the mode was set.
 sub screenRowsInit {
-  u16 at
+  u16 base
 
-  at = 0
+  base = 0
 
   for ( u16 y = 0; y < curH; y++ ) {
-    rowBase[y] = at
-    at = at + curElems
+    rowBase[y] = base
+    base = base + curElems
   }
 }
 

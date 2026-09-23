@@ -34,18 +34,18 @@ __entry:
         call    putNumber
 ; ---- newline()
         call    newline
-; ---- at = 0
-        mov     word [at_], 0
-; ---- while ( tail[at] != 0 ) {
+; ---- k = 0
+        mov     word [k], 0
+; ---- while ( tail[k] != 0 ) {
 .L5:
-        mov     ax, [at_]
+        mov     ax, [k]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [tail + bx]
         test    ax, ax
         je      .L7                         ; unsigned !=
-; ---- putStr( tail[at] )                  // three, one
-        mov     ax, [at_]
+; ---- putStr( tail[k] )                  // three, one
+        mov     ax, [k]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     ax, [tail + bx]
@@ -53,8 +53,8 @@ __entry:
         call    putStr
 ; ---- newline()
         call    newline
-; ---- at++
-        inc     word [at_]
+; ---- k++
+        inc     word [k]
 .L6:
         jmp     .L5
 .L7:
@@ -229,7 +229,7 @@ putChar__c:     db      0        ; u8
 putStr__at:     dw      0        ; u16
 putNumber__n:   dw      0        ; u16
 counter:        dw      0        ; u16
-at_:            dw      0        ; u16
+k:              dw      0        ; u16
 putNumber__i:   db      0        ; u8
 
 ; ---- arrays ----

@@ -35,8 +35,8 @@ local u16              candLen
 // list order, so which child gets the odd unit depends on it. Swap-with-last is
 // the obvious answer and it is the wrong one. This is the `indices.splice(i, 1)`
 // of the TypeScript, and the only structure in momolo with a hole in the middle.
-local sub candRemove( u16 at ) {
-  for ( u16 j = at; j + 1 < candLen; j++ ) {
+local sub candRemove( u16 i ) {
+  for ( u16 j = i; j + 1 < candLen; j++ ) {
     cand[j] = cand[j + 1]
   }
 

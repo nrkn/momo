@@ -756,7 +756,7 @@ inRetrace:
 ; ============================================== sub setPixel ====
 
 setPixel:
-; ---- at = pxIndex( x * 2, y * 2 )
+; ---- pix = pxIndex( x * 2, y * 2 )
         mov     ax, [setPixel__y]
         shl     ax, 1                       ; * 2 is << 1
         mov     bx, 320
@@ -767,37 +767,37 @@ setPixel:
         mov     bx, ax
         pop     ax
         add     ax, bx
-        mov     [setPixel__at], ax
-; ---- pixels[ at ] = color
+        mov     [setPixel__pix], ax
+; ---- pixels[ pix ] = color
         mov     al, [setPixel__color]
-        mov     bx, [setPixel__at]
+        mov     bx, [setPixel__pix]
         mov     dx, 0xA000                  ; segment of pixels
         mov     es, dx
         mov     [es:bx], al
-; ---- pixels[ at + 1 ] = color
+; ---- pixels[ pix + 1 ] = color
         mov     al, [setPixel__color]
         push    ax                          ; save value while computing the index
-        mov     ax, [setPixel__at]
+        mov     ax, [setPixel__pix]
         inc     ax
         mov     bx, ax
         mov     dx, 0xA000                  ; segment of pixels
         mov     es, dx
         pop     ax
         mov     [es:bx], al
-; ---- pixels[ at + screenW ] = color
+; ---- pixels[ pix + screenW ] = color
         mov     al, [setPixel__color]
         push    ax                          ; save value while computing the index
-        mov     ax, [setPixel__at]
+        mov     ax, [setPixel__pix]
         add     ax, 320
         mov     bx, ax
         mov     dx, 0xA000                  ; segment of pixels
         mov     es, dx
         pop     ax
         mov     [es:bx], al
-; ---- pixels[ at + screenWNext ] = color
+; ---- pixels[ pix + screenWNext ] = color
         mov     al, [setPixel__color]
         push    ax                          ; save value while computing the index
-        mov     ax, [setPixel__at]
+        mov     ax, [setPixel__pix]
         add     ax, 321
         mov     bx, ax
         mov     dx, 0xA000                  ; segment of pixels
@@ -2013,7 +2013,7 @@ keyboardEnd__code: db      0        ; u8
 pollKeyboard__status: db      0        ; u8
 pollKeyboard__code: db      0        ; u8
 pollKeyboard__down: db      0        ; bool
-setPixel__at:   dw      0        ; u16
+setPixel__pix:  dw      0        ; u16
 drawLineHorizontal__x: dw      0        ; u16
 drawLineVertical__y: dw      0        ; u16
 drawBackground__dy: dw      0        ; u16

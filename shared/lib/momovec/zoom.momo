@@ -33,5 +33,5 @@ i16  zoomCy
 // Truncation is toward zero, because that is what fixMul does - so a coordinate
 // left of the centre and one the same distance right of it round the same way,
 // which keeps the transform symmetric about the centre it names.
-const i16 mapX( u16 at ) = fixMul( px[ at ] - zoomCx, raw i16( zoomScale ) ) + zoomCx
-const i16 mapY( u16 at ) = fixMul( py[ at ] - zoomCy, raw i16( zoomScale ) ) + zoomCy
+const i16 mapX( u16 pt ) = fixMul( px[ pt ] - zoomCx, raw i16( zoomScale ) ) + zoomCx
+const i16 mapY( u16 pt ) = fixMul( py[ pt ] - zoomCy, raw i16( zoomScale ) ) + zoomCy

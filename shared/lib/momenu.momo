@@ -122,16 +122,16 @@ sub menuPrev {
 // Cycling needs no mark at all: press the letter again.
 bool menuJump( u8 c ) {
   u16 n
-  u16 at
+  u16 item
 
   n = itemsHere()
   if ( n == 0 ) return false
 
   for ( u16 i = 1; i <= n; i++ ) {
-    at = ( curItem + i ) % n
+    item = ( curItem + i ) % n
 
-    if ( fold( peek8( menuItemText( curMenu, at ) ) ) == fold( c ) ) {
-      curItem = at
+    if ( fold( peek8( menuItemText( curMenu, item ) ) ) == fold( c ) ) {
+      curItem = item
       return true
     }
   }

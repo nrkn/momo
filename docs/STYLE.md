@@ -101,6 +101,12 @@ so it doubles as a check on the codegen design:
   `u16 k` and five bare headers. It still reads better, because what remains above
   is then only what outlives a loop - but it is close.
 
+- **`at` names an address, and nothing else.** An address is an `a16` (§71), which
+  tells the compiler; the name is what tells a reader, and the two used to
+  disagree often enough to be counted (DECISIONS §71). An index is `i`, `slot`,
+  `item` or `pt`, a column is `col`, and an offset into another segment - video
+  memory, a far region - is `base` or `off`, because it is not one `peek` reads.
+
 - **A pair that must close is a `bracket`, and a block at every call site.** §48
   makes the compiler emit the close, so the choice is not between two spellings
   that both work - one of them can be got wrong and the other cannot:

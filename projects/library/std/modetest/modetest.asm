@@ -659,8 +659,8 @@ adoptMode:
 ; ============================================== sub screenRowsInit ====
 
 screenRowsInit:
-; ---- at = 0
-        mov     word [screenRowsInit__at], 0
+; ---- base = 0
+        mov     word [screenRowsInit__base], 0
 ; ---- for ( u16 y = 0; y < curH; y++ ) {
         mov     word [screenRowsInit__y], 0
 .L57:
@@ -668,16 +668,16 @@ screenRowsInit:
         mov     bx, [mode__curH]
         cmp     ax, bx
         jae     .L59                        ; unsigned <
-; ---- rowBase[y] = at
-        mov     ax, [screenRowsInit__at]
+; ---- rowBase[y] = base
+        mov     ax, [screenRowsInit__base]
         mov     bx, [screenRowsInit__y]
         shl     bx, 1                       ; word elements
         mov     [mode__rowBase + bx], ax
-; ---- at = at + curElems
-        mov     ax, [screenRowsInit__at]
+; ---- base = base + curElems
+        mov     ax, [screenRowsInit__base]
         mov     bx, [mode__curElems]
         add     ax, bx
-        mov     [screenRowsInit__at], ax
+        mov     [screenRowsInit__base], ax
 .L58:
         inc     word [screenRowsInit__y]
         jmp     .L57
@@ -778,7 +778,7 @@ tall:           dw      0        ; u16
 putNumber__i:   db      0        ; u8
 adoptMode__m:   db      0        ; u8
 screenRowsInit__y: dw      0        ; u16
-screenRowsInit__at: dw      0        ; u16
+screenRowsInit__base: dw      0        ; u16
 
 ; ---- arrays ----
 screenMode__bios: db      3, 3, 19        ; u8[3]

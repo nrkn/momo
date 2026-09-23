@@ -25,7 +25,7 @@ include "lib/momovec/clip.momo"
 sub walkPath(
   u16 pathIndex, bool wantPixels, bool wantEdges, bool closeSubpaths
 ) {
-  u16 at
+  u16 pt
   u16 op
   i16 curX
   i16 curY
@@ -43,7 +43,7 @@ sub walkPath(
   // why that is true of a path and NOT of a segment.
   if ( pathOutside( pathIndex ) ) return
 
-  at = pathPointStart[ pathIndex ]
+  pt = pathPointStart[ pathIndex ]
   inSubpath = false
   startX = 0
   startY = 0
@@ -69,17 +69,17 @@ sub walkPath(
         }
       }
 
-      curX = mapX( at )
-      curY = mapY( at )
-      at += 1
+      curX = mapX( pt )
+      curY = mapY( pt )
+      pt += 1
 
       startX = curX
       startY = curY
       inSubpath = true
     } else if ( op == opLine ) {
-      toX = mapX( at )
-      toY = mapY( at )
-      at += 1
+      toX = mapX( pt )
+      toY = mapY( pt )
+      pt += 1
 
       // y only. Rejecting on x would drop a crossing that a surviving span still
       // needs, and the study measured that as a fill vanishing outright.
@@ -91,11 +91,11 @@ sub walkPath(
       curY = toY
     } else {
       // A quadratic: control point then end point.
-      ctlX = mapX( at )
-      ctlY = mapY( at )
-      toX = mapX( at + 1 )
-      toY = mapY( at + 1 )
-      at += 2
+      ctlX = mapX( pt )
+      ctlY = mapY( pt )
+      toX = mapX( pt + 1 )
+      toY = mapY( pt + 1 )
+      pt += 2
 
       // `drawQuadAny` rather than `drawQuad`, so a caller can hand this an arbitrary
       // quadratic and not a pre-subdivided one. Anything already inside the audited

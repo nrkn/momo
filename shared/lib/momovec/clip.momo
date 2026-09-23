@@ -95,7 +95,7 @@ bool outsideY( i16 a, i16 b, i16 c ) {
 // it, which is the kind of duplicated invariant that has already cost this port a
 // commit.
 bool pathOutside( u16 pathIndex ) {
-  u16 at
+  u16 pt
   u16 op
   u16 count
   i16 loX
@@ -109,7 +109,7 @@ bool pathOutside( u16 pathIndex ) {
 
   if ( count == 0 ) return false
 
-  at = pathPointStart[ pathIndex ]
+  pt = pathPointStart[ pathIndex ]
 
   loX = 32767
   loY = 32767
@@ -121,26 +121,26 @@ bool pathOutside( u16 pathIndex ) {
 
     // A move and a line carry one point, a quadratic two. Both of a quadratic's
     // points count toward the box.
-    vx = mapX( at )
-    vy = mapY( at )
+    vx = mapX( pt )
+    vy = mapY( pt )
 
     if ( vx < loX ) loX = vx
     if ( vy < loY ) loY = vy
     if ( vx > hiX ) hiX = vx
     if ( vy > hiY ) hiY = vy
 
-    at += 1
+    pt += 1
 
     if ( op == opQuad ) {
-      vx = mapX( at )
-      vy = mapY( at )
+      vx = mapX( pt )
+      vy = mapY( pt )
 
       if ( vx < loX ) loX = vx
       if ( vy < loY ) loY = vy
       if ( vx > hiX ) hiX = vx
       if ( vy > hiY ) hiY = vy
 
-      at += 1
+      pt += 1
     }
   }
 

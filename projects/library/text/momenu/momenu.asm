@@ -626,7 +626,7 @@ menuJump:
         jbe     .L56                        ; unsigned <=
         jmp     .L55
 .L56:
-; ---- at = ( curItem + i ) % n
+; ---- item = ( curItem + i ) % n
         mov     ax, [momenu__curItem]
         mov     bx, [menuJump__i]
         add     ax, bx
@@ -634,11 +634,11 @@ menuJump:
         xor     dx, dx                      ; clear high half for div
         div     bx
         mov     ax, dx                      ; remainder
-        mov     [menuJump__at], ax
-; ---- if ( fold( peek8( menuItemText( curMenu, at ) ) ) == fold( c ) ) {
+        mov     [menuJump__item], ax
+; ---- if ( fold( peek8( menuItemText( curMenu, item ) ) ) == fold( c ) ) {
         mov     ax, [momenu__curMenu]
         mov     [menuItemText__m], ax
-        mov     ax, [menuJump__at]
+        mov     ax, [menuJump__item]
         mov     [menuItemText__i], ax
         call    menuItemText
         mov     ax, [menuItemText__ret]
@@ -658,8 +658,8 @@ menuJump:
         pop     ax
         cmp     ax, bx
         jne     .L57                        ; unsigned ==
-; ---- curItem = at
-        mov     ax, [menuJump__at]
+; ---- curItem = item
+        mov     ax, [menuJump__item]
         mov     [momenu__curItem], ax
 ; ---- return true
         mov     byte [menuJump__ret], 1
@@ -1012,7 +1012,7 @@ momenu__menuGo__i: dw      0        ; u16
 momenu__menuGo__m: dw      0        ; u16
 menuJump__i:    dw      0        ; u16
 menuJump__n:    dw      0        ; u16
-menuJump__at:   dw      0        ; u16
+menuJump__item: dw      0        ; u16
 
 ; ---- arrays ----
 tTitles:        db      'Edit$View$File$Nothing$', 0        ; u8[24] const
