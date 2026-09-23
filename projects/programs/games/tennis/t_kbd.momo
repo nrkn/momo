@@ -90,7 +90,7 @@ local sub applyKey( u8 key, bool pressed ) {
   else if ( key == scDown ) held[ rightPlayer ].down = pressed
   else if ( key == scLeft ) held[ rightPlayer ].left = pressed
   else if ( key == scRight ) held[ rightPlayer ].right = pressed
-  else if ( key == scEsc ){ 
+  else if ( key == scEsc ){
     isEsc = pressed
 
     if( pressed ) wasEsc = true

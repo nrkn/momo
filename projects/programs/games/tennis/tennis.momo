@@ -1,4 +1,16 @@
-// tennis.momo - *loosely* based on the Fairchild Channel F pong clone "Tennis"
+// tennis.momo - two-player Pong in mode 13h, *loosely* based on the Fairchild
+// Channel F pong clone "Tennis". It is the game `_reference/yuki.txt` wrote for
+// a fantasy console, on a real one.
+//
+// What it proves is that a Momo program can own the machine under it. The
+// keyboard is read at the 8042 with IRQ1 masked (t_kbd.momo), because int 16h
+// reports keystrokes rather than keys held, and two players hold keys at once.
+// The frame is written straight to video memory a word at a time (t_scr.momo),
+// and the palette is its own (t_pal.momo).
+//
+// Most of PITFALLS.md was found writing it, and found on 86Box rather than under
+// DOSBox. It blocks on input, so it has no `.expected`: the golden tier holds its
+// assembly, and no tier runs it.
 
 include "lib/std/key.momo"
 include "lib/std/math.momo"
@@ -19,10 +31,10 @@ bool isRunning = true
 
 // paddles - playerCount, leftPlayer and rightPlayer are in t_cfg.momo
 group player[playerCount] {
-  grid y      
-  grid oldY   
+  grid y
+  grid oldY
   u8 score
-  u8 speed 
+  u8 speed
 }
 
 // per-player consts
@@ -222,7 +234,7 @@ sub drawSprite( u8 index, u8 dx, u8 dy ){
       setPixel( i + dx, j + dy, textSprites[ tile ] )
 
       tile++
-    }    
+    }
   }
 }
 
@@ -268,7 +280,7 @@ sub input {
     isRunning = false
 
     return
-  } 
+  }
 
   if( isWinScreen ){
     if( anyLeftRight() ){
@@ -297,7 +309,7 @@ sub scorePoint( u8 pi ) {
   player[ pi ].score++
 
   drawScore( pi )
-  
+
   if ( player[ pi ].score == winScore ) {
     win( pi )
   } else {
@@ -312,7 +324,7 @@ sub hitPaddle( u8 pi ) {
   grid yOffset
 
   yOffset = ball.y - player[ pi ].y + hitLead
-  
+
   if ( yOffset < 0 || yOffset >= hitWindow ) {
     scorePoint( 1 - pi )
 
@@ -325,7 +337,7 @@ sub hitPaddle( u8 pi ) {
   // three returns before the rally speeds up, to a ceiling
   if ( grid( iabs( i16( ball.speedX ) ) ) < ballSpeedXMax ) {
     volleyCount++
-  
+
     if ( volleyCount == volleyTarget ) {
       volleyCount = 0
 
@@ -333,7 +345,7 @@ sub hitPaddle( u8 pi ) {
       else ball.speedX -= ballSpeedStep
     }
   }
-  
+
   ball.speedX = -ball.speedX
   ball.player = pi
   ball.color = paddleColor[ pi ]
@@ -342,7 +354,7 @@ sub hitPaddle( u8 pi ) {
 // recalculate state
 sub update {
   if( isWinScreen ) return
-  
+
   ball.x += ball.speedX
   ball.y += ball.speedY
 
@@ -353,7 +365,7 @@ sub update {
     ball.y = ballYMax
     ball.speedY = -ball.speedY
   }
-  
+
   // only the side the ball is travelling toward can be reached
   if( ball.speedX > 0 && ball.x >= ballXMax ){
     hitPaddle( rightPlayer )
@@ -403,7 +415,7 @@ sub tick {
 // show win screen, wait for input, then call start again
 sub win( u8 pi ) {
   isWinScreen = true
-  
+
   waitFrame()
   drawBackground( winColor[ pi ] )
   drawScore( leftPlayer )
@@ -421,7 +433,7 @@ sub serve(){
 }
 
 // first time or new game after a win
-sub start {  
+sub start {
   seedRandom( ticks() )
 
   isWinScreen = false
