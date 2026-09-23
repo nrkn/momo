@@ -4965,10 +4965,26 @@ It is also, at sixty-four entries, reachable. One line of sixty characters cut i
 sixty-one entries. **The measurement and what it costs to fix are in
 `DECISIONS.md` §61**, along with the reason the fix is not a bigger number.
 
+### Display columns, for a caller with a screen
+
+A tab is one byte here and up to a tab stop of columns on a screen, so three reads
+answer in display columns: `lineCells`, which is `lineSlice` with tabs expanded to
+spaces; `lineCellOf`, the column a byte starts at; and `lineColAt`, the byte whose
+span holds a column. **The stop is an argument**, because this file knows
+characters and not screens, and how wide a tab is belongs to whoever draws it -
+§56's is eight.
+
+They are here and not in the window because only this file walks a chain, and a
+window slicing a line to count its tabs would be a second pass over every row it
+drew. `lineCells` is one loop with the tab test inside it, and costs about what
+`lineSlice` does on a line that holds no tab.
+
 ### Rules
 
 - **The chain is walked once per line, never once per character.** `lineSlice` is
-  the read interface, and it copies out rather than answering per byte.
+  the read interface, and it copies out rather than answering per byte;
+  `lineCells` is the same for a screen.
+- **The tab stop is the caller's.** Nothing here decides how wide a tab is.
 - **A group is for a command, not for a keystroke.** Opening one breaks the run
   before it, so a bracket round a single character turns a run of typing into one
   action per character.
@@ -5312,10 +5328,11 @@ thing the fast one can be checked against.
 
 ### A row is copied out before it is handed over
 
-§54's read interface is a slice rather than a character, so `lineSlice` walks the
-chain once per row and copies into a buffer here. The alternative - handing the
-caller something to index - would put the walk in whatever loop the caller wrote,
-which is the trap §54 names and refuses.
+§54's read interface is a slice rather than a character, so `lineCells` walks the
+chain once per row and copies into a buffer here - tabs already expanded, so the
+row handed over is cells, and `viewRow` never meets a tab. The alternative -
+handing the caller something to index - would put the walk in whatever loop the
+caller wrote, which is the trap §54 names and refuses.
 
 **This is also the answer to whether a cursor needs to cache its chunk**, which
 §54 left open. It does not. A render walks each visible line's chain once, so the
@@ -5347,10 +5364,41 @@ either and there is no shifted twin of any of them.
 with one of them primary - which is the one §56 would keep. §55 records why that
 changes nothing here.
 
+### A tab is one byte and up to eight columns
+
+A file with tabs used to render one to a column, so the cursor, the selection and
+the match highlight were all somewhere other than the text they described. The
+fix is a line between two kinds of column, drawn once:
+
+- **The cursor is a byte.** Every edit §54 makes is at a byte, and a cursor that
+  was a screen column would need converting at every one of them.
+- **The left edge and the goal column are display columns.** Both are about
+  where on the screen something is. Scrolling follows the cursor's display column,
+  and vertical motion keeps a display column, so Down from under a tab lands under
+  the same place on screen rather than at the same byte count.
+- **`viewCellOf` converts**, for the cursor and for either end of anything a
+  caller paints. A byte inside a tab's span is the tab, so a cursor on a tab sits
+  at the left of it and a column aimed inside one lands on it.
+
+**The stop is eight**, `viewTabStop`: what DOS printed, what `edit.com` shows, and
+what a file written with tabs expects. It is how wide a tab is and nothing else -
+how far the Tab key indents is the program's decision, and `momoed`'s is two.
+
+**All the tab arithmetic is in §54**, in three reads taking the stop as an
+argument, because only §54 walks a chain and because a mapping written twice is a
+cursor drawn somewhere its text is not. The row read is one loop with the tab
+test inside it rather than a slice and a second pass: on a line with no tab it
+costs 225 cycles a byte against `lineSlice`'s 216, which is the difference between
+a feature a 286 does not notice and one `drawrate` would.
+
 ### Rules
 
 - **`viewRow` is the program's**, and the library never learns whether it prints
   or draws.
+- **A row is handed over as cells**, tabs expanded, so the program never meets a
+  tab.
+- **The cursor is a byte; the left edge and the goal are display columns.** Every
+  conversion between the two goes through §54, so they cannot disagree.
 - **A selection is a mark and a point**, and which end comes first is asked here
   rather than by every caller - a selection made upwards has its anchor after its
   cursor, and nothing else notices.
@@ -6920,13 +6968,12 @@ the one key a person indenting a line reaches for - so the trade was made the
 other way: **browser-style cycling on `Ctrl+Tab`, and Tab is the document's
 again.**
 
-It types spaces to the next stop rather than a literal tab, which is what gives
-the key back without §56 learning about display columns. A literal tab is one
-byte and the arithmetic of a whole editor: a document column would stop being a
-screen column, and the cursor, the selection and the match highlight all measure
-in screen columns today. **That gap already exists** - a file containing tabs
-renders one to a column right now - so it is a piece of work in its own right
-rather than a consequence of this one.
+It types spaces to the next stop rather than a literal tab. When this was
+written that was also what kept §56 from having to learn about display columns,
+and it noted that a file *containing* tabs rendered one to a column regardless -
+a gap that was its own piece of work. §56 has since learned them: a file's tabs
+show at a stop of eight, and the key still types spaces, now measured to the next
+stop on the screen rather than by byte count.
 
 ### The explorer is a slot in the ring
 

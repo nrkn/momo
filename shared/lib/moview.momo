@@ -23,10 +23,21 @@ const viewMaxWidth = 160
 
 local u8[viewMaxWidth] row
 
+// A tab stands for the spaces to the next multiple of this. Eight is what DOS
+// printed, what `edit.com` shows and what a file written with tabs expects -
+// it is how wide a tab is, not how far the Tab key indents, which is the
+// program's decision and a different number.
+const viewTabStop = 8
+
 local u16 top
-local u16 left
 local u16 height
 local u16 width
+
+// **The left edge is a display column**, and so is the goal below: both are
+// about where on the screen something is, and on a line holding a tab that is a
+// different number from how many bytes precede it. The cursor stays a byte -
+// every edit is made at a byte - and is converted where the screen is involved.
+local u16 left
 
 local u16 curLine
 local u16 curCol
@@ -50,6 +61,10 @@ local bool marked
 // short line has, and moving off it again should go back to where it was - so
 // the clamp is a display decision and this is the intent behind it. Horizontal
 // motion and every edit set it; vertical motion keeps it.
+//
+// A display column, so that Down from under a tab lands under the same place on
+// the screen rather than at the same byte count, which past a tab is somewhere
+// else entirely.
 local u16 goalCol
 
 // ---- shape ----
@@ -71,6 +86,11 @@ u16 viewTop() => top
 u16 viewLeft() => left
 u16 viewLine() => curLine
 u16 viewCol() => curCol
+
+// Where on the screen a byte of a line is - the cursor's, or either end of a
+// selection or a match a caller is about to paint. §54 walks the line.
+u16 viewCellOf( u16 ln, u16 col ) => lineCellOf( ln, col, viewTabStop )
+u16 viewCell() => viewCellOf( curLine, curCol )
 
 // ---- one window, several documents ------------------------------------------
 //
@@ -176,11 +196,14 @@ u16 viewToCol()    => markFirst() ? curCol   : markCol
 // the same shape and neither is a special case, which is the whole reason a
 // window is a pair of offsets rather than a mode.
 local sub viewFollow {
+  u16 cell
+  cell = viewCell()
+
   if ( curLine < top ) top = curLine
   if ( curLine >= top + height ) top = curLine - height + 1
 
-  if ( curCol < left ) left = curCol
-  if ( curCol >= left + width ) left = curCol - width + 1
+  if ( cell < left ) left = cell
+  if ( cell >= left + width ) left = cell - width + 1
 }
 
 // Put the cursor somewhere and scroll to suit. Clamped to the buffer, so a
@@ -189,15 +212,19 @@ local sub viewFollow {
 // **This sets the goal column**, because a caller naming one means it: typing,
 // Home, End and the left and right arrows all know which column they want.
 sub viewGoto( u16 ln, u16 col ) {
-  goalCol = col
   viewPlace( ln, col )
+  goalCol = viewCell()
 }
 
 // The same, keeping the goal. Vertical motion goes through here, so a run of
 // Down over a short line comes out at the column it went in at rather than at
 // wherever the shortest line on the way happened to end.
 sub viewGotoLine( u16 ln ) {
-  viewPlace( ln, goalCol )
+  u16 lines
+  lines = textLines()
+  if ( lines > 0 && ln >= lines ) ln = lines - 1
+
+  viewPlace( ln, lineColAt( ln, goalCol, viewTabStop ) )
 }
 
 local sub viewPlace( u16 ln, u16 col ) {
@@ -229,7 +256,7 @@ sub viewRenderRow( u16 y ) {
   ln = top + y
   n = 0
 
-  if ( ln < textLines() ) n = lineSlice( ln, left, width, addr( row ) )
+  if ( ln < textLines() ) n = lineCells( ln, left, width, viewTabStop, addr( row ) )
 
   viewRow( y, addr( row ), n )
 }

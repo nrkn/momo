@@ -614,16 +614,26 @@ sub viewRow( u16 y, u16 at, u16 n ) {
     ln = viewTop() + y
 
     if ( ln >= viewFromLine() && ln <= viewToLine() ) {
+      // Bytes turned into display columns, so a selected tab is highlighted
+      // across every cell it covers rather than one (§56).
       c0 = 0
-      if ( ln == viewFromLine() ) c0 = viewFromCol()
+      if ( ln == viewFromLine() ) c0 = viewCellOf( ln, viewFromCol() )
 
-      c1 = lineLength( ln )
+      // A row inside the selection runs to one past its text, which is the
+      // newline - without it a blank line in the middle of a selection is the
+      // one row that looks unselected. **The row already says where its text
+      // ends on screen**: it was handed `n` cells, so a line that ends inside the
+      // window ends at `viewLeft() + n` and one that fills it is clipped anyway.
+      // Only a line ending at or before the left edge has to be walked, which is
+      // what keeps a whole screen of selection from being a walk of every line.
       if ( ln == viewToLine() ) {
-        c1 = viewToCol()
+        c1 = viewCellOf( ln, viewToCol() )
+      } else if ( n == w ) {
+        c1 = viewLeft() + w
+      } else if ( n > 0 ) {
+        c1 = viewLeft() + n + 1
       } else {
-        // One past the text, which is the newline. Without it a blank line in
-        // the middle of a selection is the one row that looks unselected.
-        c1++
+        c1 = viewCellOf( ln, lineLength( ln ) ) + 1
       }
 
       if ( c0 < viewLeft() ) c0 = viewLeft()
@@ -647,8 +657,8 @@ sub viewRow( u16 y, u16 at, u16 n ) {
   mTo   = 0
 
   if ( prompting() && onMatch && viewTop() + y == findLine() ) {
-    c0 = findCol()
-    c1 = findCol() + findLength()
+    c0 = viewCellOf( findLine(), findCol() )
+    c1 = viewCellOf( findLine(), findCol() + findLength() )
 
     if ( c0 < viewLeft() ) c0 = viewLeft()
     if ( c1 > viewLeft() + n ) c1 = viewLeft() + n
@@ -1328,7 +1338,9 @@ sub composeStatus {
 
   statusNumber( cols - 12, viewLine() + 1 )
   rowPut( cols - 8, ':', attrStatus )
-  statusNumber( cols - 7, viewCol() + 1 )
+  // The screen column, as `edit.com` shows it: on a line with a tab the byte
+  // count is not a place anybody can see.
+  statusNumber( cols - 7, viewCell() + 1 )
 }
 
 // The hardware cursor follows the logical one, so the caret is where the next
@@ -1367,7 +1379,7 @@ sub placeCursor {
     return
   }
 
-  moveTo( u8( edLeft() + viewCol() - viewLeft() ),
+  moveTo( u8( edLeft() + viewCell() - viewLeft() ),
           u8( edTop() + viewLine() - viewTop() ) )
 }
 
@@ -2634,22 +2646,20 @@ sub doInsert( u8 ch ) {
   dirty = true
 }
 
-// **Tab types spaces to the next stop**, which is what gives the key back
-// without §56 learning about display columns. A literal tab is one byte and the
-// arithmetic of a whole editor: a document column would stop being a screen
-// column, and the cursor, the selection and the match highlight all measure in
-// screen columns today. That is its own piece of work and is written up rather
-// than half done - and note that a file *containing* tabs already renders one to
-// a column, so the gap is there either way.
+// **Tab types spaces to the next stop**, measured on the screen, so a line that
+// already holds a tab indents to where it looks as if it should. A file with
+// tabs shows them at §56's stop of eight; the key types spaces rather than a tab
+// because what an editor writes into a file is its own decision, and every
+// source file in this repository is indented with spaces.
 //
-// Two, because that is what every source file in this repository is indented
-// with and this editor's first job is those files. One constant.
+// Two, because that is what those files are indented by. One constant, and not
+// §56's: how far the key indents and how wide a tab is are separate questions.
 const edTabWidth = 2
 
 sub doIndent {
   u16 n
 
-  n = edTabWidth - viewCol() % edTabWidth
+  n = edTabWidth - viewCell() % edTabWidth
 
   // A selection goes first, exactly as it does for a typed character. Indenting
   // the selected *block* is what a larger editor does here and is a different

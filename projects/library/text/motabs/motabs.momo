@@ -1,0 +1,142 @@
+// motabs.momo - tabs, in display columns rather than bytes (§54, §56).
+//
+// A tab is one byte and up to eight columns, so every place that turns a byte
+// into a screen position has to agree about where it lands. This holds §54's
+// three reads against numbers worked out by hand, then §56's window over the
+// same lines: what it draws, where it scrolls, and where vertical motion lands.
+//
+// The fixture is chosen for its edges. A chunk is sixteen bytes, so line 2's tab
+// is the last byte of one and is a tab of width one; line 3's is the first byte
+// of the next. An insert at the end splits a full chunk, so the walk meets chunks
+// that are not full. A space prints as `.`, because a row that ends in spaces
+// would otherwise be indistinguishable from a shorter one.
+
+include "lib/std/io.momo"
+include "lib/moview.momo"
+
+const u8[] source = "\tx\n"
+                    "ab\tc\td\n"
+                    "0123456789abcde\tX\n"
+                    "0123456789abcdef\tY"
+
+const cellsMax = 40
+u8[cellsMax] cells
+
+sub showCells( u16 at, u16 n ) {
+  for ( u16 i = 0; i < n; i++ ) {
+    if ( peek8( at + i ) == ' ' ) putChar( '.' )
+    else putChar( peek8( at + i ) )
+  }
+  putChar( '|' )
+  newline()
+}
+
+sub slice( u16 ln, u16 from, u16 n ) {
+  showCells( addr( cells ), lineCells( ln, from, n, viewTabStop, addr( cells ) ) )
+}
+
+// The routine the window calls: the same printing as `slice`.
+sub viewRow( u16 y, u16 at, u16 n ) {
+  showCells( at, n )
+}
+
+sub showWhere {
+  putNumber( viewTop() )
+  putChar( ' ' )
+  putNumber( viewLeft() )
+  newline()
+}
+
+sub showAt {
+  putNumber( viewLine() )
+  putChar( ' ' )
+  putNumber( viewCol() )
+  putChar( ' ' )
+  putNumber( viewCell() )
+  newline()
+}
+
+// ---- entry ----
+
+textInit()
+for ( u16 i = 0; i < len( source ); i++ ) {
+  textLoad( source[i] )
+}
+putNumber( textLines() )                  // 4
+newline()
+
+// ---- §54: a row in display columns ----
+
+slice( 0, 0, 20 )                         // ........x
+slice( 0, 3, 20 )                         // .....x - the rest of the tab
+slice( 0, 8, 20 )                         // x
+slice( 0, 9, 20 )                         // nothing left
+slice( 0, 0, 4 )                          // .... - the tab cut by the width
+slice( 1, 0, 20 )                         // ab......c.......d
+slice( 1, 0, 10 )                         // ab......c.
+slice( 1, 10, 20 )                        // ......d
+slice( 2, 0, 40 )                         // 0123456789abcde.X - width one
+slice( 3, 0, 40 )                         // 0123456789abcdef........Y
+slice( 3, 20, 3 )                         // ...
+
+// ---- the window ----
+
+viewSize( 5, 12 )
+viewHome()
+showWhere()                               // 0 0
+viewRender()
+
+// The cursor on the Y, which is byte 17 and column 24, so the window scrolls to
+// put column 24 in its last cell.
+viewGoto( 3, 17 )
+showAt()                                  // 3 17 24
+showWhere()                               // 0 13
+viewRender()
+
+// Vertical motion keeps a display column. Lines 2 and 1 end before column 24,
+// so the cursor goes to each one's end; line 0 ends far enough left that the
+// window scrolls back to show it; and back down on line 3 the goal is still 24.
+viewGotoLine( 2 )
+showAt()                                  // 2 17 17 - its end
+viewGotoLine( 1 )
+showAt()                                  // 1 6 17 - its end
+viewGotoLine( 0 )
+showAt()                                  // 0 2 9
+showWhere()                               // 0 9
+viewGotoLine( 3 )
+showAt()                                  // 3 17 24
+
+// A goal inside a tab lands on the tab.
+viewGoto( 3, 3 )
+viewGotoLine( 1 )
+showAt()                                  // 1 2 2
+
+// ---- §54's two mappings, after an insert ----
+
+// A tab inserted at byte 1 makes line 1 "a\tb\tc\td".
+lineInsert( 1, 1, 9 )
+
+for ( u16 c = 0; c <= lineLength( 1 ); c++ ) {
+  if ( c > 0 ) putChar( ' ' )
+  putNumber( lineCellOf( 1, c, viewTabStop ) )  // 0 1 8 9 16 17 24 25
+}
+newline()
+
+const u8[] probes = [ 0, 1, 7, 8, 9, 15, 16, 17, 23, 24, 25, 99 ]
+for ( u16 p = 0; p < len( probes ); p++ ) {
+  if ( p > 0 ) putChar( ' ' )
+  putNumber( lineColAt( 1, probes[p], viewTabStop ) )  // 0 1 1 2 3 3 4 5 5 6 7 7
+}
+newline()
+
+// And one into line 3's first chunk, which is full, so it splits and the walk
+// meets chunks that are not. The chunk counts either side are what show it did.
+putNumber( lineChunks( 3 ) )              // 2
+lineInsert( 3, 2, 9 )
+putChar( ' ' )
+putNumber( lineChunks( 3 ) )              // 3
+newline()
+slice( 3, 0, 40 )                         // 01......23456789abcdef..Y
+slice( 3, 5, 6 )                          // ...234
+putNumber( lineCellOf( 3, 18, viewTabStop ) ) // 24, the Y
+newline()

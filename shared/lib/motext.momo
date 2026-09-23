@@ -968,6 +968,181 @@ u16 lineSlice( u16 ln, u16 col, u16 count, u16 at ) {
   return done
 }
 
+// ---- display columns ----
+//
+// A tab is one byte and stands for the spaces up to the next multiple of a tab
+// stop, so a line's bytes and the columns it covers on screen are different
+// counts as soon as it holds one. **The stop is the caller's**: this knows
+// characters rather than screens, and a buffer is not the place to decide how
+// wide a tab is.
+//
+// All three reads live here rather than in the window for two reasons. Only this
+// file walks a chain, and a read that went through `lineSlice` a slice at a time
+// would be a second pass over every row drawn. And keeping all the tab arithmetic
+// in one place is what stops the cursor and the text it sits in disagreeing about
+// where a column is.
+
+// The display column byte `col` of line `ln` starts at.
+u16 lineCellOf( u16 ln, u16 col, u16 stop ) {
+  u16 c
+  u16 seen
+  u16 cell
+  u16 n
+
+  if ( ln >= lineCount ) return 0
+
+  c = lineHead[ln]
+  seen = 0
+  cell = 0
+
+  while ( c != 0 && seen < col ) {
+    atDst( c )
+    n = chunkUsed[c]
+    if ( n > col - seen ) n = col - seen
+
+    for ( u16 i = 0; i < n; i++ ) {
+      if ( dst[i] == 9 ) {
+        cell = cell + stop - cell % stop
+      } else {
+        cell++
+      }
+    }
+
+    seen += n
+    c = chunkNext[c]
+  }
+
+  return cell
+}
+
+// The byte of line `ln` whose display span holds column `cell`: a column inside
+// a tab is that tab. Past the end of the line the answer is its length, which is
+// where a cursor aiming there belongs.
+u16 lineColAt( u16 ln, u16 cell, u16 stop ) {
+  u16 c
+  u16 col
+  u16 at
+  u16 w
+  u16 n
+
+  if ( ln >= lineCount ) return 0
+
+  c = lineHead[ln]
+  col = 0
+  at = 0
+
+  while ( c != 0 ) {
+    atDst( c )
+    n = chunkUsed[c]
+
+    for ( u16 i = 0; i < n; i++ ) {
+      w = 1
+      if ( dst[i] == 9 ) w = stop - at % stop
+      if ( at + w > cell ) return col
+      at += w
+      col++
+    }
+
+    c = chunkNext[c]
+  }
+
+  return col
+}
+
+// `cells` display columns of line `ln` from column `from`, a tab expanded to
+// spaces, copied to `at`. Returns how many were written - fewer when the line
+// ends first. This is `lineSlice` for a screen, and the row a window draws.
+//
+// **A line with no tab pays one comparison a byte for this**, which is the
+// reason it is one loop rather than a slice and a second pass. Two phases, and
+// the first is usually empty: up to `from` the bytes are walked rather than
+// copied, and a tab straddling `from` puts its remaining spaces at the head of
+// the row. After that an output position is its own display column - column
+// `from + ( p - at )` - so nothing counts columns while copying, and a byte is at
+// least one cell, which bounds each chunk's copy before it starts.
+u16 lineCells( u16 ln, u16 from, u16 cells, u16 stop, u16 at ) {
+  u16 c
+  u16 i
+  u16 n
+  u16 w
+  u16 cell
+  u16 out
+  u16 end
+  u16 base
+  u8  b
+
+  if ( ln >= lineCount ) return 0
+
+  c = lineHead[ln]
+  i = 0
+  cell = 0
+  out = at
+  end = at + cells
+
+  while ( c != 0 && cell < from ) {
+    atDst( c )
+    n = chunkUsed[c]
+
+    while ( i < n && cell < from ) {
+      w = 1
+      if ( dst[i] == 9 ) w = stop - cell % stop
+
+      // Only a tab can straddle `from`, and what is left of it starts the row.
+      if ( cell + w > from ) {
+        while ( out < end && out < at + cell + w - from ) {
+          poke8( out, 32 )
+          out++
+        }
+      }
+
+      cell += w
+      i++
+    }
+
+    if ( i >= n ) {
+      c = chunkNext[c]
+      i = 0
+    }
+  }
+
+  while ( c != 0 && out < end ) {
+    atDst( c )
+    n = chunkUsed[c]
+    if ( n - i > end - out ) n = i + end - out
+
+    // Byte `i` lands at `base + i` until a tab widens the row.
+    base = out - i
+
+    while ( i < n ) {
+      b = dst[i]
+
+      if ( b != 9 ) {
+        poke8( base + i, b )
+      } else {
+        w = stop - ( from + base + i - at ) % stop
+        if ( w > end - ( base + i ) ) w = end - ( base + i )
+
+        for ( u16 k = 0; k < w; k++ ) {
+          poke8( base + i + k, 32 )
+        }
+
+        base = base + w - 1
+
+        // Fewer bytes fit now; every one left is still at least a cell.
+        if ( n - i - 1 > end - ( base + i + 1 ) ) n = i + 1 + end - ( base + i + 1 )
+      }
+
+      i++
+    }
+
+    out = base + i
+    c = chunkNext[c]
+    i = 0
+  }
+
+  return out - at
+}
+
 // How many chunks a line occupies. A diagnostic rather than part of the model -
 // it is how the occupancy floor is observed, and the test project reads it.
 u16 lineChunks( u16 ln ) {

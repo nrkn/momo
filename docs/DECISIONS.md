@@ -2320,6 +2320,52 @@ one number worth keeping is that the row buffer is the library's only static
 capacity, at `viewMaxWidth` bytes, and it is the reason `viewSize` clamps rather
 than trusting its caller.
 
+### Tabs, and why the row read is one loop
+
+A file with tabs rendered one to a column until 2026-09-23. §65 had recorded the
+gap as a piece of work of its own, and the work turned out to be a line between
+two kinds of column: the cursor stays a byte, and the left edge and the goal
+become display columns.
+
+**Where the expansion happened was the only decision with a cost attached.** A
+window that sliced a row with `lineSlice` and then expanded it would have made a
+second pass over every row drawn, and priced from the emitted code a byte pass is
+roughly two hundred cycles on an 8086 - it would have doubled the per-row cost
+that `drawrate` was written to bring down. So the expansion is inside §54's walk,
+where every byte is already being visited, and the price was taken from the
+assembly both routines emit:
+
+| per byte, no tab | cycles |
+|---|---|
+| `lineSlice` | 216 |
+| `lineCells` | 225 |
+
+Four percent, and not the eight cycles of a comparison added to the old loop: the
+new loop needs no `at + done + i` and no `left + i`, because an output position is
+its own display column once the leading part of the line has been walked, and
+that arithmetic it dropped paid for most of the test it gained.
+
+**A whole screen of selection would have been a walk of every line**, and was
+caught before it was built rather than after. A selected row needs the display
+column its text ends at, and the obvious way to get it is to convert the line's
+length - which walks the whole line, for every row in the selection, on every
+repaint while it is up. The row already knows: it was handed `n` cells, so a line
+ending inside the window ends at `viewLeft() + n`, and one filling it is clipped
+regardless. Only a line ending at or before the left edge is walked now, and only
+the first and last rows of a selection convert a column at all.
+
+**`motabs` passed on its first run**, with every row, cursor position and
+mapping in it worked out by hand beforehand. It had one
+claim that was not a number: that an insert into a full sixteen-byte chunk splits
+it, so the walk meets chunks that are not full. That claim is now a number too,
+the chunk count either side of the insert, because a fixture whose edges are
+asserted in a comment is a fixture whose edges nobody checked.
+
+**The tab-free programs are the regression test.** `moview`, `edfind`, `edloop`
+and `edsel` exercise scrolling, the goal column and selection, and their output
+did not move, which is what a change that should cost nothing on a line without a
+tab looks like when it is checked rather than claimed.
+
 ---
 
 ## 57. `key`
