@@ -1706,6 +1706,59 @@ static, and two are not.
 
 ---
 
+## 70. `const group`
+
+### Drafted rather than designed, and what the draft settled
+
+There was no design. §18 had carried "a `const` group carrying data is still a
+separate question" since §52 landed, and the question became urgent only when
+the binding tables moved into rows and lost the `const` their arrays had. It was
+settled by writing it, and the drafting answered three things a design would have
+had to argue:
+
+- **The single-instance form is refused**, because a set of constants is already
+  what `const` writes, and it folds them where a group would give each storage.
+- **Every field must have data.** A read-only column of zeros is a mistake.
+- **§51's addresses come in for one argument.** That rule already keyed on
+  whether the array was read-only, so admitting them in a const group's column
+  was passing the group's flag to the routine that folds a column.
+
+### The pruning rule forgot the count, and the golden tier said so
+
+A const group's column of addresses has to be table data to pruning, as §51's
+arrays are, or a column nothing reads keeps every string it names. The first
+version of that rule walked a group's field initialisers and nothing else - and
+seventeen assertions failed, the programs among them each missing the `equ` of a
+const that was only ever used as a group's count. The commit that landed this
+says five, which is how many were read before the cause was plain; the number
+was not counted, and this is the count.
+
+The old walk was generic and had been counting the count without anybody meaning
+it to. That is the argument its own comment makes for walking generically - *a
+new node kind cannot silently be missed* - and the first special case written
+against it missed exactly one child of exactly one node kind. It is walked
+explicitly now, and the teeth check neutered that line and watched twelve tests
+fail.
+
+### The read-only flag on the columns shows only in the listing
+
+Neutering the flag that marks a const group's field arrays read-only failed the
+golden tier and nothing else: the arrays' `const` comment disappeared from the
+data section, and every write was still refused, because the refusal is the
+group's own check and fires before the array is consulted. The flag is kept - it
+is what a later reader of the listing sees, and what any future path to a field
+that bypasses the group would meet - but it is not what the refusal rests on.
+
+### The teeth
+
+Every guard failed the file written for it: the single-instance refusal, the
+field with no data, the write, and the admission of addresses, which also failed
+`cgroup`'s round trip because the printed program could not be compiled without
+it. Treating a column's addresses as table data changed exactly one line of
+`cgroup.asm` - `sUnused` came back.
+
+---
+
 ## 1. Target
 
 ### A readability heuristic that was correct by accident, for a year

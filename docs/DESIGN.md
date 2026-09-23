@@ -2078,7 +2078,8 @@ ordinary array store. Bounds checks on constant indices work per field, unchange
 - **Field initialisers arrived in §52**, in two forms - a column per field, or
   rows the parser transposes into columns. A field with no initialiser still
   zero-fills, matching `u8[4] buf`, which is what this rule used to say
-  outright. A `const` group carrying data is still a separate question.
+  outright. A `const` group carrying data was a separate question, and §70
+  answered it.
 - **A view of a field is still not expressible**, and §17 landing did not change
   that. A field *is* an ordinary array, so nothing in the mechanism objects - but
   `view u8[16] firstWave = mob__x[0]` names a label deliberately out of scope
@@ -3942,8 +3943,9 @@ else mentions.
   is `u16`, and a number beside it has to fit that word - `-1` is refused rather
   than making the table `i16`.
 - **`const` only.** A writable table of addresses is a pointer array in all but
-  name, and nothing has wanted one. A `group` field is storage, so this refuses a
-  column of addresses too.
+  name, and nothing has wanted one. A writable `group` field is storage, so this
+  refuses a column of addresses there too; a `const group`'s column is admitted,
+  because it is a const array (§70).
 - **A table names what is above it.** An initialiser is resolved where it stands,
   as every other initialiser is - `const u8[] early = [ late ]` is refused the
   same way. Code can name a later global and a table cannot, so the refusal says
@@ -5875,11 +5877,10 @@ three parallel `const` arrays first, on the grounds that a group's fields take n
 initialiser - which §52 had already made untrue - and the arrays drifted apart
 once, which is where the rule about making that loud came from.
 
-**What the rows cost is `const`.** A group is storage and has no read-only form,
-so nothing now refuses a write to `bind[i].key` where the arrays refused one to
-`bindKey[i]`. The emitted scan is identical instruction for instruction and the
-bytes are the same; only the promise changed. A `const` group would give it back,
-and is also what §51's refusal of an address in a group column is waiting on.
+**It is a `const group`** (§70), so a write to `bind[i].key` is refused as a write
+to `bindKey[i]` was. For the length of one commit it was a plain group, and that
+was the whole cost of the rows: the scan was identical instruction for
+instruction and the bytes the same, and only the promise had gone.
 
 A chord costs one `u16` of state and a `prefix` column, so `^K ^C` and a plain
 `^S` live in the same table with no second mechanism.
@@ -7350,3 +7351,66 @@ other way because its state machine had the edges; this one has one wrap.
 never loses work, and those two were not broken - Exit was, and Save As had
 nothing at all. Converting them is a case each now the box exists, and is the
 obvious next use of it.
+
+## 70. `const group` - rows of data that nothing may write
+
+**Built.** `cgroup` runs it in tier 2, the `err-cgroup-*` files hold the
+refusals, and `momoed`'s and `edloop`'s binding tables are the first customers.
+
+```momo
+const group colour[3] {
+  u16 name
+  u8  level
+} = [
+  [ addr( sRed ),   10 ],
+  [ addr( sGreen ), 20 ],
+  [ addr( sBlue ),  30 ],
+]
+```
+
+§52 gave a group data, and its own test for when the rows form helps - *a row is
+what the writer edits and a column is what the program reads* - describes a table
+far more often than a pool. What was missing was the promise a `const` array
+makes: that nothing writes it. Moving the binding tables into rows took that
+promise away for one commit, which is what made this worth doing rather than
+worth noting.
+
+### It is the same adjective as `const far` and `const view`
+
+`const` in front of `group` marks every field's array read-only, the way it marks
+a far region or a view. Nothing is emitted differently - the columns are the same
+arrays in the same data section - so the whole feature is three refusals and one
+admission.
+
+**A write is refused in the group's name.** A field's array is `colour__level`,
+which the program never wrote, so the check sits where the group is still
+visible rather than being left to the array.
+
+**§51's addresses are admitted in a column**, because a const group's column is a
+const array and that rule was always about const arrays. A writable group still
+refuses them.
+
+**A column of addresses nothing reads keeps nothing alive.** Pruning treats a
+group's columns as table data, as it treats §51's arrays: the addresses are the
+column's references, kept only while the column is. `cgroup` has a column nothing
+reads and a string only that column names, and neither is in its image.
+
+### Rules
+
+- **The counted form only.** One instance of constants is a set of consts, which
+  `const` already writes and folds without giving any of them storage.
+- **Every field has data.** A column nothing can write and nothing initialised is
+  zero for ever, which is a mistake rather than a table.
+- **Rows or columns, as §52.** The rows form is the reason for this, and it
+  lowers to the columns form, so `const` carries through either spelling.
+
+### What it does not reach yet
+
+`momoed`'s menus are the next table this could hold - a title, a list of labels,
+a list of actions and an `Alt` key per menu, in four parallel tables today. Two
+things stand between them and a row per menu. A title lives in an array of
+arrays, and §53 refuses `addr( menuNames[0] )` in an initialiser; and the labels
+and actions are lists whose lengths differ per menu, which a row of scalars can
+point at but not hold. The first is a small relaxation of §53 and the second is
+what the row would be made of anyway, so this is a design to finish rather than a
+limit to record.
