@@ -58,7 +58,8 @@ tests/compile/       tier 1 tests
 editor/vscode/       generated syntax highlighting
 docs/                this file, DESIGN.md, PLAN.md, DECISIONS.md,
                      PEEPHOLES.md, STYLE.md, LESSONS.md, PITFALLS.md,
-                     STUDIES.md, PROVENANCE.md
+                     STUDIES.md, PROVENANCE.md, and INDEX.md, which is
+                     generated - npm run index rewrites it
 ```
 
 `README.md` stays in the root because that is where it is read from, and so do
@@ -180,7 +181,7 @@ error: no toolchain.json - copy toolchain.example.json to toolchain.json and set
 
 ```bash
 npm run momoc -- <project>    # .momo -> .asm
-npm run momoc:all             # every project; drives the VS Code build task
+npm run momoc:all             # every project and the ok- goldens; drives the VS Code build task
 npm run build -- <project>    # compile, then assemble in DOSBox
 npm start <project> [args]    # assemble and run, with a DOS command tail
 npm run image                 # build/*.COM -> build/momo.ima, for 86Box

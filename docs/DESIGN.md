@@ -6671,9 +6671,11 @@ anything other than being shown.
 
 ## Sections designed, but not built
 
-Thirteen sections carry numbers but no text here, because what they describe does
+These sections carry numbers but no text here, because what they describe does
 not exist yet. All are in `PLAN.md`. The heading names no range deliberately - the
-set stopped being contiguous the moment one of them was built.
+set stopped being contiguous the moment one of them was built - and the table
+carries no count for the same reason `INDEX.md` is generated: §63 was missing
+from it for as long as the count read "thirteen", and nothing could say so.
 
 | | |
 |---|---|
@@ -6690,6 +6692,7 @@ set stopped being contiguous the moment one of them was built.
 | §46 | `alias` - a name for an indexed access, which §45's `of` is one case of |
 | §49 | Named and default arguments, which is what §48's `cfg` carrier needs |
 | §50 | A layout DSL: content, layout and paint as three documents |
+| §63 | A document larger than the memory |
 
 ---
 

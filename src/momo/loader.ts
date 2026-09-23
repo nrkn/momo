@@ -76,7 +76,13 @@ export const load = (
     if (scanned.has(real)) return
     scanned.add(real)
 
-    const tokens = tokenize(readFileSync(real, 'utf8'), real)
+    // Into `sources` BEFORE tokenizing: this walk runs first, so a lexer error
+    // surfaces here, and formatError printed an empty line under the caret for
+    // as long as only `visit` recorded the text.
+    const source = readFileSync(real, 'utf8')
+    sources.set(real, source)
+
+    const tokens = tokenize(source, real)
     for (const [name, storage] of unitDeclarationsIn(tokens)) units.set(name, storage)
 
     for (let i = 0; i < tokens.length - 1; i++) {

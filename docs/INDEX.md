@@ -77,7 +77,7 @@ text for.
 | 60 | `mofield` - one line of text a person is typing into | [section](DESIGN.md#60-mofield---one-line-of-text-a-person-is-typing-into) |  | [section](DECISIONS.md#60-mofield) |
 | 61 | `morange` - a span of text as one edit | [section](DESIGN.md#61-morange---a-span-of-text-as-one-edit) |  | [section](DECISIONS.md#61-morange-and-selection) |
 | 62 | `modir` - a directory as a list | [section](DESIGN.md#62-modir---a-directory-as-a-list) |  | [section](DECISIONS.md#62-modir) |
-| 63 | A document larger than the memory |  | [section](PLAN.md#63-a-document-larger-than-the-memory) |  |
+| 63 | A document larger than the memory | listed | [section](PLAN.md#63-a-document-larger-than-the-memory) |  |
 | 64 | The character picker | [section](DESIGN.md#64-the-character-picker) |  |  |
 | 65 | Several files open, and one way between them | [section](DESIGN.md#65-several-files-open-and-one-way-between-them) |  |  |
 | 66 | Two rows of chrome | [section](DESIGN.md#66-two-rows-of-chrome) |  |  |
@@ -94,4 +94,4 @@ Not sections, so not cited by number - listed so that nothing above is missing s
 
 - `DESIGN.md`: [Sections designed, but not built](DESIGN.md#sections-designed-but-not-built)
 - `PLAN.md`: [Where this is going](PLAN.md#where-this-is-going), [What Done means here, and what it does not](PLAN.md#what-done-means-here-and-what-it-does-not), [Todo](PLAN.md#todo), [Questions](PLAN.md#questions), [Done](PLAN.md#done)
-- `DECISIONS.md`: [Why it is separate](DECISIONS.md#why-it-is-separate), [The line](DECISIONS.md#the-line), [Numbering](DECISIONS.md#numbering), [Prompt commands](DECISIONS.md#prompt-commands)
+- `DECISIONS.md`: [Why it is separate](DECISIONS.md#why-it-is-separate), [The line](DECISIONS.md#the-line), [Numbering](DECISIONS.md#numbering)
