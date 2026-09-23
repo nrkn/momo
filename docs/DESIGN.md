@@ -7224,13 +7224,23 @@ something, an editor that stops.
 
 ### The action array is the authority
 
-An item's label lives in a `$`-blob and its action in a `const u8[]`, an index
-apart - which is the shape that cost a session in §55's binding tables.
+A menu's labels are an array of arrays of their own (§53), named by §51's table
+`menuItems`, and the actions are one array of arrays whose child lengths are the
+item counts - `menuItemCount` is `len( menuActs[m] )`. Labels and actions are an
+index apart, which is the shape that cost a session in §55's binding tables.
 
-The difference is that this one **fails visibly**. `menuItemCount` reads the
-action array's length, so an array longer than its blob draws blank rows and one
-shorter hides rows, and a pair that has drifted shows the wrong *word* before it
-runs the wrong command. §55's tables could disagree in silence; these cannot.
+**It used to fail visibly and does not now.** As blobs walked by `nthStr`, an
+action array longer than its labels drew blank rows and one shorter hid rows, so
+a pair that had drifted showed the wrong *word* before it ran the wrong command.
+A label list shorter than its actions now reads a word past its spine as an
+address and draws whatever that points at. So `npm run drift` holds each menu's
+label count against its action count, which is §55's answer for the same shape:
+if the form cannot make the mistake impossible, something has to make it loud.
+
+Three levels - menu, item, character - is one more than §53 has, which is why the
+labels are a list per menu with a table over them rather than one declaration.
+`menuItemText` reads that table's spine by hand, two bytes an item, and it is the
+one place in the program that does.
 
 What is on the menus is not written down here. They are only commands the editor
 already has, the tables in `momoed.momo` are readable, and a list in prose would

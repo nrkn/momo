@@ -425,9 +425,11 @@ const sceneCount = (): number => {
 // was one key doing nothing - the *last* row, because that is the only index
 // that reads past the end of the short array rather than reading its neighbour.
 //
-// §55's rule keeps them as arrays rather than a `group`, for a scan cost it
-// measured. This is the other half of that decision: if the form cannot make the
-// mistake impossible, something has to make it loud.
+// They are arrays rather than a `group`, which §55 once explained by a group
+// taking no initialiser - untrue since §52, and a group's field emits the same
+// array, so no scan cost separates them either. Until the table moves, this is
+// the other half: if the form cannot make the mistake impossible, something has
+// to make it loud.
 // The third name, where there is one, is the column whose entries must all
 // differ. A repeated binding is the same class of silence as a short table: the
 // scan takes the first match and the second row simply never runs.
@@ -488,6 +490,87 @@ const checkParallelTables = () => {
       `parallel tables disagree: ${found.map(([name, n]) => `${name} ${n}`).join(
 )}`,
     )
+  }
+}
+
+// The top-level children of an array literal, as source text, found by depth so
+// that a nested child or a string holding a comma is one entry. Null when the
+// declaration is not there, which the caller reports rather than skips.
+// Declarations are aligned by hand, so the space before `=` is any width.
+const childrenOf = (text: string, name: string): string[] | null => {
+  const found = new RegExp(`\\] ${name}\\s*= \\[`).exec(text)
+  if (found === null) return null
+  return splitList(text, found.index + found[0].length - 1)
+}
+
+const splitList = (text: string, open: number): string[] => {
+  const children: string[] = []
+  let depth = 0
+  let start = open + 1
+
+  for (let i = open; i < text.length; i++) {
+    const c = text[i]
+    if (c === '"' || c === "'") {
+      i = text.indexOf(c, i + 1)
+      continue
+    }
+    if (c === '/' && text[i + 1] === '/') {
+      i = text.indexOf('\n', i)
+      continue
+    }
+    if (c === '[') depth += 1
+    if (c === ']') depth -= 1
+    if ((c === ',' && depth === 1) || depth === 0) {
+      const child = text.slice(start, i).replace(/\/\/[^\n]*/g, '').trim()
+      if (child.length > 0) children.push(child)
+      start = i + 1
+      if (depth === 0) break
+    }
+  }
+
+  return children
+}
+
+// §67's menus in `momoed`. A menu's labels are an array of arrays of its own,
+// named by §51's table `menuItems`, and the actions are one array of arrays whose
+// child lengths are the item counts. The two are an index apart, and a label list
+// shorter than its actions reads a word past its spine as an address - which draws
+// whatever that points at rather than anything that says why. §55's tables were
+// made loud the same way, for the same reason.
+const menuTables: [string, string, string][] = [
+  ['projects/programs/apps/momoed/momoed.momo', 'menuItems', 'menuActs'],
+]
+
+const checkMenuTables = () => {
+  for (const [file, labels, actions] of menuTables) {
+    const path = join(root, file)
+    if (!existsSync(path)) continue
+
+    const text = readText(path)
+    const menus = entryTextOf(text, labels)
+    const acts = childrenOf(text, actions)
+    if (menus === null || acts === null) {
+      report(path, 1, `menu table "${menus === null ? labels : actions}" not found - the check needs updating`)
+      continue
+    }
+
+    if (menus.length !== acts.length) {
+      report(path, 1, `"${labels}" names ${menus.length} menus and "${actions}" has ${acts.length}`)
+      continue
+    }
+
+    menus.forEach((entry, m) => {
+      const name = /^addr\(\s*(\w+)\s*\)$/.exec(entry)?.[1]
+      const items = name === undefined ? null : childrenOf(text, name)
+      if (name === undefined || items === null) {
+        report(path, 1, `"${labels}" entry "${entry}" is not addr() of a declared list`)
+        return
+      }
+      const count = splitList(acts[m] as string, 0).length
+      if (items.length !== count) {
+        report(path, 1, `menu ${m} has ${items.length} labels in "${name}" and ${count} actions`)
+      }
+    })
   }
 }
 
@@ -718,6 +801,7 @@ if (args[0] === '--since') {
   checkCounts()
   checkScenes()
   checkParallelTables()
+  checkMenuTables()
   checkDuplicateBindings()
   checkHeadings()
 

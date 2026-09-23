@@ -314,7 +314,7 @@ const u8[] sKb       = "K$"
 const u8[] sHere     = ".$"
 const u8[] sNoSlots  = "no free tab - close one first$"
 const u8[] sOneDoc   = "this is the only file open$"
-const u8[] sButtons     = "Yes$No$Cancel$\0"
+const u8[][] sButtons   = [ "Yes$", "No$", "Cancel$" ]
 const u8[] sSaveChanges = "Save changes to$"
 const u8[] sOverwrite   = "Replace the existing file$"
 
@@ -732,8 +732,8 @@ u16 dlgPick
 
 bool dlgUp() => dlgWhy != dlgNone
 
-u16 dlgCount() => strParts( addr( sButtons ) )
-u16 dlgButton( u16 i ) => nthStr( addr( sButtons ), i )
+u16 dlgCount() => len( sButtons )
+u16 dlgButton( u16 i ) => addr( sButtons[i] )
 
 u8 fold( u8 c ) => c >= 'a' && c <= 'z' ? c - 32 : c
 
@@ -2225,84 +2225,62 @@ const actPick   = 36
 
 // ---- the menus (§67) ---------------------------------------------------------
 //
-// A blob per menu, written before §51 made a table of addresses writable, and
-// the titles in one more so that the bar's layout is **derived rather than
-// written twice**: what used to sit here was a label string and a list of the
-// columns its words started at, which is the same fact in two forms.
+// The titles are one array of arrays (§53) so that the bar's layout is **derived
+// rather than written twice**: what used to sit here was a label string and a
+// list of the columns its words started at, which is the same fact in two forms.
 //
 // Each item is padded to a common width so the accelerator lines up. The box is
 // still measured rather than assuming that, because a menu somebody edits later
 // should widen rather than overflow.
-//
-// **The action array is the authority for how many items a menu has.** The pair
-// is an index apart, which is the shape that cost a session in §55's binding
-// tables - the difference is that this one fails visibly: an action array longer
-// than its blob draws blank rows, and one shorter hides rows, where a disagreeing
-// *label* is a label somebody reads. Nothing here can run the wrong command
-// without showing the wrong word first.
-const u8[] sMenuNames = "File$Edit$Search$View$\0"
+const u8[][] menuNames = [ "File$", "Edit$", "Search$", "View$" ]
 
-const u8[] mFile   = "New          ^T$"
-                     "Open...      ^O$"
-                     "Save         ^S$"
-                     "Save As...     $"
-                     "Close        ^W$"
-                     "Exit         ^Q$"
-                     "\0"
+// A menu is menu, item, character - three levels, and §53 has two. So each menu's
+// labels are an array of arrays of their own and `menuItems` is §51's table over
+// them, which is the one place this reads a spine by hand: two bytes an item.
+const u8[][] mFile   = [ "New          ^T$",
+                         "Open...      ^O$",
+                         "Save         ^S$",
+                         "Save As...     $",
+                         "Close        ^W$",
+                         "Exit         ^Q$" ]
 
-const u8[] mEdit   = "Undo         ^Z$"
-                     "Redo         ^Y$"
-                     "Cut          ^X$"
-                     "Copy         ^C$"
-                     "Paste        ^V$"
-                     "Select All   ^A$"
-                     "Character... ^P$"
-                     "\0"
+const u8[][] mEdit   = [ "Undo         ^Z$",
+                         "Redo         ^Y$",
+                         "Cut          ^X$",
+                         "Copy         ^C$",
+                         "Paste        ^V$",
+                         "Select All   ^A$",
+                         "Character... ^P$" ]
 
-const u8[] mSearch = "Find...      ^F$"
-                     "Find Next    ^L$"
-                     "Replace...   ^R$"
-                     "Go to Line   ^G$"
-                     "\0"
+const u8[][] mSearch = [ "Find...      ^F$",
+                         "Find Next    ^L$",
+                         "Replace...   ^R$",
+                         "Go to Line   ^G$" ]
 
-const u8[] mView   = "Explorer     ^B$"
-                     "\0"
+const u8[][] mView   = [ "Explorer     ^B$" ]
 
-const u8[] aFile   = [ actNewDoc, actOpen, actSave, actSaveAs, actShut, actQuit ]
-const u8[] aEdit   = [ actUndo, actRedo, actCut, actCopy, actPaste, actAll, actPick ]
-const u8[] aSearch = [ actFind, actAgain, actRepl, actGoto ]
-const u8[] aView   = [ actExplor ]
+const u16[] menuItems = [ addr( mFile ), addr( mEdit ), addr( mSearch ), addr( mView ) ]
 
-u16 menuBlobOf( u16 m ) {
-  if ( m == 0 ) return addr( mFile )
-  if ( m == 1 ) return addr( mEdit )
-  if ( m == 2 ) return addr( mSearch )
-
-  return addr( mView )
-}
-
-u8 menuAction( u16 m, u16 i ) {
-  if ( m == 0 ) return aFile[i]
-  if ( m == 1 ) return aEdit[i]
-  if ( m == 2 ) return aSearch[i]
-
-  return aView[i]
-}
+// **The action array is the authority for how many items a menu has**, and its
+// length is §53's length spine. A menu's labels and its actions are an index
+// apart, which is the shape that cost a session in §55's binding tables - so
+// `npm run drift` holds each menu's label count against its action count, because
+// a label list shorter than its actions would read a word past its spine as an
+// address and draw whatever that pointed at.
+const u8[][] menuActs = [
+  [ actNewDoc, actOpen, actSave, actSaveAs, actShut, actQuit ],
+  [ actUndo, actRedo, actCut, actCopy, actPaste, actAll, actPick ],
+  [ actFind, actAgain, actRepl, actGoto ],
+  [ actExplor ]
+]
 
 // ---- what §67 asks the program (§37) ----
 
-u16 menuCount() => strParts( addr( sMenuNames ) )
-u16 menuTitle( u16 m ) => nthStr( addr( sMenuNames ), m )
-
-u16 menuItemCount( u16 m ) {
-  if ( m == 0 ) return len( aFile )
-  if ( m == 1 ) return len( aEdit )
-  if ( m == 2 ) return len( aSearch )
-
-  return len( aView )
-}
-
-u16 menuItemText( u16 m, u16 i ) => nthStr( menuBlobOf( m ), i )
+u16 menuCount() => len( menuNames )
+u16 menuTitle( u16 m ) => addr( menuNames[m] )
+u16 menuItemCount( u16 m ) => len( menuActs[m] )
+u16 menuItemText( u16 m, u16 i ) => peek16( menuItems[m] + 2 * i )
+u8 menuAction( u16 m, u16 i ) => menuActs[m][i]
 
 // Where each title starts on the bar, from the titles themselves - two spaces
 // between, one at the left. A menu renamed moves its own drop-down.
