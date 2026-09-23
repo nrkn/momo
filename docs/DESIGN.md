@@ -73,10 +73,10 @@ interrupt handlers wherever it currently sits: the number tells you the topic, a
 the file tells you which aspect - and, between this file and `PLAN.md`, whether it
 is built yet.
 
-A number therefore appears in `DECISIONS.md` *as well as* here, which is intended:
-the design of `group` is §18 here, and what it displaced is §18 there. What cannot
-happen is the same aspect in two places. The other documents point here rather
-than restating any of this. `PEEPHOLES.md` is the one with a numbering of
+A number therefore appears in `DECISIONS.md` *as well as* here, which is
+intended: the design of `group` is §18 here, and what it displaced is §18 there.
+What cannot happen is the same aspect in two places. The other documents point
+here rather than restating any of this. `PEEPHOLES.md` is the one with a numbering of
 its own - a bare number there is a peephole, and a `§` is a section of this
 namespace.
 

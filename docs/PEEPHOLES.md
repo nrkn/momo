@@ -6,12 +6,12 @@ faster form that provably does the same thing.
 
 They live here rather than in `DESIGN.md` §9 for three reasons. They are a
 **catalogue with its own numbering**, cited by number from `emitter.ts` and from
-the language tests that exercise one - so a peephole number is a stable identifier in the
-same way a `§` is, and must keep meaning the same rewrite. They are a **workflow**
-rather than a subsection: the list grows when somebody sweeps the emitted assembly
-looking for a shape that repeats. And at 209 lines they were three quarters of
-§9, which made that section "the peephole catalogue, with some codegen around it"
-rather than a description of codegen.
+the language tests that exercise one - so a peephole number is a stable
+identifier in the same way a `§` is, and must keep meaning the same rewrite. They
+are a **workflow** rather than a subsection: the list grows when somebody sweeps
+the emitted assembly looking for a shape that repeats. And at 209 lines they were
+three quarters of §9, which made that section "the peephole catalogue, with some
+codegen around it" rather than a description of codegen.
 
 **Numbers are stable and only ever appended**, for the same reason section numbers
 are. A rewrite that is superseded keeps its number and says so.

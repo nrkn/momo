@@ -384,10 +384,11 @@ look for the rest.
   and `momoed` needs no arguments now.
 - **Bulk loading.** 2026-09-14. §54 grew `textBulk`, a bracket that keeps the
   append position in ordinary variables for the length of a load; the record is
-  DECISIONS §55, with the file-open timings that found it. One loaded character had cost **eleven far
-  accesses and four calls**, of which one far access was the byte - the rest
-  being a line length, a line head, a chunk fill read three times, and a walk to
-  the end of a line that had been walked for the previous character.
+  DECISIONS §55, with the file-open timings that found it. One loaded character
+  had cost **eleven far accesses and four calls**, of which one far access was
+  the byte - the rest being a line length, a line head, a chunk fill read three
+  times, and a walk to the end of a line that had been walked for the previous
+  character.
 
   `loadrate` measures both paths and reports the ratio: **3.9x** on the 286, and
   4.5 under DOSBox - which is its own small lesson about where a ratio may be

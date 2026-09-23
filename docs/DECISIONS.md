@@ -3244,10 +3244,10 @@ run together in here before.
 
 **13% turned out to be the good case**, and `drawrate` above is the bad one: a
 ratio whose two halves are both our own instructions survives the emulator,
-because both are slowed by the same factor. One with DOS or the BIOS on one side of it does not,
-and `drawrate` reported 22 times where the machine said 3.1. This paragraph was
-written as though "overstated" were a single quantity with a size; it is two
-different failures and only one of them has one.
+because both are slowed by the same factor. One with DOS or the BIOS on one side
+of it does not, and `drawrate` reported 22 times where the machine said 3.1. This
+paragraph was written as though "overstated" were a single quantity with a size;
+it is two different failures and only one of them has one.
 
 ### The test is equivalence, because a wrong fill still looks like text
 

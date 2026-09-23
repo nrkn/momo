@@ -418,8 +418,8 @@ is a property of the machine: most of `PITFALLS.md` was found on 86Box rather
 than under DOSBox, and the keyboard is where that difference bit hardest. The golden tier still covers them, which
 is the regression coverage that matters for a compiler.
 
-`tennis` is the other game - several files, mode 13h, sprites, a palette, and a keyboard reader that masks IRQ1 and
-talks to the 8042 directly. Most of `PITFALLS.md` was found in it, and found on
+`tennis` is the other game - several files, mode 13h, sprites, a palette, and a
+keyboard reader that masks IRQ1 and talks to the 8042 directly. Most of `PITFALLS.md` was found in it, and found on
 86Box rather than under DOSBox. It blocks on input, so it is golden-tier only too.
 
 `shared/lib/momovec/` (§37) is a vector rasteriser ported from a study, and it also
