@@ -1506,6 +1506,13 @@ So the suite goes red, which is teeth, but it goes red by stopping rather than
 by naming `addrtab` - which is what a real regression here would look like too,
 and is worth knowing before one arrives.
 
+It no longer stops. Every tier-1 compile now catches a throw that is not a
+diagnostic and fails that one case with its message, so the same neuter reports
+`FAIL addrtab` and `FAIL round trip addrtab`, both reading
+`not a diagnostic: internal: unresolved symbol "sOne"`, and then the tally. The
+round trip had a second gap under the first: a case that threw was never
+counted, so its line in the breakdown fell by one while the total did not.
+
 ---
 
 ## 52. `group` data, written as rows
