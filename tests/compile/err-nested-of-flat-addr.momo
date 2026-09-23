@@ -1,0 +1,7 @@
+// EXPECT-ERROR: has no address of its own
+// addr() of a binding is only a child of an array of arrays.
+u8[4] buf
+u16 at
+for ( v of buf ) {
+  at = addr( v )
+}

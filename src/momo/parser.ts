@@ -1494,6 +1494,10 @@ export const parse = (tokens: Token[]): Program => {
   let ofCounters = 0
   const nextOfCounter = (file: string): string => `of__${fileTag(file)}__${ofCounters++}`
 
+// The address slot an `of` over an array of arrays loads once an iteration (§53).
+let ofSlots = 0
+const nextOfSlot = (file: string): string => `ofa__${fileTag(file)}__${ofSlots++}`
+
   type AstLike = { type: string; [key: string]: unknown }
 
   const isAst = (value: unknown): value is AstLike =>
@@ -1505,62 +1509,106 @@ export const parse = (tokens: Token[]): Program => {
   // group field rides on the identifier (§18), so `m.hp` and `v` differ only in
   // whether that marker is set - and `mob[ i ]` with no field is already an error
   // the resolver words, which is exactly what `m` alone should be.
+  //
+  // Over an array of arrays (§53) the binding is a child, and three more shapes
+  // reach it: `s[c]`, `addr( s )` and `len( s )`. The parser cannot see the type,
+  // but it does not need to: indexing a binding or taking its address is only
+  // legal when the target is an array of arrays, so writing one is what asks for
+  // the child's address in a slot - loaded once an iteration by `slot`'s caller,
+  // so the inner loop reads through a known word instead of the spine. Over any
+  // other target the slot's own load is what the resolver refuses.
   const substituteBinding = (
     root: Statement,
     binding: string,
     target: Token,
     counter: string,
+    slot: (at: Located) => string,
   ) => {
-    const access = (identifier: AstLike): IndexExpression => ({
-      type: 'IndexExpression',
-      array: {
-        type: 'Identifier',
-        name: target.text,
-        field: identifier.field as string | undefined,
-        file: identifier.file as string,
-        line: identifier.line as number,
-        col: identifier.col as number,
-      },
-      index: {
-        type: 'Identifier',
-        name: counter,
-        file: identifier.file as string,
-        line: identifier.line as number,
-        col: identifier.col as number,
-      },
-      file: identifier.file as string,
-      line: identifier.line as number,
-      col: identifier.col as number,
+    const here = (at: AstLike) => ({
+      file: at.file as string,
+      line: at.line as number,
+      col: at.col as number,
     })
 
-    const isBinding = (value: unknown): value is AstLike =>
+    const named = (name: string, at: AstLike): Identifier => ({ type: 'Identifier', name, ...here(at) })
+
+    const access = (identifier: AstLike): IndexExpression => ({
+      type: 'IndexExpression',
+      array: { ...named(target.text, identifier), field: identifier.field as string | undefined },
+      index: named(counter, identifier),
+      fromOf: binding,
+      ...here(identifier),
+    })
+
+    // Not a type guard: a node that is not the binding is still an AstLike.
+    const isBinding = (value: unknown): boolean =>
       isAst(value) && value.type === 'Identifier' && value.name === binding
+
+    const twoLevels = (at: AstLike): never =>
+      raise(at as unknown as Located, `"${binding}" is one child of "${target.text}", and an array of arrays has two levels`)
+
+    // What one child node becomes, or null when it is not one of the shapes a
+    // binding takes and should be visited instead.
+    const rewrite = (value: AstLike, parent: AstLike, key: string): AstLike | null => {
+      if (isBinding(value)) {
+        if (parent.type === 'CallStatement' && key === 'callee') {
+          raise(value as unknown as Located, `"${binding}" is one element of "${target.text}", not a routine`)
+        }
+        return access(value) as unknown as AstLike
+      }
+
+      if (value.type === 'IndexExpression' && isBinding(value.array) && (value.array as AstLike).field === undefined) {
+        if (value.childIndex) twoLevels(value)
+        const index = value.index as AstLike
+        visit(index)
+
+        // Written through, so no slot: the plain access carries the reason to the
+        // resolver, which says either that it is one element or that it is const.
+        const written = (parent.type === 'AssignmentStatement' || parent.type === 'UpdateStatement') && key === 'target'
+        if (written) {
+          return { ...access(value), childIndex: index } as unknown as AstLike
+        }
+
+        return {
+          type: 'PeekExpression',
+          width: 1,
+          address: { type: 'BinaryExpression', operator: '+', left: named(slot(value as unknown as Located), value), right: index, ...here(value) },
+          ...here(value),
+        }
+      }
+
+      if ((value.type === 'AddrExpression' || value.type === 'LenExpression') && isBinding(value.target)) {
+        if (value.index) twoLevels(value)
+        if (value.type === 'AddrExpression') return named(slot(value as unknown as Located), value) as unknown as AstLike
+        return {
+          type: 'LenExpression',
+          target: named(target.text, value),
+          index: named(counter, value),
+          fromOf: binding,
+          ...here(value),
+        }
+      }
+
+      return null
+    }
 
     const visit = (node: AstLike) => {
       for (const [key, value] of Object.entries(node)) {
         if (Array.isArray(value)) {
           for (let i = 0; i < value.length; i++) {
-            if (isBinding(value[i])) value[i] = access(value[i] as AstLike)
-            else if (isAst(value[i])) visit(value[i] as AstLike)
+            if (!isAst(value[i])) continue
+            const replaced = rewrite(value[i] as AstLike, node, key)
+            if (replaced) value[i] = replaced
+            else visit(value[i] as AstLike)
           }
           continue
         }
 
         if (!isAst(value)) continue
 
-        if (isBinding(value)) {
-          const where = value as unknown as Located
-          if (node.type === 'IndexExpression' && key === 'array') {
-            raise(where, `"${binding}" is one element of "${target.text}", so it cannot be indexed`)
-          }
-          if (node.type === 'CallStatement' && key === 'callee') {
-            raise(where, `"${binding}" is one element of "${target.text}", not a routine`)
-          }
-          node[key] = access(value)
-          continue
-        }
-
-        visit(value)
+        const replaced = rewrite(value, node, key)
+        if (replaced) node[key] = replaced
+        else visit(value)
       }
     }
 
@@ -1626,7 +1674,8 @@ export const parse = (tokens: Token[]): Program => {
     return names
   }
 
-  const buildIteration = (start: Token, header: IterationHeader, body: Statement): ForStatement => {
+  const buildIteration = (start: Token, header: IterationHeader, written: Statement): ForStatement => {
+    let body = written
     const { typeNode, name, word, target } = header
     const spot = { file: name.file, line: name.line, col: name.col }
     let counter = name.text
@@ -1668,7 +1717,52 @@ export const parse = (tokens: Token[]): Program => {
         })
       }
 
-      substituteBinding(body, name.text, target, counter)
+      // §53's address slot, taken only if the body indexes the binding or asks
+      // its address. Shared between sequential loops by the counter's rule.
+      let slotName: string | null = null
+      let slotAt: Located | null = null
+      const slot = (at: Located): string => {
+        if (slotName !== null) return slotName
+        const spare = frame.find((d) => d.name.startsWith('ofa__') && !live.has(d.name))
+        slotName = spare ? spare.name : nextOfSlot(name.file)
+        slotAt = at
+        if (!spare) {
+          hoist({
+            type: 'VariableDeclaration',
+            name: slotName,
+            typeNode: { type: 'TypeNode', name: 'u16', frac: 0, array: false, size: null, ...spot },
+            init: null,
+            ...spot,
+            endLine: name.line,
+          })
+        }
+        return slotName
+      }
+
+      substituteBinding(body, name.text, target, counter, slot)
+
+      if (slotName !== null && slotAt !== null) {
+        const at: Located = slotAt
+        const where = { file: at.file, line: at.line, col: at.col }
+        const load: Statement = {
+          type: 'AssignmentStatement',
+          operator: '=',
+          target: { type: 'Identifier', name: slotName, ...where },
+          value: {
+            type: 'AddrExpression',
+            target: { type: 'Identifier', name: target.text, ...where },
+            index: { type: 'Identifier', name: counter, ...where },
+            fromOf: name.text,
+            ...where,
+          },
+          ...where,
+          endLine: at.line,
+        }
+        body =
+          body.type === 'BlockStatement'
+            ? { ...body, body: [load, ...body.body] }
+            : { type: 'BlockStatement', body: [load, body], file: body.file, line: body.line, col: body.col, endLine: body.endLine }
+      }
     } else if (typeNode) {
       hoist({
         type: 'VariableDeclaration',

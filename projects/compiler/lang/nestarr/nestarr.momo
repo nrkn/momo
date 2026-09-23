@@ -59,3 +59,32 @@ for ( c = 0; c < len( digits[2] ); c++ ) {
   putNumber( digits[2][c] )           // 9265
 }
 newline()
+
+// ---- of: the child's address is loaded once an iteration ----
+
+// `addr( s )` is the slot itself, so the body reads no spine at all.
+for ( s of menu ) {
+  putStr( addr( s ) )                 // File/Edit/Search/View/
+  putChar( '/' )
+}
+newline()
+
+// `s[c]` reads through the slot, and `in` over `s` asks the length spine.
+for ( s of menu ) {
+  for ( c in s ) {
+    if ( s[c] != '$' ) putChar( s[c] )  // FileEditSearchView
+  }
+}
+newline()
+
+// An `of` inside an `of`, the inner one over the outer binding.
+const u8[][] pi = [ [ 3 ], [ 1, 4 ], [ 1, 5, 9 ] ]
+
+for ( d of pi ) {
+  for ( n of d ) putNumber( n )       // 314159
+}
+newline()
+
+// A length alone takes no slot.
+for ( d of pi ) putNumber( len( d ) ) // 123
+newline()

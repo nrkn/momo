@@ -1,0 +1,6 @@
+// EXPECT-ERROR: is a const array and cannot be assigned
+// Written through, the binding takes no slot and the resolver says why.
+const u8[][] menu = [ "one$", "two$" ]
+for ( s of menu ) {
+  s[0] = 65
+}

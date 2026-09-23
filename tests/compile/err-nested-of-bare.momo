@@ -1,0 +1,7 @@
+// EXPECT-ERROR: "s" is an array - index it again, or use addr( s )
+// A child has no value of its own, and the message names the binding the program wrote.
+const u8[][] menu = [ "one$", "two$" ]
+u16 at
+for ( s of menu ) {
+  at = s
+}

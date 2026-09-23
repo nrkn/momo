@@ -1,0 +1,7 @@
+// EXPECT-ERROR: has two levels
+// The binding is already a child, so a second index would be a third level.
+const u8[][] menu = [ "one$", "two$" ]
+u8 b
+for ( s of menu ) {
+  b = s[0][1]
+}

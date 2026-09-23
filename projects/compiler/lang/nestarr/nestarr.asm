@@ -148,6 +148,144 @@ __entry:
 .L11:
 ; ---- newline()
         call    newline
+; ---- for ( s of menu ) {
+        mov     word [of__nestarr__0], 0
+.L13:
+        mov     ax, [of__nestarr__0]
+        cmp     ax, 4
+        jae     .L15                        ; unsigned <
+; ---- putStr( addr( s ) )                 // File/Edit/Search/View/
+        mov     ax, [of__nestarr__0]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [menu + bx]
+        mov     [ofa__nestarr__0], ax
+        mov     [putStr__at], ax
+        call    putStr
+; ---- putChar( '/' )
+        mov     byte [putChar__c], 47
+        call    putChar
+.L14:
+        inc     word [of__nestarr__0]
+        jmp     .L13
+.L15:
+; ---- newline()
+        call    newline
+; ---- for ( s of menu ) {
+        mov     word [of__nestarr__0], 0
+.L17:
+        mov     ax, [of__nestarr__0]
+        cmp     ax, 4
+        jb      .L20                        ; unsigned <
+        jmp     .L19
+.L20:
+; ---- if ( s[c] != '$' ) putChar( s[c] )  // FileEditSearchView
+        mov     ax, [of__nestarr__0]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [menu + bx]
+        mov     [ofa__nestarr__0], ax
+; ---- for ( c in s ) {
+        mov     word [c], 0
+.L21:
+        mov     ax, [c]
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [of__nestarr__0]
+        mov     bx, ax
+        mov     al, [menu__len + bx]
+        xor     ah, ah                      ; u8 -> u16
+        mov     bx, ax
+        pop     ax
+        cmp     ax, bx
+        jae     .L23                        ; unsigned <
+; ---- if ( s[c] != '$' ) putChar( s[c] )  // FileEditSearchView
+        mov     ax, [ofa__nestarr__0]
+        mov     bx, [c]
+        add     ax, bx
+        mov     bx, ax
+        mov     al, [bx]                    ; peek8 - unchecked, by design
+        cmp     al, 36                      ; byte operands, no widening
+        je      .L25                        ; unsigned !=
+        mov     ax, [ofa__nestarr__0]
+        mov     bx, [c]
+        add     ax, bx
+        mov     bx, ax
+        mov     al, [bx]                    ; peek8 - unchecked, by design
+        mov     [putChar__c], al            ; u8 -> u8, no widening
+        call    putChar
+.L25:
+.L22:
+        inc     word [c]
+        jmp     .L21
+.L23:
+.L18:
+        inc     word [of__nestarr__0]
+        jmp     .L17
+.L19:
+; ---- newline()
+        call    newline
+; ---- for ( d of pi ) {
+        mov     word [of__nestarr__1], 0
+.L28:
+        mov     ax, [of__nestarr__1]
+        cmp     ax, 3
+        jb      .L31                        ; unsigned <
+        jmp     .L30
+.L31:
+; ---- for ( n of d ) putNumber( n )       // 314159
+        mov     ax, [of__nestarr__1]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [pi + bx]
+        mov     [ofa__nestarr__0], ax
+        mov     word [of__nestarr__0], 0
+.L32:
+        mov     ax, [of__nestarr__0]
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [of__nestarr__1]
+        mov     bx, ax
+        mov     al, [pi__len + bx]
+        xor     ah, ah                      ; u8 -> u16
+        mov     bx, ax
+        pop     ax
+        cmp     ax, bx
+        jae     .L34                        ; unsigned <
+        mov     ax, [ofa__nestarr__0]
+        mov     bx, [of__nestarr__0]
+        add     ax, bx
+        mov     bx, ax
+        mov     al, [bx]                    ; peek8 - unchecked, by design
+        xor     ah, ah                      ; u8 -> u16
+        mov     [putNumber__n], ax
+        call    putNumber
+.L33:
+        inc     word [of__nestarr__0]
+        jmp     .L32
+.L34:
+.L29:
+        inc     word [of__nestarr__1]
+        jmp     .L28
+.L30:
+; ---- newline()
+        call    newline
+; ---- for ( d of pi ) putNumber( len( d ) ) // 123
+        mov     word [of__nestarr__0], 0
+.L36:
+        mov     ax, [of__nestarr__0]
+        cmp     ax, 3
+        jae     .L38                        ; unsigned <
+        mov     ax, [of__nestarr__0]
+        mov     bx, ax
+        mov     al, [pi__len + bx]
+        xor     ah, ah                      ; u8 -> u16
+        mov     [putNumber__n], ax
+        call    putNumber
+.L37:
+        inc     word [of__nestarr__0]
+        jmp     .L36
+.L38:
+; ---- newline()
+        call    newline
 
 ; ---- implicit exit ----
         mov     word [_ax], 0x4C00          ; DOS terminate, exit code 0
@@ -194,19 +332,19 @@ putNumber:
 ; ---- if (n == 0) {
         mov     ax, [putNumber__n]
         test    ax, ax
-        jne     .L13                        ; unsigned ==
+        jne     .L40                        ; unsigned ==
 ; ---- putChar(ioZeroChar)
         mov     byte [putChar__c], 48
         call    putChar
 ; ---- return
         ret
-.L13:
+.L40:
 ; ---- for (i = 0; n > 0; i++) {
         mov     byte [putNumber__i], 0
-.L16:
+.L43:
         mov     ax, [putNumber__n]
         test    ax, ax
-        jbe     .L18                        ; unsigned >
+        jbe     .L45                        ; unsigned >
 ; ---- digits[i] = u8(n % ioBase) + ioZeroChar
         mov     ax, [putNumber__n]
         mov     bx, 10
@@ -224,15 +362,15 @@ putNumber:
         xor     dx, dx                      ; clear high half for div
         div     bx
         mov     [putNumber__n], ax
-.L17:
+.L44:
         inc     byte [putNumber__i]
-        jmp     .L16
-.L18:
+        jmp     .L43
+.L45:
 ; ---- for (; i > 0; i--) {
-.L20:
+.L47:
         mov     al, [putNumber__i]
         test    al, al
-        jbe     .L22                        ; unsigned >
+        jbe     .L49                        ; unsigned >
 ; ---- putChar(digits[i - 1])
         mov     al, [putNumber__i]
         xor     ah, ah                      ; u8 -> u16
@@ -241,10 +379,10 @@ putNumber:
         mov     al, [putNumber__digits + bx]
         mov     [putChar__c], al            ; u8 -> u8, no widening
         call    putChar
-.L21:
+.L48:
         dec     byte [putNumber__i]
-        jmp     .L20
-.L22:
+        jmp     .L47
+.L49:
         ret
 
 ; ==================================================== int helpers ====
@@ -286,6 +424,9 @@ _si:            dw      0
 _di:            dw      0
 
 ; ---- variables ----
+of__nestarr__0: dw      0        ; u16
+ofa__nestarr__0: dw      0        ; u16
+of__nestarr__1: dw      0        ; u16
 putChar__c:     db      0        ; u8
 putStr__at:     dw      0        ; u16
 putNumber__n:   dw      0        ; u16
@@ -303,6 +444,11 @@ menu:           dw      menu__0, menu__1, menu__2, menu__3        ; u16[4] const
 digits__0:      db      3, 1, 4        ; u8[3] const
 digits__1:      db      1, 5        ; u8[2] const
 digits__2:      db      9, 2, 6, 5        ; u8[4] const
+pi__0:          db      3        ; u8[1] const
+pi__1:          db      1, 4        ; u8[2] const
+pi__2:          db      1, 5, 9        ; u8[3] const
+pi__len:        db      1, 2, 3        ; u8[3] const
+pi:             dw      pi__0, pi__1, pi__2        ; u16[3] const
 putNumber__digits: times 5 db 0        ; u8[5]
 
 ; ============================================================ heap ====

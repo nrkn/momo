@@ -1,0 +1,7 @@
+// EXPECT-ERROR: so it cannot be indexed
+// Over a flat array the binding is one element, and indexing it asks for an address it has not got.
+u8[4] buf
+u8 b
+for ( v of buf ) {
+  b = v[0]
+}
