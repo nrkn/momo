@@ -4372,9 +4372,9 @@ Both halves together cost the editor a little over two hundred bytes; DECISIONS
   ever improve. **The rule is priced for a pixel-pusher and says so**: the number
   it rests on is `tigerpic`'s 92,949 writes. `momoed` writes 1,920 cells a few
   times a second and takes the variable, because that is what reaches mode 7 at
-  0xB000 - the screen `mode mono` leaves. `screenSegment()` is what it reads,
-  which is the consumer this sentence used to say did not exist. **The rule
-  stands where the writes are the program**, and an editor is not that.
+  0xB000 - the screen `mode mono` leaves, and it reads it from
+  `screenSegment()`. **The rule stands where the writes are the program**, and an
+  editor is not that.
 - **`saveMode` and `restoreMode` are a `bracket`**, `videoMode` (§48), declared
   here because this file owns the routines. A program that forgets the restore
   leaves the display in mode 13h at the DOS prompt, and the compiler emitting the
@@ -4820,24 +4820,25 @@ over `_heap` costs the binary nothing.
 The records used to be the other half of that and *did* cost image: the chunk
 links, the line heads and the undo log were ordinary arrays, so the image grew
 with capacity even though the text did not. §58 moved them into the heap the
-text vacated, and the rule that came out of it is the general form of this
-paragraph: **capacity lives in the heap or past the segment, and the image is
-for code.**
+text vacated and then past the segment after it, and the rule that came out of
+it is the general form of this paragraph: **capacity lives in the heap or past
+the segment, and the image is for code.**
 
 `npm run memory` reports both halves, and reports a view over `_heap` as a claim
 rather than an alias precisely so the capacity consts can be tuned against an
 answer.
 
-**It claims the bottom of the heap for the records**, and a program partitioning
-the rest starts after it:
+**It claims none of the heap**, so `textHeap` is zero, and a program
+partitioning the heap still starts its own regions there:
 
 ```momo
 view u8[myBytes] mine = _heap[textHeap]
 ```
 
-which is §17's static partitioning with the library going first. Two libraries
-both wanting the heap is the point at which that stops being enough, and nothing
-here pre-solves it.
+which is §17's static partitioning with the library going first. The name means
+*where yours starts* whatever the number is, and §58 has why it is zero. Two
+libraries both wanting the heap is the point at which that stops being enough,
+and nothing here pre-solves it.
 
 ### The chunk size is ours, which is what a screen stride is not
 
@@ -7705,7 +7706,7 @@ tier 1 runs every program tier 2 runs through it, against the same `.expected`
 
 ```bash
 npm run trace -- sieve
-npm run trace:profile -- tennis
+npm run trace:profile -- dirlist
 ```
 
 It reads the NASM text rather than bytes, and it interprets §1's subset and
