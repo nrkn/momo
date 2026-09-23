@@ -439,67 +439,79 @@ const uniqueColumns: [string, string, string][] = [
   ['projects/library/text/edloop/edloop.momo', 'bind', 'key'],
 ]
 
-// Declarations are aligned by hand, so the space before `=` is any width.
-const entryTextOf = (text: string, name: string): string[] | null => {
-  const found = new RegExp(`\\] ${name}\\s*= \\[`).exec(text)
-  if (found === null) return null
+// A file read once for the table checks below, with its line starts, so a
+// finding can say which line rather than `:1`.
+type Source = { path: string; text: string; starts: number[] }
 
-  const open = found.index + found[0].length - 1
-  const close = text.indexOf(']', open)
-  if (open < 0 || close < 0) return null
-
-  return text
-    .slice(open + 1, close)
-    .replace(/\/\/[^\n]*/g, '')
-    .split(',')
-    .map((entry) => entry.trim())
-    .filter((entry) => entry.length > 0)
+const sourceOf = (path: string): Source => {
+  const text = readText(path)
+  return { path, text, starts: lineStartsOf(text) }
 }
+
+// One top-level child of an array literal: its source text, and where in the
+// file that text starts, past any whitespace or comment in front of it.
+type Child = { text: string; at: number }
 
 // The top-level children of an array literal, as source text, found by depth so
 // that a nested child or a string holding a comma is one entry. Null when the
 // declaration is not there, which the caller reports rather than skips.
 // Declarations are aligned by hand, so the space before `=` is any width.
-const childrenOf = (text: string, name: string): string[] | null => {
-  const found = new RegExp(`\\] ${name}\\s*= \\[`).exec(text)
+const childrenOf = (source: Source, name: string): Child[] | null => {
+  const found = new RegExp(`\\] ${name}\\s*= \\[`).exec(source.text)
   if (found === null) return null
-  return splitList(text, found.index + found[0].length - 1)
+  return splitList(source, found.index + found[0].length - 1)
 }
 
-const splitList = (text: string, open: number): string[] => {
-  const children: string[] = []
+// `open` is the index of the `[`. A list this cannot finish - a string or the
+// list itself never closed - stops the run naming where, rather than returning
+// whatever it had: the loop used to rescan from the top when a quote had no
+// partner, and never ended.
+const splitList = (source: Source, open: number): Child[] => {
+  const { text } = source
+  const where = (index: number) => `${show(source.path)}:${lineOf(source.starts, index)}`
+  if (text[open] !== '[') fail(`${where(open)}: expected a list here - the drift check needs updating`)
+
+  const children: Child[] = []
   let depth = 0
   let start = open + 1
 
   for (let i = open; i < text.length; i++) {
     const c = text[i]
     if (c === '"' || c === "'") {
-      i = text.indexOf(c, i + 1)
+      const close = text.indexOf(c, i + 1)
+      if (close < 0) fail(`${where(i)}: a ${c} string with no closing ${c} - drift cannot read this list`)
+      i = close
       continue
     }
     if (c === '/' && text[i + 1] === '/') {
-      i = text.indexOf('\n', i)
+      const end = text.indexOf('\n', i)
+      i = end < 0 ? text.length : end
       continue
     }
     if (c === '[') depth += 1
     if (c === ']') depth -= 1
     if ((c === ',' && depth === 1) || depth === 0) {
-      const child = text.slice(start, i).replace(/\/\/[^\n]*/g, '').trim()
-      if (child.length > 0) children.push(child)
+      // Comments blanked rather than removed, so an offset into this is still
+      // an offset into the file.
+      const raw = text.slice(start, i).replace(/\/\/[^\n]*/g, (comment) => ' '.repeat(comment.length))
+      const child = raw.trim()
+      if (child.length > 0) children.push({ text: child, at: start + raw.length - raw.trimStart().length })
       start = i + 1
-      if (depth === 0) break
+      if (depth === 0) return children
     }
   }
 
-  return children
+  return fail(`${where(open)}: a list with no closing ] - drift cannot read it`)
 }
 
 // A group written as rows (§52, §70), read back as the source text of each cell
-// keyed by field name - so a field added or reordered moves every check with it.
-// Null when the group or its rows are not there, which callers report rather
-// than skip.
-const groupRows = (text: string, group: string): Map<string, string>[] | null => {
-  const head = new RegExp(`^(?:const )?group ${group}\\[[^\\]]*\\] \\{([^}]*)\\} = \\[`, 'm').exec(text)
+// keyed by field name - so a field added or reordered moves every check with it -
+// and the line the row starts on. Null when the group or its rows are not
+// there, which callers report rather than skip.
+type Row = { cells: Map<string, string>; line: number }
+
+const groupRows = (source: Source, group: string): Row[] | null => {
+  const head = new RegExp(`^(?:const )?group ${group}\\[[^\\]]*\\] \\{([^}]*)\\} = \\[`, 'm').exec(source.text)
   if (head === null) return null
 
   const fields = (head[1] as string)
@@ -507,9 +519,12 @@ const groupRows = (text: string, group: string): Map<string, string>[] | null =>
     .map((line) => line.replace(/\/\/.*$/, '').trim().split(/\s+/).pop() ?? '')
     .filter((name) => name.length > 0)
 
-  return splitList(text, head.index + head[0].length - 1).map((row) => {
-    const cells = splitList(row, 0)
-    return new Map(fields.map((field, i) => [field, cells[i] ?? ''] as [string, string]))
+  return splitList(source, head.index + head[0].length - 1).map((row) => {
+    const cells = splitList(source, row.at).map((cell) => cell.text)
+    return {
+      cells: new Map(fields.map((field, i) => [field, cells[i] ?? ''] as [string, string])),
+      line: lineOf(source.starts, row.at),
+    }
   })
 }
 
@@ -530,29 +545,29 @@ const checkMenuTables = () => {
     const path = join(root, file)
     if (!existsSync(path)) continue
 
-    const text = readText(path)
-    const rows = groupRows(text, group)
+    const source = sourceOf(path)
+    const rows = groupRows(source, group)
     if (rows === null) {
       report(path, 1, `menu group "${group}" with rows not found - the check needs updating`)
       continue
     }
 
-    rows.forEach((row, m) => {
-      const items = nameIn(row.get('items') ?? '', 'addr')
-      const acts = nameIn(row.get('acts') ?? '', 'addr')
-      const counted = nameIn(row.get('count') ?? '', 'len')
-      const labels = items === undefined ? null : childrenOf(text, items)
-      const actions = acts === undefined ? null : entryTextOf(text, acts)
+    rows.forEach(({ cells, line }, m) => {
+      const items = nameIn(cells.get('items') ?? '', 'addr')
+      const acts = nameIn(cells.get('acts') ?? '', 'addr')
+      const counted = nameIn(cells.get('count') ?? '', 'len')
+      const labels = items === undefined ? null : childrenOf(source, items)
+      const actions = acts === undefined ? null : childrenOf(source, acts)
 
       if (items === undefined || labels === null || acts === undefined || actions === null) {
-        report(path, 1, `menu ${m} does not name a declared label list and action list - the check needs updating`)
+        report(path, line, `menu ${m} does not name a declared label list and action list - the check needs updating`)
         return
       }
       if (counted !== acts) {
-        report(path, 1, `menu ${m} counts "${row.get('count')}" but its actions are "${acts}"`)
+        report(path, line, `menu ${m} counts "${cells.get('count')}" but its actions are "${acts}"`)
       }
       if (labels.length !== actions.length) {
-        report(path, 1, `menu ${m} has ${labels.length} labels in "${items}" and ${actions.length} actions in "${acts}"`)
+        report(path, line, `menu ${m} has ${labels.length} labels in "${items}" and ${actions.length} actions in "${acts}"`)
       }
     })
   }
@@ -565,21 +580,22 @@ const checkDuplicateBindings = () => {
     const path = join(root, file)
     if (!existsSync(path)) continue
 
-    const rows = groupRows(readText(path), group)
+    const rows = groupRows(sourceOf(path), group)
     if (rows === null) {
       report(path, 1, `group "${group}" with rows not found - the check needs updating`)
       continue
     }
-    if (rows.length > 0 && !rows[0]?.has(field)) {
+    if (rows.length > 0 && !rows[0]?.cells.has(field)) {
       report(path, 1, `group "${group}" has no field "${field}" - the check needs updating`)
       continue
     }
 
-    const seen = new Set<string>()
-    for (const row of rows) {
-      const entry = row.get(field) ?? ''
-      if (seen.has(entry)) report(path, 1, `"${group}" binds "${entry}" twice`)
-      seen.add(entry)
+    const seen = new Map<string, number>()
+    for (const { cells, line } of rows) {
+      const entry = cells.get(field) ?? ''
+      const first = seen.get(entry)
+      if (first !== undefined) report(path, line, `"${group}" binds "${entry}" twice - first at line ${first}`)
+      else seen.set(entry, line)
     }
   }
 }
