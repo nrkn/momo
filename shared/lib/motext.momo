@@ -27,21 +27,18 @@
 // code.** An ordinary array is emitted as `times N db 0` and puts every byte of
 // capacity into the `.COM`; a `far` region emits nothing at all.
 //
-// **So this library claims no heap**, and `textHeap` is zero. It is still what a
-// program writes to say where its own partitioning starts (§17), and it still
-// means the same thing - there is simply nothing in front of it any more.
+// **So this library claims no heap**, and `textHeap` is zero.
 //
 // **The caller never indexes a chunk.** Reading is `lineSlice`, which walks the
 // chain once and copies out. That is the rule the piece-table draft produced and
 // it holds here too: the chain is walked once per line, never once per character.
 //
-// **`textSave` is here on an argument that has since reversed.** It used to be
-// here because it handed DOS each chunk where it already lay, which needed
-// everything private in this file. §58 put the chunks somewhere DOS cannot be
-// pointed at, so it stages through a buffer in our own segment and now needs
-// nothing but `lineSlice`. It stays because `textLoad` cannot leave - that one
-// does need the privates - and splitting a file's two halves across two libraries
-// is worse than the inconsistency. §11 prunes the include either way.
+// **`textSave` needs nothing private and is here anyway.** It stages a line at a
+// time through a buffer in our own segment, because DOS cannot be pointed at the
+// chunks, so `lineSlice` is all it uses. It stays because `textLoad` cannot leave
+// - that one does need the privates - and splitting a file's two halves across
+// two libraries is worse than the inconsistency. §11 prunes the include either
+// way, and DESIGN §58 has the argument that put it here and then reversed.
 
 include "lib/std/file.momo"
 include "lib/std/block.momo"
@@ -230,18 +227,17 @@ local far u16[textMaxLines] lineLen  = lenSeg
 local u16 lineCount
 
 // What this library claims at the bottom of the heap, so a program can say
-// where its own regions start. It used to be the text's byte count; the text
-// has moved and the records have taken its place, so the number changed and
-// the contract did not.
+// where its own regions start (§17):
 //
 //   view u8[myBytes] mine = _heap[textHeap]
 //
+// **Zero, because this library claims none.** Everything it keeps is past the
+// segment, so a program that includes this gets the whole heap. The name is
+// what callers write, and it means *where yours starts* whatever the number is -
+// DECISIONS §54 has the values it has taken.
+//
 // `npm run memory` reports a view over `_heap` as a claim rather than an alias
 // precisely so this addition can be checked rather than asserted.
-// **Zero, because this library no longer claims any.** The undo log was the last
-// thing it kept inside the segment and is past it now, so a program that includes
-// this gets the whole heap. The name stays: it is what callers write, and what it
-// means - *where yours starts* - has not changed.
 const textHeap = 0
 
 // The undo log records edits rather than storage: what was done and where, never

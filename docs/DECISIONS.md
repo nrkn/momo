@@ -2526,6 +2526,19 @@ did not hold, and the reason this one did is not insight: the three shapes had
 already been drafted and run, so the arithmetic had been checked against a
 machine twice before it was written down a third time.
 
+### `textHeap` took four values, and no caller noticed
+
+What a program writes to say where its own regions start has had one meaning and
+four numbers. The first build exported the text's byte count as `textBytes`,
+because the text was what sat at `_heap[0]`. §58 moved the text past the segment
+and left the records in the heap it vacated, so the claim became theirs and the
+name became `textHeap`. The records followed the text out and left the undo log;
+then the log went too, and the number reached zero.
+
+The contract never changed, which is why nothing reading it had to. The comments
+beside it told the sequence twice over until 2026-09-24, and now say only what it
+is.
+
 ---
 
 ## 56. `moview`
