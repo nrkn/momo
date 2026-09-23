@@ -68,6 +68,12 @@ const dosName = (file: string): { name: string; ext: string } | null => {
   return { name: match[1], ext: match[2] ?? '' }
 }
 
+// The files a project carries for the tools rather than for the program: its
+// source, what tier 2 expects it to print, and the command tail tier 2 gives it.
+// Anything else DOS cannot name is a file the program would open and not find,
+// so it is named rather than left off the disk without a word.
+const toolFile = /\.(momo|expected|args)$/i
+
 const collect = (): Map<string, Entry[]> => {
   const byProject = new Map<string, Entry[]>()
 
@@ -90,7 +96,10 @@ const collect = (): Map<string, Entry[]> => {
       if (!stat.isFile()) continue
 
       const named = dosName(file)
-      if (!named) continue
+      if (!named) {
+        if (!toolFile.test(file)) console.log(`warning: ${project}/${file} is not an 8.3 name, so it is not on the disk`)
+        continue
+      }
 
       entries.push({ ...named, source, size: stat.size, mtime: stat.mtime })
     }
