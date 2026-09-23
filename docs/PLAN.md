@@ -384,7 +384,7 @@ look for the rest.
   and `momoed` needs no arguments now.
 - **Bulk loading.** 2026-09-14. §54 grew `textBulk`, a bracket that keeps the
   append position in ordinary variables for the length of a load; the record is
-  DECISIONS under bulk loading. One loaded character had cost **eleven far
+  DECISIONS §55, with the file-open timings that found it. One loaded character had cost **eleven far
   accesses and four calls**, of which one far access was the byte - the rest
   being a line length, a line head, a chunk fill read three times, and a walk to
   the end of a line that had been walked for the previous character.
@@ -423,7 +423,7 @@ look for the rest.
   chunks run out first at any realistic shape.
 - **Prompt commands.** 2026-09-13. `^G` go to line, `^O` open and `^R` replace,
   all through §60 and the one prompt §55 already had; the record is DECISIONS
-  under Prompt commands. **Replace decided the shape**, by being two questions:
+  §55. **Replace decided the shape**, by being two questions:
   once a command can answer Enter by asking the next one, a two-part command
   needs no machinery of its own. The label measures its own width, which the
   fifth string is where it stopped being a preference.

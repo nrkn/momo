@@ -2980,6 +2980,301 @@ as the one that drew it, and asking only "is something selected now" leaves the
 highlight on screen after Escape. `repaint` keeps `lastSel` and `lastAsk` for
 that one reason.
 
+### Replace decided the shape of the prompt, by being two questions
+
+`^F`, `^G`, `^O` and `^R` differ in three facts - the label, what Enter does, and
+whether Enter closes - and that is a small enough difference to hold in one
+mechanism. What made it *small* was allowing a command to answer Enter by asking
+the next question.
+
+Without that, replace is either a second prompt implementation or a mode inside a
+mode, and the generalisation stops paying. With it, the two-part command is two
+lines in the accept arm and §60 needed nothing at all.
+
+### The label measures itself, because four more strings is four more chances
+
+The column the field starts at was a const agreeing with the width of one string.
+Five strings is four more opportunities for the caret to sit a column away from
+what it is editing - which is a defect that looks like a rendering glitch and
+gets noticed last.
+
+`promptOpen` walks the label to its terminator. **A number that can be derived
+from the thing it describes should be**, and the fifth consumer is where that
+stopped being a preference.
+
+### A failed open would have destroyed what it refused to replace
+
+`^O` already refused a dirty buffer, which is §55's rule about not writing over
+unsaved work. The failure path had the same defect one level in: `loadFile`
+empties the buffer before it discovers the file will not fit, so refusing at that
+point leaves an empty document wearing the *new* name, one `^S` from writing
+nothing over it.
+
+The fix is that the buffer was not dirty to get there, so the file on disk is
+what it held and reading it back is exact. **The interesting part is that the
+refusal was already written and was still wrong** - "refuse rather than truncate"
+had been applied to the answer and not to the cleanup.
+
+### The number parse went to `std/str.momo` rather than into the editor
+
+"A digit that is not one refuses the whole answer" is a fact about numbers, not
+about editors - `12x` meaning line 12 is a typo silently obeyed. So is the other
+half: **past 65,535 is a refusal rather than a wrap**, which is the same failure
+arriving by arithmetic instead of by a stray keystroke.
+
+Both were written into the editor first and both had a bug there. The partial
+value was left behind on failure, so a caller ignoring the bool got 12 for
+`"12x"`; and the overflow was silent. Moving it to `str.momo` got it a test, and
+the test is two rows either side of 65,535 - which is where an off-by-one in the
+overflow check lives and nowhere else.
+
+§55 has been noting that number *formatting* into a buffer is missing since
+before the prompt existed. This is the other direction, and it arrived because a
+prompt asked for a line number.
+
+### The 286 said what a timing run is for
+
+Two files, read from a floppy, timed from Enter to text on screen:
+
+A 286 reading a floppy, before and after the read buffer went from 128 bytes to
+four kilobytes:
+
+| | file | | KB/s |
+|---|---|---|---|
+| `edit.com motext.asm` | 100 KB | 48 s | 2.1 |
+| `momoed motext.asm`, 128-byte reads | 100 KB | 45 s | 2.2 |
+| `edit.com momoed.asm` | 287 KB | 130 s | 2.2 |
+| **`momoed momoed.asm`, 4 KB reads** | 287 KB | **65 s** | **4.4** |
+
+The last two are the same file on the same machine, and the times are exactly
+double. Before that, everything was the same rate.
+
+### Running it from the hard disk split both costs at once
+
+The same 287 KB file, the same machine, off `c:` instead of `a:`:
+
+| | floppy | hard disk | so disk was | so CPU is |
+|---|---|---|---|---|
+| `edit.com` | 130 s | 19 s | ~111 s | ~19 s |
+| `momoed` | 65 s | 45 s | ~20 s | ~45 s |
+
+Four numbers and both halves fall out, which no pair of them could have given.
+
+**The read buffer is worth five and a half times on floppy I/O.** The same
+device, the same bytes: 111 seconds in small blocks against 20 in four-kilobyte
+ones. The "exactly double" above was real and its cause was not what it looked
+like - the two programs differ in how they *ask* for the file, not in how fast
+the disk is.
+
+**And our ingest is two and a half times slower than `edit.com`'s.** 45 seconds
+against 19 for the same bytes with the disk taken out of it. On the floppy that
+was hidden - we were ahead overall because the read buffer was winning more
+than the loop was losing.
+
+So the answer reversed twice from the same run of data. The floppy is the whole
+cost; then it is not, and we are twice as fast; then the disk comes out and we
+are half as fast, and were the whole time.
+
+**`loadrate` was a prediction rather than a question**, and the prediction held.
+If the 45 seconds on `c:` were essentially the loop, it should report about 225
+lines a second on that machine.
+
+It reported 8,000 lines in 605 ticks - **241 a second**, 6.8 KB/s. And the
+sixteen lines a second between the prediction and the answer are the hard disk:
+287 KB at 6.8 KB/s is 42 seconds of loop, against 45 measured, leaving about
+three for `c:`. Every number in the table above now has a cause.
+
+| | |
+|---|---|
+| floppy, small reads | ~111 s |
+| floppy, 4 KB reads | ~20 s |
+| hard disk, 4 KB reads | ~3 s |
+| **`textLoad`, 287 KB** | **~42 s** |
+
+So `momoed`'s file open is loop-bound on anything but a floppy, and was
+loop-bound on the floppy too once the read buffer was fixed.
+
+### The parity reading, and why it was wrong
+
+**Two programs, files nearly three times apart in size, and the same rate.**
+Which was read as: the floppy is the whole cost, and neither editor is doing
+anything to it that matters.
+
+**That was wrong, and the same machine disproved it.** One change to the
+loading path - a four-kilobyte read buffer instead of 128 bytes - and the times
+separate cleanly into a factor of two.
+
+The error is worth more than the correction. **Agreement between two
+implementations is not evidence that the cost is external** - it is evidence
+that they are paying the same cost, and "the same cost" and "the device" are
+different claims. Both programs were reading in small blocks. A comparison was
+read as a measurement, and the thing it measured was a shared inefficiency.
+
+It is an argument about the other thing it measured. Those 45 seconds were
+spent showing **nothing**, while `edit.com` spent its 48 counting lines - so
+what came out of a timing run was not speed but a progress dot.
+
+`momoed.asm` failed on the same machine after about three minutes.
+
+### The failure was not the thing the machine made it look like
+
+The 286 reports 577 KB free, which invites the reading that the file did not fit
+in memory. It is not: 577 KB gives 26,332 chunks of room past the records and the
+file wanted 20,978.
+
+**It ran out of lines.** 8,191 against a limit of 8,000, which is deterministic
+and would have happened on any machine - the earlier DOSBox run that worked was a
+`momoed.asm` 650 lines shorter, before this session added to it.
+
+Three things follow, and only the last is about capacity:
+
+- **The message was the wrong half of the answer, for the second time.** §58 opens
+  by recording that the plan watched the byte figure and the line figure was the
+  one that bit; the message said "does not fit in the buffer" both times. §54
+  records which limit now and the editor prints it with the numbers.
+- **The three minutes were spent after the answer was known.** §54 declines every
+  byte once the buffer is full, and the load read on to the end of a quarter-
+  megabyte file anyway. It stops at the first refusal now.
+- **12,000 lines rather than 8,000.** Chunks per line runs between two and four
+  across this repository, so past about twelve thousand the chunks run out first
+  at any realistic shape and a larger line table buys nothing.
+
+### A fixture passed by a hair, one commit after the rule about it
+
+`motext` fills until the buffer refuses and checks that *lines* were what ran
+out. Seventeen characters a line is two chunks, and twice the line limit is the
+chunk limit - so with the line table at 12,000 the two ran out within twenty
+chunks of each other, and which one won was a rounding.
+
+Nine characters a line is one chunk, and the margin is now a factor of two. The
+rule written a commit earlier was about a fixture that had to *exceed* a
+constant; this is the same failure in a fixture that has to stay under a
+different one, and it was found by arithmetic rather than by the test going red -
+because it did not go red.
+
+### Where the rest of the 65 seconds goes is not known, and is measurable
+
+Seventy DOS calls for 280 KB cannot be the per-call overhead any more - that is
+under a second of the 65. So what is left is the floppy and `textLoad`, in some
+proportion nobody has measured.
+
+Timing another file open cannot separate them, because it measures both again.
+So `loadrate` does the half that is not the disk: the same shape of text through
+§54 from memory, nothing on the disk at all. Subtract it from a real open and the
+rest is the floppy.
+
+Under DOSBox it reports 612 lines a second at 29 bytes a line - about 17 KB/s -
+which is a number about DOSBox and not about a 286. **The point is that the
+machine that raised the question can answer it**, and the answer decides whether
+the next thing to look at is `textLoad` or nothing at all.
+
+Which is the shape this session has hit twice: a measurement that was actually a
+comparison, and then a probe that measures one half alone. `keyprobe` was the
+first, for the keyboard.
+
+The hard disk run answered it before `loadrate` was needed, and left the probe a
+prediction to check rather than a question to settle. **Where the time goes is
+the loop**, and what it costs against a program written in 1991 is a factor of
+two and a half.
+
+Which points somewhere specific. `textLoad` appends a character by way of
+`lineInsert`, and that walks the chain from the head of the line to find where
+the end is - **every character, for a line it has already walked**. Bulk loading
+is the one caller that always appends to the same place it appended last, and
+is the one that could be told so.
+
+### Bulk loading: the waste was per character and the fix was per load
+
+Yesterday's four timings left the file open loop-bound, at 241 lines a second on
+a 286 against `edit.com`'s equivalent of about 570. Counted from the emitted
+assembly on 2026-09-14, one loaded character costs **eleven far accesses and four
+calls** - and exactly one of the eleven is the byte being stored.
+
+The other ten are all the same mistake in different clothes: the line length is
+read and written, the line head is read, the chunk's fill is read three times and
+written, and `lineSeek` walks the chain to find the end of a line it walked for
+the previous character. None of that is waste for an edit, which can land
+anywhere. All of it is waste for a load, which always lands exactly where the
+last one did.
+
+`textBulk` keeps the position in ordinary variables for the length of a load and
+writes it back at the close. `loadrate` measures both paths and prints the
+ratio, on the 286 that raised the question:
+
+| | lines/s | 287 KB of loop |
+|---|---|---|
+| ordinary | 234 | 43.3 s |
+| `textBulk` | 917 | 11.1 s |
+
+**3.9 times.** And the ordinary figure lands within two seconds of the 45 that
+machine took to open `momoed.asm` from its hard disk, which is the disk - so the
+model that said the open was loop-bound reproduces the measurement it came from.
+
+Predicted 13 seconds from `c:` where it was 45, and 31 from the floppy where it
+was 65. **Measured 12 and 26**, both better than the prediction.
+
+`momoed.asm`, one 286, both devices, start to text on screen:
+
+| | floppy | hard disk |
+|---|---|---|
+| `edit.com` | 130 s | 19 s |
+| `momoed`, two days ago | 65 s | 45 s |
+| **`momoed` now** | **26 s** | **12 s** |
+
+Five times `edit.com` on the floppy and one and a half on the hard disk, from a
+program that was half its speed at ingest when the week started. **Neither half
+of that came from making anything cleverer** - one was asking DOS for four
+kilobytes instead of 128, and the other was not doing ten things per character
+that only an edit needs.
+
+The floppy column also settles the last unknown: 26 against 12 is fourteen
+seconds of floppy for 286 KB in four-kilobyte reads, where `edit.com`'s small
+ones cost 111.
+
+### DOSBox gave the direction and overstated the size
+
+The same program reports 4.5 times under DOSBox and 3.9 on the 286 - the
+prediction made from the emulator was 13% high, and a prediction made from it
+about *absolute* speed would have been worthless.
+
+Which is worth a line because every number in this file that was not taken on
+real hardware is one of these. DOSBox is where a change is shown to work and
+the 286 is where it is shown to be worth it, and the two questions have been
+run together in here before.
+
+**13% turned out to be the good case**, and `drawrate` above is the bad one: a
+ratio whose two halves are both our own instructions survives the emulator,
+because both are slowed by the same factor. One with DOS or the BIOS on one side of it does not,
+and `drawrate` reported 22 times where the machine said 3.1. This paragraph was
+written as though "overstated" were a single quantity with a size; it is two
+different failures and only one of them has one.
+
+### The test is equivalence, because a wrong fill still looks like text
+
+A load that lost track of where it was would not crash or produce nonsense; it
+would produce *plausible* text with a length or a chunk count slightly wrong.
+So the test loads the same fixture through both paths and compares the lines,
+the lengths and the chunk counts - the counts being where the difference would
+surface first.
+
+Keeping the unwrapped path is what makes that possible, and it is the reason to
+keep it beyond compatibility: **the slow path is the oracle.**
+
+### A teeth check that changed nothing, and the fixture that was the reason
+
+Removing the flush from `bulkClose` entirely - the write-back the whole bracket
+exists for - changed no expected line.
+
+The fixture ended in a newline. A load ending on `\n` flushes on the newline and
+then seeds a fresh empty line, so what the close writes back is a zero over a
+zero. The one case that reaches the close is a file that ends *mid-line*, and
+there wasn't one.
+
+With `"alpha\nbeta"` in the test, the same neuter turns `2 5 1 4 1` into
+`2 5 1 0 1` and loses `beta` completely. Third time this session that a check
+came back clean and the fixture was the reason - and the third time it was found
+by asking why rather than by moving on.
+
 ---
 
 ## 59. `mofind`
@@ -3426,303 +3721,6 @@ times the case it existed for had silently stopped happening.
 `textUndoMax` is public now and the fixture is a function of it. The general
 shape: **a test whose fixture has to exceed a library's constant should read the
 constant**, because the failure mode is not a red test, it is a green one.
-
-## Prompt commands
-
-### Replace decided the shape of the prompt, by being two questions
-
-`^F`, `^G`, `^O` and `^R` differ in three facts - the label, what Enter does, and
-whether Enter closes - and that is a small enough difference to hold in one
-mechanism. What made it *small* was allowing a command to answer Enter by asking
-the next question.
-
-Without that, replace is either a second prompt implementation or a mode inside a
-mode, and the generalisation stops paying. With it, the two-part command is two
-lines in the accept arm and §60 needed nothing at all.
-
-### The label measures itself, because four more strings is four more chances
-
-The column the field starts at was a const agreeing with the width of one string.
-Five strings is four more opportunities for the caret to sit a column away from
-what it is editing - which is a defect that looks like a rendering glitch and
-gets noticed last.
-
-`promptOpen` walks the label to its terminator. **A number that can be derived
-from the thing it describes should be**, and the fifth consumer is where that
-stopped being a preference.
-
-### A failed open would have destroyed what it refused to replace
-
-`^O` already refused a dirty buffer, which is §55's rule about not writing over
-unsaved work. The failure path had the same defect one level in: `loadFile`
-empties the buffer before it discovers the file will not fit, so refusing at that
-point leaves an empty document wearing the *new* name, one `^S` from writing
-nothing over it.
-
-The fix is that the buffer was not dirty to get there, so the file on disk is
-what it held and reading it back is exact. **The interesting part is that the
-refusal was already written and was still wrong** - "refuse rather than truncate"
-had been applied to the answer and not to the cleanup.
-
-### The number parse went to `std/str.momo` rather than into the editor
-
-"A digit that is not one refuses the whole answer" is a fact about numbers, not
-about editors - `12x` meaning line 12 is a typo silently obeyed. So is the other
-half: **past 65,535 is a refusal rather than a wrap**, which is the same failure
-arriving by arithmetic instead of by a stray keystroke.
-
-Both were written into the editor first and both had a bug there. The partial
-value was left behind on failure, so a caller ignoring the bool got 12 for
-`"12x"`; and the overflow was silent. Moving it to `str.momo` got it a test, and
-the test is two rows either side of 65,535 - which is where an off-by-one in the
-overflow check lives and nowhere else.
-
-§55 has been noting that number *formatting* into a buffer is missing since
-before the prompt existed. This is the other direction, and it arrived because a
-prompt asked for a line number.
-
-### The 286 said what a timing run is for
-
-Two files, read from a floppy, timed from Enter to text on screen:
-
-A 286 reading a floppy, before and after the read buffer went from 128 bytes to
-four kilobytes:
-
-| | file | | KB/s |
-|---|---|---|---|
-| `edit.com motext.asm` | 100 KB | 48 s | 2.1 |
-| `momoed motext.asm`, 128-byte reads | 100 KB | 45 s | 2.2 |
-| `edit.com momoed.asm` | 287 KB | 130 s | 2.2 |
-| **`momoed momoed.asm`, 4 KB reads** | 287 KB | **65 s** | **4.4** |
-
-The last two are the same file on the same machine, and the times are exactly
-double. Before that, everything was the same rate.
-
-### Running it from the hard disk split both costs at once
-
-The same 287 KB file, the same machine, off `c:` instead of `a:`:
-
-| | floppy | hard disk | so disk was | so CPU is |
-|---|---|---|---|---|
-| `edit.com` | 130 s | 19 s | ~111 s | ~19 s |
-| `momoed` | 65 s | 45 s | ~20 s | ~45 s |
-
-Four numbers and both halves fall out, which no pair of them could have given.
-
-**The read buffer is worth five and a half times on floppy I/O.** The same
-device, the same bytes: 111 seconds in small blocks against 20 in four-kilobyte
-ones. The "exactly double" above was real and its cause was not what it looked
-like - the two programs differ in how they *ask* for the file, not in how fast
-the disk is.
-
-**And our ingest is two and a half times slower than `edit.com`'s.** 45 seconds
-against 19 for the same bytes with the disk taken out of it. On the floppy that
-was hidden - we were ahead overall because the read buffer was winning more
-than the loop was losing.
-
-So the answer reversed twice from the same run of data. The floppy is the whole
-cost; then it is not, and we are twice as fast; then the disk comes out and we
-are half as fast, and were the whole time.
-
-**`loadrate` was a prediction rather than a question**, and the prediction held.
-If the 45 seconds on `c:` were essentially the loop, it should report about 225
-lines a second on that machine.
-
-It reported 8,000 lines in 605 ticks - **241 a second**, 6.8 KB/s. And the
-sixteen lines a second between the prediction and the answer are the hard disk:
-287 KB at 6.8 KB/s is 42 seconds of loop, against 45 measured, leaving about
-three for `c:`. Every number in the table above now has a cause.
-
-| | |
-|---|---|
-| floppy, small reads | ~111 s |
-| floppy, 4 KB reads | ~20 s |
-| hard disk, 4 KB reads | ~3 s |
-| **`textLoad`, 287 KB** | **~42 s** |
-
-So `momoed`'s file open is loop-bound on anything but a floppy, and was
-loop-bound on the floppy too once the read buffer was fixed.
-
-### The parity reading, and why it was wrong
-
-**Two programs, files nearly three times apart in size, and the same rate.**
-Which was read as: the floppy is the whole cost, and neither editor is doing
-anything to it that matters.
-
-**That was wrong, and the same machine disproved it.** One change to the
-loading path - a four-kilobyte read buffer instead of 128 bytes - and the times
-separate cleanly into a factor of two.
-
-The error is worth more than the correction. **Agreement between two
-implementations is not evidence that the cost is external** - it is evidence
-that they are paying the same cost, and "the same cost" and "the device" are
-different claims. Both programs were reading in small blocks. A comparison was
-read as a measurement, and the thing it measured was a shared inefficiency.
-
-It is an argument about the other thing it measured. Those 45 seconds were
-spent showing **nothing**, while `edit.com` spent its 48 counting lines - so
-what came out of a timing run was not speed but a progress dot.
-
-`momoed.asm` failed on the same machine after about three minutes.
-
-### The failure was not the thing the machine made it look like
-
-The 286 reports 577 KB free, which invites the reading that the file did not fit
-in memory. It is not: 577 KB gives 26,332 chunks of room past the records and the
-file wanted 20,978.
-
-**It ran out of lines.** 8,191 against a limit of 8,000, which is deterministic
-and would have happened on any machine - the earlier DOSBox run that worked was a
-`momoed.asm` 650 lines shorter, before this session added to it.
-
-Three things follow, and only the last is about capacity:
-
-- **The message was the wrong half of the answer, for the second time.** §58 opens
-  by recording that the plan watched the byte figure and the line figure was the
-  one that bit; the message said "does not fit in the buffer" both times. §54
-  records which limit now and the editor prints it with the numbers.
-- **The three minutes were spent after the answer was known.** §54 declines every
-  byte once the buffer is full, and the load read on to the end of a quarter-
-  megabyte file anyway. It stops at the first refusal now.
-- **12,000 lines rather than 8,000.** Chunks per line runs between two and four
-  across this repository, so past about twelve thousand the chunks run out first
-  at any realistic shape and a larger line table buys nothing.
-
-### A fixture passed by a hair, one commit after the rule about it
-
-`motext` fills until the buffer refuses and checks that *lines* were what ran
-out. Seventeen characters a line is two chunks, and twice the line limit is the
-chunk limit - so with the line table at 12,000 the two ran out within twenty
-chunks of each other, and which one won was a rounding.
-
-Nine characters a line is one chunk, and the margin is now a factor of two. The
-rule written a commit earlier was about a fixture that had to *exceed* a
-constant; this is the same failure in a fixture that has to stay under a
-different one, and it was found by arithmetic rather than by the test going red -
-because it did not go red.
-
-### Where the rest of the 65 seconds goes is not known, and is measurable
-
-Seventy DOS calls for 280 KB cannot be the per-call overhead any more - that is
-under a second of the 65. So what is left is the floppy and `textLoad`, in some
-proportion nobody has measured.
-
-Timing another file open cannot separate them, because it measures both again.
-So `loadrate` does the half that is not the disk: the same shape of text through
-§54 from memory, nothing on the disk at all. Subtract it from a real open and the
-rest is the floppy.
-
-Under DOSBox it reports 612 lines a second at 29 bytes a line - about 17 KB/s -
-which is a number about DOSBox and not about a 286. **The point is that the
-machine that raised the question can answer it**, and the answer decides whether
-the next thing to look at is `textLoad` or nothing at all.
-
-Which is the shape this session has hit twice: a measurement that was actually a
-comparison, and then a probe that measures one half alone. `keyprobe` was the
-first, for the keyboard.
-
-The hard disk run answered it before `loadrate` was needed, and left the probe a
-prediction to check rather than a question to settle. **Where the time goes is
-the loop**, and what it costs against a program written in 1991 is a factor of
-two and a half.
-
-Which points somewhere specific. `textLoad` appends a character by way of
-`lineInsert`, and that walks the chain from the head of the line to find where
-the end is - **every character, for a line it has already walked**. Bulk loading
-is the one caller that always appends to the same place it appended last, and
-is the one that could be told so.
-
-### Bulk loading: the waste was per character and the fix was per load
-
-Yesterday's four timings left the file open loop-bound, at 241 lines a second on
-a 286 against `edit.com`'s equivalent of about 570. Counted from the emitted
-assembly on 2026-09-14, one loaded character costs **eleven far accesses and four
-calls** - and exactly one of the eleven is the byte being stored.
-
-The other ten are all the same mistake in different clothes: the line length is
-read and written, the line head is read, the chunk's fill is read three times and
-written, and `lineSeek` walks the chain to find the end of a line it walked for
-the previous character. None of that is waste for an edit, which can land
-anywhere. All of it is waste for a load, which always lands exactly where the
-last one did.
-
-`textBulk` keeps the position in ordinary variables for the length of a load and
-writes it back at the close. `loadrate` measures both paths and prints the
-ratio, on the 286 that raised the question:
-
-| | lines/s | 287 KB of loop |
-|---|---|---|
-| ordinary | 234 | 43.3 s |
-| `textBulk` | 917 | 11.1 s |
-
-**3.9 times.** And the ordinary figure lands within two seconds of the 45 that
-machine took to open `momoed.asm` from its hard disk, which is the disk - so the
-model that said the open was loop-bound reproduces the measurement it came from.
-
-Predicted 13 seconds from `c:` where it was 45, and 31 from the floppy where it
-was 65. **Measured 12 and 26**, both better than the prediction.
-
-`momoed.asm`, one 286, both devices, start to text on screen:
-
-| | floppy | hard disk |
-|---|---|---|
-| `edit.com` | 130 s | 19 s |
-| `momoed`, two days ago | 65 s | 45 s |
-| **`momoed` now** | **26 s** | **12 s** |
-
-Five times `edit.com` on the floppy and one and a half on the hard disk, from a
-program that was half its speed at ingest when the week started. **Neither half
-of that came from making anything cleverer** - one was asking DOS for four
-kilobytes instead of 128, and the other was not doing ten things per character
-that only an edit needs.
-
-The floppy column also settles the last unknown: 26 against 12 is fourteen
-seconds of floppy for 286 KB in four-kilobyte reads, where `edit.com`'s small
-ones cost 111.
-
-### DOSBox gave the direction and overstated the size
-
-The same program reports 4.5 times under DOSBox and 3.9 on the 286 - the
-prediction made from the emulator was 13% high, and a prediction made from it
-about *absolute* speed would have been worthless.
-
-Which is worth a line because every number in this file that was not taken on
-real hardware is one of these. DOSBox is where a change is shown to work and
-the 286 is where it is shown to be worth it, and the two questions have been
-run together in here before.
-
-**13% turned out to be the good case**, and §55 has the bad one: a ratio whose
-two halves are both our own instructions survives the emulator, because both are
-slowed by the same factor. One with DOS or the BIOS on one side of it does not,
-and `drawrate` reported 22 times where the machine said 3.1. This paragraph was
-written as though "overstated" were a single quantity with a size; it is two
-different failures and only one of them has one.
-
-### The test is equivalence, because a wrong fill still looks like text
-
-A load that lost track of where it was would not crash or produce nonsense; it
-would produce *plausible* text with a length or a chunk count slightly wrong.
-So the test loads the same fixture through both paths and compares the lines,
-the lengths and the chunk counts - the counts being where the difference would
-surface first.
-
-Keeping the unwrapped path is what makes that possible, and it is the reason to
-keep it beyond compatibility: **the slow path is the oracle.**
-
-### A teeth check that changed nothing, and the fixture that was the reason
-
-Removing the flush from `bulkClose` entirely - the write-back the whole bracket
-exists for - changed no expected line.
-
-The fixture ended in a newline. A load ending on `\n` flushes on the newline and
-then seeds a fresh empty line, so what the close writes back is a zero over a
-zero. The one case that reaches the close is a file that ends *mid-line*, and
-there wasn't one.
-
-With `"alpha\nbeta"` in the test, the same neuter turns `2 5 1 4 1` into
-`2 5 1 0 1` and loses `beta` completely. Third time this session that a check
-came back clean and the fixture was the reason - and the third time it was found
-by asking why rather than by moving on.
 
 ---
 
