@@ -55,6 +55,16 @@ const check = (name: string, ok: boolean, detail = '') => {
   failures.push(detail ? `${name}\n    ${detail}` : name)
 }
 
+// What a case failed with. A MomoError is the program's fault and is shown
+// against its source. Anything else is the compiler's own - the emitter's
+// `internal:` throws - and fails that one case rather than ending the run, which
+// it did during §51's teeth check: one project's throw took the tally with it.
+// The stack is one `npm run momoc -- <project>` away, which rethrows to keep it.
+const describe = (sources: Map<string, string>, error: unknown): string => {
+  if (isMomoError(error)) return formatError(sources, error)
+  return `not a diagnostic: ${error instanceof Error ? error.message : String(error)}`
+}
+
 // ---- type lattice ----------------------------------------------------------
 
 const combine = (a: Parameters<typeof rangeOf>[0], b: Parameters<typeof rangeOf>[0]) =>
@@ -228,7 +238,10 @@ const compileTests = () => {
       continue
     }
 
-    if (!isMomoError(error)) throw error
+    if (!isMomoError(error)) {
+      check(name, false, `expected "${expect}"\n    got      ${describe(sources, error)}`)
+      continue
+    }
 
     const formatted = formatError(sources, error)
     check(
@@ -300,8 +313,7 @@ const goldenTests = (): number => {
     try {
       assembly = compile(entryFor(project), sharedRoot, sources).assembly
     } catch (error) {
-      if (!isMomoError(error)) throw error
-      check(project, false, formatError(sources, error))
+      check(project, false, describe(sources, error))
       continue
     }
 
@@ -392,8 +404,7 @@ const roundTripTests = (): number => {
         )
       }
     } catch (error) {
-      if (!isMomoError(error)) throw error
-      check(`round trip ${name}`, false, formatError(sources, error))
+      check(`round trip ${name}`, false, describe(sources, error))
     }
   }
 
@@ -527,8 +538,7 @@ const identityTests = (): number => {
       const difference = firstDifference(codeOnly(a).join('\n'), codeOnly(b).join('\n'))
       check(label, difference === null, difference ?? '')
     } catch (error) {
-      if (!isMomoError(error)) throw error
-      check(label, false, formatError(sources, error))
+      check(label, false, describe(sources, error))
     }
   }
 
