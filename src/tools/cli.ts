@@ -103,6 +103,17 @@ export const expectedFor = (project: string): string =>
 export const argsFor = (project: string): string =>
   join(projectDir(project), `${project}.args`)
 
+// The tier-1 fixtures that compile clean, as full paths, sorted. They carry
+// syntax no project happens to use, so they are golden output as well as compile
+// tests - and their committed .asm sits beside each, as a project's does.
+export const okTests = (): string[] =>
+  readdirSync(compileTestsDir)
+    .filter((name) => name.startsWith('ok-') && name.endsWith('.momo'))
+    .sort()
+    .map((name) => join(compileTestsDir, name))
+
+export const asmBeside = (file: string): string => file.replace(/\.momo$/, '.asm')
+
 export const fail = (message: string): never => {
   console.error(`error: ${message}`)
   process.exit(1)

@@ -24,16 +24,18 @@
 
 import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, resolve as resolvePath } from 'node:path'
+import { basename, join, resolve as resolvePath } from 'node:path'
 
 import {
   allProjects,
   argsFor,
+  asmBeside,
   asmFor,
   compileTestsDir as compileDir,
   designPath,
   entryFor,
   expectedFor,
+  okTests,
   projectDir,
   sharedRoot,
 } from './cli.js'
@@ -307,7 +309,8 @@ const compileTests = () => {
 
 // ---- golden output ---------------------------------------------------------
 //
-// Compile every project and compare against the .asm committed beside it.
+// Compile every project and every ok- fixture, and compare against the .asm
+// committed beside it.
 //
 // The compile tests above only ask WHETHER a program compiles, never what it
 // emits, and tier 2 needs DOSBox - so between them there was nothing watching
@@ -346,33 +349,42 @@ const firstDifference = (actual: string, expected: string): string | null => {
   return shown.join('\n')
 }
 
+// The ok- fixtures are here too. The round trip below compiles each of them
+// twice, but through the same emitter both times, so a codegen regression in a
+// shape only a fixture exercises - every `far` shape, every `view` shape - would
+// agree with itself there and pass. Their committed .asm is what can disagree.
 const goldenTests = (): number => {
   // Projects with no .momo are hand-written assembly, and have nothing to
   // compare against.
-  const projects = allProjects().filter((name) => existsSync(entryFor(name)))
+  const cases: { name: string; file: string; golden: string }[] = allProjects()
+    .filter((name) => existsSync(entryFor(name)))
+    .map((name) => ({ name, file: entryFor(name), golden: asmFor(name) }))
 
-  for (const project of projects) {
-    const goldenPath = asmFor(project)
+  for (const file of okTests()) {
+    cases.push({ name: basename(asmBeside(file)), file, golden: asmBeside(file) })
+  }
+
+  for (const { name, file, golden } of cases) {
     const sources = new Map<string, string>()
 
-    if (!existsSync(goldenPath)) {
-      check(project, false, `nothing committed at ${project}.asm`)
+    if (!existsSync(golden)) {
+      check(name, false, `nothing committed at ${basename(golden)}`)
       continue
     }
 
     let assembly: string
     try {
-      assembly = compile(entryFor(project), sharedRoot, sources).assembly
+      assembly = compile(file, sharedRoot, sources).assembly
     } catch (error) {
-      check(project, false, describe(sources, error))
+      check(name, false, describe(sources, error))
       continue
     }
 
-    const difference = firstDifference(assembly, readFileSync(goldenPath, 'utf8'))
-    check(project, difference === null, difference ?? '')
+    const difference = firstDifference(assembly, readFileSync(golden, 'utf8'))
+    check(name, difference === null, difference ?? '')
   }
 
-  return projects.length
+  return cases.length
 }
 
 // ---- desugar round trip ------------------------------------------------------
@@ -404,11 +416,7 @@ const roundTripTests = (): number => {
 
   // The ok- files carry syntax no project happens to use - every `far` shape,
   // every `view` shape - so they are where the printer's coverage comes from.
-  for (const name of readdirSync(compileDir).sort()) {
-    if (name.startsWith('ok-') && name.endsWith('.momo')) {
-      cases.push({ name, file: join(compileDir, name) })
-    }
-  }
+  for (const file of okTests()) cases.push({ name: basename(file), file })
 
   let asserted = 0
 
