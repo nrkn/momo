@@ -3191,6 +3191,7 @@ by neither. `null` - unitless - is what every value was before this existed.
 | `unit / unit`, same unit | unitless: a ratio is a plain number |
 | `unit * unit` | an error - that is an area, and there is no name for one here |
 | a shift | keeps the unit; the count counts bits |
+| unary `-` | keeps the unit, as it keeps the scale |
 | `x op= e` | as `x = x op e`: the pair by this table, and the result must be `x`'s unit |
 
 **An untyped constant adopting the unit is what makes this usable**, and it is
@@ -3211,6 +3212,12 @@ one the type checker previously had no opinion about.
 `tennis` is what asked for it, and had been paying for the absence by hand -
 `subgridToPx`, `subPxY`, and a comment reading `// subgrid units`. The unit was in
 the identifier, which is the part a compiler cannot check.
+
+It declares `unit grid = i16` now. Positions, speeds and the constants they meet
+are `grid`, pixels stay plain, and the `i16( ... )` inside `subgridToPx` is the one
+place a subgrid value becomes a pixel. **Pixels could not be a unit as well**,
+because they live in `u8`, `u16` and `i16` in different routines and a unit has
+one storage type - so the split is a unit against plain rather than two units.
 
 ### Where the knowledge that `px` is a type lives
 

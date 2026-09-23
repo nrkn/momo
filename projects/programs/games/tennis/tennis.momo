@@ -19,8 +19,8 @@ bool isRunning = true
 
 // paddles - playerCount, leftPlayer and rightPlayer are in t_cfg.momo
 group player[playerCount] {
-  i16 y      
-  i16 oldY   
+  grid y      
+  grid oldY   
   u8 score
   u8 speed 
 }
@@ -29,19 +29,19 @@ group player[playerCount] {
 const u8[] paddleX = [ playLeft, playRight ]
 const u8[] paddleColor = [ red, blue ]
 const u16[] winColor = [ redW, blueW ]
-const i16[] serveX = [ 0, ballXMax ]
-const i16[] serveSpeedX = [ serveSpeed, -serveSpeed ]
+const grid[] serveX = [ 0, ballXMax ]
+const grid[] serveSpeedX = [ serveSpeed, -serveSpeed ]
 
 // The ball. One instance, so this is namespacing rather than
 // structure-of-arrays - DESIGN 18 - and it is here for the reading: `oldX`
 // beside `x` says what it is, where the old name needed a comment to.
 group ball {
-  i16 x
-  i16 y
-  i16 oldX
-  i16 oldY
-  i16 speedX
-  i16 speedY
+  grid x
+  grid y
+  grid oldX
+  grid oldY
+  grid speedX
+  grid speedY
   u8  player
   u8  color
 }
@@ -90,10 +90,11 @@ sub drawNet {
 // subgrid to pixels
 // playfield offset, eg playRight, playLeft, playTop etc 
 // object offset, eg ball.x, ball.y, player[ i ].y etc
-// `>> 2` and not `/ 4`: obj is i16, and a signed divide rounds toward zero
-// where the shift floors, so these are different answers for a negative offset.
-// Signed division deliberately does not strength-reduce - see strred.
-const subgridToPx( i16 play, i16 obj ) = play + 1 + (obj >> 2)
+// `>> 2` and not `/ 4`: obj is stored as i16, and a signed divide rounds toward
+// zero where the shift floors, so these are different answers for a negative
+// offset. Signed division deliberately does not strength-reduce - see strred.
+// The `i16( ... )` is the one place a subgrid value becomes a pixel.
+const subgridToPx( i16 play, grid obj ) = play + 1 + i16( obj >> 2 )
 
 // clear at old, draw at new
 // note - ~~it flickers quite badly~~ fixed by vsync - on fast hardware at
@@ -194,8 +195,8 @@ sub drawScore( u8 pi ) {
 // The held flags are indexed by player too, so this takes the index alone.
 sub movePaddle( u8 pi ) {
   if ( held[ pi ].up || held[ pi ].down ) {
-    if ( held[ pi ].up ) player[ pi ].y -= player[ pi ].speed
-    if ( held[ pi ].down ) player[ pi ].y += player[ pi ].speed
+    if ( held[ pi ].up ) player[ pi ].y -= grid( player[ pi ].speed )
+    if ( held[ pi ].down ) player[ pi ].y += grid( player[ pi ].speed )
 
     if ( player[ pi ].y < 0 ) player[ pi ].y = 0
     if ( player[ pi ].y > paddleYMax ) player[ pi ].y = paddleYMax
@@ -230,7 +231,7 @@ sub input {
   movePaddle( rightPlayer )
 }
 
-sub setBallSpeedY( i16 yOffset ) {
+sub setBallSpeedY( grid yOffset ) {
   if ( yOffset < angleZone1 ) ball.speedY = -ballSpeedY3
   else if ( yOffset < angleZone2 ) ball.speedY = -ballSpeedY2
   else if ( yOffset < angleZone3 ) ball.speedY = -ballSpeedY1
@@ -257,7 +258,7 @@ sub scorePoint( u8 pi ) {
 
 // ball at player pi's column - either bounce or miss (other player scores)
 sub hitPaddle( u8 pi ) {
-  i16 yOffset
+  grid yOffset
 
   yOffset = ball.y - player[ pi ].y + hitLead
   
@@ -271,7 +272,7 @@ sub hitPaddle( u8 pi ) {
   setBallSpeedY( yOffset )
 
   // three returns before the rally speeds up, to a ceiling
-  if ( iabs( ball.speedX ) < ballSpeedXMax ) {
+  if ( grid( iabs( i16( ball.speedX ) ) ) < ballSpeedXMax ) {
     volleyCount++
   
     if ( volleyCount == volleyTarget ) {

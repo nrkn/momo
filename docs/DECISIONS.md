@@ -1087,6 +1087,21 @@ No program was affected: `unittest` is the only one declaring a unit, and every
 `.asm` stayed byte-identical. The `ok-unit` pair gained the compound forms that
 must still compile, so the identity tier holds them as costing nothing too.
 
+### `tennis` declared one at last, and found two more
+
+The program that asked for units adopted them on 2026-09-23, 25 days after §39
+was built: `unit grid = i16` for the subgrid, with pixels left plain because they are stored
+in three different types. Its first compile found two holes. **A field of a
+one-instance group dropped its unit** - the counted form kept it, the namespacing
+form did not, and `ball` is the namespacing form. **Unary `-` dropped a unit**,
+so `ball.speedY = -ball.speedY`, which is how a bounce is written, stopped
+compiling. `-` had always kept the scale, and keeps the unit now for the same
+reason; `~` still drops it, which nothing has needed otherwise.
+
+Three casts were needed: `grid( player[ pi ].speed )` twice, because the speed is
+a `u8` and a unit has one storage type, and `grid( iabs( i16( ... ) ) )` at
+`std/math.momo`'s edge. `tennis.asm` changed only in its source quotes.
+
 ---
 ## 38. File I/O
 

@@ -1,0 +1,8 @@
+// EXPECT-ERROR: cannot put px in plain u16
+// A field of a one-instance group keeps its unit (§39) - it used to drop it.
+unit px = u16
+group box {
+  px w
+}
+u16 n
+n = box.w

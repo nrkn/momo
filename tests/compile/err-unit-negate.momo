@@ -1,0 +1,6 @@
+// EXPECT-ERROR: cannot put px in plain i16
+// Negating keeps the unit, as it keeps the scale (§39) - it used to drop it.
+unit px = u16
+px a
+i16 s
+s = -a

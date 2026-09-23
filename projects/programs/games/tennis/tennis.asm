@@ -1274,7 +1274,7 @@ movePaddle:
         jmp     .L131
 .L135:
 .L133:
-; ---- if ( held[ pi ].up ) player[ pi ].y -= player[ pi ].speed
+; ---- if ( held[ pi ].up ) player[ pi ].y -= grid( player[ pi ].speed )
         mov     al, [movePaddle__pi]
         xor     ah, ah                      ; u8 -> u16
         mov     bx, ax
@@ -1300,7 +1300,7 @@ movePaddle:
         shl     bx, 1                       ; word elements
         mov     [player__y + bx], ax
 .L136:
-; ---- if ( held[ pi ].down ) player[ pi ].y += player[ pi ].speed
+; ---- if ( held[ pi ].down ) player[ pi ].y += grid( player[ pi ].speed )
         mov     al, [movePaddle__pi]
         xor     ah, ah                      ; u8 -> u16
         mov     bx, ax
@@ -1552,7 +1552,7 @@ hitPaddle:
         mov     ax, [hitPaddle__yOffset]
         mov     [setBallSpeedY__yOffset], ax
         call    setBallSpeedY
-; ---- if ( iabs( ball.speedX ) < ballSpeedXMax ) {
+; ---- if ( grid( iabs( i16( ball.speedX ) ) ) < ballSpeedXMax ) {
         mov     ax, [ball__speedX]
         test    ax, ax
         jge     .L188                       ; signed <

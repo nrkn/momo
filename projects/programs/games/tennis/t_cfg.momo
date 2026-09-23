@@ -34,32 +34,37 @@ const ballH = 3
 const digitW = 5
 const digitH = 5
 
+// subgrid units - positions and speeds in quarter pixels, so movement can be
+// slower than a pixel a frame. A unit (DESIGN §39), so a subgrid value cannot
+// reach anything that takes pixels except through `subgridToPx`.
+unit grid = i16
+
 const subgridScale = 4
 
+// Subgrid too, and plain only because `player[].speed` is a u8 and a unit has
+// one storage type - making it a `grid` would change the code, not just check it.
 const paddleSpeedStep = 2
 const paddleSpeedMax = 16
 
-const serveSpeed = 3
+const grid serveSpeed = 3
 
-// subgrid units
-
-const paddleYMax = ( playH - paddleH  - 2 ) * subgridScale
-const ballXMax = ( playW - ballW - 2 ) * subgridScale
-const ballYMax = ( playH - ballH - 2 ) * subgridScale
-const paddleYHome = paddleYMax / 2
+const grid paddleYMax = ( playH - paddleH  - 2 ) * subgridScale
+const grid ballXMax = ( playW - ballW - 2 ) * subgridScale
+const grid ballYMax = ( playH - ballH - 2 ) * subgridScale
+const grid paddleYHome = paddleYMax / 2
 
 // centres the ball on the serving paddle: both are subgrid, so the gap either
 // side is half the difference
-const ballServeOffset = ( paddleH - ballH ) * subgridScale / 2
+const grid ballServeOffset = ( paddleH - ballH ) * subgridScale / 2
 
 // the ball meets the paddle from its bottom edge just reaching the paddle top,
 // to its top edge just leaving the paddle bottom
-const hitLead = ballH * subgridScale - 1
-const hitWindow = hitLead + paddleH * subgridScale
+const grid hitLead = ballH * subgridScale - 1
+const grid hitWindow = hitLead + paddleH * subgridScale
 
-const netBallXMin = ( centerX - playLeft - ballW ) * subgridScale
-const netBallXMax = ( centerX - playLeft ) * subgridScale - 1
-const netBallXSpan = netBallXMax - netBallXMin
+const grid netBallXMin = ( centerX - playLeft - ballW ) * subgridScale
+const grid netBallXMax = ( centerX - playLeft ) * subgridScale - 1
+const grid netBallXSpan = netBallXMax - netBallXMin
 
 // word blitting
 
@@ -70,18 +75,18 @@ const screenWord = ( screenW * screenH ) / 2
 
 // six equal zones and a wider flat one in the middle, so the table is
 // symmetric
-const angleZone = 6
-const angleZone1 = angleZone
-const angleZone2 = angleZone * 2
-const angleZone3 = angleZone * 3
-const angleZone4 = hitWindow - angleZone * 3
-const angleZone5 = hitWindow - angleZone * 2
-const angleZone6 = hitWindow - angleZone
+const grid angleZone = 6
+const grid angleZone1 = angleZone
+const grid angleZone2 = angleZone * 2
+const grid angleZone3 = angleZone * 3
+const grid angleZone4 = hitWindow - angleZone * 3
+const grid angleZone5 = hitWindow - angleZone * 2
+const grid angleZone6 = hitWindow - angleZone
 
-const ballSpeedStep = serveSpeed
-const ballSpeedY1 = ballSpeedStep
-const ballSpeedY2 = ballSpeedStep * 2
-const ballSpeedY3 = ballSpeedStep * 3
-const ballSpeedXMax = ballSpeedStep * 3
+const grid ballSpeedStep = serveSpeed
+const grid ballSpeedY1 = ballSpeedStep
+const grid ballSpeedY2 = ballSpeedStep * 2
+const grid ballSpeedY3 = ballSpeedStep * 3
+const grid ballSpeedXMax = ballSpeedStep * 3
 const volleyTarget = 3
 const winScore = 11

@@ -41,3 +41,4 @@ a *= n
 a /= n
 a <<= 1
 a >>= n
+t = -t                               // a negated quantity is still one

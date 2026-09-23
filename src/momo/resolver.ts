@@ -1300,9 +1300,11 @@ export const resolve = (program: Program): ResolveResult => {
           const value = argument.value === null ? null : -argument.value
           return annotate(node, { type: 'untyped', value, frac: argument.frac, unit: null })
         }
-        // `neg` is bitwise-identical regardless of operand signedness.
+        // `neg` is bitwise-identical regardless of operand signedness. The unit
+        // stays for the reason the scale does: a distance turned round is still
+        // a distance, and `v = -v` is how a bounce is written (§39).
         const value = argument.value === null ? null : truncate(-argument.value, 'i16')
-        return annotate(node, { type: 'i16', value, frac: argument.frac, unit: null })
+        return annotate(node, { type: 'i16', value, frac: argument.frac, unit: argument.unit })
       }
 
       if (argument.type === 'untyped') {
@@ -2232,7 +2234,7 @@ export const resolve = (program: Program): ResolveResult => {
         count === null
           ? {
               kind: 'var', name: label, label, type: field.typeNode.name,
-              frac: field.typeNode.frac, builtin: false,
+              frac: field.typeNode.frac, unit: field.typeNode.unit, builtin: false,
               init: scalarFieldValue(node, field),
             }
           : {
