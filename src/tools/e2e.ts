@@ -145,8 +145,9 @@ const buildAndRun = async (exe: string, project: string): Promise<string> => {
     return `<assembly failed>\n${detail}`
   }
 
+  // latin1, as the .expected is read below - see the rule there.
   const outPath = join(buildDir, 'out.txt')
-  return existsSync(outPath) ? readFile(outPath, 'utf8') : ''
+  return existsSync(outPath) ? readFile(outPath, 'latin1') : ''
 }
 
 const main = async () => {
@@ -179,8 +180,14 @@ const main = async () => {
       }
     }
 
+    // The comparison is byte for byte. What a program prints is CP437 bytes, not
+    // UTF-8, and latin1 is the decode that maps each byte to one character and
+    // back - so both sides are read that way, as the machine's output is (§72).
+    // A .expected therefore holds the bytes the program prints. The ones here
+    // are all ASCII, where every decode agrees; a UTF-8 read would turn the
+    // first byte above 0x7F into U+FFFD, and the two tiers would disagree.
     const actual = await buildAndRun(exe, project)
-    const expected = await readFile(expectedFor(project), 'utf8')
+    const expected = await readFile(expectedFor(project), 'latin1')
 
     // Normalise line endings only - everything else must match exactly.
     const clean = (text: string) => text.replace(/\r\n/g, '\n').trimEnd()
