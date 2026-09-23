@@ -1,0 +1,5 @@
+// EXPECT-ERROR: require takes no message
+// EXPECT-AT: 5:23
+// The why belongs in a comment above, where every other why lives (§74).
+const limit = 4
+require limit * 2 <= 8, "the table is eight bytes"

@@ -1,0 +1,28 @@
+// Half of the pair behind §74's zero-cost claim: a require is checked and then
+// it is gone. `ok-require-plain.momo` is the same program with the requires
+// taken out, and tier 1 requires both to emit exactly the same instructions.
+//
+// `rows`, `screenBytes` and `pageBytes` are named by a require and by nothing
+// else. They are the point: counted as uses, each would keep an `equ` line this
+// file has and the plain one does not.
+//
+// Keep the two in step. A difference is either a real leak or an edit that only
+// landed on one of them, and the assertion cannot tell those apart.
+
+const rows = 25
+const cols = 80
+const cellBytes = 2
+const screenBytes = 4000
+const pageBytes = 4096
+
+const cells( u16 r, u16 c ) = r * c
+
+require cells( rows, cols ) * cellBytes == screenBytes
+require screenBytes <= pageBytes
+
+u16[80] line
+u16 i
+
+for ( i = 0; i < cols; i++ ) {
+  line[ i ] = i * cellBytes
+}

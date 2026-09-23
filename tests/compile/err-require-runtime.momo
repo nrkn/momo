@@ -1,0 +1,8 @@
+// EXPECT-ERROR: require folds at compile time, and "count" does not - it is a variable
+// EXPECT-AT: 8:9
+// A runtime value is an error naming the part that did not fold, never a check
+// deferred to runtime (§74).
+u16 count = 3
+const limit = 4
+
+require count + 1 < limit

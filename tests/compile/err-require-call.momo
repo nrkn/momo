@@ -1,0 +1,6 @@
+// EXPECT-ERROR: require folds at compile time, and "twice( 3 )" does not - it calls a routine
+// EXPECT-AT: 6:9
+// A routine runs when the program does, so a call to one cannot fold (§74).
+u16 twice( u16 n ) => n * 2
+
+require twice( 3 ) == 6

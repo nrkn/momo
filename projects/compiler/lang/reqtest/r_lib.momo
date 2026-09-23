@@ -1,0 +1,11 @@
+// r_lib.momo - the library half of reqtest: three consts it owns, and a require
+// over one it does not.
+
+const libChunks = 12
+const libChunkBytes = 256
+const libArena = 4096
+
+// Declared by the program that includes this file (§74). A library asserting a
+// bound it depends on against a number the program chose is §73's seam, met for
+// constants.
+require viewRows <= 25

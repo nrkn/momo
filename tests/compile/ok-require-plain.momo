@@ -1,0 +1,18 @@
+// The other half of the pair. Identical to `ok-require-checked.momo` except that
+// the requires are gone. The consts they alone named stay declared, because the
+// claim is about the requires and not about the declarations.
+
+const rows = 25
+const cols = 80
+const cellBytes = 2
+const screenBytes = 4000
+const pageBytes = 4096
+
+const cells( u16 r, u16 c ) = r * c
+
+u16[80] line
+u16 i
+
+for ( i = 0; i < cols; i++ ) {
+  line[ i ] = i * cellBytes
+}

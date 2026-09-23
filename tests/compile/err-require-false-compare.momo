@@ -1,0 +1,8 @@
+// EXPECT-ERROR: require failed - the left side folds to 6144 and the right to 4096
+// EXPECT-AT: 8:38
+// A comparison that folds false names what each side came to, which is the half
+// a reader cannot see from the source (§74). The caret is on the operator.
+const maxCrossings = 3072
+const u16 crossingBytes = 2
+
+require maxCrossings * crossingBytes <= 4096

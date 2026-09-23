@@ -1,0 +1,10 @@
+// EXPECT-ERROR: require belongs at the top level of a file
+// EXPECT-AT: 7:3
+// Inside a routine it would read as a runtime assert, which it is not (§74).
+const limit = 4
+
+sub check {
+  require limit < 8
+}
+
+check()

@@ -1455,6 +1455,9 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
 
   const emitStatement = (node: Statement) => {
     if (node.type === 'ConstDeclaration') return
+    // Checked in the resolver and finished there (§74). No source quote either,
+    // so a program with its requires and one without are the same text.
+    if (node.type === 'RequireStatement') return
     if (node.type === 'RoutineDeclaration') return
 
     if (node.type === 'BlockStatement') {

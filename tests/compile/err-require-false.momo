@@ -1,0 +1,7 @@
+// EXPECT-ERROR: require failed - it folds to 0
+// EXPECT-AT: 7:15
+// Not a comparison, so there are no sides to name - only the zero (§74).
+const flags = 0x30
+const wanted = 0x04
+
+require flags & wanted

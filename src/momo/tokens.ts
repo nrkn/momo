@@ -66,6 +66,10 @@ export const keywords = [
   // it needs no lexer involvement, because a bracket name stays an identifier -
   // the disambiguator is the brace after a complete call.
   'bracket',
+  // `require maxCrossings * 2 <= 4096` (§74). A claim about constants, folded
+  // and checked by the resolver, and emitting nothing - so it sits with the
+  // declarations rather than with the statements that run.
+  'require',
   'local',
   'sub',
   'fn',

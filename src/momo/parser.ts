@@ -34,6 +34,7 @@ import type {
   Located,
   LValue,
   Program,
+  RequireStatement,
   Statement,
   TypeName,
   TypeNode,
@@ -930,6 +931,38 @@ export const parse = (tokens: Token[]): Program => {
         line: close.line,
         col: close.col,
       },
+      file: start.file,
+      line: start.line,
+      col: start.col,
+      endLine,
+    }
+  }
+
+  // `require limit * 2 <= 4096` (§74). One expression and nothing after it.
+  // Whether it folds, and whether this position allows it, are the resolver's
+  // questions - the parser has no symbol table, and `require` inside a sub is
+  // refused with a better reason than "unexpected" could give.
+  const parseRequireStatement = (): RequireStatement => {
+    const start = expect('keyword', 'require')
+    const test = parseExpression()
+
+    // There is no message argument, and without this the failure lands on
+    // `expected end of statement but found ","`, which says what the parser
+    // wanted rather than where the reason goes.
+    if (at('op', ',')) {
+      raise(
+        peek(),
+        'require takes no message - the error names what each side folded to,' +
+          ' and the why belongs in a comment above',
+      )
+    }
+
+    const endLine = previous().line
+    expectTerminator()
+
+    return {
+      type: 'RequireStatement',
+      test,
       file: start.file,
       line: start.line,
       col: start.col,
@@ -2077,6 +2110,7 @@ const nextOfSlot = (file: string): string => `ofa__${fileTag(file)}__${ofSlots++
       if (token.text === 'view') return parseViewDeclaration(false, token)
       if (token.text === 'unit') return parseUnitDeclaration()
       if (token.text === 'bracket') return parseBracketDeclaration()
+      if (token.text === 'require') return parseRequireStatement()
       if (token.text === 'sub') return parseSubDeclaration()
       if (token.text === 'fn') {
         // Migration aid - delete once the old spelling is out of muscle memory.

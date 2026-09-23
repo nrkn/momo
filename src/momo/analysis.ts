@@ -342,6 +342,11 @@ export const prune = <S extends PrunableSymbol>(result: {
     // would keep its parent's storage with it.
     if (node.type === 'ViewDeclaration') return
 
+    // A require is a claim about constants rather than a use of any (§74). Were
+    // its names counted, a const it alone mentions would keep an `equ` line, and
+    // the program would stop being the same program without its requires.
+    if (node.type === 'RequireStatement') return
+
     if (typeof node.label === 'string') used.add(node.label)
     for (const key of Object.keys(node)) {
       if (key === 'label') continue

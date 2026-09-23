@@ -1,0 +1,40 @@
+// reqtest.momo - `require`: a claim about constants, checked when the program
+// compiles and emitting nothing (§74).
+//
+// Every require here holds, so the program compiling is the test; the refusals
+// are the err-require-* files in tests/compile. What it prints is only there so
+// that tier 2 and the machine have something to run. The consts named by a
+// require alone have no `equ` in reqtest.asm, which is the other half of the
+// claim: a require is not a use.
+
+include "lib/std/io.momo"
+include "r_lib.momo"
+
+// r_lib.momo holds itself to this in a require of its own. The merged program
+// is one namespace, so a library can name a const the program declares - and
+// the include above splices it in before this line is reached.
+const viewRows = 25
+
+// Over another file's consts.
+require libChunks * libChunkBytes <= libArena
+
+// Parameterised consts, one composed from the other.
+const sqr( u16 n ) = n * n
+const cube( u16 n ) = sqr( n ) * n
+require cube( 3 ) == 27
+require sqr( 16 ) == 256
+
+// §4's typed fold: k + 1 wraps as the add it stands in for would, so the claim
+// is about the value the machine computes rather than the host's 65536.
+const u16 k = 65535
+require k + 1 == 0
+
+// A length folds, and asking for one keeps no array alive.
+u8[16] scratch
+require len( scratch ) == 16
+
+// `if`'s truthiness: anything that is not zero passes.
+require libArena
+
+putNumber( libChunks )
+newline()

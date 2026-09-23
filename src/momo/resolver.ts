@@ -21,6 +21,7 @@ import type {
   TypeName,
   LValue,
   Program,
+  RequireStatement,
   Statement,
   TypeNode,
   UnitDeclaration,
@@ -30,6 +31,7 @@ import { basename } from 'node:path'
 
 import { alwaysReturns, buildCallGraph, fallsThrough, type CallGraph } from './analysis.js'
 import { lowerBrackets } from './brackets.js'
+import { printExpression } from './printer.js'
 import { builtinUnits } from './tokens.js'
 import { raise, type Location } from './diagnostics.js'
 import {
@@ -2691,6 +2693,17 @@ export const resolve = (program: Program): ResolveResult => {
     }
     if (node.type === 'ConstDeclaration') return resolveConstDeclaration(node)
 
+    // §74. Pass 2 takes a top-level require before it gets here, so one that
+    // arrives is nested - in a routine, or in a block the entry point runs. In
+    // either place it would read as a check made each time control passes.
+    if (node.type === 'RequireStatement') {
+      raise(
+        node,
+        'require belongs at the top level of a file - it is checked once, at compile time,' +
+          ' and in here it reads as a runtime assert, which is a different feature',
+      )
+    }
+
     if (node.type === 'RoutineDeclaration') {
       raise(node, 'routines cannot be nested')
     }
@@ -2875,6 +2888,78 @@ export const resolve = (program: Program): ResolveResult => {
     }
 
     if (node.type === 'IntStatement') return
+  }
+
+  // ---- §74: require ---------------------------------------------------------
+  //
+  // A claim about constants, so the whole check is a fold: the expression has to
+  // come out as a number, and the number must not be zero - `if`'s truthiness,
+  // so there is nothing new to remember. Pass 2 runs it for every top-level
+  // require in the merged program, before pruning has decided anything, which is
+  // what makes it unconditional: a wrong constant is reported whether or not
+  // anything near it is ever called.
+
+  // The innermost part that did not fold, which is what the error names: a part
+  // whose own operands all folded, or that has none - a variable, a call, a read.
+  const unfoldedPart = (node: Expression): Expression => {
+    // A folded test means only the arm it chose decides the value.
+    if (node.type === 'ConditionalExpression' && typeof node.test.constValue === 'number') {
+      return unfoldedPart(node.test.constValue !== 0 ? node.consequent : node.alternate)
+    }
+
+    for (const [key, value] of Object.entries(node)) {
+      // A const's expansion is its body and a fixed multiply's lowering is a call,
+      // and the reader wrote neither here - so the part named is the one written.
+      if (key === 'expansion' || key === 'lowered') continue
+      for (const child of Array.isArray(value) ? value : [value]) {
+        if (isExpression(child) && child.constValue === null) return unfoldedPart(child)
+      }
+    }
+
+    return node
+  }
+
+  const whyUnfolded = (part: Expression): string => {
+    if (part.type === 'Identifier') return 'it is a variable, so its value is known only at runtime'
+    if (part.type === 'CallExpression') {
+      return lookup(part.callee.name)?.kind === 'routine'
+        ? 'it calls a routine, which runs only when the program does'
+        : 'the const it calls does not fold with these arguments'
+    }
+    if (part.type === 'IndexExpression') return 'it reads an array element, which happens at runtime'
+    if (part.type === 'PeekExpression') return 'it reads memory at runtime'
+    if (part.type === 'InExpression') return 'it reads a port at runtime'
+    if (part.type === 'AddrExpression') return 'an address is fixed by the assembler, not the compiler'
+    return 'it is not a constant'
+  }
+
+  const resolveRequire = (node: RequireStatement) => {
+    const resolved = resolveExpression(node.test)
+    requireScalar(resolved, node.test, 'require')
+
+    // Never deferred to runtime: that would be the assert this is not.
+    if (resolved.value === null) {
+      const part = unfoldedPart(node.test)
+      raise(
+        part,
+        `require folds at compile time, and "${printExpression(part)}" does not - ${whyUnfolded(part)}`,
+      )
+    }
+
+    if (resolved.value !== 0) return
+
+    // What each side came to is the half a reader cannot see from the source, so
+    // a comparison says both. Anything else can only have come to zero. The
+    // caret lands on the comparison's operator, which is where a node of one is.
+    const test = node.test
+    if (test.type === 'BinaryExpression' && comparisonOps.includes(test.operator)) {
+      raise(
+        test,
+        `require failed - the left side folds to ${test.left.constValue}` +
+          ` and the right to ${test.right.constValue}`,
+      )
+    }
+    raise(test, 'require failed - it folds to 0')
   }
 
   // ---- reachability ---------------------------------------------------------
@@ -3111,6 +3196,10 @@ export const resolve = (program: Program): ResolveResult => {
     if (statement.type === 'FarDeclaration') continue
     if (statement.type === 'ViewDeclaration') continue
     if (statement.type === 'UnitDeclaration') continue
+    if (statement.type === 'RequireStatement') {
+      resolveRequire(statement)
+      continue
+    }
     resolveStatement(statement)
   }
 

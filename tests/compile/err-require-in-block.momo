@@ -1,0 +1,9 @@
+// EXPECT-ERROR: require belongs at the top level of a file
+// EXPECT-AT: 8:3
+// A block the entry point runs is not the top level either: this one would read
+// as a check made only when ready is true (§74).
+const limit = 4
+bool ready = true
+if ( ready ) {
+  require limit < 8
+}

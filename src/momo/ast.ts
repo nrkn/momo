@@ -544,6 +544,15 @@ export type BracketStatement = Spanned & {
   body: BlockStatement
 }
 
+// §74. `require limit * 2 <= 4096` - an assertion about constants. The resolver
+// folds `test` and refuses the program if it comes out zero; the emitter skips
+// the node the way it skips a const, so a program is the same program with or
+// without its requires. Top level only, which is the resolver's check.
+export type RequireStatement = Spanned & {
+  type: 'RequireStatement'
+  test: Expression
+}
+
 export type Statement =
   | ConstDeclaration
   | ConstFunctionDeclaration
@@ -553,6 +562,7 @@ export type Statement =
   | ViewDeclaration
   | UnitDeclaration
   | BracketDeclaration
+  | RequireStatement
   | RoutineDeclaration
   | BlockStatement
   | BracketStatement

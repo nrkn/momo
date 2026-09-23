@@ -328,6 +328,12 @@ export const printStatement = (node: Statement, depth = 0): string => {
     case 'UnitDeclaration':
       return `${pad}unit ${node.name} = ${printType(node.storage)}`
 
+    // Printed rather than dropped, although it emits nothing (§74): the printed
+    // program has to make the same claims the source did, or it would compile
+    // where the source was refused.
+    case 'RequireStatement':
+      return `${pad}require ${printExpression(node.test)}`
+
     case 'BlockStatement':
       return `${pad}${printBlock(node.body, depth)}`
 

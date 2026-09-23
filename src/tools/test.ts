@@ -634,6 +634,7 @@ const identityPairs: [string, string, string][] = [
     'ok-group-rows-sugar.momo',
     'ok-group-rows-plain.momo',
   ],
+  ['a require emits nothing, and is not a use (§74)', 'ok-require-checked.momo', 'ok-require-plain.momo'],
 ]
 
 const identityTests = (): number => {
