@@ -2034,6 +2034,20 @@ tier 1 took about a second - true once, and not for some while before this - so
 they were taken out rather than updated: a duration in prose is the kind of number
 `STYLE.md` says drifts.
 
+### The teeth: a bug the golden tier had already adopted
+
+The check this tier exists for is one the golden tier cannot make. Signed `<` was
+broken in the emitter to emit `jb` - which assembles, and is wrong only for
+negative operands - and `npm run momoc:all` adopted the result into seventeen
+committed `.asm` files, exactly as a careless adoption would. Every golden check
+then passed, since it compares against what the emitter now writes. **The machine
+failed thirteen programs**, `cmptest` and the vector port's among them, each
+taking the wrong branch on a negative value. Before this, only the next DOSBox run
+could have said so.
+
+The model's behaviours are held the same way: neutering the read-only handle
+failed `motrip` and nothing else, which is the program that asked for it.
+
 ### What was left out
 
 **Screens.** The interactive programs cannot be run to their end, as under tier 2,
