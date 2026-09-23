@@ -2,8 +2,8 @@
 //
 //   npm test
 //
-// No DOSBox, so the whole suite runs in about a second. A test either compiles
-// clean, or declares the error it expects in its own first lines:
+// No DOSBox, so it needs nothing installed. A test either compiles clean, or
+// declares the error it expects in its own first lines:
 //
 //   // EXPECT-ERROR: recursion is not supported
 //
@@ -20,12 +20,16 @@ import { join } from 'node:path'
 
 import {
   allProjects,
+  argsFor,
   asmFor,
   compileTestsDir as compileDir,
   designPath,
   entryFor,
+  expectedFor,
+  projectDir,
   sharedRoot,
 } from './cli.js'
+import { filesOf, runDos } from './dos.js'
 import { compile } from '../momo/compile.js'
 import { formatError, isMomoError } from '../momo/diagnostics.js'
 import { tokenize } from '../momo/lexer.js'
@@ -548,9 +552,51 @@ const identityTests = (): number => {
   return identityPairs.length
 }
 
+// ---- the machine (§72) -----------------------------------------------------
+//
+// Every program tier 2 runs, run here as well: the committed assembly executed
+// by `machine.ts` inside the DOS of `dos.ts`, and what it printed held to the
+// same `.expected`. The golden tier says the text did not change; this says the
+// text still does what it did, without DOSBox - so a codegen bug that assembles
+// is caught at `npm test` rather than at the next tier 2 run.
+//
+// It is not a replacement for tier 2. NASM never sees this text here, so the
+// NASM boundary is still tier 2's alone, and the model is only as good as the
+// agreement below: a service nobody modelled stops the run and names itself.
+
+// Line endings only, as tier 2 compares.
+const cleanOutput = (text: string): string => text.replace(/\r\n/g, '\n').trimEnd()
+
+const machineTests = (): number => {
+  let asserted = 0
+
+  for (const project of allProjects()) {
+    if (!existsSync(expectedFor(project))) continue
+    asserted += 1
+
+    const args = existsSync(argsFor(project)) ? readFileSync(argsFor(project), 'utf8').trim() : ''
+    const expected = cleanOutput(readFileSync(expectedFor(project), 'utf8'))
+
+    try {
+      const run = runDos(readFileSync(asmFor(project), 'utf8'), { files: filesOf(projectDir(project)), args })
+      const actual = cleanOutput(run.output)
+      check(
+        `machine ${project}`,
+        actual === expected,
+        `expected: ${JSON.stringify(expected)}\n    actual:   ${JSON.stringify(actual)}`,
+      )
+    } catch (error) {
+      check(`machine ${project}`, false, error instanceof Error ? error.message : String(error))
+    }
+  }
+
+  return asserted
+}
+
 const roundTripCount = roundTripTests()
 const identityCount = identityTests()
 const subsetCount = subsetTests()
+const machineCount = machineTests()
 
 for (const failure of failures) console.error(`  FAIL  ${failure}`)
 
@@ -558,7 +604,8 @@ const total = passed + failures.length
 console.log(
   `\n${passed}/${total} passed` +
     `  (${compileCount} compile tests, ${goldenCount} golden, ${typeCount} type` +
-    `, ${lexCount} lex, ${roundTripCount} round trip, ${identityCount} identity, ${subsetCount} subset)`,
+    `, ${lexCount} lex, ${roundTripCount} round trip, ${identityCount} identity, ${subsetCount} subset` +
+    `, ${machineCount} machine)`,
 )
 
 if (failures.some((failure) => failure.includes('first difference'))) {

@@ -12,6 +12,8 @@
     "check": "tsc && node dist/tools/check.js",
     "momoc": "tsc && node dist/tools/momoc.js",
     "memory": "tsc && node dist/tools/memory.js",
+    "trace": "tsc && node dist/tools/trace.js",
+    "trace:profile": "tsc && node dist/tools/trace.js --profile",
     "test": "tsc && node dist/tools/test.js",
     "test:e2e": "tsc && node dist/tools/e2e.js",
     "momoc:all": "tsc && node dist/tools/momoc.js --all",

@@ -1333,10 +1333,14 @@ SDL2 - same program.
 
 ### Two things that fall out free
 
-- **Headless tests.** Tier 2 currently launches DOSBox per case; a JS backend
-  runs the same suite in about a second.
+- **Headless tests.** Tier 2 launches DOSBox per case. §72 took this one without a
+  backend: an interpreter of the emitted DOS assembly runs the same suite inside
+  `npm test`. What a JS backend would still add is a program running at speed in
+  a browser, which an interpreter counting every instruction is not for.
 - **Differential testing.** Run a program on both backends and compare output.
   Any divergence is a bug in one of them, and you need not know which in advance.
+  §72 against tier 2 is the first such pair, and agreeing on every `.expected` is
+  what it rests on.
 
 ### Wrinkles
 

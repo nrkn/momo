@@ -45,7 +45,8 @@ console is kept as `_reference/yuki.txt`.
 
 ```
 src/momo/            the compiler
-src/tools/           CLI entry points, over cli.ts (paths, fail) and toolchain.ts
+src/tools/           CLI entry points, over cli.ts (paths, fail) and toolchain.ts;
+                     machine.ts and dos.ts run emitted assembly without DOSBox (§72)
 shared/              the include root: what more than one project reads
 shared/lib/std/      standard library, written in Momo
 shared/lib/momolo/   a layout engine, written in Momo
@@ -192,9 +193,11 @@ npm run lex:nl -- <project>   # statement terminators only
 npm run parse -- <project>    # AST
 npm run check -- <project>    # symbol table
 npm run memory -- <project>   # exact static footprint
+npm run trace -- <project>    # run it without DOSBox: output, instructions, cycles (§72)
+npm run trace:profile -- <project>  # the same, by routine
 npm run desugar -- <project>  # print the program as lomo, its desugared form
 
-npm test                      # tier 1: compile, golden .asm, types, lexing, ~1s
+npm test                      # tier 1: compile, golden .asm, types, lexing, the machine
 npm run test:e2e              # tier 2: run in DOSBox headless, compare output
 
 npm run grammar               # regenerate the grammar from tokens.ts
@@ -208,7 +211,7 @@ npm run drift:since -- <ref>  # passages a range of commits may have invalidated
 
 **npm swallows user `--flags`.** `npm run lex -- smoke --newlines` silently drops
 `--newlines`; only flags inside the script definition survive. That is why
-`lex:nl`, `parse:json` and `momoc:all` exist as separate scripts.
+`lex:nl`, `parse:json`, `momoc:all` and `trace:profile` exist as separate scripts.
 
 **TypeScript `never`-narrowing needs the annotation on the const.** Annotating the
 arrow's return type is not enough - see the comment on `raise` in
@@ -516,7 +519,7 @@ The cost of waiting is that the first thing a visitor reads is the weakest
 document in the repo. That trade is made deliberately, and preferred to shipping a
 second draft in the same voice as the first.
 
-556 tier-1 assertions, 62 e2e programs, all green. `npm test` prints the tier 1
+618 tier-1 assertions, 62 e2e programs, all green. `npm test` prints the tier 1
 breakdown, and `npm run drift` holds both figures against the harness and the
 committed expectations. Both have drifted before, which is why a script reads
 them now.

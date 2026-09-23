@@ -90,7 +90,7 @@ decade, with echoes going back further.**
 
 ```bash
 npm install
-npm test                        # compile tests, golden .asm, types - about a second
+npm test                        # compile tests, golden .asm, types, the machine
 ```
 
 That much needs no DOSBox. Anything that assembles or runs launches DOSBox, and

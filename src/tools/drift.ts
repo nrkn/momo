@@ -353,7 +353,7 @@ const harnessTally = (): number[] => {
   }
 
   const tally = output.match(
-    /(\d+)\/(\d+) passed\s+\((\d+) compile tests, (\d+) golden, (\d+) type, (\d+) lex, (\d+) round trip, (\d+) identity, (\d+) subset\)/,
+    /(\d+)\/(\d+) passed\s+\((\d+) compile tests, (\d+) golden, (\d+) type, (\d+) lex, (\d+) round trip, (\d+) identity, (\d+) subset, (\d+) machine\)/,
   )
   // `fail` returns never, and never-narrowing needs the annotation on the const
   // rather than on the arrow - so it is returned rather than called.

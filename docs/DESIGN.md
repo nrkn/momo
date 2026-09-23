@@ -1354,8 +1354,8 @@ feature would have needed a different shape entirely.
 
 Three tiers, plus two deliberately small sets of unit assertions - the type lattice, and
 the lexer's decode of a decimal literal and a fixed type name (§25), which nothing else
-consumes until a target scale appears. The first two tiers run together in about a second
-and touch nothing outside Node.
+consumes until a target scale appears. The first two tiers, and the machine runs below,
+touch nothing outside Node.
 
 One wrinkle worth knowing about the round trip: it prints the **post-resolve** program,
 because `*` on two fixed-point values lowers to a call and that lowering needs types.
@@ -1372,7 +1372,7 @@ projects and not one instruction changed. Reading the diff is how you tell the t
 and it is why `npm run momoc:all` asks you to.
 
 ```
-npm test          # tiers 1 and 1.5 + type lattice - about a second, no DOSBox
+npm test          # tiers 1 and 1.5, the machine runs, type lattice - no DOSBox
 npm run test:e2e  # tier 2 - launches DOSBox per case
 ```
 
@@ -1406,6 +1406,14 @@ reason that has nothing to do with the compiler.
 actually run under DOSBox with stdout redirected to a file, then compared
 exactly. This is the tier that catches what unit tests structurally cannot:
 bugs at the NASM boundary, and bugs that only appear when real 8086 code runs.
+
+**The same programs, run by the machine, in tier 1.** §72's interpreter runs the
+committed `.asm` of every tier 2 program and compares what it printed with the same
+`.expected`. So a codegen change that assembles and computes the wrong answer fails
+`npm test` rather than waiting for the next DOSBox run - which the golden tier
+cannot do, since `npm run momoc:all` adopts whatever the emitter now writes. It
+does not replace tier 2: NASM never sees the text on this path, and where the two
+disagree, tier 2 is right.
 
 **Graphics is testable, which is not obvious.** Video memory is readable as well
 as writable, so a program can draw, read specific cells or pixels back into
@@ -7663,3 +7671,88 @@ identifier has to rename it - the two NASM tests did.
 - **A callback the program defines (§37) says `a16` where an address crosses** -
   `viewRow`, `menuTitle`, `fieldCopyOut` - so the program writing one is told
   which of its arguments is a place.
+
+---
+
+## 72. The machine - emitted assembly, run without DOSBox
+
+**Built.** `src/tools/machine.ts` runs the assembly Momo emits, `src/tools/dos.ts`
+is the DOS and BIOS around it, `npm run trace` is the door to a whole program, and
+tier 1 runs every program tier 2 runs through it, against the same `.expected`
+(§14).
+
+```bash
+npm run trace -- sieve
+npm run trace:profile -- tennis
+```
+
+It reads the NASM text rather than bytes, and it interprets §1's subset and
+nothing else - an instruction outside it stops the run and names itself. What
+that buys is three things DOSBox cannot give: **a routine can be called on its
+own**, **what executed is counted exactly**, and **a program's memory can be read
+after any step** - so a screen can be compared frame by frame. `tennis` is where
+all three were first wanted, and DECISIONS §27 is what they measured.
+
+### It is not a stage, and not an assembler
+
+Nothing in the compiler reads it; it reads what the compiler wrote. It sits beside
+tier 2 rather than in the pipeline, and like tier 2 it consumes the `.asm`.
+
+**It does not know where the image lands.** Labels get addresses in the order they
+are declared, from a base of its own, because the real ones need NASM to count the
+code. So a program that printed an address would print a different one here - and
+none does: the tier 2 programs print what an address *implies* (whether a block
+fits, whether two views alias), which is the same here as there. **The NASM
+boundary stays tier 2's alone**, since NASM never sees the text on this path.
+
+### Instructions are exact, cycles are an estimate
+
+Every executed instruction is counted, and by routine. The cycle figure applies the
+documented 8086 table in the simplified form DECISIONS §27 already uses - register
+forms, `8 + EA` for a load, a taken jump at 16 against 4, `mul` at about 124. **It
+is for comparing two builds of one program**, which is where every use so far has
+been. It predicts no machine: a 286 is a different table, and an 8088's bus is a
+different machine again (§27).
+
+### Memory is one megabyte, as the 8086 sees it
+
+A segment is a 64 KB window onto a single linear megabyte, at `segment * 16`, so
+`0x40:0x6C` and `0:0x46C` are the same byte - as they are on the machine. The
+first version gave each segment value its own 64 KB, which is not how an 8086
+works and was also most of what made `motext` slow: a far region reached a chunk
+at a time opens thousands of segment values.
+
+DS and SS are fixed where DOS would put them, because nothing Momo emits loads
+either (§35). ES is looked up when it changes, which is before every far access.
+
+### The DOS is the one the programs asked for
+
+`dos.ts` models what the tier 2 programs call and nothing else: console output by
+`int 21h` 02, 06 and 09 and by writes to handles 1 and 2; exit; the file calls, on
+an in-memory disk seeded with the project's own directory exactly as tier 2 copies
+it onto C:; directories and the find calls, `.` and `..` included; the PSP, with
+its command tail; the BIOS data area; `int 10h`'s mode, cursor, scroll and
+character calls on the text buffer; and the VGA registers that `porttest` reads
+back. **Anything else stops the run and names the service**, so a gap is a message
+and never a guess.
+
+**Time is the executed instruction count.** A BIOS tick is a fixed number of
+instructions and the display's retrace runs on the same clock, 70 frames against
+18.2 ticks a second - so a program that counts retraces over a tick gets the answer
+a PC would give, and a wait for the next tick ends. No test prints a duration; the
+ones that use time use ratios, and the ratios are right.
+
+**There is never a key waiting**, which is tier 2's rule too: a test cannot type. A
+check for a key answers none, and a read that would wait stops the run. So the
+interactive programs are no more runnable to their end here than under tier 2 - but
+their routines are callable, which is what `tennis`'s measurement did.
+
+### Rules
+
+- **A service is modelled when a program needs it, and that program is its test.**
+  The `.expected` it already has is the evidence the model agrees with DOSBox.
+- **An unmodelled service, port or instruction stops the run.** It is never
+  answered with a plausible default, because a default is a wrong answer that
+  passes.
+- **Nothing here is allowed to disagree with tier 2.** Where the two differ, the
+  machine is wrong until shown otherwise - tier 2 is the real thing.

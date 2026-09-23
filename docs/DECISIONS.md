@@ -1291,7 +1291,7 @@ was redrawn whole. Three changes replaced it:
 
 **Counted by running rather than by hand.** The render now branches on how far
 each thing moved, which a hand count gets wrong, so the emitted assembly was run
-in an interpreter of §1's subset with two scripted players, and each rendered
+in an interpreter of §1's subset (§72) with two scripted players, and each rendered
 frame's instructions counted exactly. The cycle column applies the 8086 table this
 section already uses; it compares the two builds and predicts no machine.
 
@@ -1976,6 +1976,74 @@ source quotes stripped: the only change is `prefixes`, which lost its `a16`
 routine because a type cannot name one, and printed a smaller sum to match. The
 identity pair holds that as a test from here on. Tier 2 ran all 62 programs green
 on the migrated corpus.
+
+---
+
+## 72. The machine
+
+### It was written to count one frame, and kept for what else it could do
+
+2026-09-23. `tennis`'s render needed counting before and after a rewrite that
+branched on movement, which a hand count gets wrong - and `tennis` blocks on input,
+so there was no tier 2 run to hold the rewrite to either. A throwaway interpreter
+of the emitted assembly answered both: exact counts, and the screen compared after
+every frame (DECISIONS §27). Promoting it was a separate decision, made once it had
+shown it could run a real program; the question was whether it could run all of
+them.
+
+### The first run matched 58 of 62, and each miss was a model gap
+
+Every tier 2 program was run through it against its `.expected`, with the DOS
+modelled as the most obvious reading of each call. Fifty-eight agreed, including
+`momovec` at 51 million instructions. The four that did not were each a DOS or
+hardware behaviour worth knowing:
+
+- `dirlist`: a find inside a directory returns `.` and `..` first.
+- `motrip`: a write through a handle opened to read takes nothing and reports
+  zero, carry clear - which is the short write a save has to notice (§61).
+- `porttest`: the VGA's index registers read back, and a word `out` writes the
+  index and then the data port beside it.
+- `scrtest`: `int 10h` 08, the character under the cursor.
+
+`porttest` then failed one line more: it counts retraces over one BIOS tick and
+expects three or four, and a retrace bit that alternated on every read counted
+thousands. So the retrace moved onto the same instruction clock as the tick, and
+a program measuring one against the other now sees a PC's ratio.
+
+### The memory model was wrong and nothing had failed
+
+The first version gave each segment value its own 64 KB, which is not an 8086:
+segments overlap, and `0x40:0x6C` is `0:0x46C`. No test failed, because no
+program here reaches one byte through two segment values - it was found by a
+profile, not by a test, because `motext` opens a segment per 16-byte chunk and was
+spending a quarter of its time allocating them. One linear megabyte with a window
+per segment is both the machine's model and the faster one.
+
+### Speed, measured
+
+| | `momovec` | `motext` |
+|---|---|---|
+| first version | 4.3M instructions/s | 3.4M |
+| per-instruction costs settled at decode | 8.1M | 4.9M |
+| each instruction compiled to a closure | 14.7M | 7.3M |
+| one linear megabyte | 15.1M | 10.8M |
+
+All 62 programs run in about fifteen seconds, and tier 1 went from about 44 seconds
+to about 62 on the machine that measured it. Five places in four files said
+tier 1 took about a second - true once, and not for some while before this - so
+they were taken out rather than updated: a duration in prose is the kind of number
+`STYLE.md` says drifts.
+
+### What was left out
+
+**Screens.** The interactive programs cannot be run to their end, as under tier 2,
+but their routines can be called - which is how `tennis` was measured - and a
+scripted game compared against a committed hash of each frame would give
+`tennis`, the demos and `simplerl` a test beyond the golden text. It is the obvious
+next use and was not wanted by anything today.
+
+**A 286 table.** The cycle estimate is the 8086's. `tennis`'s question was a 286's,
+and the answer came from the 286 itself.
 
 ---
 
