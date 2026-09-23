@@ -22,7 +22,7 @@
 // their keep: `combineRanges` and `truncate` encode facts about 16-bit integers,
 // not design choices we might revisit.
 
-import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join, resolve as resolvePath } from 'node:path'
 
@@ -437,12 +437,10 @@ const capacityTests = (): number => {
 // `; ---- ` lines come out and everything else has to match: every instruction,
 // every label, every inline comment about a widening or a jump choice.
 
-const roundTripRoot = mkdtempSync(join(tmpdir(), 'momo-roundtrip-'))
-
 const codeOnly = (assembly: string): string[] =>
   asLines(assembly).filter((line) => !line.startsWith('; ---- '))
 
-const roundTripTests = (): number => {
+const roundTripCases = (scratch: string): number => {
   const cases: { name: string; file: string }[] = []
 
   for (const project of allProjects()) {
@@ -472,7 +470,7 @@ const roundTripTests = (): number => {
 
       // Written out rather than compiled from memory, so the round trip goes
       // through the same lexer and loader entry point everything else does.
-      const copy = join(roundTripRoot, `${name.replace(/\.momo$/, '')}.momo`)
+      const copy = join(scratch, `${name.replace(/\.momo$/, '')}.momo`)
       writeFileSync(copy, printed, 'utf8')
 
       const again = compile(copy, sharedRoot, new Map()).assembly
@@ -506,6 +504,17 @@ const roundTripTests = (): number => {
   }
 
   return asserted
+}
+
+// The printed copies get a directory of their own, removed however the run
+// ends - including by a throw no case caught.
+const roundTripTests = (): number => {
+  const scratch = mkdtempSync(join(tmpdir(), 'momo-roundtrip-'))
+  try {
+    return roundTripCases(scratch)
+  } finally {
+    rmSync(scratch, { recursive: true, force: true })
+  }
 }
 
 // ---- instruction subset ------------------------------------------------------
@@ -667,7 +676,9 @@ const machineTests = (): number => {
     asserted += 1
 
     const args = existsSync(argsFor(project)) ? readFileSync(argsFor(project), 'utf8').trim() : ''
-    const expected = cleanOutput(readFileSync(expectedFor(project), 'utf8'))
+    // latin1, byte for byte, as the machine's output is and as tier 2 reads both
+    // sides - the two tiers compare by one rule (e2e.ts has why).
+    const expected = cleanOutput(readFileSync(expectedFor(project), 'latin1'))
 
     try {
       const run = runDos(readFileSync(asmFor(project), 'utf8'), { files: filesOf(projectDir(project)), args })

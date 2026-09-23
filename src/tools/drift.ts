@@ -18,7 +18,7 @@
 // every passage that mentions one. Judging them is the reader's job.
 
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join, relative, sep } from 'node:path'
 
@@ -301,14 +301,25 @@ const checkQuotedPaths = () => {
 // directory is a matter of running it from one. Nothing in the repository is
 // touched, which is the point: an overwrite would destroy the evidence.
 
+// A generator run in a scratch directory of its own, which is gone again once
+// what it wrote has been read - however that goes.
+const generatedIn = (name: string, generate: (scratch: string) => string): string => {
+  const scratch = mkdtempSync(join(tmpdir(), `momo-drift-${name}-`))
+  try {
+    return readText(generate(scratch))
+  } finally {
+    rmSync(scratch, { recursive: true, force: true })
+  }
+}
+
 const checkGrammar = () => {
   const generator = join(root, 'dist', 'tools', 'grammar.js')
   if (!existsSync(generator)) fail(`no ${show(generator)} - run npm run compile first`)
 
-  const scratch = mkdtempSync(join(tmpdir(), 'momo-drift-grammar-'))
-  execFileSync(process.execPath, [generator], { cwd: scratch, stdio: 'pipe' })
-
-  const fresh = readText(join(scratch, 'editor', 'vscode', 'syntaxes', 'momo.tmLanguage.json'))
+  const fresh = generatedIn('grammar', (scratch) => {
+    execFileSync(process.execPath, [generator], { cwd: scratch, stdio: 'pipe' })
+    return join(scratch, 'editor', 'vscode', 'syntaxes', 'momo.tmLanguage.json')
+  })
   if (!existsSync(editorGrammar)) {
     report(editorGrammar, 1, 'no committed grammar - run npm run grammar')
     return
@@ -340,15 +351,18 @@ const checkIndex = () => {
   const generator = join(root, 'dist', 'tools', 'index.js')
   if (!existsSync(generator)) fail(`no ${show(generator)} - run npm run compile first`)
 
-  const fresh = join(mkdtempSync(join(tmpdir(), 'momo-drift-index-')), 'INDEX.md')
-  execFileSync(process.execPath, [generator, fresh], { cwd: root, stdio: 'pipe' })
+  const fresh = generatedIn('index', (scratch) => {
+    const out = join(scratch, 'INDEX.md')
+    execFileSync(process.execPath, [generator, out], { cwd: root, stdio: 'pipe' })
+    return out
+  })
 
   if (!existsSync(indexPath)) {
     report(indexPath, 1, 'no committed index - run npm run index')
     return
   }
 
-  const a = readText(fresh).split('\n')
+  const a = fresh.split('\n')
   const b = readText(indexPath).split('\n')
   let at = 0
   while (at < a.length && at < b.length && a[at] === b[at]) at += 1
