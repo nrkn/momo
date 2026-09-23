@@ -1437,6 +1437,77 @@ because it seemed to fit rather than because it was checked.
 
 ---
 
+## 51. `addr()` in an initialiser
+
+### "The whole change" was two changes, and the second was pruning
+
+The design said that widening an array element to a number-or-label, and having
+`emitData` write the label, was the whole change. That half was exactly as small
+as promised - one type, one branch in the resolver, one in the emitter - and every
+committed `.asm` was byte-identical afterwards.
+
+What it did not mention was `prune`. It keeps the storage the retained program
+mentions, and it finds those mentions by walking every declaration's initialiser,
+live or not - which was harmless while an initialiser could only name constants,
+because a constant emits nothing. An `addr()` in a table is a label, so walked
+the same way it would have kept its target in the image whether or not anything
+read the table. A library shipping a table would have shipped everything the
+table named to every program that included it.
+
+Nothing would have failed. The image would have been larger than it needed to
+be, `npm run memory` would have reported the bytes as ordinary arrays, and the
+only sign would have been a string present in a program that never printed it.
+That is the shape `CONTRIBUTING.md` records for `momoc` reporting `ok`: the cost
+lands somewhere no tier looks.
+
+So an address in an initialiser is not a use; it joins the fixpoint that already
+kept a live view's parent. That fixpoint had been written "so that stops being
+something this has to know" about views, which collapse in one pass anyway - and
+it turned out to be needed after all, one feature later, for a table that names a
+table.
+
+### Declaration order was a question the design did not ask
+
+A probe with the table above its string failed with `"sLate" is not declared`,
+which reads as a typo rather than an ordering rule. Code can name a later global;
+an initialiser cannot - `const u8[] early = [ late ]` is refused the same way -
+because initialisers are resolved where they stand.
+
+Allowing a forward label would have been cheap for NASM and not for the resolver,
+which would need a deferred lookup that no other initialiser has. It was left
+declaration-ordered, and the refusal now says so. The design was silent on this,
+and drafting was what asked.
+
+### The PITFALLS entry was kept, against this item's own claim
+
+PLAN said §51 "deletes a `PITFALLS` entry". `PITFALLS.md` says of itself that its
+entries are historical, and that one a later version makes impossible becomes a
+note about something that used to be true. The file's rule won over the plan's
+prediction, and the entry gained a paragraph instead of losing its place.
+
+### The teeth
+
+Seven guards were neutered by line. Five are refusals, and each failed exactly
+the files written for it: the writable-table refusal both of its own - a declared
+array and a group column - and the byte table, the forward name, the arithmetic
+and the inferred `-1` one file each. Which files failed is the part worth
+reading rather than the tally.
+
+The two pruning halves are caught differently, and the difference is the
+lesson. **Walking a table as a use** changes `addrtab.asm` by exactly one line -
+`sDead: db 'dead$'` - and the golden tier reports it as a failure of that one
+project. That line is the whole cost the section above describes, and without a
+string named only by a dead table in the fixture nothing would have shown it.
+
+**Dropping a live table's targets** does not fail a test: it crashes the
+harness. The emitter's `symbolFor` finds no symbol for `sOne` and throws
+`internal: unresolved symbol`, and the golden tier does not catch per project.
+So the suite goes red, which is teeth, but it goes red by stopping rather than
+by naming `addrtab` - which is what a real regression here would look like too,
+and is worth knowing before one arrives.
+
+---
+
 ## 52. `group` data, written as rows
 
 ### The estimate held exactly, and the check for it was already written
