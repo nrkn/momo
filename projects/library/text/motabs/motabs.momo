@@ -140,3 +140,37 @@ slice( 3, 0, 40 )                         // 01......23456789abcdef..Y
 slice( 3, 5, 6 )                          // ...234
 putNumber( lineCellOf( 3, 18, viewTabStop ) ) // 24, the Y
 newline()
+
+// ---- what a document indents with ----
+//
+// §54's guess, from fixtures chosen so that each rule decides one of them. The
+// document is emptied and refilled for each, which is what an editor opening a
+// file does.
+
+const u8[] byTabs   = "a\n\tb\n\t\tc\n\td\n"
+const u8[] byTwo    = "a\n\n  b\n    c\n  d\ne\n"
+const u8[] byFour   = "/*\n * x\n */\nf {\n    a\n    if {\n        b\n    }\n}\n"
+const u8[] flat     = "a\nb\n"
+
+sub refill( a16 at, u16 n ) {
+  textClear()
+  for ( u16 i = 0; i < n; i++ ) {
+    textLoad( peek8( at + i ) )
+  }
+}
+
+sub guess( a16 at, u16 n ) {
+  refill( at, n )
+  putNumber( textIndent( 200, 4 ) )
+  newline()
+}
+
+guess( addr( byTabs ), len( byTabs ) )    // 0 - more lines start with a tab
+guess( addr( byTwo ), len( byTwo ) )      // 2 - across a blank line
+guess( addr( byFour ), len( byFour ) )    // 4 - the comment's step of one loses
+guess( addr( flat ), len( flat ) )        // 4 - nothing indented, the fallback
+
+// Only the lines it is told to read: the step in `byFour` is not until line 4.
+refill( addr( byFour ), len( byFour ) )
+putNumber( textIndent( 4, 9 ) )           // 1 - only the comment's step seen
+newline()

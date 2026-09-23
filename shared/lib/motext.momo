@@ -1143,6 +1143,75 @@ u16 lineCells( u16 ln, u16 from, u16 cells, u16 stop, a16 at ) {
   return out - at
 }
 
+// ---- what a document indents with ----
+//
+// A guess for an editor deciding what Tab should type: 0 for tabs, a width for
+// spaces, or `fallback` when nothing in the first `lines` lines is indented.
+//
+// **Tabs win when more lines start with a tab than with a space.** The width is
+// the step between neighbouring lines that occurs most often - not the smallest
+// indent, because a C comment's ` * ` is a one-space indent in a file indented by
+// four, and going a level deeper is what the file's own width actually is. Only
+// the first sixteen bytes of a line are read, which is further than any step, and
+// only the first `lines` lines, because a guess does not need the whole file and
+// an open should not pay for one.
+local const indentHeadBytes = 16
+
+local u8[indentHeadBytes] indentHead
+local u16[9] indentSteps
+
+u8 textIndent( u16 lines, u8 fallback ) {
+  u16 tabbed
+  u16 spaced
+  u16 last
+  u16 n
+  u16 s
+  u16 best
+  bool before
+
+  tabbed = 0
+  spaced = 0
+  last = 0
+  before = false
+
+  for ( u16 w = 0; w < len( indentSteps ); w++ ) {
+    indentSteps[w] = 0
+  }
+
+  for ( u16 ln = 0; ln < lines && ln < lineCount; ln++ ) {
+    n = lineSlice( ln, 0, indentHeadBytes, addr( indentHead ) )
+
+    if ( n > 0 && indentHead[0] == 9 ) {
+      tabbed++
+      before = false
+    } else {
+      s = 0
+      while ( s < n && indentHead[s] == ' ' ) s++
+
+      // A blank line, or one of nothing but spaces, says nothing about depth and
+      // must not become the neighbour the next line is measured against.
+      if ( s < n ) {
+        if ( s > 0 ) spaced++
+        if ( before && s > last && s - last < len( indentSteps ) ) indentSteps[ s - last ]++
+        last = s
+        before = true
+      }
+    }
+  }
+
+  if ( tabbed > spaced ) return 0
+
+  // Ties go to the smaller step: in a file indented by two, a jump of four is
+  // two levels at once, and nothing indented by four jumps by two.
+  best = 0
+  for ( u16 w = 1; w < len( indentSteps ); w++ ) {
+    if ( indentSteps[w] > indentSteps[best] ) best = w
+  }
+
+  if ( best == 0 ) return fallback
+  return u8( best )
+}
+
 // How many chunks a line occupies. A diagnostic rather than part of the model -
 // it is how the occupancy floor is observed, and the test project reads it.
 u16 lineChunks( u16 ln ) {

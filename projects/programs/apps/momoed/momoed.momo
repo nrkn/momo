@@ -188,6 +188,7 @@ const edMaxDocs = viewMaxDocs
 u8[edMaxDocs * nameMax] docNames
 u8[edMaxDocs] docHave
 u8[edMaxDocs] docDirty
+u8[edMaxDocs] docIndent
 u8[edMaxDocs] docOpen
 
 // The explorer rides in the cycle as one more slot past the documents, which is
@@ -314,6 +315,8 @@ const u8[] sKb       = "K$"
 const u8[] sHere     = ".$"
 const u8[] sNoSlots  = "no free tab - close one first$"
 const u8[] sOneDoc   = "this is the only file open$"
+const u8[] sIndTab   = "TAB$"
+const u8[] sIndSp    = "SP$"
 const u8[][] sButtons   = [ "Yes$", "No$", "Cancel$" ]
 const u8[] sSaveChanges = "Save changes to$"
 const u8[] sOverwrite   = "Replace the existing file$"
@@ -422,6 +425,9 @@ bool loadFile() {
   // lays out the machine for every slot, which an open of one file must not do.
   textClear()
 
+  // A file that is not there is new, and a new file indents by the default.
+  indentWidth = edIndentDefault
+
   handle = fileOpen( addr( fileName ), fileReadOnly )
   if ( fileFailed() ) return true
 
@@ -464,6 +470,11 @@ bool loadFile() {
   }
 
   fileClose( handle )
+
+  // What Tab types is the file's own convention, guessed from how it is already
+  // indented (§54), so a Makefile gets tabs and this repository's sources get
+  // two spaces without anybody choosing.
+  indentWidth = textIndent( edIndentLines, edIndentDefault )
 
   // A file too big for the buffer loads part way and stops, and every refusal
   // inside §54 leaves the buffer unchanged rather than half changed - which is
@@ -1327,13 +1338,23 @@ sub composeStatus {
   // columns**, on the grounds that there was no room - which is a refusal nobody
   // sees, and `^Q` is precisely the refusal that must not be missed.
   if ( message != 0 ) {
-    statusClip( 0, message, cols - 13 )
+    statusClip( 0, message, cols - 17 )
   } else if ( expFocus ) {
     statusPath( 0 )
   } else if ( haveName ) {
     statusName( 0 )
   } else {
     statusText( 0, addr( sNoName ) )
+  }
+
+  // What Tab will type, beside where the cursor is, because a person should know
+  // before pressing it: `TAB`, or `SP` and a width. Drawn after the name, so a
+  // name long enough to reach it is cut here rather than drawn underneath.
+  if ( indentWidth == 0 ) {
+    statusText( cols - 16, addr( sIndTab ) )
+  } else {
+    statusText( cols - 16, addr( sIndSp ) )
+    statusNumber( cols - 14, indentWidth )
   }
 
   statusNumber( cols - 12, viewLine() + 1 )
@@ -1582,15 +1603,17 @@ sub focusExplorer {
 sub docSaveHere( u16 d ) {
   memCopy( addr( docNames ) + d * nameMax, addr( fileName ), nameMax )
 
-  docHave[d]  = haveName ? 1 : 0
-  docDirty[d] = dirty ? 1 : 0
+  docHave[d]   = haveName ? 1 : 0
+  docDirty[d]  = dirty ? 1 : 0
+  docIndent[d] = indentWidth
 }
 
 sub docLoadHere( u16 d ) {
   memCopy( addr( fileName ), addr( docNames ) + d * nameMax, nameMax )
 
-  haveName = docHave[d] != 0
-  dirty    = docDirty[d] != 0
+  haveName    = docHave[d] != 0
+  dirty       = docDirty[d] != 0
+  indentWidth = docIndent[d]
 }
 
 bool slotLive( u16 s ) => s == expSlot ? expShown : docOpen[s] != 0
@@ -1681,6 +1704,7 @@ sub newDoc {
   fileName[0] = 0
   haveName = false
   dirty    = false
+  indentWidth = edIndentDefault
 
   expFocus = false
   needText = true
@@ -2235,6 +2259,9 @@ const actSaveAs = 34
 const actQuit   = 35
 const actPick   = 36
 
+// What Tab types, cycled from the View menu and bound to no key.
+const actIndentMode = 37
+
 // ---- the menus (§67) ---------------------------------------------------------
 //
 // **A row per menu** (§70): its title, its labels, its actions, how many there
@@ -2276,12 +2303,13 @@ const u8[][] mSearch = [ "Find...      ^F$",
                          "Replace...   ^R$",
                          "Go to Line   ^G$" ]
 
-const u8[][] mView   = [ "Explorer     ^B$" ]
+const u8[][] mView   = [ "Explorer     ^B$",
+                         "Indentation    $" ]
 
 const u8[] aFile   = [ actNewDoc, actOpen, actSave, actSaveAs, actShut, actQuit ]
 const u8[] aEdit   = [ actUndo, actRedo, actCut, actCopy, actPaste, actAll, actPick ]
 const u8[] aSearch = [ actFind, actAgain, actRepl, actGoto ]
-const u8[] aView   = [ actExplor ]
+const u8[] aView   = [ actExplor, actIndentMode ]
 
 // **The action list is the authority for how many items a menu has** - `count`
 // is its length. A menu's labels and its actions are still an index apart, and a
@@ -2646,21 +2674,47 @@ sub doInsert( u8 ch ) {
   dirty = true
 }
 
-// **Tab types spaces to the next stop**, measured on the screen, so a line that
-// already holds a tab indents to where it looks as if it should. A file with
-// tabs shows them at §56's stop of eight; the key types spaces rather than a tab
-// because what an editor writes into a file is its own decision, and every
-// source file in this repository is indented with spaces.
+// **What Tab types is the document's**: a tab, or spaces to the next multiple of
+// a width. `indentWidth` is 0 for tabs and the width otherwise, guessed from the
+// file when it is opened (§54's `textIndent`), saved and restored with the rest of
+// a document on a switch, and cycled from the View menu by a person who disagrees.
 //
-// Two, because that is what those files are indented by. One constant, and not
-// §56's: how far the key indents and how wide a tab is are separate questions.
-const edTabWidth = 2
+// Four when there is nothing to go on - a new file, or one with no indentation.
+// It is the common width, where eight is a lot of screen and two is this
+// repository's preference rather than anybody else's. How far the key indents
+// and how wide a tab *looks* are separate questions, and the second is §56's
+// stop of eight whichever this is.
+const edIndentDefault = 4
 
-sub doIndent {
+// Enough lines for a guess, and few enough that opening a large file does not
+// pay for one: a sixteen-byte read of each.
+const edIndentLines = 200
+
+u8 indentWidth = edIndentDefault
+
+// One indent at the cursor: a tab byte, after which §56 puts the cursor on the
+// next stop, or spaces to the next multiple of the width, measured on the screen
+// so a line already holding a tab indents to where it looks as if it should.
+//
+// **Measured here, at the cursor it lands on**, which is not always the cursor
+// the key was pressed at: a selection is removed first and the cursor moves to
+// where it began. The width used to be worked out before that, from the far end.
+sub typeIndent {
   u16 n
 
-  n = edTabWidth - viewCell() % edTabWidth
+  if ( indentWidth == 0 ) {
+    insertOne( 9 )
+    return
+  }
 
+  n = indentWidth - viewCell() % indentWidth
+
+  for ( u16 i = 0; i < n; i++ ) {
+    insertOne( ' ' )
+  }
+}
+
+sub doIndent {
   // A selection goes first, exactly as it does for a typed character. Indenting
   // the selected *block* is what a larger editor does here and is a different
   // command wearing the same key; this one is consistent with the rest of the
@@ -2668,20 +2722,28 @@ sub doIndent {
   if ( viewSelected() ) {
     undoStep {
       killSelection()
-
-      for ( u16 i = 0; i < n; i++ ) {
-        insertOne( ' ' )
-      }
+      typeIndent()
     }
   } else {
     // No group, for `doInsert`'s reason: opening one breaks the run of typing
     // before it, and a Tab in the middle of typing is not a new action.
-    for ( u16 i = 0; i < n; i++ ) {
-      insertOne( ' ' )
-    }
+    typeIndent()
   }
 
   dirty = true
+}
+
+// The View menu's way to disagree with the guess: tabs, then two, four and eight
+// spaces, then tabs again. One item rather than a dialogue, because the status
+// line says where the cycle is and there are only four places it can be.
+sub cycleIndent {
+  if ( indentWidth == 0 ) {
+    indentWidth = 2
+  } else if ( indentWidth < 8 ) {
+    indentWidth = indentWidth * 2
+  } else {
+    indentWidth = 0
+  }
 }
 
 sub splitOne {
@@ -3306,6 +3368,8 @@ sub apply( u8 a, u16 k ) {
     cycleDoc( !selecting )
   } else if ( a == actIndent ) {
     doIndent()
+  } else if ( a == actIndentMode ) {
+    cycleIndent()
   } else if ( a == actNewDoc ) {
     newDoc()
   } else if ( a == actShut ) {
