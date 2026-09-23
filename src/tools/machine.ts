@@ -113,10 +113,15 @@ export const parseAssembly = (text: string): Program => {
   let address = dataBase
   let scope = ''
 
-  const emitData = (directive: string): boolean => {
+  const emitData = (directive: string, line: number): boolean => {
     const match = directive.match(/^(times\s+(\S+)\s+)?(dw|db)\s+(.*)$/)
     if (!match) return false
     const count = match[2] ? Number(match[2]) : 1
+    // A count this cannot read would lay out nothing and move every later
+    // address, so it stops here rather than being read as zero.
+    if (!Number.isInteger(count) || count < 0) {
+      throw new Error(`line ${line}: times count "${match[2]}" is not a number this can read`)
+    }
     const size = match[3] === 'dw' ? 2 : 1
     for (let k = 0; k < count; k++) {
       for (const item of splitOperands(match[4])) {
@@ -161,15 +166,24 @@ export const parseAssembly = (text: string): Program => {
     const rest = line.slice(op.length).trim()
     if (op === 'cpu' || op === 'org' || op === 'bits') continue
     if (op === 'align') {
-      while (address % Number(rest) !== 0) address++
+      const boundary = Number(rest)
+      if (!Number.isInteger(boundary) || boundary < 1) {
+        throw new Error(`line ${index + 1}: align "${rest}" is not a number this can read`)
+      }
+      while (address % boundary !== 0) address++
       continue
     }
-    if (emitData(line)) continue
+    if (emitData(line, index + 1)) continue
 
     // A jump's target is scoped where the jump is written.
     const args = splitOperands(rest).map((arg) =>
       /^j|^call$/.test(op) && arg.startsWith('.') ? qualify(arg, scope) : arg,
     )
+    // The 8086 shifts by 1 or by CL. NASM refuses anything else under `cpu 8086`,
+    // so this does too - tier 1 must not run what tier 2 cannot assemble.
+    if ((op === 'shl' || op === 'shr' || op === 'sar') && !(args.length === 2 && (args[1] === '1' || args[1] === 'cl'))) {
+      throw new Error(`line ${index + 1}: ${op} ${args.join(', ')} - the 8086 shifts by 1 or by CL`)
+    }
     code.push({ op, args, line: index + 1 })
     owner.push(scope)
   }
@@ -188,9 +202,12 @@ export type Flags = { z: boolean; s: boolean; c: boolean; o: boolean }
 export type Counts = { instructions: number; cycles: number }
 
 export type Hooks = {
-  // What an `in` reads, and what an `out` does. Absent ports read 0.
-  portIn?: (port: number, size: 1 | 2) => number
-  portOut?: (port: number, value: number, size: 1 | 2) => void
+  // What an `in` reads, and what an `out` does. A port nobody modelled - the
+  // hook answers undefined or false, or there is no hook - stops the run with
+  // the port in the message, as an interrupt does: a read of 0 is a plausible
+  // answer, and a plausible answer is how a wrong one passes (§72).
+  portIn?: (port: number, size: 1 | 2) => number | undefined
+  portOut?: (port: number, value: number, size: 1 | 2) => boolean
   // An `int`. Returns false for a service nobody modelled, which stops the run
   // with the number in the message rather than pretending it happened.
   interrupt?: (vector: number, machine: Machine) => boolean
@@ -259,7 +276,8 @@ export const makeMachine = (program: Program, hooks: Hooks = {}): Machine => {
   R[registerIndex.cs] = dsValue
   R[registerIndex.ss] = dsValue
   // DS and SS never move - nothing Momo emits loads either - so their memory is
-  // fixed here; only ES is looked up, and only when it changes.
+  // fixed here, and a write to either stops the run; only ES is looked up, and
+  // only when it changes.
   const dsMemory = segment(dsValue)
   let esValue = -1
   let esMemory = dsMemory
@@ -281,9 +299,12 @@ export const makeMachine = (program: Program, hooks: Hooks = {}): Machine => {
   // and read better as `r.ax` than as an index.
   const regs = {} as Registers
   for (const [name, index] of Object.entries(registerIndex)) {
+    const fixed = name === 'ds' || name === 'ss' || name === 'cs'
     Object.defineProperty(regs, name, {
       get: () => R[index],
       set: (value: number) => {
+        // The same rule as an instruction's write, below.
+        if (fixed) throw new Error(`a write to ${name} is not modelled - only ES is`)
         R[index] = value & 0xffff
       },
       enumerable: true,
@@ -455,6 +476,11 @@ export const makeMachine = (program: Program, hooks: Hooks = {}): Machine => {
   }
 
   const setter = (operand: Operand, size: 1 | 2, line: number): Setter => {
+    // DS, SS and CS are bound to fixed memory above, so a write to one would
+    // change the number and nothing it addresses. Nothing Momo emits loads one.
+    if (operand.kind === 'sreg' && operand.name !== 'es') {
+      throw new Error(`line ${line}: a write to ${operand.name} is not modelled - only ES is`)
+    }
     if (operand.kind === 'reg' || operand.kind === 'sreg') {
       const i = registerIndex[operand.name]
       return (value) => {
@@ -695,13 +721,18 @@ export const makeMachine = (program: Program, hooks: Hooks = {}): Machine => {
       case 'shl': case 'shr': case 'sar': {
         const get = getter(a, size)
         const set = setter(a, size, line)
-        const count: Getter = b.kind === 'reg8' ? () => R[cx] & 0x1f : getter(b, 1)
+        // All of CL. Masking it to five bits is the 186's; the 8086 shifts as many
+        // times as it says, so 16 or more empties a word and SAR fills it with
+        // the sign - and the charge below is for the same count.
+        const count: Getter = b.kind === 'reg8' ? () => R[cx] & 0xff : getter(b, 1)
         const sign = size === 1 ? 0x80 : 0x8000
         const mask = size === 1 ? 0xff : 0xffff
         const byCl = b.kind === 'reg8'
         exec = () => {
           const n = count()
-          if (byCl) charge(4 * (R[cx] & 0xff))
+          if (byCl) charge(4 * n)
+          // A count of zero shifts nothing and leaves every flag as it was.
+          if (n === 0) return next
           let x = get()
           let carry = cf
           for (let k = 0; k < n; k++) {
@@ -720,19 +751,17 @@ export const makeMachine = (program: Program, hooks: Hooks = {}): Machine => {
         break
       }
       case 'mul': {
-        const get = getter(a, size)
-        exec = size === 1
-          ? () => {
-              R[ax] = (R[ax] & 0xff) * get()
-              return next
-            }
-          : () => {
-              const product = R[ax] * get()
-              R[ax] = product
-              R[dx] = Math.floor(product / 65536)
-              cf = of = R[dx] !== 0
-              return next
-            }
+        // Refused rather than half-modelled: its CF and OF are AH's, and a `jc`
+        // after one would read the flags of whatever came before.
+        if (size !== 2) throw new Error(`line ${line}: byte mul is not modelled`)
+        const get = getter(a, 2)
+        exec = () => {
+          const product = R[ax] * get()
+          R[ax] = product
+          R[dx] = Math.floor(product / 65536)
+          cf = of = R[dx] !== 0
+          return next
+        }
         break
       }
       case 'div': case 'idiv': {
@@ -750,7 +779,12 @@ export const makeMachine = (program: Program, hooks: Hooks = {}): Machine => {
           } else {
             const n = ((R[dx] << 16) | R[ax]) >> 0
             const d = (divisor << 16) >> 16
-            R[ax] = Math.trunc(n / d)
+            const q = Math.trunc(n / d)
+            // The machine raises INT 0 here; a quotient kept to 16 bits would be
+            // a wrong answer. -32768 is allowed, as DOSBox and every CPU after
+            // the 8086 allow it - the 8086 itself traps it too.
+            if (q < -32768 || q > 32767) throw new Error(`line ${line}: divide overflow`)
+            R[ax] = q
             R[dx] = n % d
           }
           return next
@@ -813,7 +847,11 @@ export const makeMachine = (program: Program, hooks: Hooks = {}): Machine => {
       case 'in': {
         const set = setter(a, size, line)
         exec = () => {
-          set(hooks.portIn?.(R[dx], size) ?? 0)
+          const value = hooks.portIn?.(R[dx], size)
+          if (value === undefined) {
+            throw new Error(`line ${line}: in from port 0x${R[dx].toString(16)} is not modelled`)
+          }
+          set(value)
           return next
         }
         break
@@ -822,7 +860,9 @@ export const makeMachine = (program: Program, hooks: Hooks = {}): Machine => {
         const width = b.size ?? 1
         const get = getter(b, width)
         exec = () => {
-          hooks.portOut?.(R[dx], get(), width)
+          if (!hooks.portOut?.(R[dx], get(), width)) {
+            throw new Error(`line ${line}: out to port 0x${R[dx].toString(16)} is not modelled`)
+          }
           return next
         }
         break
@@ -907,7 +947,13 @@ export const makeMachine = (program: Program, hooks: Hooks = {}): Machine => {
       execute(start, limit)
     },
     run: (limit = 500_000_000) => {
+      // Something to return to, so a `ret` from the entry ends here with a name
+      // rather than popping whatever the stack held and starting again at 0. It
+      // goes where DOS puts its own return word, at SP, which stays at 0xFFFE.
+      dsMemory[R[sp]] = sentinel & 0xff
+      dsMemory[(R[sp] + 1) & 0xffff] = sentinel >> 8
       execute(0, limit)
+      if (!stopped) throw new Error('a ret at the top level - the program returned from its entry rather than exiting through DOS, which is not modelled')
     },
   }
 

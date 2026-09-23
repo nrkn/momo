@@ -90,7 +90,9 @@ export const runDos = (assembly: string, options: DosOptions = {}): DosRun => {
   let videoMode = 3
 
   // The VGA's index/data pairs - sequencer, graphics controller, CRTC - read back
-  // what was written, which is what `porttest` holds DOSBox to.
+  // what was written, which is what `porttest` holds DOSBox to. Those and the
+  // status register are every port a tier 2 program reaches, a byte at a time
+  // except for the word `out` below; any other port, or width, stops the run.
   const indexPorts: Record<number, number> = { 0x3c4: 0, 0x3ce: 0, 0x3d4: 0 }
   const registers: Record<number, Uint8Array> = {
     0x3c4: new Uint8Array(256), 0x3ce: new Uint8Array(256), 0x3d4: new Uint8Array(256),
@@ -98,7 +100,8 @@ export const runDos = (assembly: string, options: DosOptions = {}): DosRun => {
   registers[0x3c4][2] = 0x0f
 
   const machine = makeMachine(program, {
-    portIn: (port) => {
+    portIn: (port, size) => {
+      if (size !== 1) return undefined
       // The VGA status register's retrace bit, on the same clock as the ticks:
       // 70 frames a second against 18.2 ticks, the blank about a tenth of each.
       if (port === 0x3da) {
@@ -107,16 +110,20 @@ export const runDos = (assembly: string, options: DosOptions = {}): DosRun => {
       }
       if (port in indexPorts) return indexPorts[port]
       if (port - 1 in indexPorts) return registers[port - 1][indexPorts[port - 1]]
-      return 0
+      return undefined
     },
     portOut: (port, value, size) => {
       if (port in indexPorts) {
         indexPorts[port] = value & 0xff
         // A word out writes the index and then the data port beside it.
         if (size === 2) registers[port][value & 0xff] = value >> 8
-        return
+        return true
       }
-      if (port - 1 in indexPorts) registers[port - 1][indexPorts[port - 1]] = value & 0xff
+      if (port - 1 in indexPorts && size === 1) {
+        registers[port - 1][indexPorts[port - 1]] = value & 0xff
+        return true
+      }
+      return false
     },
     every: instructionsPerTick,
     tick: (m) => {
@@ -165,9 +172,17 @@ export const runDos = (assembly: string, options: DosOptions = {}): DosRun => {
   }
   setTextMode(3, 25)
 
+  // A string with no terminator anywhere in the segment is the program's bug,
+  // and it stops the run rather than going round the segment for ever.
   const stringAt = (address: number, end: number): string => {
     let text = ''
-    for (let a = address; memory[a] !== end; a = (a + 1) & 0xffff) text += String.fromCharCode(memory[a])
+    let a = address
+    for (let k = 0; memory[a] !== end; k++, a = (a + 1) & 0xffff) {
+      if (k === 65536) {
+        throw new Error(`unterminated ${end === 0x24 ? '$' : 'NUL'} string at 0x${address.toString(16)}`)
+      }
+      text += String.fromCharCode(memory[a])
+    }
     return text
   }
 
@@ -198,16 +213,21 @@ export const runDos = (assembly: string, options: DosOptions = {}): DosRun => {
     const bytes = files.get(name)
     const size = bytes ? bytes.length : 0
     const leaf = name.includes('\\') ? name.slice(name.lastIndexOf('\\') + 1) : name
-    memory[dta + 0x15] = isDirectory ? 0x10 : 0x20
-    memory[dta + 0x16] = 0
-    memory[dta + 0x17] = 0
-    memory[dta + 0x18] = 0x21
-    memory[dta + 0x19] = 0
-    memory[dta + 0x1a] = size & 0xff
-    memory[dta + 0x1b] = (size >> 8) & 0xff
-    memory[dta + 0x1c] = (size >> 16) & 0xff
-    memory[dta + 0x1d] = (size >> 24) & 0xff
-    for (let i = 0; i < 13; i++) memory[dta + 0x1e + i] = i < leaf.length ? leaf.charCodeAt(i) : 0
+    // Wrapped to the segment, as every other access here is: past the end of the
+    // window a typed array drops the write without a word.
+    const put = (offset: number, value: number) => {
+      memory[(dta + offset) & 0xffff] = value
+    }
+    put(0x15, isDirectory ? 0x10 : 0x20)
+    put(0x16, 0)
+    put(0x17, 0)
+    put(0x18, 0x21)
+    put(0x19, 0)
+    put(0x1a, size & 0xff)
+    put(0x1b, (size >> 8) & 0xff)
+    put(0x1c, (size >> 16) & 0xff)
+    put(0x1d, (size >> 24) & 0xff)
+    for (let i = 0; i < 13; i++) put(0x1e + i, i < leaf.length ? leaf.charCodeAt(i) : 0)
   }
 
   const findNext = (m: Machine): boolean => {
@@ -324,7 +344,10 @@ export const runDos = (assembly: string, options: DosOptions = {}): DosRun => {
         const size = (files.get(handle.name) ?? new Uint8Array(0)).length
         const offset = ((r.cx << 16) | r.dx) >> 0
         const base = al === 0 ? 0 : al === 1 ? handle.position : size
-        handle.position = Math.max(0, base + offset)
+        // Before the start of the file is not clamped to it: what DOS answers
+        // there is not something a tier 2 program has shown, so it stops.
+        if (base + offset < 0) throw new Error(`int 0x21 AH=0x42: a seek to ${base + offset}, before the start of the file, is not modelled`)
+        handle.position = base + offset
         r.ax = handle.position & 0xffff
         r.dx = (handle.position >>> 16) & 0xffff
         return ok(m)
