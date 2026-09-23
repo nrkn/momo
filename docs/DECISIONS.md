@@ -4244,3 +4244,34 @@ cost nothing to have at once.
 `int 16h`, so a program that opens its menu bar on a bare `Alt` is watching the
 shift flags in the BIOS data area rather than reading the keyboard. `F10` is the
 route that needs none of that, which is why every DOS editor has it.
+
+## 4. Type rules
+
+### The folder disagreed with the machine, and the fit check could not see it
+
+Found in a 2026-09-24 review of the resolver, then confirmed with a probe before
+anything was changed. §32's analysis of folding width said "nothing disagrees",
+on the argument that a literal is checked when it is read and a result is checked
+where it lands. The gap is that **a folded comparison never lands anywhere**: no
+assignment, no argument, no fit check. With `const u16 k = 65535`, `k + 1` folded
+to 65536 on the host's numbers, and `k + 1 == 0` folded false - emitted as an
+unconditional jump to the else branch - where the `inc` it stands in for wraps to
+0 and the machine says true. The same expression over a `u16` variable compiled
+to the add and took the true branch. One expression, two meanings, decided by
+whether an operand happened to be a typed const.
+
+The unary folds already truncated - `-` through `truncate(..., 'i16')`, `~` to
+the promoted type - so the binary and shift folds were the exception rather than
+the rule. The fix is one clamp at each of those two annotate sites: when the
+operands combine to a concrete type, the folded value truncates to it, every
+step. Untyped folds are deliberately left exact, because the fit check *does* see
+those - every untyped value eventually lands - and exactness is what makes
+`u16 x = 40000 + 40000` an overflow report rather than a silent 14464.
+
+**Measured: zero emitted instructions changed across the corpus.** Every
+committed golden `.asm` came out byte-identical, so no program had ever leaned on
+the wide fold - the divergence was lying in wait rather than adopted. `foldwrap`
+now pins the agreement: eleven values computed once through typed consts and once
+through variables, and the fixture's claim is that the pairs of output lines are
+identical. Teeth checked by neutering the clamp with a condition tsc cannot fold
+and reading which tier failed.

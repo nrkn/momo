@@ -1370,13 +1370,25 @@ export const resolve = (program: Program): ResolveResult => {
     const left = resolveExpression(node.left)
     const right = resolveExpression(node.right)
 
+    // A fold over typed operands truncates to the operand type at every step,
+    // because the machine will: `k + 1` with k a const u16 65535 is 0 at runtime,
+    // and a fold that says 65536 disagrees with the add it stands in for - which
+    // a comparison then folds the wrong way. Untyped constants stay exact,
+    // deliberately: that is what lets `u16 x = 40000 + 40000` report the overflow
+    // instead of wrapping it away. The unary folds above already truncate; these
+    // two were the exception.
+    const foldTo = (raw: number | null, type: ValueType): number | null =>
+      raw === null || type === 'untyped' ? raw : truncate(raw, type)
+
     if (shiftOps.includes(node.operator)) {
       // The count's type is irrelevant - the result takes the left operand's.
       const tentative = left.type === 'untyped' ? 'untyped' : promote(left.type)
-      const value =
+      const value = foldTo(
         left.value === null || right.value === null
           ? null
-          : foldBinary(node.operator, left.value, right.value, node)
+          : foldBinary(node.operator, left.value, right.value, node),
+        tentative,
+      )
 
       // A shift count is a count. Shifting BY a scaled value is meaningless, and
       // shifting a scaled value is not - `x >> 1` halves it and the radix point
@@ -1419,10 +1431,15 @@ export const resolve = (program: Program): ResolveResult => {
     if (node.operator === '*' && left.frac !== 0 && left.frac === right.frac) {
       return lowerFixedMultiply(node, left)
     }
-    const value =
+    // A comparison's own fold is 0 or 1 and truncation is the identity on it;
+    // what matters is that its OPERANDS arrived already truncated, which the
+    // recursion above guarantees.
+    const value = foldTo(
       left.value === null || right.value === null
         ? null
-        : foldBinary(node.operator, left.value, right.value, node)
+        : foldBinary(node.operator, left.value, right.value, node),
+      operandType,
+    )
 
     if (comparisonOps.includes(node.operator)) {
       // Keep what the operands combined to - it decides jb vs jl.

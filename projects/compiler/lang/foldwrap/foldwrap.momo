@@ -1,0 +1,84 @@
+// foldwrap.momo - constant folding agrees with the machine.
+//
+// Every value here is computed twice: once through typed consts, so the
+// resolver folds the whole expression, and once through variables, so the
+// emitted instructions compute it. The pairs of lines must be identical -
+// that is the claim, and it is the fixture that pins it. A fold over typed
+// operands truncates to the operand type at every step, because the add it
+// stands in for will: before that rule, `k + 1 == 0` with k a const u16
+// 65535 folded to false while the machine says true.
+//
+// Untyped constants are deliberately not in this file: they stay exact so
+// that `u16 x = 40000 + 40000` reports the overflow instead of wrapping it
+// away, and a fixture holding both behaviours would blur which one it pins.
+
+include "lib/std/io.momo"
+
+const u16 k = 65535
+const u16 z = 0
+const u16 m = 300
+const i16 p = 32767
+const u16 b = 5
+const u16 d = 1005
+const i16 n = -7
+
+u16 vk = 65535
+u16 vz = 0
+u16 vm = 300
+i16 vp = 32767
+u16 vb = 5
+u16 vd = 1005
+i16 vn = -7
+
+// ---- wrapping arithmetic: +, -, *, << ----
+putNumber( k + 1 )            // 65536 wraps to 0
+space()
+putNumber( z - 1 )            // -1 wraps to 65535
+space()
+putNumber( m * 300 )          // 90000 wraps to 24464
+space()
+putNumber( u16( p + 1 ) )     // 32768 wraps to -32768, same bits
+space()
+putNumber( b << 14 )          // 0x14000 keeps its low word: 16384
+newline()
+
+putNumber( vk + 1 )
+space()
+putNumber( vz - 1 )
+space()
+putNumber( vm * 300 )
+space()
+putNumber( u16( vp + 1 ) )
+space()
+putNumber( vb << 14 )
+newline()
+
+// ---- comparisons over wrapped values: the case that found the bug ----
+putNumber( k + 1 == 0 ? 1 : 0 )       // wraps to 0, so true
+space()
+putNumber( m * 300 < 1000 ? 1 : 0 )   // wraps to 24464, so false
+space()
+putNumber( p + 1 < 0 ? 1 : 0 )        // wraps negative, so true
+newline()
+
+putNumber( vk + 1 == 0 ? 1 : 0 )
+space()
+putNumber( vm * 300 < 1000 ? 1 : 0 )
+space()
+putNumber( vp + 1 < 0 ? 1 : 0 )
+newline()
+
+// ---- division rounds toward zero, folded and emitted alike ----
+putNumber( d / 8 )            // 125
+space()
+putNumber( d % 8 )            // 5
+space()
+putNumber( u16( n / 2 ) )     // -3, and NOT -4: trunc, not floor
+newline()
+
+putNumber( vd / 8 )
+space()
+putNumber( vd % 8 )
+space()
+putNumber( u16( vn / 2 ) )
+newline()

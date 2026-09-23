@@ -223,8 +223,17 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
   // Always emitted per access in v1. §16's hoisting is a later refinement, and
   // it must key on the segment SOURCE rather than on "ES has been loaded" -
   // `textCells[i] = pixels[j]` names two segments and must reload between them.
+  // The kind guards in this file THROW rather than return. Every one of these
+  // states is unreachable while the resolver is right, which is exactly why a
+  // silent return is the wrong shape: a resolver bug would emit missing code
+  // and NASM would assemble what remained. Failing loudly is the same rule
+  // `symbolFor` already follows, applied to the rest of the file.
+  const internal = (what: string): never => {
+    throw new Error(`internal: ${what}`)
+  }
+
   const loadSegment = (symbol: MomoSymbol) => {
-    if (symbol.kind !== 'far') return
+    if (symbol.kind !== 'far') return internal('loadSegment on a near symbol')
     touchedEs = true
 
     if (symbol.segment.from === 'const') {
@@ -244,13 +253,15 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
   // and offset bake into the instruction - so a constant index folds all the way
   // into a displacement and needs no register at all.
   const farOperand = (symbol: MomoSymbol, fixedByteOffset: number | null): string => {
-    if (symbol.kind !== 'far') return ''
+    if (symbol.kind !== 'far') return internal('farOperand on a near symbol')
     if (fixedByteOffset !== null) return `es:${symbol.offset + fixedByteOffset}`
     return symbol.offset === 0 ? 'es:bx' : `es:bx + ${symbol.offset}`
   }
 
   const loadVariable = (symbol: MomoSymbol, widening = true) => {
-    if (symbol.kind !== 'var' && symbol.kind !== 'const') return
+    if (symbol.kind !== 'var' && symbol.kind !== 'const') {
+      return internal(`loadVariable on a ${symbol.kind}`)
+    }
     if (symbol.kind === 'const') {
       ins('mov', `ax, ${symbol.value}`)
       return
@@ -274,7 +285,7 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
   // else in the expression can be live in BX at this point: the accumulator model
   // (§9) keeps values in AX and treats BX as the index scratch.
   const emitPeek = (node: Expression, widening = true) => {
-    if (node.type !== 'PeekExpression') return
+    if (node.type !== 'PeekExpression') return internal('emitPeek on a non-peek')
     emitExpression(node.address)
     ins('mov', 'bx, ax')
     if (node.width === 2) {
@@ -289,7 +300,7 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
   // in - the imm8 form reaches ports 0-255 only, and §22 skips it because every
   // port a Momo program has wanted so far is above 0xFF.
   const emitIn = (node: Expression, widening = true) => {
-    if (node.type !== 'InExpression') return
+    if (node.type !== 'InExpression') return internal('emitIn on a non-in')
 
     const fixed = constOf(node.port)
     if (fixed !== null) ins('mov', `dx, ${fixed}`)
@@ -385,7 +396,7 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
       return
     }
 
-    if (symbol.kind !== 'array') return
+    if (symbol.kind !== 'array') return internal(`indexing a ${symbol.kind}`)
 
     const width = widthOf(symbol.elementType)
     const fixed = constOf(node.index)
@@ -535,7 +546,7 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     }
 
     const symbol = symbolFor((node as { label?: string }).label)
-    if (symbol.kind !== 'var') return
+    if (symbol.kind !== 'var') return internal(`loadIntoBx on a ${symbol.kind}`)
 
     // A segment register has no storage, so there is no label to read - the same
     // case `loadVariable` handles one register along. Missing it here emitted
@@ -730,7 +741,7 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
   }
 
   const emitShift = (node: Expression, reason = '') => {
-    if (node.type !== 'BinaryExpression') return
+    if (node.type !== 'BinaryExpression') return internal('emitShift on a non-binary')
 
     const signed = isSigned(typeOf(node))
     const mnemonic = node.operator === '<<' ? 'shl' : signed ? 'sar' : 'shr'
@@ -812,7 +823,7 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
   })
 
   const emitDivide = (node: Expression) => {
-    if (node.type !== 'BinaryExpression') return
+    if (node.type !== 'BinaryExpression') return internal('emitDivide on a non-binary')
 
     const signed = isSigned(typeOf(node))
     emitOperands(node.left, node.right, true)
@@ -980,7 +991,7 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
       return
     }
 
-    if (node.type !== 'BinaryExpression') return
+    if (node.type !== 'BinaryExpression') return internal(`no emitter for ${node.type}`)
 
     if (node.operator === '<<' || node.operator === '>>') return emitShift(node)
 
@@ -1188,7 +1199,7 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
   const storeTo = (target: LValue, byteNote?: string) => {
     if (target.type === 'Identifier') {
       const symbol = symbolFor(target.label)
-      if (symbol.kind !== 'var') return
+      if (symbol.kind !== 'var') return internal(`storing to a ${symbol.kind}`)
       if (widthOf(symbol.type) === 2) ins('mov', `[${symbol.label}], ax`)
       else ins('mov', `[${symbol.label}], al`, byteNote ?? `narrowed to ${symbol.type}`)
       return
@@ -1228,7 +1239,7 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
       return
     }
 
-    if (symbol.kind !== 'array') return
+    if (symbol.kind !== 'array') return internal(`storing to an element of a ${symbol.kind}`)
 
     const width = widthOf(symbol.elementType)
     const fixed = constOf(target.index)
@@ -1306,7 +1317,7 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
   }
 
   const emitAssignment = (node: Statement) => {
-    if (node.type !== 'AssignmentStatement') return
+    if (node.type !== 'AssignmentStatement') return internal('emitAssignment on a non-assignment')
 
     if (node.operator === '=') {
       if (storeConstant(node.target, constOf(node.value))) return
@@ -1354,13 +1365,13 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
   }
 
   const emitUpdate = (node: Statement) => {
-    if (node.type !== 'UpdateStatement') return
+    if (node.type !== 'UpdateStatement') return internal('emitUpdate on a non-update')
 
     const mnemonic = node.operator === '++' ? 'inc' : 'dec'
 
     if (node.target.type === 'Identifier') {
       const symbol = symbolFor(node.target.label)
-      if (symbol.kind !== 'var') return
+      if (symbol.kind !== 'var') return internal(`update of a ${symbol.kind}`)
       ins(mnemonic, `${widthOf(symbol.type) === 2 ? 'word' : 'byte'} [${symbol.label}]`)
       return
     }
@@ -1386,7 +1397,7 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
       return
     }
 
-    if (symbol.kind !== 'array') return
+    if (symbol.kind !== 'array') return internal(`update of an element of a ${symbol.kind}`)
 
     const width = widthOf(symbol.elementType)
     const size = width === 2 ? 'word' : 'byte'

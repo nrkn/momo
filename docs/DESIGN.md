@@ -340,6 +340,18 @@ Both settle to a concrete type built from the constituent values rather than
 staying untyped. Before this was handled, the first leaked
 `internal: untyped value without a constant` to the user.
 
+### A fold over typed operands is the machine's arithmetic
+
+Constant folding truncates to the operand type at every step whenever the
+operands combine to a concrete type, because the instructions the fold stands in
+for will: with `const u16 k = 65535`, `k + 1` is 0, and `k + 1 == 0` folds the
+way the machine branches. Untyped constants keep folding exactly, at host
+precision, with the fit check where the value lands - that is what makes
+`u16 x = 40000 + 40000` report the overflow instead of wrapping it away, and
+§32's open width question is about that untyped half only. `foldwrap` holds the
+two paths against each other, every value computed once through typed consts and
+once through variables.
+
 ### Literals and consts are untyped
 
 Integer literals adopt the type of whatever they are used with, falling back to
@@ -6804,13 +6816,17 @@ questions.
 
 - **`asm { }` passthrough** for hand-written NASM. Probably not needed for a long time.
 
-- **What precision does constant folding happen at?** - **open; the analysis is
-  in §32.** The folder runs on the host's numbers, so `30000 * 30000 / 30000`
-  folds exactly and lands in a `u16`, at a precision the language itself cannot
-  express. That is defensible, but it is an accident of the host rather than a
-  decision, and it is listed here because it is a *language* question that
-  happens to have been noticed while thinking about self-hosting. Three ways out
-  are set out there; none is chosen.
+- **What precision does constant folding happen at?** - **half settled; the
+  open half's analysis is in §32.** The typed half is settled and in §4's rules:
+  a fold over typed operands truncates to the operand type at every step,
+  because §32's "nothing disagrees" turned out to be false there - a comparison
+  over a wrapped typed const folded the opposite way from the add it stood in
+  for (DECISIONS §4). The untyped half still folds on the host's numbers, so
+  `30000 * 30000 / 30000` folds exactly and lands in a `u16`, at a precision the
+  language itself cannot express - defensible, but an accident of the host
+  rather than a decision, and a *language* question because a self-hosted
+  compiler could not reproduce it. §32's three ways out remain unchosen for that
+  half.
 
 ---
 

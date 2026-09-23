@@ -1535,8 +1535,15 @@ Only two things are checked. **Literals** must fit in 16 bits - the resolver
 rejects `1193182` outright, which is why the PIT's input frequency cannot be
 written down and a note table has to be generated elsewhere. And **results** must
 fit wherever they land. Between those two points the folder is effectively
-unbounded, and integer division folds the way runtime `/` does, so nothing
-disagrees.
+unbounded, and integer division folds the way runtime `/` does.
+
+**"So nothing disagrees" stood here until 2026-09-24, and was false for typed
+operands.** A folded comparison never lands anywhere, so the fit check never runs
+on it: with `const u16 k = 65535`, `k + 1` folded to 65536 and `k + 1 == 0`
+folded false where the machine's add wraps and says true. Typed folds now
+truncate to the operand type at every step (DESIGN §4, held by `foldwrap`), so
+this section's question is about the **untyped** half only - which is exactly
+the half the examples above use, and they fold today as they always did.
 
 That is defensible and probably right: fold exactly, reject what does not fit.
 But it is an accident of the host rather than a decision, and **a Momo compiler

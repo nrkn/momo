@@ -1,0 +1,65 @@
+// brktest.momo - §48 brackets: the open, the body, the close, in that order.
+//
+// The identity tier already holds that a bracket emits exactly what writing the
+// three calls by hand emits. What had no fixture in this directory was the
+// positive path itself: a §48 emission bug failed first in the layout port,
+// which points a red suite at the wrong half of the repo. This is the fixture
+// whose failure says "the compiler is wrong".
+//
+// The markers are chosen so order is the output: a close emitted before the
+// body, or not at all, is a different string rather than a plausible one.
+
+include "lib/std/io.momo"
+
+sub openPlain {
+  putChar( '<' )
+}
+
+sub closePlain {
+  putChar( '>' )
+}
+
+bracket plain = openPlain / closePlain
+
+sub openN( u8 n ) {
+  putChar( '(' )
+  putNumber( n )
+}
+
+sub closeN {
+  putChar( ')' )
+}
+
+bracket num = openN / closeN
+
+// The bare form, the argument form, and one nested in the other.
+plain {
+  putChar( '.' )
+}
+
+num( 7 ) {
+  plain {
+    putChar( 'x' )
+  }
+}
+
+// A bracket as an if's single-statement body: the lowering makes three
+// statements where the slot holds one, so it gets a grouping block.
+for ( u8 i = 0; i < 2; i++ ) {
+  if ( i == 1 ) plain {
+    putChar( '!' )
+  }
+}
+
+// A loop written inside the body owns its own break - it never crosses the
+// close, which is why it is legal where a bare break is refused.
+num( 2 ) {
+  for ( u8 j = 0; j < 9; j++ ) {
+    if ( j == 3 ) {
+      break
+    }
+    putChar( '-' )
+  }
+}
+
+newline()

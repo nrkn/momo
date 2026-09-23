@@ -431,12 +431,18 @@ const printBranch = (node: Statement, depth: number): string =>
     : printBlock([node], depth)
 
 export const printProgram = (program: Program): string => {
-  privateLabels.clear()
   for (const statement of program.body) {
     if ('local' in statement && statement.local && 'label' in statement && statement.label) {
       privateLabels.add(statement.label)
     }
   }
 
-  return program.body.map((statement) => printStatement(statement, 0)).join('\n') + '\n'
+  const text = program.body.map((statement) => printStatement(statement, 0)).join('\n') + '\n'
+
+  // Cleared on the way out, not the way in: the set used to persist after this
+  // returned, so a standalone printStatement called afterwards lowered names
+  // against the PREVIOUS program's privates rather than saying the honest
+  // unlowered thing.
+  privateLabels.clear()
+  return text
 }
