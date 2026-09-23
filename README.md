@@ -41,31 +41,30 @@ code it produced, and each instruction choice is annotated with the reason:
 
 ## Why
 
-**Primarily, to write small games and tools.** 
+Primarily, to write small games and tools.
 
-**Secondarily, to show that x86 assembly is not overwhelming if you start with
-a small subset and work up.** Not by hiding the assembly - by shrinking it
-until it fits in your head. Most of the design falls out of that one idea:
+Secondarily, to show that x86 assembly is not overwhelming if you start with a
+small subset and work up - not by hiding the assembly, but by shrinking it until
+it fits in your head. Most of the design follows from that:
 
-- **39 mnemonics**, with `cpu 8086` at the top of every emitted file so NASM
-  enforces the boundary on every build. There is no way to meet a 386
-  instruction before you have met an 8086 one.
-- **DOS `.COM`, tiny model.** One 64KB segment, `org 100h`, no linker, no
-  object files, no relocations, and no segment register you have to think
-  about - CS, DS and SS are all the same and never appear. The smallest
-  complete x86 target that still does something real. ES shows up only where
-  you ask for memory outside that segment, to reach the screen.
-- **Commented NASM is the product, not an intermediate.** Every statement is
-  quoted above the code it produced and every non-obvious choice is annotated,
+- A few dozen mnemonics, listed in DESIGN §1, with `cpu 8086` at the top of
+  every emitted file so NASM enforces the boundary on every build. You cannot
+  meet a 386 instruction before you have met an 8086 one.
+- DOS `.COM`, tiny model. One 64KB segment, `org 100h`, no linker, no object
+  files, no relocations. CS, DS and SS are all the same and never appear; ES
+  shows up only where a program asks for memory outside that segment, to reach
+  the screen.
+- The commented NASM is the product rather than an intermediate. Every statement
+  is quoted above the code it produced and every non-obvious choice is annotated,
   so the output is there to be read rather than trusted.
 
 The compiler is the way in, not the destination: write Momo without looking at
 the assembly, then look at the assembly when you want to know what happened.
 
-**And as a home for ideas that have been rattling around in my head for a 
-decade, with echoes going back further.** 
-
-[Yuki](https://github.com/nrkn/yuki-js) is the direct ancestor.
+And as a home for ideas that have been rattling around for a decade, with echoes
+going back further. [Yuki](https://github.com/nrkn/yuki-js) is the direct
+ancestor, and `_reference/yuki.txt` - a Pong for a fantasy console written in it -
+is kept here as the benchmark for the level of language being aimed at.
 
 ## What makes it unusual
 
@@ -143,6 +142,7 @@ errors in the Problems panel.
 | **`docs/STUDIES.md`** | The parts of `shared/lib/` that were ported rather than designed here, and what each was distilled from |
 | **`docs/PROVENANCE.md`** | Where the ideas came from - the earlier projects behind what is built and what is planned |
 | **`docs/CONTRIBUTING.md`** | Orientation: layout, scripts, the tooling traps, and the practices that keep this honest |
+| **`docs/LESSONS.md`** | The incidents behind the rules in `CONTRIBUTING.md` and `CLAUDE.md`, kept out of both so the rules stay short |
 | **`CLAUDE.md`** | The handful of things that differ when the contributor is an agent |
 
 **For worked examples, read the programs.** Everything under `projects/` is a real
@@ -152,7 +152,3 @@ so `compiler/lang` is the language a feature at a time and `library/vector` is t
 rasteriser held against the study it was ported from. `viewtest` and `fartest` are written to be read - each writes
 through one name and reads back through another, so every line says why it is
 true - and `smoke` is every construct in the language in one file.
-
-[Yuki](https://github.com/nrkn/yuki-js) is Momo's predecessor.
-`_reference/yuki.txt` is a Pong for a fantasy console written in it, kept here
-as the benchmark for the level of language being aimed at.
