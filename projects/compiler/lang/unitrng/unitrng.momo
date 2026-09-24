@@ -1,0 +1,74 @@
+// unitrng.momo - ranged units (DESIGN §75).
+//
+// A ranged unit is a unit whose bound is held against every constant that
+// lands in it, at the sites §4 already holds a constant against its type:
+// initialiser, assignment, argument, return, array element, and a cast of a
+// constant. Every constant below is in range, and several sit on the bound
+// itself, so an off-by-one in the check would refuse this file.
+//
+// A runtime value is not checked, exactly as §4's narrowing is not: the third
+// line prints 200 through an intensity and 210 after arithmetic on it, and
+// nothing complains. That is the rule, not a gap - declaring the unit is the
+// programmer's claim about runtime values.
+//
+// The refusals live in tests/compile/ as err-unit-range-* cases, because a
+// program that fails to compile cannot also run.
+
+include "lib/std/io.momo"
+include "u_pal.momo"            // uses the units...
+include "u_units.momo"          // ...which are declared here, after it
+
+intensity level = 63            // initialiser, on the bound
+column    col   = 79            // `< 80`, so 79 is the last one in
+cell      spot  = 1999          // `< 80 * 25`
+u8        byte  = 200
+u16       sum
+
+sub show( intensity v ) {
+  space()
+  putNumber( u16( v ) )
+}
+
+intensity dim() => 21           // a return
+
+// ---- tables: held against the range as they were declared ----
+
+for ( v of ramp ) {
+  sum += u16( v )
+}
+putNumber( sum )
+for ( u16 i = 0; i < 3; i++ ) {
+  space()
+  putNumber( u16( swatch[i].r ) + u16( swatch[i].g ) + u16( swatch[i].b ) )
+}
+newline()
+
+// ---- every other site, in range ----
+
+putNumber( u16( level ) )
+space()
+putNumber( u16( col ) )
+space()
+putNumber( u16( spot ) )
+level = 40                      // an assignment
+show( level )
+show( 63 )                      // an argument, on the bound
+show( dim() )
+show( intensity( 62 ) )         // a cast of a constant
+col = column( 79 )
+space()
+putNumber( u16( col ) )
+newline()
+
+// ---- folds, and what is not checked ----
+
+level = peak + 3                // a folded constant of the unit: 63, in range
+putNumber( u16( level ) )
+col = lastCol - 9
+space()
+putNumber( u16( col ) )
+level = intensity( byte )       // runtime: the cast emits nothing, 200 goes in
+show( level )
+level = level + 10              // arithmetic re-proves nothing
+show( level )
+newline()

@@ -1,0 +1,6 @@
+// EXPECT-ERROR: value 64 does not fit in intensity, which is u8 <= 63
+// EXPECT-AT: 6:9
+// §4's constant rule, one step narrower: 64 fits the u8, not the range.
+unit intensity = u8 <= 63
+intensity level
+level = 64

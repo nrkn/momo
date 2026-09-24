@@ -1,0 +1,3 @@
+// EXPECT-ERROR: a unit's bound must be positive, and -5 is not
+// EXPECT-AT: 3:24
+unit intensity = u8 <= -5

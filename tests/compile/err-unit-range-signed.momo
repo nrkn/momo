@@ -1,0 +1,5 @@
+// EXPECT-ERROR: a ranged unit needs unsigned storage
+// EXPECT-AT: 5:16
+// A signed range wants a lower end as well, and the only spelling for one is
+// the chained comparison §6 rules out.
+unit celsius = i8 <= 85

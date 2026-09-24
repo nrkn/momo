@@ -59,6 +59,13 @@ const binaryLevels = [
 // Comparison is non-associative: `a < b < c` is an error, not `(a < b) < c`.
 const comparisonLevel = 2
 
+// §75. A range with a lower end is the chained comparison above, which is why
+// the two-sided form is refused rather than parsed.
+const twoSided =
+  'a ranged unit takes an upper bound only - "u8 <= 63" or "u8 < 80";' +
+  ' a lower bound makes it two-sided, and two comparisons in a row are the' +
+  ' chained form §6 rules out, so that spelling waits for a customer (§75)'
+
 const compoundAssignOps = ['+=', '-=', '*=', '/=', '%=', '&=', '|=', '^=', '<<=', '>>=']
 
 const describe = (token: Token): string => {
@@ -876,14 +883,36 @@ export const parse = (tokens: Token[]): Program => {
 
     if (storage.array) raise(storage, 'a unit stands for a scalar type, not an array')
 
+    // §75's bound. The limit is read above the comparison level, so a second
+    // comparison after it is seen here as one - a two-sided range - rather than
+    // being folded into the limit as a bool.
+    let bound: UnitDeclaration['bound']
+    if (at('op', '>') || at('op', '>=')) raise(peek(), twoSided)
+    if (at('op', '==') || at('op', '!=')) {
+      raise(peek(), 'a unit\'s bound is an upper one - write "u8 <= 63" or "u8 < 80" (§75)')
+    }
+    if (at('op', '<') || at('op', '<=')) {
+      const op = advance().text as '<' | '<='
+      bound = { op, limit: parseBinary(comparisonLevel + 1) }
+      if (peek().kind === 'op' && binaryLevels[comparisonLevel].includes(peek().text)) {
+        raise(peek(), twoSided)
+      }
+    }
+
+    // Only after a bound. A type token cannot end a statement, so the lexer
+    // writes no newline after a bare `unit px = u16` and there is none to take.
+    const endLine = previous().line
+    if (bound) expectTerminator()
+
     return {
       type: 'UnitDeclaration',
       name: name.text,
       storage,
+      ...(bound ? { bound } : {}),
       file: start.file,
       line: start.line,
       col: start.col,
-      endLine: previous().line,
+      endLine,
     }
   }
 

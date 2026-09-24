@@ -174,10 +174,6 @@ at all, which makes one a floor rather than a measurement.
   the compiler cannot read, and a wrong definition errors inside the library,
   naming the wrong party. Resolver-only, emits nothing, and the identity tier
   can say so.
-- **Ranged units.** §75 - `unit intensity = u8 <= 63`. §4's constant rule
-  extended to a unit's bound, checked at the sites §4 already checks; a
-  768-entry palette table validated wholesale is the case DECISIONS §1 paid
-  for. Unsigned upper bounds first, because every known customer is one.
 - **Table comprehensions.** §76 - `[ for ( i in 256 ) curve( i ) ]`, folded at
   compile time. Deletes the generator-script special case for tables that are
   pure functions of their index; composes with §74 and §75. The largest of the
@@ -360,6 +356,14 @@ All are set out in DESIGN §20 unless noted.
 section that was itself a plan - see the note at the top for why, and where to
 look for the rest.
 
+- **Ranged units.** 2026-09-24. §75, now in `DESIGN.md`, and the record is
+  DECISIONS §75. `unit intensity = u8 <= 63` holds every constant that lands in
+  the unit against 63, a whole table included, and emits nothing - the identity
+  tier holds a program with and without its bounds. The one thing the design did
+  not say was when a range becomes known: a unit is program-wide, so a const may
+  meet one before its declaration is reached, and ranges are registered in a pass
+  before everything else. That makes a bound arithmetic on literals, which is
+  every bound the known customers would write.
 - **`require`.** 2026-09-24. §74, now in `DESIGN.md`, and the record is DECISIONS
   §74. A top-level constant expression the resolver folds, with zero an error
   that names what each side of a comparison came to. "Emits nothing" was not
@@ -2726,72 +2730,6 @@ already express "taken, deliberately" without one.
 
 ---
 
-## 75. Ranged units
-
-**Undesigned until 2026-09-24.** §39's `unit` gains a bound, and the bound is
-checked wherever §4 already checks a constant:
-
-```momo
-unit intensity = u8 <= 63       // a VGA DAC value
-unit column = u8 < 80
-```
-
-The motivating class is real and recorded: DECISIONS §1's palette archaeology
-is about bytes that are 0-63 by *meaning* while `u8` says 0-255, and every
-screen library holds columns and rows the storage type cannot describe. A unit
-already refuses to mix with other units (§39); this lets it also refuse the
-constant 64.
-
-### The rule is §4's, extended, and that is the whole design
-
-§4 draws the line this feature stands on: **a constant that does not fit is an
-error; a runtime value narrows on the programmer's assertion.** A ranged unit
-applies the same line to the range. Every site where an untyped constant meets
-a declared type - initialiser, assignment, argument, return, array element -
-already runs the fit check, and the range check is one more comparison at
-exactly those sites. A runtime value passes unchecked, exactly as implicit
-narrowing does: declaring `intensity i` is the programmer's claim about
-runtime values and the compiler's about constant ones.
-
-**Array elements are the killer application.** A 768-byte palette declared
-`const intensity[768] pal = [ ... ]` has every byte held against 63 at compile
-time, wholesale - which is precisely the table the §1 incident was about.
-
-### What it does not do
-
-- **A cast does not clamp.** `intensity( x )` on a runtime value emits nothing,
-  as unit casts already do; on a constant out of range it is an error. Clamping
-  would be hidden runtime cost, and §22 already settled that hidden cost loses
-  to visible spelling.
-- **Mixing is untouched.** Storage combination stays §4's, unit combination
-  stays §39's; the range rides on top and only speaks when a constant lands.
-- **Arithmetic is not range-checked.** `i + 1` on an `intensity` keeps the unit
-  (§39's count rule) and nobody re-proves the range - but a *folded* result is
-  a constant, so it is checked wherever it lands, and §4's truncation rule is
-  what makes that sound.
-
-### Scope: unsigned storage, upper bound, deliberately
-
-Every known customer - intensity, column, row, scancode, mode number - is
-unsigned with an upper bound, so `u8 <= n` and `u8 < n` (and the u16 forms) are
-the build. A two-sided or signed range wants a spelling this language has
-already ruled out once: `i8 >= -40 <= 85` is a chained comparison, and §6 made
-comparison non-associative on purpose. Rather than invent a range token for a
-customer that does not exist, the two-sided form waits for one, and the
-declaration grammar leaves room for it.
-
-### Unsettled
-
-- **The two-sided spelling**, when a customer arrives. A second comparison
-  clause, a range token, or §45's `in` over a count are the candidates, and
-  each drags a different precedent behind it.
-- **Whether the range should feed §4's mixing arithmetic** - `intensity +
-  intensity` provably fits u8, so the combine could stay narrow. Refused for
-  now: it makes the range a participant in type inference rather than a check,
-  which is a bigger feature wearing this one's clothes.
-
----
-
 ## 76. Fold-time table comprehensions
 
 **Undesigned until 2026-09-24, and the largest of the three proposals it
@@ -2807,7 +2745,7 @@ The body is any expression the folder can fold with `i` bound to each of
 0..n-1 - a parameterised const evaluated n times, which is machinery §8
 already has. An element that does not fold is an error naming the index. Every
 element then passes the same checks a written one does: fit, scale, and §75's
-range once it exists.
+range.
 
 ### What it deletes
 

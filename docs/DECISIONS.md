@@ -4343,3 +4343,84 @@ nothing, the word appearing only inside `requires`, `required` and `requirement`
 in comments. Tier 2 was left for the merge, because the worktree the build ran
 in had no DOSBox configured and the emitter writes nothing new outside the new
 fixtures.
+---
+
+## 75. Ranged units
+
+### The design left out when a range becomes known
+
+2026-09-24. PLAN §75 said where the range is checked and not when it is
+registered, and the two collide. A unit is program-wide (§39), so a const may
+be typed with one declared further down the merged program - in a file included
+after the one using it - and the resolver takes top-level consts in order. A
+range registered where its declaration stood would be absent when that const was
+checked, and the constant would pass without a word. So units are resolved in a
+pass of their own, before every other declaration.
+
+That decided the second question with it. A bound folded before any const
+exists cannot name one, so **a bound is arithmetic on literals** and a name in
+one is refused with that reason. Folding the bounds lazily, at a unit's first
+use, would have allowed a const in a bound at the price of an ordering rule to
+explain; every bound any known customer writes - 63, 80, 25, `80 * 25` - is a
+literal, so the simpler rule was taken.
+
+### Two sites the design did not list
+
+A group's datum and a string's characters. Both already pass §4's fit check and
+neither is in the design's list, so a ranged unit would have accepted
+`group lamp { intensity glow = 64 }` while refusing the same constant anywhere
+else. Each is checked now and has a fixture.
+
+### A unit declaration has no newline to end it
+
+The bound made the declaration the first one that can end in an expression, so
+it seemed to want the end-of-statement check every other statement makes. It
+failed twenty-six tier-1 assertions: a type token cannot end a statement, so the
+lexer writes no newline after `unit px = u16`, and there was none to take. The
+check runs only after a bound, which ends in something that can.
+
+### Two holes in §39, found and not closed here
+
+An array element and a group datum are held against their unit only when their
+scale differs, so `const ms k = 3` goes into a `px` table, or a `px` group
+field, without a word. A range still speaks there - the value is checked
+whatever unit it came from - but the unit mismatch is §39's to refuse, and
+nothing does.
+
+A top-level variable initialised by a call, and read by nothing, is an internal
+error rather than a program: `u8 level = bright()` alone reports
+`unresolved symbol "level"`. A neutered range check led an err- fixture into it,
+which is how it was found; the fixture now reaches only the check it names.
+
+### The teeth, and three fixtures that were passing for the wrong reason
+
+Each guard was neutered by line with a condition tsc cannot fold, and the test
+that failed was read rather than the tally.
+
+- **The constant check in `checkAssignable`** failed five: the argument,
+  assignment, initialiser, order and return fixtures. The first run had the
+  return fixture fail with the internal error above instead, which counts as a
+  failure and says nothing about the check - so it was rewritten to need no
+  call.
+- **The check on a typed constant already in the unit** failed the fold fixture
+  alone, which is the `peak + 10` case it exists for.
+- **Registering ranges in pass 1's order instead of their own pass failed
+  nothing.** The order fixture had its include *above* the constant, so the unit
+  was declared first either way and the fixture held nothing about order. With
+  the include moved below, the same neuter fails it and nothing else. The
+  positive `unitrng` includes its units last as well, but every constant in it
+  is in range, so it can show only that the order compiles - the err- fixture is
+  what shows the check was made.
+- **The cast check** was covered by the assignment behind it: the cast fixture
+  still failed, on the assignment's wording. It casts into a plain `u16` now, so
+  only the cast can refuse it, and the neuter makes it compile.
+- **The element check** failed the element fixture.
+- **The printer's bound** failed nothing but the assertion written for it. The
+  round trip compares instructions, and a range has none.
+
+### What it did not cost
+
+Every committed `.asm` came out byte-identical, and the identity pair holds a
+program with and without its bounds to the same instructions. No existing
+fixture's diagnostic moved, although units are now resolved before every other
+declaration rather than in order among them.

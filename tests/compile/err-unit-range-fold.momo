@@ -1,0 +1,8 @@
+// EXPECT-ERROR: value 70 does not fit in intensity, which is u8 <= 63
+// EXPECT-AT: 8:14
+// Arithmetic on a unit is not range-checked, but a folded result is a
+// constant, and a constant is checked wherever it lands (§75).
+unit intensity = u8 <= 63
+const intensity peak = 60
+intensity level
+level = peak + 10

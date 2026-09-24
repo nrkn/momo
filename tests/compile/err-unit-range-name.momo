@@ -1,0 +1,7 @@
+// EXPECT-ERROR: cannot name "top"
+// EXPECT-AT: 7:24
+// Bounds are folded before anything else is declared - that is what lets a
+// unit be used above its declaration and still be checked - so a bound is
+// arithmetic on literals, and naming even a const above it is refused.
+const top = 63
+unit intensity = u8 <= top

@@ -1,0 +1,35 @@
+// The other half of the pair. Identical to `ok-unit-range-bound.momo` except
+// that the units carry no bound - so they still refuse to mix (§39), and what
+// differs between the two files is only the range, which is the whole claim.
+
+unit intensity = u8
+unit column = u8
+unit cell = u16
+
+const intensity[4] ramp = [ 0, 21, 42, 63 ]
+const intensity peak = 60
+
+intensity level = 63
+column    col
+cell      spot
+u8        byte
+u16       out
+
+sub set( intensity v ) {
+  level = v
+}
+
+intensity dim() => 21
+
+level = 40
+col = 79
+spot = 1999
+set( 63 )
+set( dim() )
+level = intensity( 62 )
+level = peak + 3
+level = intensity( byte )           // runtime: no check, no clamp
+col = column( byte )
+spot = cell( out )
+level = level + 1
+out = u16( ramp[ 2 ] ) + u16( level ) + u16( col ) + u16( spot )

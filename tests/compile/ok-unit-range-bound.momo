@@ -1,0 +1,39 @@
+// Half of the pair behind §75's claim that a range costs nothing: it is checked
+// against constants and then it is gone. `ok-unit-range-free.momo` is the same
+// program with the bounds taken off, and tier 1 requires both to emit exactly
+// the same instructions - including the casts of runtime values, which is where
+// a clamp would have gone had one been added.
+//
+// Keep the two in step. The only difference between them is the bound.
+
+unit intensity = u8 <= 63
+unit column = u8 < 80
+unit cell = u16 < 80 * 25
+
+const intensity[4] ramp = [ 0, 21, 42, 63 ]
+const intensity peak = 60
+
+intensity level = 63
+column    col
+cell      spot
+u8        byte
+u16       out
+
+sub set( intensity v ) {
+  level = v
+}
+
+intensity dim() => 21
+
+level = 40
+col = 79
+spot = 1999
+set( 63 )
+set( dim() )
+level = intensity( 62 )
+level = peak + 3
+level = intensity( byte )           // runtime: no check, no clamp
+col = column( byte )
+spot = cell( out )
+level = level + 1
+out = u16( ramp[ 2 ] ) + u16( level ) + u16( col ) + u16( spot )

@@ -1,0 +1,3 @@
+// EXPECT-ERROR: a ranged unit is plain u8 or u16 - a bound on u8.8 has no customer yet
+// EXPECT-AT: 3:13
+unit gain = u8.8 <= 3

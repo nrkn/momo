@@ -1,0 +1,8 @@
+// EXPECT-ERROR: value 70 does not fit in intensity, which is u8 <= 63
+// EXPECT-AT: 8:6
+unit intensity = u8 <= 63
+intensity level
+sub set( intensity v ) {
+  level = v
+}
+set( 70 )

@@ -1,0 +1,9 @@
+// EXPECT-ERROR: value 64 does not fit in intensity, which is u8 <= 63
+// EXPECT-AT: 8:21
+// A unit is program-wide (§39), so this const may be typed with one declared
+// in a file included below it. The range has to be known here anyway: ranges
+// are registered before any declaration is resolved, and a range registered
+// where its declaration stood would let this through without a word (§75).
+
+const intensity k = 64
+include "inc/intensity.momo"

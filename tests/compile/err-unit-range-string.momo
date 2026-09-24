@@ -1,0 +1,4 @@
+// EXPECT-ERROR: character 0 of the string (65) does not fit in intensity
+// A string is a table of character codes, and they meet the range too.
+unit intensity = u8 <= 63
+const intensity[] name = "A"

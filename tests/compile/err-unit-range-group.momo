@@ -1,0 +1,6 @@
+// EXPECT-ERROR: value 64 does not fit in intensity, which is u8 <= 63
+// EXPECT-AT: 6:31
+// A group's datum is an initialiser too, in the single-instance form as well
+// as in a column.
+unit intensity = u8 <= 63
+group lamp { intensity glow = 64 }

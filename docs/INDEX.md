@@ -89,7 +89,7 @@ text for.
 | 72 | The machine - emitted assembly, run without DOSBox | [section](DESIGN.md#72-the-machine---emitted-assembly-run-without-dosbox) |  | [section](DECISIONS.md#72-the-machine) |
 | 73 | `expect` - the forward-call seam gets a contract | listed | [section](PLAN.md#73-expect---the-forward-call-seam-gets-a-contract) |  |
 | 74 | `require` - a compile-time assertion | [section](DESIGN.md#74-require---a-compile-time-assertion) |  | [section](DECISIONS.md#74-require) |
-| 75 | Ranged units | listed | [section](PLAN.md#75-ranged-units) |  |
+| 75 | Ranged units | [section](DESIGN.md#75-ranged-units) |  | [section](DECISIONS.md#75-ranged-units) |
 | 76 | Fold-time table comprehensions | listed | [section](PLAN.md#76-fold-time-table-comprehensions) |  |
 
 ## Unnumbered headings

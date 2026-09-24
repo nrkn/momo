@@ -1,0 +1,5 @@
+// EXPECT-ERROR: value 80 does not fit in column, which is u8 < 80
+// EXPECT-AT: 5:14
+// `< 80` stops at 79. The bound itself is the first value outside.
+unit column = u8 < 80
+column col = 80

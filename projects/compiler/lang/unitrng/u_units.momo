@@ -1,0 +1,10 @@
+// u_units.momo - the ranged units unitrng uses (DESIGN §75).
+//
+// Included after the file that uses them, deliberately. A unit is program-wide
+// (§39), so a const typed with one may sit above its declaration in the merged
+// program - and the range has to be known when that const is checked, not
+// merely by the time the declaration is reached.
+
+unit intensity = u8 <= 63       // a VGA DAC value: six bits in a byte
+unit column = u8 < 80           // a text-mode column
+unit cell = u16 < 80 * 25       // a cell of the 80x25 buffer, folded

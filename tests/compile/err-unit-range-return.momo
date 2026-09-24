@@ -1,0 +1,4 @@
+// EXPECT-ERROR: value 99 does not fit in intensity, which is u8 <= 63
+// EXPECT-AT: 4:23
+unit intensity = u8 <= 63
+intensity bright() => 99

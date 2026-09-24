@@ -1,0 +1,4 @@
+// EXPECT-ERROR: a ranged unit takes an upper bound only
+// EXPECT-AT: 4:23
+// The other order. The limit stops short of a comparison, so this is not 63 < 99.
+unit level = u8 <= 63 < 99

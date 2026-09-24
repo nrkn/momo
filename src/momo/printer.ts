@@ -325,8 +325,10 @@ export const printStatement = (node: Statement, depth = 0): string => {
       return `${pad}${head}${params} ${printBlock(node.body.body, depth)}`
     }
 
-    case 'UnitDeclaration':
-      return `${pad}unit ${node.name} = ${printType(node.storage)}`
+    case 'UnitDeclaration': {
+      const bound = node.bound ? ` ${node.bound.op} ${printExpression(node.bound.limit)}` : ''
+      return `${pad}unit ${node.name} = ${printType(node.storage)}${bound}`
+    }
 
     // Printed rather than dropped, although it emits nothing (§74): the printed
     // program has to make the same claims the source did, or it would compile

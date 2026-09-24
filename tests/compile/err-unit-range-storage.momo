@@ -1,0 +1,3 @@
+// EXPECT-ERROR: the bound 256 does not fit in u8, the storage it bounds
+// EXPECT-AT: 3:24
+unit intensity = u8 <= 256

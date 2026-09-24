@@ -3188,7 +3188,8 @@ It also opens a file that is not there, and checks the failure reports DOS error
 **Built.** A named numeric type whose values will not mix with another unit's
 without a cast. Entirely compile time - nothing reaches the emitter, and no
 program is a byte larger or a cycle slower for using one. `unittest` is the worked
-example (§14).
+example (§14). A unit may also carry an upper bound, held against constants
+only - that is §75.
 
 ```momo
 unit px = u16
@@ -6694,7 +6695,6 @@ from it for as long as the count read "thirteen", and nothing could say so.
 | §50 | A layout DSL: content, layout and paint as three documents |
 | §63 | A document larger than the memory |
 | §73 | `expect` - a contract for the routine a library calls and the program defines |
-| §75 | Ranged units - a `unit` with a bound, checked where constants already are |
 | §76 | Table comprehensions - array initialisers the folder computes |
 
 ---
@@ -7871,3 +7871,106 @@ keyword, and no program or library in the corpus used it as a name.
 - **§4's typed folds truncate**, which is what makes an answer trustworthy: a
   require over typed consts is about the value the machine computes. `reqtest`
   holds `k + 1 == 0` with `k` a `const u16` of 65535.
+## 75. Ranged units
+
+**Built.** `unitrng` runs it in tier 2, the `err-unit-range-*` files hold the
+refusals, and `ok-unit-range-bound` is its identity pair. §39's `unit` takes an
+upper bound, and the bound is checked wherever §4 already checks a constant:
+
+```momo
+unit intensity = u8 <= 63       // a VGA DAC value
+unit column = u8 < 80
+
+const intensity[4] ramp = [ 0, 21, 42, 64 ]   // error: element 3 (64) does not fit
+```
+
+The class it is for is recorded: DECISIONS §1's palette archaeology is about
+bytes that are 0-63 by *meaning* while `u8` says 0-255, and every screen library
+holds columns and rows the storage type cannot describe. A unit already refuses
+to mix with other units (§39); this lets it refuse the constant 64 as well.
+
+### The rule is §4's, extended, and that is the whole design
+
+§4 draws the line this stands on: **a constant that does not fit is an error; a
+runtime value narrows on the programmer's assertion.** A ranged unit applies the
+same line to the range. Every site where a constant meets a declared type -
+initialiser, assignment, argument, return, array element, a group's datum - runs
+the fit check, and the range is one more comparison at exactly those sites. A
+runtime value passes unchecked, exactly as implicit narrowing does: declaring
+`intensity i` is the programmer's claim about runtime values and the compiler's
+about constant ones.
+
+**Array elements are the reason for it.** `const intensity[768] pal = [ ... ]`
+has every byte held against 63 at compile time, and a refusal names the element
+by index, because a caret somewhere in a 768-entry literal is not enough to count
+by.
+
+**A constant already in the unit is still a constant.** `const intensity peak =
+60` makes `peak + 3` a fold of type `intensity` with the value 63, and it is held
+against the range where it lands - `peak + 10` is refused. §4's rule that a typed
+fold truncates as the machine would is what makes that sound.
+
+### The range is known before anything else is
+
+A unit is program-wide (§39): it may be used above its declaration, or in a file
+included before the one that declares it. The resolver takes top-level
+declarations in order, so a range registered where its declaration stands would
+be missing when an earlier const was checked - and the check would be skipped
+without a word. **Ranges are registered in a pass of their own, before any other
+declaration.** `err-unit-range-order` is a const above the include that declares
+its unit.
+
+That fixes what a bound may say. It is folded before any const exists, so **a
+bound is arithmetic on literals** - `u16 < 80 * 25` - and a bound naming a const
+is refused with that reason rather than reported as undeclared.
+
+### What it does not do
+
+- **A cast does not clamp.** `intensity( x )` on a runtime value emits nothing,
+  as unit casts always have; on a constant out of range it is an error. Clamping
+  would be hidden runtime cost, and §22 settled that hidden cost loses to visible
+  spelling.
+- **Mixing is untouched.** Storage combination stays §4's, unit combination stays
+  §39's; the range rides on top and speaks only when a constant lands.
+- **Arithmetic is not range-checked.** `i + 1` on an `intensity` keeps the unit
+  and nobody re-proves the range. `unitrng` prints 210 through one.
+
+### Scope: unsigned storage, upper bound, deliberately
+
+Every known customer - intensity, column, row, scancode, mode number - is unsigned
+with an upper bound, so `u8 <= n`, `u8 < n` and the `u16` forms are what is
+built. A two-sided or signed range wants a spelling this language has already
+ruled out once: `i8 >= -40 <= 85` is a chained comparison, and §6 made comparison
+non-associative on purpose. Rather than invent a range token for a customer that
+does not exist, the two-sided form waits for one, and the declaration refuses it
+by name rather than letting the parser report a stray operator.
+
+### Rules
+
+- **Plain `u8` or `u16`.** Signed storage is refused for the reason above, and a
+  fixed-point one because nothing has asked for it.
+- **`<= n` or `< n`**, where `< n` means at most `n - 1`. The bound is positive
+  and fits the storage.
+- **The bound is arithmetic on literals**, folded before anything is declared.
+- **Checked against constants only**, at every site listed above and at a cast
+  of a constant. A string's characters are elements, and are checked as elements.
+- **`a16` takes no range.** It cannot be declared again (§71), so there is no
+  declaration to put one on.
+
+### What it cost
+
+Nothing at runtime, asserted rather than argued: `ok-unit-range-bound` and
+`ok-unit-range-free` are the same program with and without the bounds, casts of
+runtime values included, and the identity tier requires them to emit the same
+instructions. **The round trip cannot see a lost bound** for the same reason, so
+it asserts the printed text of `unitrng` directly, as it does for `fixmul`.
+
+### Unsettled
+
+- **The two-sided spelling**, when a customer arrives. A second comparison
+  clause, a range token, or §45's `in` over a count are the candidates, and each
+  drags a different precedent behind it.
+- **Whether the range should feed §4's mixing arithmetic** - `intensity +
+  intensity` provably fits `u8`, so the combine could stay narrow. Refused for
+  now: it makes the range a participant in type inference rather than a check,
+  which is a bigger feature wearing this one's clothes.
