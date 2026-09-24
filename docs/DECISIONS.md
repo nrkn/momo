@@ -5065,8 +5065,11 @@ that existed before came out byte-identical under `npm run momoc:all`, by
 ### The summary and the listing
 
 Added 2026-09-24, from a session reading a patch against its base: DOOM.WAD and
-SIGIL.WAD produced an override story of about forty lines, under 2,400 rows of
-directory. `/s` exists to print the story and count the rest. **Only bulk is
+SIGIL.WAD produced an override story buried under 2,464 rows of directory.
+Measured once `/s` existed, over those same two files: 86 lines against full
+mode's 3,021 - the estimate this record briefly carried said "about forty",
+which is why it now carries the measurement. `/s` exists to print the story and
+count the rest. **Only bulk is
 counted** - gaps, and a name repeated within one file - and everything that says
 a file is damaged prints as it does with no switch, because a summary that hid
 corruption would be a lie. So a summary's findings are the full findings less
