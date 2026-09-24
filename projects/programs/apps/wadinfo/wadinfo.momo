@@ -1,0 +1,660 @@
+// wadinfo.momo - what is in a WAD, and what is wrong with it (DESIGN §41).
+//
+//   wadinfo DOOM.WAD
+//   wadinfo BASE.WAD PATCH.WAD
+//
+// One file or a load chain of them, opened through `mowad` in the order given, so
+// a later file overrides an earlier one exactly as a program reading the chain
+// would see it. It prints each file's header, then every lump - index, file,
+// name, offset, size, and its type with where the type came from: `header` for a
+// checked fact, `manifest` for a TYPES row's word, `-` for nothing. A claim and
+// a fact never print alike.
+//
+// Then what it found:
+//
+// - an entry whose bytes run past the end of its file;
+// - two entries sharing bytes, and bytes no entry, header or directory covers;
+// - a name more than one lump carries, and which one wins;
+// - a TYPES row naming a lump nobody has, and a TYPES row disagreeing with the
+//   header of the lump it names - the header wins, and the row is what is wrong.
+//
+// **It has to cope with DOOM.WAD's thousands of lumps.** The listing streams:
+// nothing about a lump is kept but the name mowad already indexes. The checks
+// need an order - by position within a file, by name across the chain - so
+// they sort a table of positions and sizes, and that table is past the program's
+// own segment, in the block DOS gave it (§47). A machine with no room there gets
+// the listing and is told the checks were skipped.
+//
+// The fixture is `BASE.WAD` and `PATCH.WAD`, built by the host writer from the
+// manifests in `fixture/` - the command for each is at the top of its manifest.
+// PATCH.WAD carries something for every finding above.
+
+include "lib/std/io.momo"
+include "lib/std/str.momo"
+include "lib/std/block.momo"
+include "lib/mowad.momo"
+
+// ---- the command tail ----
+
+// A DOS path can be longer than a name, and the tail is at most 127 bytes.
+const pathRoom = 80
+
+u8[wadMaxFiles * pathRoom] paths
+u16 pathCount
+
+// Up to `wadMaxFiles` names separated by spaces, each copied out and
+// nul-terminated for DOS. The tail is at PSP:0080h - a length, the text, a
+// carriage return - and nothing here moves the DTA over it before this runs.
+sub takePaths {
+  u16 n
+  a16 at
+  u16 out
+  a16 to
+
+  n = peek8( 0x80 )
+  at = 0x81
+  pathCount = 0
+
+  while ( n > 0 && pathCount < wadMaxFiles ) {
+    while ( n > 0 && peek8( at ) == ' ' ) {
+      at++
+      n--
+    }
+
+    if ( n == 0 || peek8( at ) == 13 ) return
+
+    to = addr( paths ) + pathCount * pathRoom
+    out = 0
+
+    while ( n > 0 && peek8( at ) != ' ' && peek8( at ) != 13 && out < pathRoom - 1 ) {
+      poke8( to + out, peek8( at ) )
+      out++
+      at++
+      n--
+    }
+
+    poke8( to + out, 0 )
+    pathCount++
+  }
+}
+
+a16 pathOf( u16 f ) => addr( paths ) + f * pathRoom
+
+sub putPath( u16 f ) {
+  for ( a16 at = pathOf( f ); peek8( at ) != 0; at++ ) {
+    putChar( peek8( at ) )
+  }
+}
+
+// ---- 32-bit numbers, as two words ----
+//
+// mowad reads a WAD without adding two words together once. A checker cannot:
+// "runs past the end" is a position plus a size against a length, and all three
+// are four bytes. So these are the handful of carried operations the checks
+// make, on pairs held in globals because a routine returns one word.
+
+u16 sumHi
+u16 sumLo
+
+sub add32( u16 aHi, u16 aLo, u16 bHi, u16 bLo ) {
+  sumLo = aLo + bLo
+  sumHi = aHi + bHi + u16( sumLo < aLo )
+}
+
+sub sub32( u16 aHi, u16 aLo, u16 bHi, u16 bLo ) {
+  sumLo = aLo - bLo
+  sumHi = aHi - bHi - u16( aLo < bLo )
+}
+
+bool below32( u16 aHi, u16 aLo, u16 bHi, u16 bLo ) => aHi < bHi || ( aHi == bHi && aLo < bLo )
+
+// Decimal. The division is by 10 across both words a byte at a time, so no
+// intermediate passes 9 * 256 + 255 and every step is a `u16` one.
+u8[10] digits
+
+u16 text32( a16 at, u16 hi, u16 lo ) {
+  u16 n
+  u16 r
+  u16 t
+  u16 upper
+
+  n = 0
+
+  for ( ;; ) {
+    r = hi % 10
+    hi /= 10
+
+    t = r * 256 + ( lo >> 8 )
+    upper = t / 10
+    r = t % 10
+
+    t = r * 256 + ( lo & 255 )
+    lo = upper * 256 + t / 10
+    r = t % 10
+
+    digits[n] = u8( r ) + '0'
+    n++
+
+    if ( hi == 0 && lo == 0 ) break
+  }
+
+  for ( u16 i = 0; i < n; i++ ) {
+    poke8( at + i, digits[ n - 1 - i ] )
+  }
+
+  return n
+}
+
+u8[12] numBuf
+
+sub put32( u16 hi, u16 lo ) {
+  u16 n
+
+  n = text32( addr( numBuf ), hi, lo )
+  for ( u16 i = 0; i < n; i++ ) {
+    putChar( numBuf[i] )
+  }
+}
+
+sub spaces( u16 n ) {
+  for ( u16 i = 0; i < n; i++ ) {
+    space()
+  }
+}
+
+// Right-aligned in `width`, and over it rather than cut when it does not fit.
+sub right32( u16 hi, u16 lo, u16 width ) {
+  u16 n
+
+  n = text32( addr( numBuf ), hi, lo )
+  if ( n < width ) spaces( width - n )
+  for ( u16 i = 0; i < n; i++ ) {
+    putChar( numBuf[i] )
+  }
+}
+
+sub right16( u16 v, u16 width ) => right32( 0, v, width )
+
+u16 nameLen( u16 lump ) {
+  u16 n
+
+  n = 0
+  while ( n < wadNameBytes && peek8( wadName( lump ) + n ) != 0 ) {
+    n++
+  }
+
+  return n
+}
+
+// ---- the table the checks sort ----
+//
+// One far region, five columns: the order being sorted, and the position and
+// size of each lump as word pairs. One row past the lumps, because the
+// directory is a range of bytes too and is swept with them.
+
+const colRows = wadMaxLumps + 1
+
+u16 colSeg
+far u16[colRows * 5] cols = colSeg
+
+view u16[colRows] order  = cols[0]
+view u16[colRows] posHi  = cols[colRows]
+view u16[colRows] posLo  = cols[colRows * 2]
+view u16[colRows] sizeHi = cols[colRows * 3]
+view u16[colRows] sizeLo = cols[colRows * 4]
+
+bool haveTable
+bool opened
+
+// ---- findings ----
+
+u16 found
+
+const u8[] sFindings = "findings$"
+const u8[] sNone     = "none$"
+const u8[] sColon    = ": $"
+const u8[] sAt       = " at $"
+const u8[] sBytes    = " bytes$"
+const u8[] sPast     = " bytes, runs past the end of the file$"
+const u8[] sOverlaps = " overlaps $"
+const u8[] sHeaderIs = "the header$"
+const u8[] sDirIs    = "the directory$"
+const u8[] sGapTail  = " that nothing references$"
+const u8[] sLumps    = " lumps, and #$"
+const u8[] sIn       = " in $"
+const u8[] sWins     = " wins$"
+const u8[] sRow      = "TYPES row $"
+const u8[] sSays     = " says $"
+const u8[] sHeadSays = ", and its header says $"
+const u8[] sNoLump   = " names no lump$"
+const u8[] sBadTypes = "TYPES is not a manifest - it has no Mo header of type types, so its rows are not read$"
+const u8[] sTwoTypes = " TYPES lumps, and only the last is read$"
+const u8[] sNoTable  = "no memory past the program for the checks, so only the TYPES rows were checked$"
+
+// A finding opens with the file it is about, when it is about one.
+sub findingIn( u16 f ) {
+  found++
+  putPath( f )
+  putStr( addr( sColon ) )
+}
+
+// A directory entry's own name, or what the extra row stands for.
+sub putEntry( u16 f, u16 e ) {
+  if ( e == wadFileLumps( f ) ) {
+    putStr( addr( sDirIs ) )
+  } else {
+    wadPutName( wadFileBase( f ) + e )
+  }
+}
+
+// ---- sorting ----
+//
+// Shell sort with Knuth's gaps, over `order`. Two keys: a position within one
+// file, and a name across the chain, and the index breaks every tie - so equal
+// keys come out in load order, which is what makes the last of a run of names
+// the one that wins.
+
+bool byName
+
+bool before( u16 a, u16 b ) {
+  a16 na
+  a16 nb
+
+  if ( byName ) {
+    na = wadName( a )
+    nb = wadName( b )
+
+    for ( u16 k = 0; k < wadNameBytes; k += 2 ) {
+      if ( peek16( na + k ) != peek16( nb + k ) ) return peek16( na + k ) < peek16( nb + k )
+    }
+  } else {
+    if ( posHi[a] != posHi[b] ) return posHi[a] < posHi[b]
+    if ( posLo[a] != posLo[b] ) return posLo[a] < posLo[b]
+  }
+
+  return a < b
+}
+
+sub sortOrder( u16 n ) {
+  u16 gap
+  u16 v
+  u16 j
+
+  gap = 1
+  while ( gap < n / 3 ) {
+    gap = gap * 3 + 1
+  }
+
+  while ( gap > 0 ) {
+    for ( u16 i = gap; i < n; i++ ) {
+      v = order[i]
+      j = i
+
+      while ( j >= gap && before( v, order[ j - gap ] ) ) {
+        order[j] = order[ j - gap ]
+        j -= gap
+      }
+
+      order[j] = v
+    }
+
+    gap /= 3
+  }
+}
+
+// ---- one file's bytes: past the end, overlapping, unreferenced ----
+
+const u8[] typesName = "TYPES\0"
+
+sub checkFile( u16 f ) {
+  u16 lumps
+  u16 base
+  u16 endHi
+  u16 endLo
+  u16 reachHi
+  u16 reachLo
+  u16 owner
+  u16 e
+  u16 manifests
+
+  lumps = wadFileLumps( f )
+  base = wadFileBase( f )
+  endHi = wadFileSizeHigh( f )
+  endLo = wadFileSizeLow( f )
+  manifests = 0
+
+  for ( u16 i = 0; i < lumps; i++ ) {
+    order[i] = i
+    posHi[i] = wadPosHigh( base + i )
+    posLo[i] = wadPosLow( base + i )
+    sizeHi[i] = wadSizeHigh( base + i )
+    sizeLo[i] = wadSizeLow( base + i )
+
+    if ( isTypes( base + i ) ) manifests++
+
+    if ( sizeHi[i] == 0 && sizeLo[i] == 0 ) continue
+
+    // A carry out of the top word is a range past anything a file can be.
+    add32( posHi[i], posLo[i], sizeHi[i], sizeLo[i] )
+    if ( sumHi < posHi[i] || below32( endHi, endLo, sumHi, sumLo ) ) {
+      findingIn( f )
+      wadPutName( base + i )
+      putStr( addr( sAt ) )
+      put32( posHi[i], posLo[i] )
+      putStr( addr( sComma ) )
+      put32( sizeHi[i], sizeLo[i] )
+      putStr( addr( sPast ) )
+      newline()
+    }
+  }
+
+  if ( manifests > 1 ) {
+    findingIn( f )
+    putNumber( manifests )
+    putStr( addr( sTwoTypes ) )
+    newline()
+  }
+
+  // The directory, as one more range.
+  order[lumps] = lumps
+  posHi[lumps] = wadFileDirHigh( f )
+  posLo[lumps] = wadFileDirLow( f )
+  sizeHi[lumps] = 0
+  sizeLo[lumps] = lumps * wadEntryBytes
+
+  byName = false
+  sortOrder( lumps + 1 )
+
+  // **The sweep.** In position order, `reach` is as far as anything so far
+  // covers and `owner` is what reached it, starting with the header. A range
+  // starting short of the reach overlaps its owner; one starting past it leaves
+  // a gap. A range starting at or past the end of the file is the finding
+  // above and nothing here, and a marker covers nothing.
+  reachHi = 0
+  reachLo = wadHeaderBytes
+  owner = wadNone
+
+  for ( u16 k = 0; k <= lumps; k++ ) {
+    e = order[k]
+
+    if ( sizeHi[e] == 0 && sizeLo[e] == 0 ) continue
+    if ( !below32( posHi[e], posLo[e], endHi, endLo ) ) continue
+
+    if ( below32( posHi[e], posLo[e], reachHi, reachLo ) ) {
+      findingIn( f )
+      putEntry( f, e )
+      putStr( addr( sAt ) )
+      put32( posHi[e], posLo[e] )
+      putStr( addr( sOverlaps ) )
+      if ( owner == wadNone ) {
+        putStr( addr( sHeaderIs ) )
+      } else {
+        putEntry( f, owner )
+      }
+      newline()
+    } else if ( below32( reachHi, reachLo, posHi[e], posLo[e] ) ) {
+      sub32( posHi[e], posLo[e], reachHi, reachLo )
+      reportGap( f, reachHi, reachLo )
+    }
+
+    add32( posHi[e], posLo[e], sizeHi[e], sizeLo[e] )
+    if ( below32( reachHi, reachLo, sumHi, sumLo ) ) {
+      reachHi = sumHi
+      reachLo = sumLo
+      owner = e
+    }
+  }
+
+  if ( below32( reachHi, reachLo, endHi, endLo ) ) {
+    sub32( endHi, endLo, reachHi, reachLo )
+    reportGap( f, reachHi, reachLo )
+  }
+}
+
+// `sumHi:sumLo` bytes at `hi:lo`.
+sub reportGap( u16 f, u16 hi, u16 lo ) {
+  findingIn( f )
+  put32( sumHi, sumLo )
+  putStr( addr( sBytes ) )
+  putStr( addr( sAt ) )
+  put32( hi, lo )
+  putStr( addr( sGapTail ) )
+  newline()
+}
+
+bool isTypes( u16 lump ) {
+  for ( u16 k = 0; k < wadNameBytes; k++ ) {
+    if ( peek8( wadName( lump ) + k ) != typesName[k] ) return false
+    if ( typesName[k] == 0 ) return true
+  }
+
+  return true
+}
+
+// ---- names across the chain ----
+//
+// Sorted by name, a run of equal names is a lump and the lumps it shadows, and
+// the last of the run - the highest index, since ties keep load order - is the
+// one `wadLump` returns. TYPES is the exception and is left out: each file has
+// its own, and their rows merge rather than one shadowing another.
+
+sub checkNames {
+  u16 total
+  u16 run
+
+  total = wadCount()
+
+  for ( u16 i = 0; i < total; i++ ) {
+    order[i] = i
+  }
+
+  byName = true
+  sortOrder( total )
+
+  // Marked at the first of each run, so the findings come out in index order
+  // rather than in whatever order the names sort into.
+  for ( u16 i = 0; i < total; i++ ) {
+    sizeLo[i] = 0
+  }
+
+  for ( u16 k = 0; k < total; k += run ) {
+    run = 1
+    while ( k + run < total && sameName( order[k], order[ k + run ] ) ) {
+      run++
+    }
+
+    if ( run > 1 && !isTypes( order[k] ) ) {
+      sizeLo[ order[k] ] = run
+      posLo[ order[k] ] = order[ k + run - 1 ]
+    }
+  }
+
+  for ( u16 i = 0; i < total; i++ ) {
+    if ( sizeLo[i] == 0 ) continue
+
+    found++
+    wadPutName( i )
+    putStr( addr( sColon ) )
+    putNumber( sizeLo[i] )
+    putStr( addr( sLumps ) )
+    putNumber( posLo[i] )
+    putStr( addr( sIn ) )
+    putPath( wadFileOf( posLo[i] ) )
+    putStr( addr( sWins ) )
+    newline()
+  }
+}
+
+bool sameName( u16 a, u16 b ) {
+  for ( u16 k = 0; k < wadNameBytes; k += 2 ) {
+    if ( peek16( wadName( a ) + k ) != peek16( wadName( b ) + k ) ) return false
+  }
+
+  return true
+}
+
+// ---- the manifests ----
+
+u8[wadRowBytes] row
+
+sub putRowName {
+  for ( u16 k = 0; k < wadNameBytes && row[k] != 0; k++ ) {
+    putChar( row[k] >= 32 && row[k] < 127 ? row[k] : '?' )
+  }
+}
+
+sub checkRows( u16 f ) {
+  u16 m
+  u16 lump
+  wadType has
+
+  if ( wadManifestBad( f ) ) {
+    findingIn( f )
+    putStr( addr( sBadTypes ) )
+    newline()
+  }
+
+  m = wadManifest( f )
+  if ( m == wadNone ) return
+
+  wadStartAs( m, wadTypeTypes )
+
+  while ( wadNext( addr( row ), wadRowBytes ) == wadRowBytes ) {
+    lump = wadLump( addr( row ) )
+
+    if ( lump == wadNone ) {
+      findingIn( f )
+      putStr( addr( sRow ) )
+      putRowName()
+      putStr( addr( sNoLump ) )
+      newline()
+      continue
+    }
+
+    has = wadTypeOf( lump )
+    if ( wadTypeFrom() == wadFromHeader && has != wadType( row[wadNameBytes] ) ) {
+      findingIn( f )
+      putStr( addr( sRow ) )
+      putRowName()
+      putStr( addr( sSays ) )
+      putStr( wadTypeName( wadType( row[wadNameBytes] ) ) )
+      putStr( addr( sHeadSays ) )
+      putStr( wadTypeName( has ) )
+      newline()
+    }
+  }
+}
+
+// ---- the listing ----
+
+const u8[] sUsage   = "usage: wadinfo FILE.WAD [PATCH.WAD ...] - a later file overrides an earlier one$"
+const u8[] sRefused = ": not opened - $"
+const u8[] sIwad    = ": IWAD, $"
+const u8[] sPwad    = ": PWAD, $"
+const u8[] sDir     = " lumps, directory at $"
+const u8[] sComma   = ", $"
+const u8[] sHead    = "    #  f  name        offset      size  type     from$"
+const u8[] sHeader  = "header$"
+const u8[] sRowFrom = "manifest$"
+const u8[] sDash    = "-$"
+
+sub listLump( u16 i ) {
+  wadType t
+
+  right16( i, 5 )
+  spaces( 2 )
+  putNumber( wadFileOf( i ) )
+  spaces( 2 )
+  wadPutName( i )
+  spaces( wadNameBytes - nameLen( i ) )
+  right32( wadPosHigh( i ), wadPosLow( i ), 10 )
+  right32( wadSizeHigh( i ), wadSizeLow( i ), 10 )
+  spaces( 2 )
+
+  t = wadTypeOf( i )
+
+  if ( wadTypeFrom() == wadUntyped ) {
+    putStr( addr( sDash ) )
+    spaces( 8 )
+    putStr( addr( sDash ) )
+  } else {
+    putStr( wadTypeName( t ) )
+    spaces( 9 - strLen( wadTypeName( t ) ) )
+    putStr( wadTypeFrom() == wadFromHeader ? addr( sHeader ) : addr( sRowFrom ) )
+  }
+
+  newline()
+}
+
+// ---- entry ----
+
+takePaths()
+
+if ( pathCount == 0 ) {
+  putStr( addr( sUsage ) )
+  newline()
+} else {
+  opened = true
+
+  for ( u16 f = 0; f < pathCount && opened; f++ ) {
+    putNumber( f )
+    space()
+    putPath( f )
+
+    if ( !wadOpen( pathOf( f ) ) ) {
+      putStr( addr( sRefused ) )
+      putStr( wadWhy() )
+      newline()
+      opened = false
+    } else {
+      putStr( wadFileIwad( f ) ? addr( sIwad ) : addr( sPwad ) )
+      putNumber( wadFileLumps( f ) )
+      putStr( addr( sDir ) )
+      put32( wadFileDirHigh( f ), wadFileDirLow( f ) )
+      putStr( addr( sComma ) )
+      put32( wadFileSizeHigh( f ), wadFileSizeLow( f ) )
+      putStr( addr( sBytes ) )
+      newline()
+    }
+  }
+
+  if ( opened ) {
+    newline()
+    putStr( addr( sHead ) )
+    newline()
+
+    for ( u16 i = 0; i < wadCount(); i++ ) {
+      listLump( i )
+    }
+
+    newline()
+    putStr( addr( sFindings ) )
+    newline()
+
+    colSeg = blockBase()
+    haveTable = blockFits( colSeg, colRows * 5 * 2 )
+    found = 0
+
+    if ( haveTable ) {
+      for ( u16 f = 0; f < wadFiles(); f++ ) {
+        checkFile( f )
+      }
+
+      checkNames()
+    } else {
+      putStr( addr( sNoTable ) )
+      newline()
+    }
+
+    for ( u16 f = 0; f < wadFiles(); f++ ) {
+      checkRows( f )
+    }
+
+    if ( found == 0 && haveTable ) {
+      putStr( addr( sNone ) )
+      newline()
+    }
+
+    wadClose()
+  }
+}

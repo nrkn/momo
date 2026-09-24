@@ -1,0 +1,22 @@
+# PATCH.WAD - loaded after BASE.WAD, and holding something for every finding
+# wadinfo makes.
+#
+#   npm run wad -- build projects/programs/apps/wadinfo/fixture/patch.txt projects/programs/apps/wadinfo/PATCH.WAD
+
+# Shadows the base's HELLO.
+lump HELLO text hello2.txt
+
+# Types a foreign lump the base left untyped.
+row RAWDATA raw
+
+# The base's MAP01 has a header, and a header wins: this row is a disagreement.
+row MAP01 text
+
+# Names a lump no file has.
+row GHOST palette
+
+# Three bytes nothing references, an entry inside HELLO, and one past the end
+# of the file - a directory is free-form, and these are what a checker is for.
+pad 3
+entry ECHO 12 8
+entry LOST 4000 10

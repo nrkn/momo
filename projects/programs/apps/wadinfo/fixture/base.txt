@@ -1,0 +1,22 @@
+# BASE.WAD - the bottom of wadinfo's fixture chain, and a clean file: every
+# finding wadinfo prints comes from PATCH.WAD, or from the two together.
+#
+#   npm run wad -- build projects/programs/apps/wadinfo/fixture/base.txt projects/programs/apps/wadinfo/BASE.WAD
+#
+# The sources end without a newline, so a checkout that turns line endings
+# round cannot change a byte of what this builds.
+
+iwad
+
+lump HELLO text hello.txt
+lump PAL palette pal.txt
+lump MAP01 scene map01.txt
+
+# A marker: no bytes, so nothing for it to overlap or leave out.
+entry M_END 0 0
+
+# Someone else's bytes. The row is the only word there is for PLAYPAL, and
+# RAWDATA has none here at all.
+foreign PLAYPAL playpal.txt
+row PLAYPAL palette
+foreign RAWDATA rawdata.txt
