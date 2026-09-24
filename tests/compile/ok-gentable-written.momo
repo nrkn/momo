@@ -29,6 +29,7 @@ group mob[3] {
 }
 
 const u8[8] unused = [ 0, 1, 2, 3, 4, 5, 6, 7 ]
+u8[4] spare = [ 1, 2, 3, 4 ]
 
 u16 total = 0
 u16 k

@@ -6,7 +6,7 @@
 // Each shape is here for a path it takes: a parameterised const, a fixed-point
 // body whose decimals take the element scale, an untyped const the elements
 // name, a ranged unit, a count named by a const alone, a writable array, a
-// group column, and a table nothing reads.
+// group column, and two tables nothing reads - one const, one writable.
 //
 // `steps` is named by a count and by nothing else. Counted as a use, it would
 // keep an `equ` line the written file does not have. `pitHz` is the opposite
@@ -37,6 +37,7 @@ group mob[3] {
 }
 
 const u8[8] unused = [ for ( i in 8 ) i ]
+u8[4] spare = [ for ( i in 4 ) i + 1 ]
 
 u16 total = 0
 u16 k
