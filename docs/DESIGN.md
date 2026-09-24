@@ -7797,13 +7797,16 @@ that holds it to costing nothing.
 
 ```momo
 require maxCrossings * 2 <= 4096
-require textChunks * chunkBytes + logBytes <= textArena
+require headParas * chunkSize >= textMaxLines * 2
 ```
 
 A top-level statement holding a constant expression; the resolver folds it, and
 zero is a compile error. The customer is every invariant that lives in a comment
-beside a capacity: motext's chunk arithmetic, momovec's derived `maxCoord`, the
-heap-partition chains §17 recommends. The capacity assertions in tier 1 catch
+beside a capacity: motext's paragraph arithmetic, momovec's derived `maxCoord`,
+a window that has to be longer than what it scans. The heap-partition chains §17
+recommends are not one - each claim is written as the one before it plus its
+size, so the chain cannot disagree with itself. DECISIONS §74 has the sweep
+that found both halves of that. The capacity assertions in tier 1 catch
 *totals* overflowing the segment; `require` catches **relationships between
 constants**, which is where a capacity edit goes quietly wrong - raise
 `maxCrossings` and the comment beside it stays agreeable.
@@ -7889,6 +7892,12 @@ The class it is for is recorded: DECISIONS §1's palette archaeology is about
 bytes that are 0-63 by *meaning* while `u8` says 0-255, and every screen library
 holds columns and rows the storage type cannot describe. A unit already refuses
 to mix with other units (§39); this lets it refuse the constant 64 as well.
+
+What the corpus took when it was swept was narrower: tennis's make codes and
+`mode.momo`'s table rows. The only six-bit palettes are generated, so intensity
+waits on the generator; and columns and rows are read back from the BIOS, so
+their bound is the mode's rather than a constant's. DECISIONS §74 has the
+measurements.
 
 ### The rule is §4's, extended, and that is the whole design
 
@@ -7991,9 +8000,11 @@ const u8[256] gamma = [ for ( i in 256 ) curve( i ) ]
 ```
 
 The customer is every table that is a pure function of its index - a gamma
-curve, a ramp, a divisor table. Those were emitted by a script on the host into
-committed `.momo`, which suits scene data, because scene data is authored, and
-is heavy for a curve, because a curve is derived.
+curve, a ramp, a divisor table. The alternative is a script on the host
+emitting committed `.momo`, which suits scene data, because scene data is
+authored, and is heavy for a curve, because a curve is derived. The corpus held
+no such table when this was built, outside fixtures whose subject is the
+written form; DECISIONS §74 has the sweep.
 
 ### It is §8's substitution, run once per element
 

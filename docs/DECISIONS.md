@@ -4357,6 +4357,94 @@ nothing, the word appearing only inside `requires`, `required` and `requirement`
 in comments. Tier 2 was left for the merge, because the worktree the build ran
 in had no DOSBox configured and the emitter writes nothing new outside the new
 fixtures.
+
+### The sweep, for all three
+
+2026-09-24, the day §74-§76 landed. `shared/` and `projects/` were swept for
+places the three features could hold what a comment was holding, under two
+rules: a require states a relationship a comment or a document already stated,
+never a new one; and no committed `.asm` changes an instruction.
+
+**Eighteen requires, in nine files.**
+
+- `motext.momo`: `chunkSize == 16`, because a chunk is a paragraph; `maxChunks
+  <= 32767`, the link array's offset bound; and the four fixed regions -
+  `headParas`, `lenParas`, `opParas`, `lineParas` - each times sixteen against
+  the bytes it holds. **The last four are the one latent hazard the sweep
+  found.** Every fixed region is sized by a division that rounds down, while
+  `textInit` rounds only the chunk regions up, on the stated grounds that a
+  region short of its last entry overlaps its neighbour. `textMaxLines = 12001`
+  compiled clean, with the line-head table two bytes short; it now fails with
+  "the left side folds to 24000 and the right to 24002". The shipped values
+  divide, so nothing was wrong at the time.
+- `momovec/types.momo`: `maxCoord <= 32767 / 2`. Divided rather than doubled,
+  because `maxCoord` is an `i16`: a probe confirmed that `bound * 2 <= 32767`
+  with a bound of 16,384 folds true, since the double wraps as §4 says it must.
+- `momovec/edges.momo`: `screenH <= 256`, for the scanline byte in `cy`.
+- `mofind.momo`: `findWindow > findMax`, the relationship its comment said was
+  "enforced by both being consts" - which it was not until this.
+- `momoed.momo`: `expCols == 1 + expName + 1`, and the picker's 37x21 inside
+  40x25.
+- `system6.momo`: the two runs parallel to `sRowNames`, and `barSize` against
+  `sBarNames`, by `len`.
+- tennis: the middle angle zone wider than the six around it, and
+  `subgridScale == 1 << 2` beside the `>> 2` in `subgridToPx`.
+- `mode.momo`: `modeCount == 3`, which ties §75's literal bound to the count.
+
+**Declined**: the heap chains - motext to modir to momoed, and keyprobe's and
+qsort's - each written as the claim before plus its size, so they cannot
+disagree; DESIGN §74 listed them as a customer and now says otherwise.
+`maxCrossings` against the tiger's measured 692, which the digest already
+catches. `ticksPerMinute` against the PIT's clock, a derivation nothing edits.
+DOS's find-block offsets, which DOS fixes.
+
+**Ranged units, measured in casts.** §39 makes a typed unitless value into a
+unit an error, so a unit costs a cast for every variable that flows into it.
+
+- tennis's set 1 make codes, `unit scancode = u8 < 0x80` in `t_kbd.momo`: one
+  cast, at `applyKey`'s only call site. The nine codes are typed, so each is
+  held against the break bit.
+- `mode.momo`'s table rows, `unit modeId = u8 < 3`, taken by `setMode`: no
+  casts, since all fourteen callers pass a named constant. `setMode( 3 )`
+  compiled before and read past the table. A bound cannot name `modeCount`,
+  because §75 folds it before any const exists, hence the require above.
+- Intensity, skipped. No hand-written six-bit table exists: tennis's palette is
+  eight-bit through `dac8`, and the six-bit ones are `tiger.momo`'s and
+  `mvpic.momo`'s, both generated. Typing `setDac` would cost three casts in
+  `tigerpic` and three in `mvpic`, which is generated and cannot take them. The
+  case §75 was designed around waits on the generator.
+- Columns and rows, skipped. Typing `screen.momo`'s routines would add ten casts
+  - eight in `simplerl`, two in `scrtest` - and re-spell fifteen `u8( ... )` in
+  `momoed`, which also runs in 43- and 50-row modes, so `row < 25` would be
+  false. The bound is the mode's, and it is known at runtime.
+- `key.momo`'s scancodes, skipped. They are added into the `u16` key space as
+  `keyExt + keyLeft` over a hundred times and compared against plain keys.
+
+`tennis.asm` moved in two comments and no instruction: the source quote for the
+call, and the note on its store, which reads `u16 -> u8, no widening` now that
+a cast declares the narrowing the argument used to do implicitly. No other
+`.asm` in the corpus moved; the requires changed no source-quoted line.
+
+**Comprehensions: none converted.** The only committed tables that are a
+function of their index are in fixtures whose subject is the written form -
+`consttst`'s squares are the one project covering a parameterised const called
+as a written element, and `smoke`'s are its inference case. `vidprobe`'s
+`hotPos` is six times its index only because of the bar string's spacing, so
+the string is what it is derived from. The rest - palettes, sprites, tiles,
+attribute candidates, `motabs`'s probes, `unitrng`'s ramp - are specifications
+as written. DESIGN §76's customer line said such tables were being emitted into
+the corpus by a host script; none were, and it now says so.
+
+**Teeth.** `chunkSize == 16` flipped to `!=` fails every program that includes
+motext, each at `motext.momo:68` with "the left side folds to 16 and the right
+to 16". `scW` raised to `0x91` fails with "value 145 does not fit in scancode,
+which is u8 < 128", and `setMode( 3 )` in tennis with "value 3 does not fit in
+modeId, which is u8 < 3". No ranged *table* was adopted, so the
+element-numbered message has no customer outside the fixtures yet.
+
+One stale comment turned up and was left: `subdiv.momo` still gives the
+coordinate bound as 8,191, "a factor of four spare", which is the figure
+`types.momo` records as wrong and replaced with 16,383.
 ---
 
 ## 75. Ranged units
