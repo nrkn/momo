@@ -5120,3 +5120,95 @@ Teeth, committed first, restored with `git checkout`:
 Tier 1 went from 889 assertions to 901: three goldens, three capacities, three
 round trips and three machine runs. Tier 2 went from 71 programs to 74, all
 passing.
+
+### Aliases, overlaps, and the whole magic
+
+Added 2026-09-24, from a session reading miniwad, a deliberately minimal IWAD:
+2,438 lumps served by only 355 distinct payloads - 142 alias sets covering
+2,175 entries, one 224-byte sprite answering to 187 names and one 150-byte
+silence serving all 99 `DS` sounds - and no partial overlap at all. The
+findings reported that as about 2,033 lines of `THINGS at 12 overlaps THINGS`,
+every one correct and the lot useless. Aliasing is structure; a partial overlap
+is a suspect, and the findings now say which.
+
+miniwad is not on this machine, so a throwaway built its shape in memory - the
+same counts of lumps, markers, payloads, sets and entries, the two large sets
+at their sizes - and ran it through `wadinfo` with the libraries before and
+after, fixed at that date:
+
+```
+                  lines   findings                     instructions
+before            4,477   2,033 overlap lines          23,508,875
+after             2,586     142 alias-set lines        20,583,429
+before, /s        2,040   2,033 overlap lines          14,053,170
+after, /s            12   none in full, and the tally  10,538,754
+```
+
+The summary's tally line came out as
+`MINI.WAD: 142 alias sets - 355 distinct payloads serve 2388 entries`, which is
+miniwad's own count read back, and the three largest sets follow it. DOOM.WAD
+has no aliases and no header anywhere, and its output is identical before and
+after in both modes: 30,304,749 instructions to 31,040,128 with no switch, and
+20,038,613 to 20,773,948 under `/s`. The difference is the checks reading each
+lump's first four bytes, which the summary had never done.
+
+What the build settled:
+
+- **The position sort breaks ties by size, larger first**, so identical spans
+  sit together and a span comes before what it contains from its start. That
+  is what makes the overlap line read `#8 ECHO at 12 overlaps #7 HELLO` rather
+  than the other way round.
+- **The gap logic needed nothing.** The sweep's reach is the farthest end so
+  far, so a shared span never opened a gap before and does not now; the new
+  fixtures add ten entries aliasing a span and no gap line, and `DUPS.WAD`
+  still counts 7 bytes in 2 gaps.
+- **`wadTypeName` was already bounded**: `u16( t ) >= len( wadTypeNames )`
+  answers `unknown`, so no id ever read past the table, before or after. It is
+  still reachable - a TYPES row can carry any byte, the reader returns it from
+  the manifest, and a typed read refuses it by name. The bug was attribution:
+  NOISE, a foreign lump starting `M` `o` `A`, listed as `unknown header`,
+  outvoted its own row, and `wadinfo` reported the row as what was wrong -
+  `TYPES row NOISE says raw, and its header says unknown`.
+- **`wadTypeNone` is refused as well.** No header carries it and neither writer
+  writes one, so `Mo` and a 0 is no more ours than `Mo` and 65.
+- **The report is the reader's verdict.** The first draft asked the same
+  question twice, once for the reader and once for `wadinfo`, and the second
+  tooth below showed what that allowed: with the reader's check neutered,
+  `wadinfo` still said NOISE `is read as foreign` while its listing said
+  `unknown header`. `wadLookalike` now returns what the header check decided.
+
+Two things this does not close. A foreign lump starting `Mo` and a byte from 1
+to 5 still reads as ours - three bytes cannot tell, and only a longer magic
+could. And the host lister, `npm run wad -- list`, still checks two bytes and
+lists NOISE as `unknown header`, so the two readers now disagree on that one
+lump; `src/` was out of this change's reach.
+
+Teeth, committed first, neutered by line, restored with `git checkout`:
+
+- **Alias sets pairwise again** (`&& lumps == 9999` in the run's loop): in
+  `npm test`, `machine wadinfo` and `machine wadsum`. `wadinfo` differs at line
+  27, `PATCH.WAD: #11 DSNOWAY at 39 overlaps #10 DSSILENT` and two more where
+  the set's one line should be; `wadsum`'s findings gain ten such lines, seven
+  of them from `DUPS.WAD`, and its tally loses the sets.
+- **The magic accepting any type** (`|| lump != wadNone` on the line that
+  accepts it): `machine wadinfo`, `machine wadlist` and `machine wadsum`. Line
+  19 lists NOISE as `unknown  header` for `raw  manifest`, the lookalike line
+  goes, and `TYPES row NOISE says raw, and its header says unknown` is back. A
+  throwaway's typed read of NOISE as raw then stops,
+  `mowad: NOISE is unknown (header), asked for raw`, where the check hands it
+  over from byte 0 as `15 MoAB, by chance`.
+- **A partial overlap joining a set** (`|| a != 65535` on the size comparison):
+  `machine wadinfo` and `machine wadsum`. `wadinfo` differs at line 25,
+  `PATCH.WAD: 2 entries share 24 bytes at 12 - #7 HELLO, #8 ECHO` - a span
+  ECHO's 8 bytes do not have - and under `/s` the overlap leaves the findings
+  entirely, counted in the tally as a second set.
+
+```
+            code   data   image   stack
+wadinfo    11854   2728   14582   32
+wadtrip     6299   1301    7600   26
+```
+
+`wadinfo` runs its fixture in 132,270 instructions and `wadsum` in 140,077.
+Tier 1 stayed at 901 assertions and tier 2 at 74 programs, all passing; the
+`wadtrip` digest did not move.

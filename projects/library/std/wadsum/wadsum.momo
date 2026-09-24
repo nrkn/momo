@@ -7,9 +7,10 @@
 // `BASE.WAD` and `PATCH.WAD` are copies of `wadinfo`'s, byte for byte - a
 // change is made there and copied here. `DUPS.WAD` is this project's own,
 // built from the manifest in `fixture/` by the command at its top, and loaded
-// third: it holds a name twice in one file, which the summary counts, and two
-// names earlier files already carry, which it prints however much it counts.
-// PATCH.WAD's damage prints in full here as it does under no switch.
+// third: it holds a name twice in one file, which the summary counts, two
+// names earlier files already carry, which it prints however much it counts,
+// and four alias sets, of which it names the largest three. PATCH.WAD's damage
+// prints in full here as it does under no switch, and its alias set does not.
 
 include "lib/moinfo.momo"
 

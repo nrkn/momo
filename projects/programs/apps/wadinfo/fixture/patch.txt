@@ -20,3 +20,16 @@ row GHOST palette
 pad 3
 entry ECHO 12 8
 entry LOST 4000 10
+
+# One payload under four names: an alias set, which is structure rather than
+# damage. DSSILENT lands at 39, past HELLO's 24 bytes at 12 and the pad, and is
+# 13 bytes - its header and the 9 of silence.txt - so the entries say 39 13.
+lump DSSILENT raw silence.txt
+entry DSNOWAY 39 13
+entry DSBGACT 39 13
+entry DSPOSIT1 39 13
+
+# Someone else's bytes that happen to start 'M' 'o' 'A' - and 'A', 65, is no
+# type a header carries, so this is not a header and the row is its type.
+foreign NOISE noise.txt
+row NOISE raw
