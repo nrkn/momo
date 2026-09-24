@@ -89,11 +89,12 @@ const wadNone = 0xFFFF
 //
 // 5,120 names covers everything a corpus sweep of 64 real WADs found: 3,072
 // covered DOOM.WAD and DOOM2.WAD but refused HEXEN.WAD (4,270 lumps),
-// STRIFE1.WAD (3,985) and a hand-built free-roam map (3,226) - the refusal
+// STRIFE1.WAD (3,985) and a hand-built free-roam map (3,226); the second pass
+// found GTA Doom at 5,353 in 120 MB, so the number moved again - the refusal
 // firing exactly as designed, at a number the design guessed. A file past the
 // cap is still refused by name rather than indexed in part, because a lump
 // missing from the index would be a lump `wadLump` says is not there.
-const wadMaxLumps = 5120
+const wadMaxLumps = 5632
 
 // Files open at once. A `.COM` has fifteen handles to spare (§38), each file
 // here holds one for as long as it is open, and a program wants some left.
@@ -128,7 +129,7 @@ local const wadKindAt  = wadOutAt + wadWriteMax * wadEntryBytes
 local const wadClaimAt = wadKindAt + wadWriteMax
 local const wadUsed    = wadClaimAt + wadClaimMax * wadRowBytes
 
-const wadArenaBytes = 43520
+const wadArenaBytes = 47104
 const wadHeap = wadArenaBytes
 
 require wadUsed <= wadArenaBytes

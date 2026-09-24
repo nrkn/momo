@@ -29,7 +29,7 @@ wadUntyped:     equ     0
 wadFromHeader:  equ     1
 wadFromManifest: equ     2
 wadNone:        equ     65535
-wadMaxLumps:    equ     5120
+wadMaxLumps:    equ     5632
 wadMaxFiles:    equ     4
 mowad__wadStageBytes: equ     512
 mowad__wadStageEntries: equ     32
@@ -37,11 +37,11 @@ mowad__wadStageRows: equ     56
 wadWriteMax:    equ     64
 wadClaimMax:    equ     16
 mowad__wadIndexAt: equ     0
-mowad__wadStageAt: equ     40960
-mowad__wadOutAt: equ     41472
-mowad__wadKindAt: equ     42496
-mowad__wadClaimAt: equ     42560
-wadArenaBytes:  equ     43520
+mowad__wadStageAt: equ     45056
+mowad__wadOutAt: equ     45568
+mowad__wadKindAt: equ     46592
+mowad__wadClaimAt: equ     46656
+wadArenaBytes:  equ     47104
 bufBytes:       equ     64
 
 ; =========================================================== entry ====
@@ -1351,7 +1351,7 @@ wadOpen:
         jne     .L132                       ; unsigned !=
         mov     ax, [wadOpen__count]
         push    ax                          ; save lhs: rhs is not a leaf
-        mov     ax, 5120
+        mov     ax, 5632
         mov     bx, [mowad__wadTotal]
         sub     ax, bx
         mov     bx, ax
@@ -3506,9 +3506,9 @@ _heapw:         equ     _heap        ; same bytes, u16 view
 ; =========================================================== views ====
 ; No storage: each is a name for an offset into something else.
 
-mowad__wadNames: equ     _heap        ; u8[40960]
-mowad__wadStage: equ     _heap + 40960        ; u8[512]
-mowad__wadOut:  equ     _heap + 41472        ; u8[1024]
-mowad__wadKind: equ     _heap + 42496        ; u8[64]
-mowad__wadClaims: equ     _heap + 42560        ; u8[144]
-buf:            equ     _heap + 43520        ; u8[64]
+mowad__wadNames: equ     _heap        ; u8[45056]
+mowad__wadStage: equ     _heap + 45056        ; u8[512]
+mowad__wadOut:  equ     _heap + 45568        ; u8[1024]
+mowad__wadKind: equ     _heap + 46592        ; u8[64]
+mowad__wadClaims: equ     _heap + 46656        ; u8[144]
+buf:            equ     _heap + 47104        ; u8[64]
