@@ -4430,3 +4430,87 @@ Every committed `.asm` came out byte-identical, and the identity pair holds a
 program with and without its bounds to the same instructions. No existing
 fixture's diagnostic moved, although units are now resolved before every other
 declaration rather than in order among them.
+
+---
+
+## 76. Table comprehensions
+
+### The design did not say what a comprehension is a use of
+
+Built 2026-09-24, the day it was designed. PLAN §76 said the body is a
+parameterised const evaluated n times and that every element passes a written
+element's checks, and both held as written: the elements are §8's substitution
+with a compiler-made binding, and they flow through the resolver's existing
+element loop rather than a copy of it.
+
+What it left out was the two passes that walk the tree after the resolver. Both
+walk generically, and a comprehension node holds a count and a body template
+that is never resolved. Walked as they stand, the template's call to `curve`
+has no label and becomes a call-graph edge to nothing, and a const named only by
+the count becomes a use and keeps an `equ` line. Neither is true of the table
+written out, so the resolved node carries its elements and both passes walk
+those instead - the same arrangement a const call's `expansion` already has.
+The teeth below are the evidence that each was needed.
+
+A variable initialised by a comprehension also needed adding to the rule §75's
+build wrote for pruning: an array initialiser is data, not a store, so it is not
+its own use. Without it a writable comprehension table nothing reads is kept
+where its written twin is dropped - which the pair did not show until it was
+given one, `spare`, after the build.
+
+### One decision the design did not make
+
+**The counter takes no type.** `for ( u8 i in 4 )` is §45's loop spelling and
+the obvious thing to try, but the binding is an untyped literal per element, and
+a type there could only be checked against a value it has no way to disagree
+with. Refused by name rather than ignored.
+
+### Teeth
+
+Each guard neutered by line with a condition tsc cannot fold, the failing tests
+read, and the file restored with `git checkout` and rebuilt.
+
+- **The per-element checks** (skipping the loop's tail for a comprehension):
+  `err-comp-range` and `err-comp-fit` fail with "expected an error containing
+  ... but it compiled". Nothing else in the suite reaches that tail through a
+  comprehension with a value it would refuse.
+- **The binding, off by one** (1 to n): `err-comp-call`, `err-comp-range` and
+  `err-comp-runtime` fail on the index or the argument in their messages, and
+  `gentable`, `ok-gentable-comp`, their round trips and the identity pair fail -
+  but all of those on `value 256 does not fit in u8`, because `curve`'s
+  parameter is a byte and the last element overflows it. That is a failure for a
+  reason other than the data, so the binding was also **reversed** (n-1 down to
+  0), which keeps every element in range. Then the goldens fail on the data
+  itself - `gamma` starts `239, 237, 235` against `0, 0, 0` - and so does the
+  identity pair, on the same line.
+- **The splice refusals**, both neutered: `err-comp-splice` fails with
+  `expected an expression but found "for"` and `err-comp-splice-after` with
+  `expected "]" but found ","`. The language refuses either way; the refusals
+  are what say why.
+- **Pruning walking the node generically**: `gentable` gains `cols: equ 8` and
+  `ok-gentable-comp` gains `steps: equ 6`, the consts only a count names, and
+  the identity pair fails on that line.
+- **The call graph walking the node generically**: `ok-gentable-comp`'s stack
+  reserve goes from 2 bytes to 4, and the identity pair fails on `_hstack`.
+  `gentable` does not move, because its deepest path already runs through
+  `putNumber` and a phantom edge one call deep is not deeper - so the pair is
+  what holds this, not the project.
+- **A comprehension initialiser counted as its own use**: `ok-gentable-comp`
+  keeps `spare: db 1, 2, 3, 4`, and the identity pair fails on that line.
+
+### Measured
+
+Tier 1 went from 803 assertions to 830: fifteen `err-comp-*` files and the two
+`ok-` files of the identity pair (317 compile tests to 334), three goldens, one
+capacity, four round trips - one of them the text assertion from both sides -
+one identity pair and one machine run. Every golden `.asm` that existed before
+came out byte-identical under `npm run momoc:all`, by `git diff --stat`.
+
+Fold time does not matter at the sizes a table has. Median of five compiles on
+the build machine: a one-element table 2.6 ms, `curve` over 256 elements 9.2 ms as
+a comprehension and 8.8 ms written out, and a 4,096-element `u16` table 19.5 ms.
+The cost is the resolving, which a written table pays too.
+
+Tier 2 was left for the merge, because the worktree the build ran in had no
+DOSBox configured; the emitter writes nothing it did not write before, and the
+machine tier ran `gentable` against its `.expected`.

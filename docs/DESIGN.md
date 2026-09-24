@@ -774,7 +774,9 @@ const u16[] squares = [ sqr(0), sqr(1), sqr(2), sqr(3), sqr(4), sqr(5) ]
 squares:        dw      0, 1, 4, 9, 16, 25        ; u16[6] const
 ```
 
-and `value = sqr(7)` becomes `mov word [value], 49`.
+and `value = sqr(7)` becomes `mov word [value], 49`. §76 writes the list out as
+well: `[ for ( n in 6 ) sqr( n ) ]` is the same table, with this substitution run
+once per element and the counter bound where a caller's argument would be.
 
 Called with a runtime value it substitutes inline instead - `sqr(x)` becomes
 `x * x` with no call, no argument storage, and no return slot.
@@ -6695,7 +6697,6 @@ from it for as long as the count read "thirteen", and nothing could say so.
 | §50 | A layout DSL: content, layout and paint as three documents |
 | §63 | A document larger than the memory |
 | §73 | `expect` - a contract for the routine a library calls and the program defines |
-| §76 | Table comprehensions - array initialisers the folder computes |
 
 ---
 
@@ -7974,3 +7975,132 @@ it asserts the printed text of `unitrng` directly, as it does for `fixmul`.
   intensity` provably fits `u8`, so the combine could stay narrow. Refused for
   now: it makes the range a participant in type inference rather than a check,
   which is a bigger feature wearing this one's clothes.
+
+---
+
+## 76. Table comprehensions
+
+**Built.** `gentable` runs it in tier 2, the `err-comp-*` files hold the
+refusals, and `ok-gentable-comp` and `ok-gentable-written` are its identity
+pair. An array initialiser whose elements the folder computes rather than a
+person types:
+
+```momo
+const u8 curve( u8 i ) = u8( i * i / 272 )
+const u8[256] gamma = [ for ( i in 256 ) curve( i ) ]
+```
+
+The customer is every table that is a pure function of its index - a gamma
+curve, a ramp, a divisor table. Those were emitted by a script on the host into
+committed `.momo`, which suits scene data, because scene data is authored, and
+is heavy for a curve, because a curve is derived.
+
+### It is §8's substitution, run once per element
+
+The count folds to a positive number, and each element is a copy of the body
+with the counter bound to a literal - 0, 1, 2, up to one less than the count.
+§8 already substitutes a body with its parameters bound to a caller's
+arguments; here the compiler makes the binding instead of a caller, and the
+rest is machinery that existed.
+
+The binding replaces the name before anything is resolved, so the counter
+**shadows** any symbol of the same name inside the body and nowhere else - the
+way a parameter of a parameterised const does. A collision is impossible in the
+other direction: the counter is never declared, so nothing outside the body can
+see it.
+
+### Every element is a written element
+
+The copies go through the resolver's own loop over written elements, not a
+second copy of it. Fit, scale, unit, §75's range and §51's rules for `addr()` are
+therefore the written element's checks, with nothing restated. The body's
+decimals take the element's scale exactly as a written element's do, so
+`[ for ( i in 9 ) i * 0.25 - 1.0 ]` fills an `i8.8` table.
+
+An element that does not fold is refused by its index, with §74's account of
+the part that stopped it, because the caret can only land on the body, and
+the body is every element at once:
+
+```
+element 3 of the comprehension does not fold, because "count" does not - it is a variable, so its value is known only at runtime
+```
+
+A body that calls a routine is refused the same way and at the same moment -
+in the resolver, before the call graph is built - so the graph never meets one.
+
+### The PIT, which is what it was for
+
+§32 notes that the PIT's input clock cannot be written as a literal in a 16-bit
+language, so note tables were generated elsewhere. It can be written as
+arithmetic, and §4 folds untyped arithmetic exactly and checks the fit where
+each value lands:
+
+```momo
+const pitHz = 1193 * 1000 + 182
+const u16[8] harmonic = [ for ( h in 8 ) pitHz / ( 110 * ( h + 1 ) ) ]
+require pitHz / 440 == 2711
+```
+
+Each divisor is a word and the clock never is. §74 pins the values that matter,
+§75 bounds the elements, and this generates them - the three compose, and
+`gentable` does all three.
+
+### It emits nothing new
+
+The data section holds exactly what the written table would, and the identity
+tier says so: `ok-gentable-comp` and `ok-gentable-written` are one program with
+its tables generated and typed out, and they emit the same instructions and the
+same data.
+
+What counts as a use follows from that. The resolved node carries its elements,
+and pruning and the call graph walk those and never the template, which is
+unresolved - a call in it has no label, and counting one would invent an edge.
+So **a const the elements name is a use**, as it is in the written table -
+`pitHz` keeps its `equ` in both files - and **a const named only by the count
+is not**, as one named only in an array's size is not.
+
+### Two forms in print
+
+Resolved, a comprehension prints as the table it wrote out -
+`[ curve( 0 ), curve( 1 ), ... ]` - which is what lomo shows and what §14's
+round trip compiles. Unresolved, it has no elements yet, so a print before the
+resolver shows it as written. That is §48's arrangement for brackets, and the
+round trip cannot see which form printed, since both compile alike, so it
+asserts the text of `gentable` from both sides.
+
+### Rules
+
+- **`[ for ( name in count ) element ]`, as the whole literal.** `in` is matched
+  by lookahead, as §45 matches it in a loop header, and `for` was already a
+  keyword - there is no new token.
+- **The count is a constant number** - it folds, it is positive, and it is
+  neither a bool nor fixed-point.
+- **The count meets a declared size as a written list does.** More elements than
+  the size is the written list's error; fewer leaves a zero tail, as a written
+  list's does; no size makes the count the length.
+- **The counter takes no type.** It is bound to an untyped literal per element,
+  so a type would have nothing to say.
+- **Wherever an array literal initialises an array**: a const, a variable, a
+  group's column. Anywhere else it is refused as an array literal is.
+- **Not built, and refused by name**: a comprehension as one segment of a longer
+  list, `of` over an existing array, and a comprehension as a child of §53's
+  `u8[][]`.
+
+### Unsettled
+
+- **`in` over a count, in loops.** The comprehension reads `in` as a count
+  because a literal has no array operand position for it to mean anything else.
+  The Maybe entry for loops refused the count reading because in a loop header
+  it would mean two things. Building it here and not there means the meanings
+  now diverge by context, which is the complaint that entry was answering from
+  the other side - so what is open is whether loops follow, and the decision
+  belongs to that entry now rather than to this section.
+- **Splicing.** A comprehension as one segment of a longer literal, for
+  sentinel-prefixed tables. Cheap to allow and easy to add later; nothing has
+  wanted it.
+- **Mapping an existing array.** `[ for ( v of pal ) v / 4 ]` reads naturally,
+  and the elements are constants a const array already holds. A second form,
+  after the first earns its place. It would also need an element read to fold,
+  which none does yet.
+- **Nesting**, for §53's `u8[][]`. No customer; refused by name so that it is a
+  decision rather than a discovery.

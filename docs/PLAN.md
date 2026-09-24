@@ -174,11 +174,6 @@ at all, which makes one a floor rather than a measurement.
   the compiler cannot read, and a wrong definition errors inside the library,
   naming the wrong party. Resolver-only, emits nothing, and the identity tier
   can say so.
-- **Table comprehensions.** §76 - `[ for ( i in 256 ) curve( i ) ]`, folded at
-  compile time. Deletes the generator-script special case for tables that are
-  pure functions of their index; composes with §74 and §75. The largest of the
-  three and the one whose `in`-over-a-count spelling must be decided together
-  with the Maybe entry that already holds it for loops.
 - **`alias`.** §46 - a compile-time name for one element or one group instance, at
   an index the program chooses. §45's `of` is this with the index owned by the
   compiler, so the substitution is already built and what is new is a capture rule;
@@ -275,7 +270,10 @@ at all, which makes one a floor rather than a measurement.
   one operand position and a plain value in the other - for a gain §44 has already
   mostly taken. **Not for want of a customer**: the 131 loops are this written out
   longhand, which is more evidence than anything else in this tier has, and the
-  note under Todo is about exactly this case.
+  note under Todo is about exactly this case. **§76 has since built the count
+  reading inside an array literal**, where no array operand position exists, so
+  the two meanings now diverge by context - and whether loops follow is this
+  entry's to decide.
 - **`--cpu` target levels.** §28. 186 is modest, 286 is a rounding error, 386 is
   transformative - and 386 would change §4's type rules, so it is not only a
   backend switch.
@@ -356,6 +354,16 @@ All are set out in DESIGN §20 unless noted.
 section that was itself a plan - see the note at the top for why, and where to
 look for the rest.
 
+- **Table comprehensions.** 2026-09-24. §76, now in `DESIGN.md`, and the record
+  is DECISIONS §76. `[ for ( i in 256 ) curve( i ) ]` is §8's substitution run
+  once per element, and every element goes through the loop written elements go
+  through, so nothing about fit, scale, unit or range was restated. The design
+  did not say what a comprehension is a use of: the elements are, as a written
+  table's are, and the count and the unresolved body are not - walking the body
+  would count a call edge to nothing, and the teeth check showed one raising a
+  program's stack reserve. Its four
+  unsettled points are still open, and the `in`-over-a-count one now sits with
+  the Maybe entry for loops.
 - **Ranged units.** 2026-09-24. §75, now in `DESIGN.md`, and the record is
   DECISIONS §75. `unit intensity = u8 <= 63` holds every constant that lands in
   the unit against 63, a whole table included, and emits nothing - the identity
@@ -2727,60 +2735,3 @@ already express "taken, deliberately" without one.
   else calls by contract, but the caller there is hardware and the signature
   question is different (`iret`, saved registers). Kept separate unless the
   designs turn out to rhyme.
-
----
-
-## 76. Fold-time table comprehensions
-
-**Undesigned until 2026-09-24, and the largest of the three proposals it
-arrived with.** An array initialiser whose elements are computed by the folder
-rather than written out:
-
-```momo
-const u8 curve( u8 i ) = u8( i * i / 272 )
-const u8[256] gamma = [ for ( i in 256 ) curve( i ) ]
-```
-
-The body is any expression the folder can fold with `i` bound to each of
-0..n-1 - a parameterised const evaluated n times, which is machinery §8
-already has. An element that does not fold is an error naming the index. Every
-element then passes the same checks a written one does: fit, scale, and §75's
-range.
-
-### What it deletes
-
-The generator-script special case, for every table that is a pure function of
-its index. The pattern today is host-side emission into committed `.momo` -
-right for scene data, which is authored, and heavy for a gamma curve, which is
-derived. §32 names the sharpest instance: the PIT's input frequency cannot be
-written as a literal, so note tables are "generated elsewhere" - but an
-untyped const can be *arithmetic* that folds wide and exactly
-(`const pitHz = 1193 * 1000 + 182`), and a comprehension over that puts the
-whole table in the language, with a `require` beside it pinning the values
-that matter. The three proposals compose: §74 asserts the relationships, §75
-bounds the elements, this generates them.
-
-### The claims it can make
-
-Compile-time only, so the identity claim is goldenable: a comprehension and
-its written-out table emit byte-identical data, and a fixture can hold the
-pair. The folder's exactness rules are §4's, settled: typed operands truncate
-as the machine would, untyped arithmetic is exact to 2^53 with the fit check
-where each element lands.
-
-### Unsettled
-
-- **`in` over a count.** The Maybe tier already holds this for loops and
-  refuses it there because `in` would mean two things in one operand position.
-  A comprehension has no array operand position, so the count reading is
-  unambiguous *here* - but landing it here and not in loops makes the meanings
-  diverge by context, which is the same complaint from the other side. The two
-  entries should be decided together, whichever way it goes.
-- **Splicing.** A comprehension as one segment of a longer literal, for
-  sentinel-prefixed tables. Cheap to allow, easy to add later, not needed by
-  the first customer.
-- **Mapping an existing array.** `[ for ( v of pal ) v / 4 ]` reads naturally
-  and the elements are constants a const array already holds. A second form,
-  after the first earns its place.
-- **Nesting**, for §53's `u8[][]`. No customer; noted so it is a decision
-  rather than a discovery.
