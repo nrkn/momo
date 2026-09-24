@@ -3924,16 +3924,19 @@ checkNames:
         mov     es, dx
         pop     ax
         mov     [es:bx + 24584], ax
-; ---- posLo[ order[k] ] = order[ k + run - 1 ]
+; ---- posLo[ order[k] ] = wadLump( wadName( order[k] ) )
         mov     ax, [checkNames__k]
-        mov     bx, [checkNames__run]
-        add     ax, bx
-        dec     ax
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     dx, [colSeg]                ; segment of order
         mov     es, dx
         mov     ax, [es:bx]
+        mov     [wadName__lump], ax
+        call    wadName
+        mov     ax, [wadName__ret]
+        mov     [wadLump__name], ax
+        call    wadLump
+        mov     ax, [wadLump__ret]
         push    ax                          ; save value while computing the index
         mov     ax, [checkNames__k]
         shl     ax, 1                       ; word elements

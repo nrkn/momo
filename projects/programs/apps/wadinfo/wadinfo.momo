@@ -433,10 +433,11 @@ bool isTypes( u16 lump ) {
 
 // ---- names across the chain ----
 //
-// Sorted by name, a run of equal names is a lump and the lumps it shadows, and
-// the last of the run - the highest index, since ties keep load order - is the
-// one `wadLump` returns. TYPES is the exception and is left out: each file has
-// its own, and their rows merge rather than one shadowing another.
+// Sorted by name, a run of equal names is a lump and the lumps it shadows. The
+// winner is asked of `wadLump` rather than read off the end of the run, so what
+// this reports is what a program reading the chain is handed. TYPES is left
+// out: each file has its own, and their rows merge rather than one shadowing
+// another.
 
 sub checkNames {
   u16 total
@@ -465,7 +466,7 @@ sub checkNames {
 
     if ( run > 1 && !isTypes( order[k] ) ) {
       sizeLo[ order[k] ] = run
-      posLo[ order[k] ] = order[ k + run - 1 ]
+      posLo[ order[k] ] = wadLump( wadName( order[k] ) )
     }
   }
 
