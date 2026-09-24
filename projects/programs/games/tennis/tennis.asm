@@ -1013,7 +1013,8 @@ drawNet:
 ; ============================================== bool netAt ====
 
 netAt:
-; ---- bool netAt( u16 y ) => y >= netTop && y < netBottom && ( y - netTop ) % netGap < netDash
+; ---- bool netAt( u16 y ) =>
+; ---- y >= netTop && y < netBottom && ( y - netTop ) % netGap < netDash
         mov     ax, [netAt__y]
         cmp     ax, 12
         jb      .L120                       ; unsigned >=
@@ -1104,7 +1105,9 @@ clearColumn:
 ; ============================================== sub drawPaddle ====
 
 drawPaddle:
-; ---- sub drawPaddle( u8 pi ) => fillColumn( paddleX[ pi ], paddleRow( player[ pi ].y ), paddleH, paddleColorW[ pi ] )
+; ---- sub drawPaddle( u8 pi ) => fillColumn(
+; ---- paddleX[ pi ], paddleRow( player[ pi ].y ), paddleH, paddleColorW[ pi ]
+; ---- )
         mov     al, [drawPaddle__pi]
         xor     ah, ah                      ; u8 -> u16
         mov     bx, ax

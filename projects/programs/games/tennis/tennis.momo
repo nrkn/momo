@@ -96,7 +96,8 @@ sub drawNet {
 }
 
 // Whether row `y` of the centre column is on one of the net's dashes.
-bool netAt( u16 y ) => y >= netTop && y < netBottom && ( y - netTop ) % netGap < netDash
+bool netAt( u16 y ) => 
+  y >= netTop && y < netBottom && ( y - netTop ) % netGap < netDash
 
 // `n` rows of column `x` put back to what is under them. Only the ball ever
 // crosses anything, and the only thing it crosses is the net - so clearing to
@@ -138,7 +139,9 @@ const u16[] paddleColorW = [ redW, blueW ]
 u8 ballDrawnColor
 
 // Whole objects, for `start` - after it, only what moves is drawn.
-sub drawPaddle( u8 pi ) => fillColumn( paddleX[ pi ], paddleRow( player[ pi ].y ), paddleH, paddleColorW[ pi ] )
+sub drawPaddle( u8 pi ) => fillColumn( 
+  paddleX[ pi ], paddleRow( player[ pi ].y ), paddleH, paddleColorW[ pi ] 
+)
 
 sub drawBall {
   u16 x
