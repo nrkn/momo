@@ -1,0 +1,40 @@
+// The written-out twin of ok-gentable-comp.momo: every table typed by hand, as
+// it had to be before §76. The identity tier compiles both and requires the
+// same instructions and the same data.
+//
+// A table whose elements name a const names it here too - `pitHz` - because
+// that is the table a person writes; one built from literals alone is written as
+// the numbers it folds to. `steps` is absent, because only a count named it.
+
+const u8[32] gamma = [
+  0, 0, 0, 2, 3, 5, 8, 11, 15, 19, 23, 28, 33, 39, 46, 52,
+  60, 68, 76, 84, 94, 103, 113, 124, 135, 147, 159, 171, 184, 197, 211, 226,
+]
+
+const i8.8[5] wave = [ -1.0, -0.5, 0.0, 0.5, 1.0 ]
+
+const pitHz = 1193 * 1000 + 182
+const u16[4] harmonic = [ pitHz / 220, pitHz / 440, pitHz / 660, pitHz / 880 ]
+
+unit intensity = u8 <= 63
+const intensity[4] ramp = [ 0, 21, 42, 63 ]
+
+const u8[] evens = [ 0, 2, 4, 6, 8, 10 ]
+
+u8[4] buffer = [ 3, 2, 1, 0 ]
+
+group mob[3] {
+  u16 x = [ 0, 100, 200 ]
+  u8  hp
+}
+
+const u8[8] unused = [ 0, 1, 2, 3, 4, 5, 6, 7 ]
+
+u16 total = 0
+u16 k
+
+for ( k = 0; k < len( gamma ); k++ ) total = total + gamma[ k ]
+for ( k = 0; k < len( harmonic ); k++ ) total = total + harmonic[ k ]
+for ( k = 0; k < len( evens ); k++ ) total = total + evens[ k ]
+for ( k = 0; k < 3; k++ ) total = total + mob[ k ].x
+total = total + u16( raw i16( wave[ 4 ] ) ) + u16( ramp[ 3 ] ) + buffer[ 0 ]

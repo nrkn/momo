@@ -1,0 +1,6 @@
+// EXPECT-ERROR: a comprehension needs a positive count, and this one folds to 0
+// EXPECT-AT: 6:29
+// No elements is not a table (§76).
+const rows = 0
+
+const u8[] t = [ for ( i in rows ) i ]

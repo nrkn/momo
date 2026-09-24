@@ -17,6 +17,7 @@ import type {
   BracketDeclaration,
   BracketStatement,
   CallStatement,
+  ComprehensionLiteral,
   ConstDeclaration,
   ConstFunctionDeclaration,
   Parameter,
@@ -65,6 +66,12 @@ const twoSided =
   'a ranged unit takes an upper bound only - "u8 <= 63" or "u8 < 80";' +
   ' a lower bound makes it two-sided, and two comparisons in a row are the' +
   ' chained form §6 rules out, so that spelling waits for a customer (§75)'
+
+// §76's first build takes the comprehension as the whole literal. A sentinel in
+// front of a generated table is the case that would want more, and has not yet.
+const spliced =
+  'a comprehension is the whole initialiser - splicing one into a longer list' +
+  ' waits for a customer (§76)'
 
 const compoundAssignOps = ['+=', '-=', '*=', '/=', '%=', '&=', '|=', '^=', '<<=', '>>=']
 
@@ -234,12 +241,58 @@ export const parse = (tokens: Token[]): Program => {
     return parsePrimary()
   }
 
-  const parseArrayLiteral = (): ArrayLiteral => {
+  // §76. `[ for ( i in 256 ) curve( i ) ]`. `in` is matched by lookahead, as §45
+  // matches it in a loop header, so it stays an ordinary name everywhere else.
+  // The count is any expression and the resolver folds it; the counter takes no
+  // type, because what it is bound to is a literal per element.
+  const parseComprehension = (open: Token): ComprehensionLiteral => {
+    expect('keyword', 'for')
+    expect('op', '(')
+
+    if (at('type')) {
+      raise(
+        peek(),
+        'the counter of a comprehension is a literal for each element, so it takes no type' +
+          ' - write "for ( i in n )"',
+      )
+    }
+    const name = expect('ident')
+
+    if (!at('ident') || (peek().text !== 'in' && peek().text !== 'of')) {
+      raise(peek(), `a comprehension is written "[ for ( ${name.text} in count ) element ]"`)
+    }
+    const word = advance()
+    if (word.text === 'of') {
+      raise(word, 'a comprehension over an array with "of" is not built - only "in" over a count is, so far (§76)')
+    }
+
+    const count = parseExpression()
+    expect('op', ')')
+    const body = parseExpression()
+
+    if (at('op', ',')) raise(peek(), spliced)
+    expect('op', ']')
+
+    return {
+      type: 'ComprehensionLiteral',
+      counter: name.text,
+      count,
+      body,
+      file: open.file,
+      line: open.line,
+      col: open.col,
+    }
+  }
+
+  const parseArrayLiteral = (): ArrayLiteral | ComprehensionLiteral => {
     const open = expect('op', '[')
+    if (at('keyword', 'for')) return parseComprehension(open)
+
     const elements: Expression[] = []
 
     if (!at('op', ']')) {
       for (;;) {
+        if (at('keyword', 'for')) raise(peek(), spliced)
         elements.push(parseExpression())
         if (!at('op', ',')) break
         advance()

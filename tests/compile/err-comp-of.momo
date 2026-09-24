@@ -1,0 +1,6 @@
+// EXPECT-ERROR: a comprehension over an array with "of" is not built - only "in" over a count is, so far
+// EXPECT-AT: 6:28
+// Mapping an existing table is §76's second form, after the first earns its
+// place.
+const u8[] pal = [ 0, 21, 42, 63 ]
+const u8[] dim = [ for ( v of pal ) v / 2 ]

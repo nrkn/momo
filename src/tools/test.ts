@@ -507,6 +507,21 @@ const roundTripCases = (scratch: string): number => {
           'the printer lost a unit\'s bound, which no instruction would show',
         )
       }
+
+      // And for §76, from both sides: the comprehension and the table it writes
+      // compile alike, so only the text can say which one printed. Resolved, it
+      // is the table; unresolved, it has no elements yet and is what was written.
+      if (name === 'gentable') {
+        asserted += 1
+        const unresolved = printProgram(load(file, sharedRoot, new Map()).program)
+        check(
+          'round trip gentable prints the table, and the comprehension before it',
+          printed.includes('gamma = [ curve( 0 ), curve( 1 ), curve( 2 ),') &&
+            !printed.includes('[ for (') &&
+            unresolved.includes('gamma = [ for ( i in 256 ) curve( i ) ]'),
+          'lomo should hold the written-out table, and an unresolved print the comprehension',
+        )
+      }
     } catch (error) {
       // Counted, or the breakdown stops summing to the total.
       asserted += 1
@@ -647,6 +662,7 @@ const identityPairs: [string, string, string][] = [
     'ok-group-rows-plain.momo',
   ],
   ['a require emits nothing, and is not a use (§74)', 'ok-require-checked.momo', 'ok-require-plain.momo'],
+  ['a comprehension is its table written out (§76)', 'ok-gentable-comp.momo', 'ok-gentable-written.momo'],
 ]
 
 const identityTests = (): number => {

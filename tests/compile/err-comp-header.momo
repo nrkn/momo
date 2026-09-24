@@ -1,0 +1,4 @@
+// EXPECT-ERROR: a comprehension is written "[ for ( i in count ) element ]"
+// EXPECT-AT: 4:27
+// A three-clause header has no place in a literal (§76).
+const u8[4] t = [ for ( i = 0; i < 4; i++ ) i ]

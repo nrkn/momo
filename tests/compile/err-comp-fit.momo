@@ -1,0 +1,5 @@
+// EXPECT-ERROR: value 256 does not fit in u8
+// EXPECT-AT: 5:42
+// The fit check is the written element's own (§76): 16 squared is one past a
+// byte.
+const u8[] squares = [ for ( n in 17 ) n * n ]

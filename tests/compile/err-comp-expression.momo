@@ -1,0 +1,6 @@
+// EXPECT-ERROR: a comprehension may only initialise an array
+// EXPECT-AT: 6:9
+// Like an array literal it is a way of writing data, not a value (§76).
+u16 x
+
+x = 1 + [ for ( i in 4 ) i ]

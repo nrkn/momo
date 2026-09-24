@@ -35,6 +35,7 @@ const label = (node: Node): string => {
   if (node.type === 'ConstFunctionDeclaration') return `ConstFn ${node.name}`
   if (node.type === 'Parameter') return `Param ${node.name}`
   if (node.type === 'CallExpression') return `Call ${node.callee.name}`
+  if (node.type === 'ComprehensionLiteral') return `Comprehension ${node.counter}`
   if (node.type === 'ConstDeclaration') return `Const ${node.name}`
   if (node.type === 'VariableDeclaration') return `Var ${node.name}`
   if (node.type === 'RoutineDeclaration') {

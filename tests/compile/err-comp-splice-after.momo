@@ -1,0 +1,4 @@
+// EXPECT-ERROR: a comprehension is the whole initialiser - splicing one into a longer list waits for a customer
+// EXPECT-AT: 4:34
+// The same from the other side (§76).
+const u8[] t = [ for ( i in 4 ) i, 255 ]

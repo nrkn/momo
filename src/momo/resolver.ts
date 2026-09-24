@@ -10,6 +10,8 @@
 // static slot under a different name - all cost, no benefit.
 
 import type {
+  ArrayLiteral,
+  ComprehensionLiteral,
   ConstFunctionDeclaration,
   Expression,
   FarAddress,
@@ -987,6 +989,10 @@ export const resolve = (program: Program): ResolveResult => {
       raise(node, 'an array literal may only initialise an array')
     }
 
+    if (node.type === 'ComprehensionLiteral') {
+      raise(node, 'a comprehension may only initialise an array')
+    }
+
     if (node.type === 'Identifier') {
       if (node.field !== undefined) return annotate(node, resolveGroupField(node, null))
 
@@ -1582,6 +1588,40 @@ export const resolve = (program: Program): ResolveResult => {
     return Object.values(node).some(mentionsAddr)
   }
 
+  // §76. The count folds to a positive number, and each element is a copy of the
+  // body with the counter bound to a literal - §8's substitution, with the binding
+  // made by the compiler rather than by a caller. The binding replaces the name
+  // before anything resolves, so a counter that shares a name with a symbol
+  // shadows it inside the body and nowhere else. The copies come back unresolved:
+  // arrayValuesFrom resolves each as it resolves a written element.
+  const expandComprehension = (node: ComprehensionLiteral): Expression[] => {
+    const count = resolveExpression(node.count)
+    if (count.value === null) {
+      const part = unfoldedPart(node.count)
+      raise(
+        part,
+        `the count of a comprehension folds at compile time, and "${printExpression(part)}"` +
+          ` does not - ${whyUnfolded(part)}`,
+      )
+    }
+    if (count.type === 'bool' || count.frac !== 0) {
+      raise(node.count, `the count of a comprehension is a number of elements, not ${describeType(count)}`)
+    }
+    if (count.value <= 0) {
+      raise(node.count, `a comprehension needs a positive count, and this one folds to ${count.value}`)
+    }
+
+    const at = { file: node.body.file, line: node.body.line, col: node.body.col }
+    const elements: Expression[] = []
+    for (let i = 0; i < count.value; i++) {
+      const bound: Expression = { type: 'NumberLiteral', value: i, text: `${i}`, ...at }
+      elements.push(substitute(node.body, new Map([[node.counter, bound]])))
+    }
+
+    node.expanded = elements
+    return elements
+  }
+
   // `addresses` is true only for a const array: §51 admits a bare addr() there
   // and nowhere else, as a label NASM resolves rather than a number folded here.
   const arrayValuesFrom = (
@@ -1603,14 +1643,20 @@ export const resolve = (program: Program): ResolveResult => {
       return values
     }
 
-    if (init.type !== 'ArrayLiteral') {
+    if (init.type !== 'ArrayLiteral' && init.type !== 'ComprehensionLiteral') {
       raise(init, 'an array must be initialised with an array or string literal')
     }
 
+    // §76. A comprehension's elements come through the same loop as written ones,
+    // so each meets every check below - fit, scale, unit, range, addr() - with
+    // nothing restated for it.
+    const comprehension = init.type === 'ComprehensionLiteral' ? init : null
+    const elements = comprehension ? expandComprehension(comprehension) : (init as ArrayLiteral).elements
+
     const values: ArrayValue[] = []
-    for (const element of init.elements) {
+    for (const element of elements) {
       // A list of lists is §53's, and only its own declaration reads one.
-      if (element.type === 'StringLiteral' || element.type === 'ArrayLiteral') {
+      if (element.type === 'StringLiteral' || element.type === 'ArrayLiteral' || element.type === 'ComprehensionLiteral') {
         raise(element, 'a list of arrays needs its type written - "const u8[][] name = [ ... ]"')
       }
 
@@ -1660,6 +1706,16 @@ export const resolve = (program: Program): ResolveResult => {
             element,
             'only a bare addr() can go in an initialiser - arithmetic on an address' +
               ' reads as a size and is not one, and len() is the size',
+          )
+        }
+        // Named by index, as §75's refusals are, because the caret lands on the
+        // body - which is every element at once.
+        if (comprehension) {
+          const part = unfoldedPart(element)
+          raise(
+            part,
+            `element ${values.length} of the comprehension does not fold, because` +
+              ` "${printExpression(part)}" does not - ${whyUnfolded(part)}`,
           )
         }
         raise(element, 'array element must be a constant')
@@ -1712,6 +1768,9 @@ export const resolve = (program: Program): ResolveResult => {
     const lengths: number[] = []
 
     init.elements.forEach((element, i) => {
+      if (element.type === 'ComprehensionLiteral') {
+        raise(element, 'a comprehension as a child of an array of arrays waits for a customer - nesting is not built (§76)')
+      }
       if (element.type !== 'StringLiteral' && element.type !== 'ArrayLiteral') {
         raise(element, 'each element of an array of arrays is an array - a string, or [ ... ]')
       }
@@ -2269,7 +2328,11 @@ export const resolve = (program: Program): ResolveResult => {
     // Said here rather than left to the array path, which would report "an array
     // must be initialised with an array or string literal" and never mention the
     // count that makes a scalar wrong.
-    if (field.init.type !== 'ArrayLiteral' && field.init.type !== 'StringLiteral') {
+    if (
+      field.init.type !== 'ArrayLiteral' &&
+      field.init.type !== 'ComprehensionLiteral' &&
+      field.init.type !== 'StringLiteral'
+    ) {
       raise(
         field.init,
         `group "${node.name}" has ${count} instances, so "${field.name}" takes` +
@@ -2298,7 +2361,7 @@ export const resolve = (program: Program): ResolveResult => {
   const scalarFieldValue = (node: GroupDeclaration, field: GroupField): number => {
     if (!field.init) return 0
 
-    if (field.init.type === 'ArrayLiteral') {
+    if (field.init.type === 'ArrayLiteral' || field.init.type === 'ComprehensionLiteral') {
       raise(
         field.init,
         `group "${node.name}" has a single instance, so "${field.name}" takes one value`,
@@ -2480,7 +2543,10 @@ export const resolve = (program: Program): ResolveResult => {
     // is what keeps the two spellings from drifting apart.
     node.label = labelFor(node.name, node.local)
 
-    const isArrayInit = node.init.type === 'ArrayLiteral' || node.init.type === 'StringLiteral'
+    const isArrayInit =
+      node.init.type === 'ArrayLiteral' ||
+      node.init.type === 'ComprehensionLiteral' ||
+      node.init.type === 'StringLiteral'
 
     if (node.typeNode?.array || isArrayInit) {
       if (node.typeNode?.nested) {

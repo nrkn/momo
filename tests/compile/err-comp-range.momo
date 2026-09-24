@@ -1,0 +1,7 @@
+// EXPECT-ERROR: element 64 (64) does not fit in intensity, which is u8 <= 63
+// EXPECT-AT: 7:44
+// A generated element meets §75's range exactly as a written one does, and the
+// refusal carries its number (§76). The count is one too many.
+unit intensity = u8 <= 63
+
+const intensity[] ramp = [ for ( i in 65 ) i ]

@@ -210,6 +210,15 @@ const collectFromExpression = (value: unknown, into: CallSite[]) => {
     return
   }
 
+  // A comprehension's body is a template nobody resolved, so a call in it has no
+  // label (§76). Its resolved copies are what the program holds - and a body that
+  // calls a routine never gets this far, because the element does not fold and
+  // the resolver refuses it before the graph is built.
+  if (node.type === 'ComprehensionLiteral') {
+    collectFromExpression(node.expanded, into)
+    return
+  }
+
   if (node.type === 'CallExpression') {
     const callee = node.callee as { label: string }
     into.push({
@@ -329,17 +338,26 @@ export const prune = <S extends PrunableSymbol>(result: {
     // `internal: unresolved symbol`. Found during §75's build; DECISIONS §75.
     if (node.type === 'VariableDeclaration' || node.type === 'ConstDeclaration') {
       const init = node.init as { type?: string; constValue?: number | null } | null
+      const table = init?.type === 'ArrayLiteral' || init?.type === 'ComprehensionLiteral'
       if (
         node.type === 'VariableDeclaration' &&
         init !== null &&
-        init.type !== 'ArrayLiteral' &&
+        !table &&
         init.type !== 'StringLiteral' &&
         (init.constValue === null || init.constValue === undefined) &&
         typeof node.label === 'string'
       ) {
         used.add(node.label)
       }
-      walk(init, init?.type === 'ArrayLiteral')
+      walk(init, table)
+      return
+    }
+
+    // The elements a comprehension wrote out are its uses, exactly as a written
+    // table's are (§76). Neither the count nor the unresolved body is: a const
+    // named only in the count keeps no line, as one named only in a size does not.
+    if (node.type === 'ComprehensionLiteral') {
+      walk(node.expanded, inTable)
       return
     }
 

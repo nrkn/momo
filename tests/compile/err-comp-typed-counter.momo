@@ -1,0 +1,5 @@
+// EXPECT-ERROR: the counter of a comprehension is a literal for each element, so it takes no type
+// EXPECT-AT: 5:25
+// The counter is bound to 0, 1, 2 in turn - untyped literals - so a type would
+// have nothing to say (§76).
+const u8[4] t = [ for ( u8 i in 4 ) i ]

@@ -105,6 +105,22 @@ export type ArrayLiteral = Located & {
   elements: Expression[]
 }
 
+// `[ for ( i in 256 ) curve( i ) ]` (§76): an initialiser the folder writes out.
+// The parser builds one only where an array literal starts, and only as the
+// whole literal. `body` is a template that is never resolved itself - each
+// element is a copy with `counter` replaced by a literal - so walkers that care
+// what a program uses follow `expanded` instead, as they follow a call's
+// `expansion`.
+export type ComprehensionLiteral = Located & {
+  type: 'ComprehensionLiteral'
+  counter: string
+  count: Expression
+  body: Expression
+  // Set by the resolver: the elements, in order, each resolved exactly as a
+  // written element is. What the printer writes, so lomo is the table spelled out.
+  expanded?: Expression[]
+}
+
 export type BinaryExpression = Located & {
   type: 'BinaryExpression'
   operator: string
@@ -360,6 +376,7 @@ export type Expression =
   | BoolLiteral
   | StringLiteral
   | ArrayLiteral
+  | ComprehensionLiteral
   | BinaryExpression
   | LogicalExpression
   | UnaryExpression

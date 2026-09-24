@@ -1,0 +1,48 @@
+// Half of the pair behind §76's claim that a comprehension is its table written
+// out. `ok-gentable-written.momo` is the same program with every table typed by
+// hand, and the identity tier requires both to emit the same instructions and
+// the same data.
+//
+// Each shape is here for a path it takes: a parameterised const, a fixed-point
+// body whose decimals take the element scale, an untyped const the elements
+// name, a ranged unit, a count named by a const alone, a writable array, a
+// group column, and a table nothing reads.
+//
+// `steps` is named by a count and by nothing else. Counted as a use, it would
+// keep an `equ` line the written file does not have. `pitHz` is the opposite
+// case: the elements name it, as the written table does, so both keep it.
+//
+// Keep the two in step. A difference is either a real leak or an edit that only
+// landed on one of them, and the assertion cannot tell those apart.
+
+const u8 curve( u8 i ) = u8( i * i / 272 )
+const u8[32] gamma = [ for ( i in 32 ) curve( i * 8 ) ]
+
+const i8.8[5] wave = [ for ( i in 5 ) i * 0.5 - 1.0 ]
+
+const pitHz = 1193 * 1000 + 182
+const u16[4] harmonic = [ for ( h in 4 ) pitHz / ( 220 * ( h + 1 ) ) ]
+
+unit intensity = u8 <= 63
+const intensity[4] ramp = [ for ( i in 4 ) i * 21 ]
+
+const steps = 6
+const u8[] evens = [ for ( i in steps ) i * 2 ]
+
+u8[4] buffer = [ for ( i in 4 ) 3 - i ]
+
+group mob[3] {
+  u16 x = [ for ( i in 3 ) i * 100 ]
+  u8  hp
+}
+
+const u8[8] unused = [ for ( i in 8 ) i ]
+
+u16 total = 0
+u16 k
+
+for ( k = 0; k < len( gamma ); k++ ) total = total + gamma[ k ]
+for ( k = 0; k < len( harmonic ); k++ ) total = total + harmonic[ k ]
+for ( k = 0; k < len( evens ); k++ ) total = total + evens[ k ]
+for ( k = 0; k < 3; k++ ) total = total + mob[ k ].x
+total = total + u16( raw i16( wave[ 4 ] ) ) + u16( ramp[ 3 ] ) + buffer[ 0 ]

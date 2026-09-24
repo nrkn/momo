@@ -1,0 +1,100 @@
+// gentable.momo - table comprehensions (DESIGN §76).
+//
+// Every table below is written by the folder: `[ for ( i in n ) body ]` binds
+// the counter to 0 .. n-1 and folds the body once for each, and each element
+// then meets exactly the checks a written one does. Nothing here runs a loop to
+// fill a table - the data section holds the numbers, as if they had been typed.
+//
+// The refusals live in tests/compile/ as err-comp-* cases, and the claim that a
+// comprehension costs nothing is `ok-gentable-comp` against `ok-gentable-written`.
+
+include "lib/std/io.momo"
+
+// ---- a curve through a parameterised const, which is §8's own machinery ----
+
+const u8 curve( u8 i ) = u8( i * i / 272 )
+const u8[256] gamma = [ for ( i in 256 ) curve( i ) ]
+
+// The const a table was made from can be pinned where it matters (§74).
+require curve( 128 ) == 60
+require curve( 255 ) == 239
+
+// ---- words ----
+
+const u16[16] cubes = [ for ( n in 16 ) n * n * n ]
+
+// ---- fixed point: the body's decimals take the element's scale (§25) ----
+
+const i8.8[9] wave = [ for ( i in 9 ) i * 0.25 - 1.0 ]
+
+// ---- an untyped const folds wide and exactly, and each element fits ----
+//
+// The PIT's input clock cannot be a literal in a 16-bit language, but it can be
+// arithmetic. Each divisor is a word; the clock never is.
+
+const pitHz = 1193 * 1000 + 182
+const u16[8] harmonic = [ for ( h in 8 ) pitHz / ( 110 * ( h + 1 ) ) ]
+require pitHz / 440 == 2711
+
+// ---- a ranged unit: every generated element is held against 63 (§75) ----
+
+unit intensity = u8 <= 63
+const dac( u8 v ) = intensity( v >> 2 )
+const intensity[16] fade = [ for ( i in 16 ) dac( 255 - i * 17 ) ]
+
+// ---- no size written: the count is the length ----
+
+const cols = 8
+const u8[] stripe = [ for ( c in cols * 2 ) c & 1 ]
+
+u16 sum
+
+// ---- print enough to pin every table ----
+
+putNumber( gamma[ 0 ] )
+space()
+putNumber( gamma[ 17 ] )
+space()
+putNumber( gamma[ 128 ] )
+space()
+putNumber( gamma[ 255 ] )
+for ( u16 k = 0; k < len( gamma ); k++ ) sum += gamma[ k ]
+space()
+putNumber( sum )
+newline()
+
+putNumber( cubes[ 15 ] )
+sum = 0
+for ( v of cubes ) sum += v
+space()
+putNumber( sum )
+newline()
+
+putNumber( u16( raw i16( wave[ 4 ] ) ) )
+for ( u16 k = 5; k < len( wave ); k++ ) {
+  space()
+  putNumber( u16( raw i16( wave[ k ] ) ) )
+}
+newline()
+
+putNumber( harmonic[ 0 ] )
+for ( u16 k = 1; k < len( harmonic ); k++ ) {
+  space()
+  putNumber( harmonic[ k ] )
+}
+newline()
+
+putNumber( u16( fade[ 0 ] ) )
+space()
+putNumber( u16( fade[ 15 ] ) )
+sum = 0
+for ( v of fade ) sum += u16( v )
+space()
+putNumber( sum )
+space()
+putNumber( len( stripe ) )
+sum = 0
+for ( v of stripe ) sum += v
+space()
+putNumber( sum )
+newline()

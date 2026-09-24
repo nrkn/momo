@@ -1,0 +1,4 @@
+// EXPECT-ERROR: a comprehension needs a positive count, and this one folds to -2
+// EXPECT-AT: 4:31
+// The count is folded exactly, so arithmetic that goes below zero says so (§76).
+const u8[] t = [ for ( i in 2 - 4 ) i ]

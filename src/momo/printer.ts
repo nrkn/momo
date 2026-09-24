@@ -156,6 +156,14 @@ export const printExpression = (node: Expression): string => {
     case 'ArrayLiteral':
       return `[ ${node.elements.map(printExpression).join(', ')} ]`
 
+    // Two forms, as §48's brackets have (§76). Once resolved, a comprehension is
+    // the table it wrote out, and that is what lomo shows and the round trip
+    // compiles; before, it has no elements yet, so `npm run parse`'s side prints
+    // what was written.
+    case 'ComprehensionLiteral':
+      if (node.expanded) return `[ ${node.expanded.map(printExpression).join(', ')} ]`
+      return `[ for ( ${node.counter} in ${printExpression(node.count)} ) ${printExpression(node.body)} ]`
+
     // When `*` lowered to a call, the lowering is what the program means - so
     // that is what desugar shows and what the round trip compiles. Only ever set
     // after `resolve`, so printing a freshly parsed program is unchanged.

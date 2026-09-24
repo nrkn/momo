@@ -1,0 +1,5 @@
+// EXPECT-ERROR: a comprehension is the whole initialiser - splicing one into a longer list waits for a customer
+// EXPECT-AT: 5:21
+// A sentinel ahead of a generated table is the case that would want this, and
+// nothing has yet (§76).
+const u8[] t = [ 0, for ( i in 4 ) i ]

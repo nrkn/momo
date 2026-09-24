@@ -1,0 +1,7 @@
+// EXPECT-ERROR: element 0 of the comprehension does not fold, because "twice( 0 )" does not - it calls a routine
+// EXPECT-AT: 7:35
+// A routine runs when the program does, so a body calling one cannot fold - and
+// the resolver says so before any call graph is built (§76).
+u16 twice( u16 n ) => n * 2
+
+const u16[4] t = [ for ( i in 4 ) twice( i ) ]

@@ -1,0 +1,9 @@
+// EXPECT-ERROR: element 3 of the comprehension does not fold, because "count" does not - it is a variable
+// EXPECT-AT: 9:32
+// Every element has to fold, and the one that does not is named by index,
+// because the caret lands on the body - which is all of them at once (§76).
+// Elements 0 to 2 take the arm that folds.
+u16 count = 3
+
+const u8[8] steps =
+  [ for ( i in 8 ) i < 3 ? i : count ]

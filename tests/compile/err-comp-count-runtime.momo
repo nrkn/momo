@@ -1,0 +1,6 @@
+// EXPECT-ERROR: the count of a comprehension folds at compile time, and "n" does not - it is a variable
+// EXPECT-AT: 6:30
+// The count is how many elements the folder writes, so it is a constant (§76).
+u16 n = 4
+
+const u8[4] t = [ for ( i in n ) i ]

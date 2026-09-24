@@ -1,0 +1,4 @@
+// EXPECT-ERROR: 5 initialisers for an array of 4
+// EXPECT-AT: 4:1
+// A count that disagrees with the declared size is the written table's error (§76).
+const u8[4] t = [ for ( i in 5 ) i ]
