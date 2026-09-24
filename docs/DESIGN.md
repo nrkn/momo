@@ -8376,7 +8376,7 @@ mapped on the way in.
 **It is little-endian**, which is the machine's own byte order, so every field is
 read by loading it.
 
-**Reading never needs 32-bit arithmetic.** Momo has no `i32`, and a file position
+**Finding a lump never needs 32-bit arithmetic.** Momo has no `i32`, and a file position
 is four bytes - but DOS seek takes its offset in `CX:DX`, which is exactly two
 words, so the halves go from the directory entry into the two registers without
 being added together. An entry is found the same way: a seek to the directory,
@@ -8384,11 +8384,14 @@ then a forward seek by the entry's offset in it, and DOS does the add. A lump
 larger than a segment is read in pieces, by design, through `wadNext`.
 
 The claim held in the build, and it has a boundary the design did not draw:
-**writing and checking do add.** The writer keeps the position it has reached,
-which is a carried add of two words per write and one borrowed subtraction per
-lump, and `wadinfo` asks whether a position plus a size passes a file's end,
-which is three 32-bit quantities. Both are a few lines on word pairs, and
-neither reaches the reader.
+**keeping a place and checking do add.** The writer keeps the position it has
+reached, which is a carried add of two words per write and one borrowed
+subtraction per lump. The stream keeps its own position and what is left of the
+lump, because anything read between two pieces moves the file's - a carried add
+and a borrow per piece, and one of each where it starts. And `wadinfo` asks
+whether a position plus a size passes a file's end, which is three 32-bit
+quantities. All three are a few lines on word pairs, and none reaches the
+lookup.
 
 ### What compatibility buys, and what it does not
 
@@ -8466,7 +8469,10 @@ speak.**
 - **Derived**, for our own lumps: both writers emit rows from the headers they
   just wrote, so a tool can type a whole file in one read. The reader never
   consults these; `wadinfo` checks them against the headers, the way
-  `npm run drift` checks INDEX.md against the headings.
+  `npm run drift` checks INDEX.md against the headings. The reader knows one
+  because its own file heads a lump of that name, and a claim for such a name
+  is refused - so it types no lump, not even a foreign one of the same name
+  elsewhere in the chain, which a row found by name would otherwise reach.
 - **Authoritative for foreign lumps only**: `PLAYPAL` in DOOM.WAD can never
   grow a header, so a TYPES row is the best claim available, and it is
   convention-grade by nature - unverifiable against the content, admitted at
@@ -8609,9 +8615,14 @@ own, with a name twice in one file and four alias sets for the counts.
 - **A row cannot be claimed for a lump the same write gave a header.** Both
   writers refuse it: the header is the authority, and a second description of
   the same lump is the parallel structure refused above.
+- **A row in a file that heads a lump of that name speaks for no lump.** It is
+  derived, and both readers pass over it to the file before. Rows are found by
+  name and lumps by index, and without this a patch's own lump would type the
+  base's foreign lump it shadows.
 - **One write at a time**, holding up to `wadWriteMax` lumps and `wadClaimMax`
   claimed rows until `wadFinish`, which reports a short write, the close
-  included (PITFALLS).
+  included (PITFALLS). The manifest has a slot of its own past the program's
+  lumps, so a write filled to `wadWriteMax` still gets one.
 - **Names compare to the first nul.** The index zeroes whatever a writer left
   after one, so two names are equal exactly when their four words are.
 - **An alias set is structure; a partial overlap is the suspect.** Entries with
@@ -8633,7 +8644,9 @@ own, with a name twice in one file and four alias sets for the counts.
 it writes a base IWAD and a patch PWAD from Momo, reads them back as a chain, and
 prints a digest - names, sizes, types with their source, and a checksum of every
 payload, read through the typed read wherever a lump has a type. The patch
-shadows a lump and outvotes a row, and both show. It ends on a typed read the
+shadows a lump and outvotes a row, and both show; it also shadows a foreign lump
+with one of its own, whose derived row must leave the base's untyped. A third
+file is one write filled to `wadWriteMax`, opened alone. It ends on a typed read the
 library must refuse, so a check that let it through prints a different last line.
 
 The host writer turned out to be the second reader the round trip lacked. Its

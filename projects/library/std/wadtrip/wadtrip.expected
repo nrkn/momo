@@ -1,17 +1,19 @@
-wrote: 1 1
+wrote: 1 1 1
 refused: 0 not a WAD - it does not start IWAD or PWAD
 refused: 0 cannot open the file
-files: 2 lumps: 9
+files: 1 lumps: 65
+files: 2 lumps: 10
 digest:
 0 0 GREET 14 text header 39587
 1 0 RAMP 16 palette header 36279*
 2 0 MAP01 12 scene header 678*
 3 0 PLAYPAL 9 palette manifest 17199*
 4 0 NOTE 17 text manifest 55030*
-5 0 BLOB 3 none untyped 43*
+5 0 BLOB 3 none untyped 43
 6 0 TYPES 49 types header 846
 7 1 GREET 20 text header 5602*
-8 1 TYPES 22 types header 55360*
+8 1 BLOB 7 raw header 43*
+9 1 TYPES 31 types header 53940*
 lookup:
 7 in file 1 patched greeting
 4 in file 0 from another tool

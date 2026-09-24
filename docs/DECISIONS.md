@@ -4961,13 +4961,16 @@ and the stage.
 
 ### What the design said and the build bent
 
-- **"The 32-bit fields never need 32-bit arithmetic"** held for reading, and the
-  build extended it: an entry is found by a seek to the directory and a forward
-  seek by its offset, so even the address of an entry is DOS's add. It did not
-  hold for writing, where the writer keeps its position as a carried add of two
-  words and a lump's size as a borrowed subtraction, nor for checking, where
-  "past the end" is a position plus a size against a length. Both are a few
-  lines on word pairs; DESIGN §41 draws the boundary.
+- **"The 32-bit fields never need 32-bit arithmetic"** held for finding a lump,
+  and the build extended it: an entry is found by a seek to the directory and a
+  forward seek by its offset, so even the address of an entry is DOS's add. It
+  did not hold for writing, where the writer keeps its position as a carried add
+  of two words and a lump's size as a borrowed subtraction, nor for the stream,
+  which keeps its own position and what is left the same way, nor for checking,
+  where "past the end" is a position plus a size against a length. All three are
+  a few lines on word pairs; DESIGN §41 draws the boundary. It was first drawn
+  around writing and checking alone, with "neither reaches the reader", and the
+  stream had been carrying since the first commit - a review found it.
 - **`fileSeek` hands back only the low word**, and a checker needs a file's
   whole length. The library issues its own `AH=42h` to the end and reads DX
   straight after the int, rather than widening `file.momo`'s capture, which

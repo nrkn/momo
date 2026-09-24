@@ -291,28 +291,35 @@ const list = (paths: string[]) => {
 
   const typeName = (id: number) => format.names.get(id) ?? 'unknown'
 
+  // The reader's rule, kept in step by hand since this file cannot import the
+  // library: `Mo` is only a header when the type byte is one the table knows
+  // and not `none` - two bytes are too weak alone, so the type id is part of
+  // the magic. A miss here once had the two readers disagreeing over the same
+  // lump: mowad read it as foreign while this listed it as `unknown header`.
+  const startsMo = (lump: Lump) =>
+    lump.bytes.length >= format.moBytes &&
+    lump.bytes[0] === format.magic[0] &&
+    lump.bytes[1] === format.magic[1]
+  const headed = (lump: Lump) => startsMo(lump) && lump.bytes[2] !== 0 && format.names.has(lump.bytes[2])
+
+  // A row in a file that heads a lump of that name is derived, and speaks for no
+  // lump - the reader's rule too, so a patch's own lump cannot type the base's
+  // foreign one it shadows.
+  const headedIn = manifests.map(() => new Set<string>())
+  for (const lump of lumps) if (headed(lump)) headedIn[lump.file].add(lump.name)
+
   lumps.forEach((lump, i) => {
     let type = '-'
     let source = '-'
     let lookalike = false
-    // The reader's rule, kept in step by hand since this file cannot import the
-    // library: `Mo` is only a header when the type byte is one the table knows
-    // and not `none` - two bytes are too weak alone, so the type id is part of
-    // the magic. A miss here once had the two readers disagreeing over the same
-    // lump: mowad read it as foreign while this listed it as `unknown header`.
-    const startsMo =
-      lump.bytes.length >= format.moBytes &&
-      lump.bytes[0] === format.magic[0] &&
-      lump.bytes[1] === format.magic[1]
-    const knownType = startsMo && lump.bytes[2] !== 0 && format.names.has(lump.bytes[2])
-    if (knownType) {
+    if (headed(lump)) {
       type = typeName(lump.bytes[2])
       source = 'header'
     } else {
-      lookalike = startsMo
+      lookalike = startsMo(lump)
       for (let f = manifests.length - 1; f >= 0; f--) {
         const row = manifests[f].get(lump.name)
-        if (row !== undefined) {
+        if (row !== undefined && !headedIn[f].has(lump.name)) {
           type = typeName(row)
           source = 'manifest'
           break

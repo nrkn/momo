@@ -10,6 +10,11 @@
 // nothing claims at all. The patch is a PWAD loaded after it: its own `GREET`,
 // which shadows the base's, and a row saying `NOTE` is text, which outvotes the
 // base's row. The digest shows both winning, and where every type came from.
+// The patch's own `BLOB` shadows the base's too, and the row derived from its
+// header must leave the base's untyped - a derived row speaks for no lump.
+//
+// A third file is one write filled to `wadWriteMax`, which the manifest must
+// still fit beside.
 //
 // **It ends by stopping.** The last thing it does is ask for a palette lump as
 // text, and the typed read has to refuse that by name. A check that let it
@@ -21,6 +26,7 @@ include "lib/mowad.momo"
 
 const u8[] baseName  = "TRIPBASE.WAD\0"
 const u8[] patchName = "TRIPPAT.WAD\0"
+const u8[] fullName  = "TRIPFULL.WAD\0"
 const u8[] junkName  = "NOTAWAD.TMP\0"
 const u8[] noName    = "NOSUCH.WAD\0"
 
@@ -105,6 +111,24 @@ sub writePatch {
 
   wadClaim( addr( nNote ), wadTypeText )
 
+  wadBegin( addr( nBlob ), wadTypeRaw )
+  wadPut( addr( blob ), len( blob ) )
+  wadEnd()
+
+  putNumber( u16( wadFinish() ) )
+}
+
+// Every lump one write holds, each typed, so the manifest has a row for each and
+// is one lump more.
+sub writeFull {
+  wadCreate( addr( fullName ) )
+
+  for ( u16 i = 0; i < wadWriteMax; i++ ) {
+    wadBegin( addr( nBlob ), wadTypeRaw )
+    wadPut( addr( blob ), len( blob ) )
+    wadEnd()
+  }
+
   putNumber( u16( wadFinish() ) )
 }
 
@@ -112,6 +136,8 @@ putStr( addr( sWrote ) )
 writeBase()
 space()
 writePatch()
+space()
+writeFull()
 newline()
 
 // ---- what is not a WAD is refused, and says why ----
@@ -131,6 +157,18 @@ putNumber( u16( wadOpen( addr( noName ) ) ) )
 space()
 putStr( wadWhy() )
 newline()
+
+// ---- the full write, alone, and closed again ----
+
+wadOpen( addr( fullName ) )
+
+putStr( addr( sFiles ) )
+putNumber( wadFiles() )
+putStr( addr( sLumps ) )
+putNumber( wadCount() )
+newline()
+
+wadClose()
 
 // ---- the chain: the base, then the patch over it ----
 

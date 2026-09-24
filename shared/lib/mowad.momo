@@ -12,11 +12,13 @@
 // Load order is the whole of the override policy: open the base, then a patch,
 // and the patch's `GREET` is the one `wadLump` returns. Rows merge the same way.
 //
-// Nothing here needs 32-bit arithmetic to *read*. DOS seek takes its position in
-// `CX:DX`, which is two words straight from a directory entry, and an entry is
-// found by seeking to the directory and then forward from there - DOS does the
-// add. Writing is different: the writer keeps the file position it has reached,
-// and that is a carried add of two words, one line each time it happens.
+// Nothing here needs 32-bit arithmetic to *find* a lump. DOS seek takes its
+// position in `CX:DX`, which is two words straight from a directory entry, and an
+// entry is found by seeking to the directory and then forward from there - DOS
+// does the add. Keeping a place is different: the writer holds the file position
+// it has reached, and the stream holds its own position and what is left of the
+// lump, so each is a carried add or a borrowed subtraction of two words, one line
+// each time it happens.
 //
 // The index is **names only**, eight bytes a lump in a view of the heap, and a
 // lump's position and size are read back from its directory entry when asked
@@ -87,11 +89,12 @@ const wadNone = 0xFFFF
 // Raising `wadMaxLumps` without raising `wadArenaBytes` stops the compile with
 // both numbers, rather than handing a program a view past its own heap.
 //
-// 5,120 names covers everything a corpus sweep of 64 real WADs found: 3,072
-// covered DOOM.WAD and DOOM2.WAD but refused HEXEN.WAD (4,270 lumps),
-// STRIFE1.WAD (3,985) and a hand-built free-roam map (3,226); the second pass
-// found GTA Doom at 5,353 in 120 MB, so the number moved again - the refusal
-// firing exactly as designed, at a number the design guessed. A file past the
+// 5,632 names covers everything a corpus sweep of 64 real WADs found, and it
+// took two moves to get there. 3,072 covered DOOM.WAD and DOOM2.WAD but refused
+// HEXEN.WAD (4,270 lumps), STRIFE1.WAD (3,985) and a hand-built free-roam map
+// (3,226); 5,120 took those, and the second pass found GTA Doom at 5,353 in
+// 120 MB - the refusal firing exactly as designed both times, at a number the
+// design guessed. A file past the
 // cap is still refused by name rather than indexed in part, because a lump
 // missing from the index would be a lump `wadLump` says is not there.
 const wadMaxLumps = 5632
@@ -117,16 +120,19 @@ require wadStageRows > 0
 
 // The writer's side: a directory held until `wadFinish` writes it, the type of
 // each entry for the derived manifest, and the foreign rows a program claims.
+// The manifest is an entry too, and has a slot of its own past the program's.
 const wadWriteMax = 64
 const wadClaimMax = 16
+
+local const wadOutSlots = wadWriteMax + 1
 
 // §17 static partitioning, from the bottom of the heap. A program that includes
 // this puts its own claims at `wadHeap`.
 local const wadIndexAt = 0
 local const wadStageAt = wadIndexAt + wadMaxLumps * wadNameBytes
 local const wadOutAt   = wadStageAt + wadStageBytes
-local const wadKindAt  = wadOutAt + wadWriteMax * wadEntryBytes
-local const wadClaimAt = wadKindAt + wadWriteMax
+local const wadKindAt  = wadOutAt + wadOutSlots * wadEntryBytes
+local const wadClaimAt = wadKindAt + wadOutSlots
 local const wadUsed    = wadClaimAt + wadClaimMax * wadRowBytes
 
 const wadArenaBytes = 47104
@@ -136,8 +142,8 @@ require wadUsed <= wadArenaBytes
 
 local view u8[wadMaxLumps * wadNameBytes] wadNames  = _heap[wadIndexAt]
 local view u8[wadStageBytes]              wadStage  = _heap[wadStageAt]
-local view u8[wadWriteMax * wadEntryBytes] wadOut   = _heap[wadOutAt]
-local view u8[wadWriteMax]                wadKind   = _heap[wadKindAt]
+local view u8[wadOutSlots * wadEntryBytes] wadOut   = _heap[wadOutAt]
+local view u8[wadOutSlots]                wadKind   = _heap[wadKindAt]
 local view u8[wadClaimMax * wadRowBytes]  wadClaims = _heap[wadClaimAt]
 
 // ---- the chain ----
@@ -567,6 +573,12 @@ u16 wadLookalike( u16 lump ) {
 // manifest has one, or `wadTypeNone`. A row is read from the file each time,
 // because rows are few and a resident copy would be one more thing to keep in
 // step with the chain.
+//
+// **A row in a file that heads a lump of that name is derived**: it repeats that
+// lump's header, and a claim for it would have been refused, so it speaks for no
+// lump at all and the search goes on to the file before. Rows are found by name
+// and lumps by index, and without this a patch's own `GREET` would type the
+// base's foreign one it shadows.
 wadType wadRowType( a16 name ) {
   u16 m
   u16 skip
@@ -600,10 +612,24 @@ wadType wadRowType( a16 name ) {
       if ( skip < n ) break
     }
 
-    if ( found ) return wadType( t )
+    if ( found && !wadHeadsName( f - 1, name ) ) return wadType( t )
   }
 
   return wadTypeNone
+}
+
+// Whether file `f` has a lump called `name` that carries a header.
+local bool wadHeadsName( u16 f, a16 name ) {
+  u16 first
+
+  first = wadFile[f].base
+  wadSetKey( name )
+
+  for ( u16 i = first + wadFile[f].lumps; i > first; i-- ) {
+    if ( wadIsKey( i - 1 ) && wadHeaded( i - 1 ) ) return true
+  }
+
+  return false
 }
 
 // **A lump's type, and where it came from.** Its header if it has one, and the
@@ -703,7 +729,6 @@ sub wadStartAs( u16 lump, wadType want, u8 version = 0 ) {
     putStr( addr( wadSaysVer ) )
     putNumber( wadVersion_ )
     putStr( addr( wadSaysAsked ) )
-    putStr( addr( wadSaysVer ) )
     putNumber( version )
     wadStop()
   }
@@ -803,11 +828,13 @@ sub wadPut( a16 at, u16 count ) {
   wadOutPosLo = lo
 }
 
-local sub wadOpenEntry( a16 name, wadType type ) {
+// `room` is how many entries the write may reach: the program's lumps stop at
+// `wadWriteMax`, and only the manifest opens the slot past them.
+local sub wadOpenEntry( a16 name, wadType type, u16 room = wadWriteMax ) {
   a16 at
 
   if ( wadOutLump ) wadEnd()
-  if ( wadOutCount >= wadWriteMax ) wadWriterStop( addr( wadSaysFull ) )
+  if ( wadOutCount >= room ) wadWriterStop( addr( wadSaysFull ) )
 
   at = wadOutEntry( wadOutCount )
   poke16( at + wadEntPos, wadOutPosLo )
@@ -828,7 +855,10 @@ sub wadBegin( a16 name, wadType type, u8 version = 1 ) {
   if ( type == wadTypeNone ) wadWriterStop( addr( wadSaysNoType ) )
 
   wadOpenEntry( name, type )
+  wadPutHead( type, version )
+}
 
+local sub wadPutHead( wadType type, u8 version ) {
   wadHead[0] = wadMoM
   wadHead[1] = wadMoO
   wadHead[2] = u8( type )
@@ -927,7 +957,8 @@ bool wadFinish() {
     // Counted before it is opened: the manifest describes the lumps above it,
     // and it is not one of them.
     lumps = wadOutCount
-    wadBegin( addr( wadTypesName ), wadTypeTypes )
+    wadOpenEntry( addr( wadTypesName ), wadTypeTypes, room: wadOutSlots )
+    wadPutHead( wadTypeTypes, 1 )
 
     for ( u16 e = 0; e < lumps; e++ ) {
       if ( wadKind[e] != 0 ) wadPutRow( wadOutEntry( e ) + wadEntName, wadKind[e] )

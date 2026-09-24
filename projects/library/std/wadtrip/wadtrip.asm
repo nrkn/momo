@@ -36,11 +36,12 @@ mowad__wadStageEntries: equ     32
 mowad__wadStageRows: equ     56
 wadWriteMax:    equ     64
 wadClaimMax:    equ     16
+mowad__wadOutSlots: equ     65
 mowad__wadIndexAt: equ     0
 mowad__wadStageAt: equ     45056
 mowad__wadOutAt: equ     45568
-mowad__wadKindAt: equ     46592
-mowad__wadClaimAt: equ     46656
+mowad__wadKindAt: equ     46608
+mowad__wadClaimAt: equ     46673
 wadArenaBytes:  equ     47104
 bufBytes:       equ     64
 
@@ -57,6 +58,10 @@ __entry:
         call    space
 ; ---- writePatch()
         call    writePatch
+; ---- space()
+        call    space
+; ---- writeFull()
+        call    writeFull
 ; ---- newline()
         call    newline
 ; ---- handle = fileCreate( addr( junkName ) )
@@ -117,6 +122,32 @@ __entry:
         call    putStr
 ; ---- newline()
         call    newline
+; ---- wadOpen( addr( fullName ) )
+        mov     ax, fullName                ; link-time constant
+        mov     [wadOpen__file], ax
+        call    wadOpen
+; ---- putStr( addr( sFiles ) )
+        mov     ax, sFiles                  ; link-time constant
+        mov     [putStr__at], ax
+        call    putStr
+; ---- putNumber( wadFiles() )
+        call    wadFiles
+        mov     ax, [wadFiles__ret]
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- putStr( addr( sLumps ) )
+        mov     ax, sLumps                  ; link-time constant
+        mov     [putStr__at], ax
+        call    putStr
+; ---- putNumber( wadCount() )
+        call    wadCount
+        mov     ax, [wadCount__ret]
+        mov     [putNumber__n], ax
+        call    putNumber
+; ---- newline()
+        call    newline
+; ---- wadClose()
+        call    wadClose
 ; ---- wadOpen( addr( baseName ) )
         mov     ax, baseName                ; link-time constant
         mov     [wadOpen__file], ax
@@ -1630,22 +1661,51 @@ wadOpen:
         mov     byte [wadOpen__ret], 1
         ret
 
+; ============================================== sub wadClose ====
+
+wadClose:
+; ---- for ( u16 f = 0; f < wadFiles_; f++ ) {
+        mov     word [wadClose__f], 0
+.L166:
+        mov     ax, [wadClose__f]
+        mov     bx, [mowad__wadFiles_]
+        cmp     ax, bx
+        jae     .L168                       ; unsigned <
+; ---- fileClose( wadFile[f].handle )
+        mov     ax, [wadClose__f]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [mowad__wadFile__handle + bx]
+        mov     [fileClose__handle], ax
+        call    fileClose
+.L167:
+        inc     word [wadClose__f]
+        jmp     .L166
+.L168:
+; ---- wadFiles_ = 0
+        mov     word [mowad__wadFiles_], 0
+; ---- wadTotal = 0
+        mov     word [mowad__wadTotal], 0
+; ---- wadCur = wadNone
+        mov     word [mowad__wadCur], 65535
+        ret
+
 ; ============================================== bool mowad__wadCarried ====
 
 mowad__wadCarried:
 ; ---- local bool wadCarried( u8 id ) => id != 0 && u16( id ) < len( wadTypeNames )
         mov     al, [mowad__wadCarried__id]
         test    al, al
-        je      .L166                       ; unsigned !=
+        je      .L170                       ; unsigned !=
         mov     al, [mowad__wadCarried__id]
         xor     ah, ah                      ; u8 -> u16
         cmp     ax, 6
-        jae     .L166                       ; unsigned <
+        jae     .L170                       ; unsigned <
         mov     ax, 1
-        jmp     .L167
-.L166:
+        jmp     .L171
+.L170:
         xor     ax, ax
-.L167:
+.L171:
         mov     [mowad__wadCarried__ret], al; narrowed to bool
         ret
 
@@ -1664,21 +1724,21 @@ mowad__wadHeaded:
         call    mowad__wadReadAt
         mov     ax, [mowad__wadReadAt__ret]
         cmp     ax, 4
-        je      .L170                       ; unsigned !=
+        je      .L174                       ; unsigned !=
         mov     byte [mowad__wadHeaded__ret], 0
         ret
-.L170:
+.L174:
 ; ---- if ( wadHead[0] != wadMoM || wadHead[1] != wadMoO ) return false
         mov     al, [mowad__wadHead]
         cmp     al, 77                      ; byte operands, no widening
-        jne     .L175                       ; unsigned !=
+        jne     .L179                       ; unsigned !=
         mov     al, [mowad__wadHead + 1]
         cmp     al, 111                     ; byte operands, no widening
-        je      .L173                       ; unsigned !=
-.L175:
+        je      .L177                       ; unsigned !=
+.L179:
         mov     byte [mowad__wadHeaded__ret], 0
         ret
-.L173:
+.L177:
 ; ---- if ( wadCarried( wadHead[2] ) ) return true
         mov     al, [mowad__wadHead + 2]
         mov     [mowad__wadCarried__id], al ; u8 -> u8, no widening
@@ -1686,10 +1746,10 @@ mowad__wadHeaded:
         mov     al, [mowad__wadCarried__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L178
+        jz      .L182
         mov     byte [mowad__wadHeaded__ret], 1
         ret
-.L178:
+.L182:
 ; ---- wadStray = wadHead[2]
         mov     al, [mowad__wadHead + 2]
         xor     ah, ah                      ; u8 -> u16
@@ -1704,12 +1764,12 @@ wadRowType:
 ; ---- for ( u16 f = wadFiles_; f > 0; f-- ) {
         mov     ax, [mowad__wadFiles_]
         mov     [wadRowType__f], ax
-.L181:
+.L185:
         mov     ax, [wadRowType__f]
         test    ax, ax
-        ja      .L184                       ; unsigned >
-        jmp     .L183
-.L184:
+        ja      .L188                       ; unsigned >
+        jmp     .L187
+.L188:
 ; ---- m = wadFile[ f - 1 ].manifest
         mov     ax, [wadRowType__f]
         dec     ax
@@ -1719,15 +1779,15 @@ wadRowType:
         mov     [wadRowType__m], ax
 ; ---- if ( m == wadNone ) continue
         cmp     ax, 65535
-        jne     .L185                       ; unsigned ==
-        jmp     .L182
-.L185:
+        jne     .L189                       ; unsigned ==
+        jmp     .L186
+.L189:
 ; ---- found = false
         mov     byte [wadRowType__found], 0
 ; ---- skip = wadMoBytes
         mov     word [wadRowType__skip], 4
 ; ---- for ( ;; ) {
-.L188:
+.L192:
 ; ---- n = wadReadAt( m, skip, addr( wadStage ), wadStageRows * wadRowBytes )
         mov     ax, [wadRowType__m]
         mov     [mowad__wadReadAt__lump], ax
@@ -1741,17 +1801,17 @@ wadRowType:
         mov     [wadRowType__n], ax
 ; ---- if ( n < wadRowBytes ) break
         cmp     ax, 9
-        jae     .L191                       ; unsigned <
-        jmp     .L190
-.L191:
+        jae     .L195                       ; unsigned <
+        jmp     .L194
+.L195:
 ; ---- for ( u16 r = 0; r + wadRowBytes <= n; r += wadRowBytes ) {
         mov     word [wadRowType__r], 0
-.L194:
+.L198:
         mov     ax, [wadRowType__r]
         add     ax, 9
         mov     bx, [wadRowType__n]
         cmp     ax, bx
-        ja      .L196                       ; unsigned <=
+        ja      .L200                       ; unsigned <=
 ; ---- row = addr( wadStage ) + r
         mov     ax, mowad__wadStage         ; link-time constant
         mov     bx, [wadRowType__r]
@@ -1765,7 +1825,7 @@ wadRowType:
         mov     al, [mowad__wadSameName__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L198
+        jz      .L202
 ; ---- t = peek8( row + wadNameBytes )
         mov     ax, [wadRowType__row]
         add     ax, 8
@@ -1774,13 +1834,13 @@ wadRowType:
         mov     [wadRowType__t], al         ; u8 -> u8, no widening
 ; ---- found = true
         mov     byte [wadRowType__found], 1
-.L198:
-.L195:
+.L202:
+.L199:
         mov     ax, [wadRowType__r]
         add     ax, 9
         mov     [wadRowType__r], ax
-        jmp     .L194
-.L196:
+        jmp     .L198
+.L200:
 ; ---- skip += n
         mov     ax, [wadRowType__skip]
         mov     bx, [wadRowType__n]
@@ -1789,27 +1849,94 @@ wadRowType:
 ; ---- if ( skip < n ) break
         mov     bx, [wadRowType__n]
         cmp     ax, bx
-        jae     .L201                       ; unsigned <
-        jmp     .L190
-.L201:
-.L189:
-        jmp     .L188
-.L190:
-; ---- if ( found ) return wadType( t )
+        jae     .L205                       ; unsigned <
+        jmp     .L194
+.L205:
+.L193:
+        jmp     .L192
+.L194:
+; ---- if ( found && !wadHeadsName( f - 1, name ) ) return wadType( t )
         mov     al, [wadRowType__found]
         test    al, al
-        jz      .L204
+        jz      .L208
+        mov     ax, [wadRowType__f]
+        dec     ax
+        mov     [mowad__wadHeadsName__f], ax
+        mov     ax, [wadRowType__name]
+        mov     [mowad__wadHeadsName__name], ax
+        call    mowad__wadHeadsName
+        mov     al, [mowad__wadHeadsName__ret]
+        xor     ah, ah                      ; bool -> u16
+        test    ax, ax
+        jnz     .L208
         mov     al, [wadRowType__t]
         xor     ah, ah                      ; u8 -> u16
         mov     [wadRowType__ret], al       ; narrowed to u8
         ret
-.L204:
-.L182:
+.L208:
+.L186:
         dec     word [wadRowType__f]
-        jmp     .L181
-.L183:
+        jmp     .L185
+.L187:
 ; ---- return wadTypeNone
         mov     byte [wadRowType__ret], 0
+        ret
+
+; ============================================== bool mowad__wadHeadsName ====
+
+mowad__wadHeadsName:
+; ---- first = wadFile[f].base
+        mov     ax, [mowad__wadHeadsName__f]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [mowad__wadFile__base + bx]
+        mov     [mowad__wadHeadsName__first], ax
+; ---- wadSetKey( name )
+        mov     ax, [mowad__wadHeadsName__name]
+        mov     [mowad__wadSetKey__name], ax
+        call    mowad__wadSetKey
+; ---- for ( u16 i = first + wadFile[f].lumps; i > first; i-- ) {
+        mov     ax, [mowad__wadHeadsName__first]
+        push    ax                          ; save lhs: rhs is not a leaf
+        mov     ax, [mowad__wadHeadsName__f]
+        shl     ax, 1                       ; word elements
+        mov     bx, ax
+        mov     ax, [mowad__wadFile__lumps + bx]
+        mov     bx, ax
+        pop     ax
+        add     ax, bx
+        mov     [mowad__wadHeadsName__i], ax
+.L212:
+        mov     ax, [mowad__wadHeadsName__i]
+        mov     bx, [mowad__wadHeadsName__first]
+        cmp     ax, bx
+        jbe     .L214                       ; unsigned >
+; ---- if ( wadIsKey( i - 1 ) && wadHeaded( i - 1 ) ) return true
+        mov     ax, [mowad__wadHeadsName__i]
+        dec     ax
+        mov     [mowad__wadIsKey__lump], ax
+        call    mowad__wadIsKey
+        mov     al, [mowad__wadIsKey__ret]
+        xor     ah, ah                      ; bool -> u16
+        test    ax, ax
+        jz      .L216
+        mov     ax, [mowad__wadHeadsName__i]
+        dec     ax
+        mov     [mowad__wadHeaded__lump], ax
+        call    mowad__wadHeaded
+        mov     al, [mowad__wadHeaded__ret]
+        xor     ah, ah                      ; bool -> u16
+        test    ax, ax
+        jz      .L216
+        mov     byte [mowad__wadHeadsName__ret], 1
+        ret
+.L216:
+.L213:
+        dec     word [mowad__wadHeadsName__i]
+        jmp     .L212
+.L214:
+; ---- return false
+        mov     byte [mowad__wadHeadsName__ret], 0
         ret
 
 ; ============================================== u8 wadTypeOf ====
@@ -1824,7 +1951,7 @@ wadTypeOf:
         mov     al, [mowad__wadHeaded__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L207
+        jz      .L220
 ; ---- wadSource_ = wadFromHeader
         mov     byte [mowad__wadSource_], 1
 ; ---- wadVersion_ = wadHead[3]
@@ -1835,7 +1962,7 @@ wadTypeOf:
         xor     ah, ah                      ; u8 -> u16
         mov     [wadTypeOf__ret], al        ; narrowed to u8
         ret
-.L207:
+.L220:
 ; ---- t = wadRowType( wadName( lump ) )
         mov     ax, [wadTypeOf__lump]
         mov     [wadName__lump], ax
@@ -1848,12 +1975,12 @@ wadTypeOf:
         mov     [wadTypeOf__t], al          ; narrowed to u8
 ; ---- wadSource_ = t == wadTypeNone ? wadUntyped : wadFromManifest
         test    al, al
-        jne     .L210                       ; unsigned ==
+        jne     .L223                       ; unsigned ==
         xor     ax, ax                      ; 0
-        jmp     .L211
-.L210:
+        jmp     .L224
+.L223:
         mov     ax, 2
-.L211:
+.L224:
         mov     [mowad__wadSource_], al     ; narrowed to u8
 ; ---- return t
         mov     al, [wadTypeOf__t]
@@ -1906,9 +2033,9 @@ mowad__wadStreamFrom:
 ; ---- if ( lo < skip ) wadStrPosHi++
         mov     bx, [mowad__wadStreamFrom__skip]
         cmp     ax, bx
-        jae     .L213                       ; unsigned <
+        jae     .L226                       ; unsigned <
         inc     word [mowad__wadStrPosHi]
-.L213:
+.L226:
 ; ---- wadStrPosLo = lo
         mov     ax, [mowad__wadStreamFrom__lo]
         mov     [mowad__wadStrPosLo], ax
@@ -1921,9 +2048,9 @@ mowad__wadStreamFrom:
         mov     ax, [mowad__wadCurSizeLo]
         mov     bx, [mowad__wadStreamFrom__skip]
         cmp     ax, bx
-        jae     .L216                       ; unsigned <
+        jae     .L229                       ; unsigned <
         dec     word [mowad__wadStrLeftHi]
-.L216:
+.L229:
         ret
 
 ; ============================================== sub wadStart ====
@@ -1948,9 +2075,9 @@ wadStartAs:
         mov     [wadStartAs__t], al         ; narrowed to u8
 ; ---- if ( t != want ) {
         cmp     al, [wadStartAs__want]      ; byte operands, no widening
-        jne     .L221                       ; unsigned !=
-        jmp     .L219
-.L221:
+        jne     .L234                       ; unsigned !=
+        jmp     .L232
+.L234:
 ; ---- putStr( addr( wadSaysMowad ) )
         mov     ax, mowad__wadSaysMowad     ; link-time constant
         mov     [putStr__at], ax
@@ -1962,13 +2089,13 @@ wadStartAs:
 ; ---- if ( t == wadTypeNone ) {
         mov     al, [wadStartAs__t]
         test    al, al
-        jne     .L222                       ; unsigned ==
+        jne     .L235                       ; unsigned ==
 ; ---- putStr( addr( wadSaysNone ) )
         mov     ax, mowad__wadSaysNone      ; link-time constant
         mov     [putStr__at], ax
         call    putStr
-        jmp     .L223
-.L222:
+        jmp     .L236
+.L235:
 ; ---- putStr( addr( wadSaysIs ) )
         mov     ax, mowad__wadSaysIs        ; link-time constant
         mov     [putStr__at], ax
@@ -1983,15 +2110,15 @@ wadStartAs:
 ; ---- putStr( wadSource_ == wadFromHeader ? addr( wadSaysHeader ) : addr( wadSaysRow ) )
         mov     al, [mowad__wadSource_]
         cmp     al, 1                       ; byte operands, no widening
-        jne     .L225                       ; unsigned ==
+        jne     .L238                       ; unsigned ==
         mov     ax, mowad__wadSaysHeader    ; link-time constant
-        jmp     .L226
-.L225:
+        jmp     .L239
+.L238:
         mov     ax, mowad__wadSaysRow       ; link-time constant
-.L226:
+.L239:
         mov     [putStr__at], ax
         call    putStr
-.L223:
+.L236:
 ; ---- putStr( addr( wadSaysAsked ) )
         mov     ax, mowad__wadSaysAsked     ; link-time constant
         mov     [putStr__at], ax
@@ -2005,21 +2132,21 @@ wadStartAs:
         call    putStr
 ; ---- wadStop()
         call    mowad__wadStop
-.L219:
+.L232:
 ; ---- if ( version != 0 && wadSource_ == wadFromHeader && wadVersion_ != version ) {
         mov     al, [wadStartAs__version]
         test    al, al
-        jne     .L230                       ; unsigned !=
-        jmp     .L228
-.L230:
+        jne     .L243                       ; unsigned !=
+        jmp     .L241
+.L243:
         mov     al, [mowad__wadSource_]
         cmp     al, 1                       ; byte operands, no widening
-        je      .L231                       ; unsigned ==
-        jmp     .L228
-.L231:
+        je      .L244                       ; unsigned ==
+        jmp     .L241
+.L244:
         mov     al, [mowad__wadVersion_]
         cmp     al, [wadStartAs__version]   ; byte operands, no widening
-        je      .L228                       ; unsigned !=
+        je      .L241                       ; unsigned !=
 ; ---- putStr( addr( wadSaysMowad ) )
         mov     ax, mowad__wadSaysMowad     ; link-time constant
         mov     [putStr__at], ax
@@ -2041,10 +2168,6 @@ wadStartAs:
         mov     ax, mowad__wadSaysAsked     ; link-time constant
         mov     [putStr__at], ax
         call    putStr
-; ---- putStr( addr( wadSaysVer ) )
-        mov     ax, mowad__wadSaysVer       ; link-time constant
-        mov     [putStr__at], ax
-        call    putStr
 ; ---- putNumber( version )
         mov     al, [wadStartAs__version]
         xor     ah, ah                      ; u8 -> u16
@@ -2052,18 +2175,18 @@ wadStartAs:
         call    putNumber
 ; ---- wadStop()
         call    mowad__wadStop
-.L228:
+.L241:
 ; ---- wadStreamFrom( lump, wadSource_ == wadFromHeader ? wadMoBytes : 0 )
         mov     ax, [wadStartAs__lump]
         mov     [mowad__wadStreamFrom__lump], ax
         mov     al, [mowad__wadSource_]
         cmp     al, 1                       ; byte operands, no widening
-        jne     .L233                       ; unsigned ==
+        jne     .L246                       ; unsigned ==
         mov     ax, 4
-        jmp     .L234
-.L233:
+        jmp     .L247
+.L246:
         xor     ax, ax                      ; 0
-.L234:
+.L247:
         mov     [mowad__wadStreamFrom__skip], ax
         call    mowad__wadStreamFrom
         mov     byte [wadStartAs__version], 0; defaults restored on the way out
@@ -2075,21 +2198,21 @@ wadNext:
 ; ---- if ( wadStrLeftHi == 0 && count > wadStrLeftLo ) count = wadStrLeftLo
         mov     ax, [mowad__wadStrLeftHi]
         test    ax, ax
-        jne     .L236                       ; unsigned ==
+        jne     .L249                       ; unsigned ==
         mov     ax, [wadNext__count]
         mov     bx, [mowad__wadStrLeftLo]
         cmp     ax, bx
-        jbe     .L236                       ; unsigned >
+        jbe     .L249                       ; unsigned >
         mov     ax, [mowad__wadStrLeftLo]
         mov     [wadNext__count], ax
-.L236:
+.L249:
 ; ---- if ( count == 0 ) return 0
         mov     ax, [wadNext__count]
         test    ax, ax
-        jne     .L240                       ; unsigned ==
+        jne     .L253                       ; unsigned ==
         mov     word [wadNext__ret], 0
         ret
-.L240:
+.L253:
 ; ---- fileSeek( wadStrHandle, fileFromStart, wadStrPosHi, wadStrPosLo )
         mov     ax, [mowad__wadStrHandle]
         mov     [fileSeek__handle], ax
@@ -2117,9 +2240,9 @@ wadNext:
 ; ---- if ( lo < n ) wadStrPosHi++
         mov     bx, [wadNext__n]
         cmp     ax, bx
-        jae     .L243                       ; unsigned <
+        jae     .L256                       ; unsigned <
         inc     word [mowad__wadStrPosHi]
-.L243:
+.L256:
 ; ---- wadStrPosLo = lo
         mov     ax, [wadNext__lo]
         mov     [mowad__wadStrPosLo], ax
@@ -2127,9 +2250,9 @@ wadNext:
         mov     ax, [mowad__wadStrLeftLo]
         mov     bx, [wadNext__n]
         cmp     ax, bx
-        jae     .L246                       ; unsigned <
+        jae     .L259                       ; unsigned <
         dec     word [mowad__wadStrLeftHi]
-.L246:
+.L259:
 ; ---- wadStrLeftLo -= n
         mov     ax, [mowad__wadStrLeftLo]
         mov     bx, [wadNext__n]
@@ -2184,11 +2307,11 @@ wadCreate:
         mov     al, [fileFailed__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L249
+        jz      .L262
         mov     byte [wadCreate__ret], 0
         mov     byte [wadCreate__iwad], 0   ; defaults restored on the way out
         ret
-.L249:
+.L262:
 ; ---- wadOutPosHi = 0
         mov     word [mowad__wadOutPosHi], 0
 ; ---- wadOutPosLo = 0
@@ -2206,18 +2329,18 @@ wadCreate:
         mov     byte [mowad__wadOutShort], 0
 ; ---- for ( u16 i = 0; i < wadHeaderBytes; i++ ) {
         mov     word [wadCreate__i], 0
-.L252:
+.L265:
         mov     ax, [wadCreate__i]
         cmp     ax, 12
-        jae     .L254                       ; unsigned <
+        jae     .L267                       ; unsigned <
 ; ---- wadStage[i] = 0
         mov     ax, [wadCreate__i]
         mov     bx, ax
         mov     byte [mowad__wadStage + bx], 0
-.L253:
+.L266:
         inc     word [wadCreate__i]
-        jmp     .L252
-.L254:
+        jmp     .L265
+.L267:
 ; ---- wadPut( addr( wadStage ), wadHeaderBytes )
         mov     ax, mowad__wadStage         ; link-time constant
         mov     [wadPut__at], ax
@@ -2234,9 +2357,9 @@ wadPut:
 ; ---- if ( count == 0 ) return
         mov     ax, [wadPut__count]
         test    ax, ax
-        jne     .L256                       ; unsigned ==
+        jne     .L269                       ; unsigned ==
         ret
-.L256:
+.L269:
 ; ---- if ( fileWrite( wadOutHandle, at, count ) != count ) wadOutShort = true
         mov     ax, [mowad__wadOutHandle]
         mov     [fileWrite__handle], ax
@@ -2248,9 +2371,9 @@ wadPut:
         mov     ax, [fileWrite__ret]
         mov     bx, [wadPut__count]
         cmp     ax, bx
-        je      .L259                       ; unsigned !=
+        je      .L272                       ; unsigned !=
         mov     byte [mowad__wadOutShort], 1
-.L259:
+.L272:
 ; ---- lo = wadOutPosLo + count
         mov     ax, [mowad__wadOutPosLo]
         mov     bx, [wadPut__count]
@@ -2259,9 +2382,9 @@ wadPut:
 ; ---- if ( lo < count ) wadOutPosHi++
         mov     bx, [wadPut__count]
         cmp     ax, bx
-        jae     .L262                       ; unsigned <
+        jae     .L275                       ; unsigned <
         inc     word [mowad__wadOutPosHi]
-.L262:
+.L275:
 ; ---- wadOutPosLo = lo
         mov     ax, [wadPut__lo]
         mov     [mowad__wadOutPosLo], ax
@@ -2273,17 +2396,18 @@ mowad__wadOpenEntry:
 ; ---- if ( wadOutLump ) wadEnd()
         mov     al, [mowad__wadOutLump]
         test    al, al
-        jz      .L265
+        jz      .L278
         call    wadEnd
-.L265:
-; ---- if ( wadOutCount >= wadWriteMax ) wadWriterStop( addr( wadSaysFull ) )
+.L278:
+; ---- if ( wadOutCount >= room ) wadWriterStop( addr( wadSaysFull ) )
         mov     ax, [mowad__wadOutCount]
-        cmp     ax, 64
-        jb      .L268                       ; unsigned >=
+        mov     bx, [mowad__wadOpenEntry__room]
+        cmp     ax, bx
+        jb      .L281                       ; unsigned >=
         mov     ax, mowad__wadSaysFull      ; link-time constant
         mov     [mowad__wadWriterStop__why], ax
         call    mowad__wadWriterStop
-.L268:
+.L281:
 ; ---- at = wadOutEntry( wadOutCount )
         mov     ax, [mowad__wadOutCount]
         mov     [mowad__wadOutEntry__e], ax
@@ -2310,10 +2434,10 @@ mowad__wadOpenEntry:
         call    mowad__wadSetKey
 ; ---- for ( u16 k = 0; k < wadNameBytes; k++ ) {
         mov     word [mowad__wadOpenEntry__k], 0
-.L271:
+.L284:
         mov     ax, [mowad__wadOpenEntry__k]
         cmp     ax, 8
-        jae     .L273                       ; unsigned <
+        jae     .L286                       ; unsigned <
 ; ---- poke8( at + wadEntName + k, wadKey[k] )
         mov     ax, [mowad__wadOpenEntry__at]
         add     ax, 8
@@ -2325,10 +2449,10 @@ mowad__wadOpenEntry:
         mov     al, [mowad__wadKey + bx]
         pop     bx
         mov     [bx], al
-.L272:
+.L285:
         inc     word [mowad__wadOpenEntry__k]
-        jmp     .L271
-.L273:
+        jmp     .L284
+.L286:
 ; ---- wadKind[ wadOutCount ] = u8( type )
         mov     al, [mowad__wadOpenEntry__type]
         xor     ah, ah                      ; u8 -> u16
@@ -2336,6 +2460,7 @@ mowad__wadOpenEntry:
         mov     [mowad__wadKind + bx], al
 ; ---- wadOutLump = true
         mov     byte [mowad__wadOutLump], 1
+        mov     word [mowad__wadOpenEntry__room], 64; defaults restored on the way out
         ret
 
 ; ============================================== sub wadBegin ====
@@ -2344,34 +2469,45 @@ wadBegin:
 ; ---- if ( type == wadTypeNone ) wadWriterStop( addr( wadSaysNoType ) )
         mov     al, [wadBegin__type]
         test    al, al
-        jne     .L275                       ; unsigned ==
+        jne     .L288                       ; unsigned ==
         mov     ax, mowad__wadSaysNoType    ; link-time constant
         mov     [mowad__wadWriterStop__why], ax
         call    mowad__wadWriterStop
-.L275:
+.L288:
 ; ---- wadOpenEntry( name, type )
         mov     ax, [wadBegin__name]
         mov     [mowad__wadOpenEntry__name], ax
         mov     al, [wadBegin__type]
         mov     [mowad__wadOpenEntry__type], al; u8 -> u8, no widening
         call    mowad__wadOpenEntry
+; ---- wadPutHead( type, version )
+        mov     al, [wadBegin__type]
+        mov     [mowad__wadPutHead__type], al; u8 -> u8, no widening
+        mov     al, [wadBegin__version]
+        mov     [mowad__wadPutHead__version], al; u8 -> u8, no widening
+        call    mowad__wadPutHead
+        mov     byte [wadBegin__version], 1 ; defaults restored on the way out
+        ret
+
+; ============================================== sub mowad__wadPutHead ====
+
+mowad__wadPutHead:
 ; ---- wadHead[0] = wadMoM
         mov     byte [mowad__wadHead], 77
 ; ---- wadHead[1] = wadMoO
         mov     byte [mowad__wadHead + 1], 111
 ; ---- wadHead[2] = u8( type )
-        mov     al, [wadBegin__type]
+        mov     al, [mowad__wadPutHead__type]
         xor     ah, ah                      ; u8 -> u16
         mov     [mowad__wadHead + 2], al
 ; ---- wadHead[3] = version
-        mov     al, [wadBegin__version]
+        mov     al, [mowad__wadPutHead__version]
         mov     [mowad__wadHead + 3], al
 ; ---- wadPut( addr( wadHead ), wadMoBytes )
         mov     ax, mowad__wadHead          ; link-time constant
         mov     [wadPut__at], ax
         mov     word [wadPut__count], 4
         call    wadPut
-        mov     byte [wadBegin__version], 1 ; defaults restored on the way out
         ret
 
 ; ============================================== sub wadForeign ====
@@ -2390,9 +2526,9 @@ wadEnd:
 ; ---- if ( !wadOutLump ) return
         mov     al, [mowad__wadOutLump]
         test    al, al
-        jnz     .L278
+        jnz     .L291
         ret
-.L278:
+.L291:
 ; ---- at = wadOutEntry( wadOutCount )
         mov     ax, [mowad__wadOutCount]
         mov     [mowad__wadOutEntry__e], ax
@@ -2432,12 +2568,12 @@ wadEnd:
         mov     ax, [mowad__wadOutPosLo]
         mov     bx, [wadEnd__startLo]
         cmp     ax, bx
-        jae     .L281                       ; unsigned <
+        jae     .L294                       ; unsigned <
         mov     ax, 1
-        jmp     .L282
-.L281:
+        jmp     .L295
+.L294:
         xor     ax, ax
-.L282:
+.L295:
         mov     bx, ax
         pop     ax
         sub     ax, bx
@@ -2455,11 +2591,11 @@ wadClaim:
 ; ---- if ( wadOutRows >= wadClaimMax ) wadWriterStop( addr( wadSaysClaims ) )
         mov     ax, [mowad__wadOutRows]
         cmp     ax, 16
-        jb      .L284                       ; unsigned >=
+        jb      .L297                       ; unsigned >=
         mov     ax, mowad__wadSaysClaims    ; link-time constant
         mov     [mowad__wadWriterStop__why], ax
         call    mowad__wadWriterStop
-.L284:
+.L297:
 ; ---- at = addr( wadClaims ) + wadOutRows * wadRowBytes
         mov     ax, mowad__wadClaims        ; link-time constant
         push    ax                          ; save lhs: rhs is not a leaf
@@ -2476,10 +2612,10 @@ wadClaim:
         call    mowad__wadSetKey
 ; ---- for ( u16 k = 0; k < wadNameBytes; k++ ) {
         mov     word [wadClaim__k], 0
-.L287:
+.L300:
         mov     ax, [wadClaim__k]
         cmp     ax, 8
-        jae     .L289                       ; unsigned <
+        jae     .L302                       ; unsigned <
 ; ---- poke8( at + k, wadKey[k] )
         mov     ax, [wadClaim__at]
         mov     bx, [wadClaim__k]
@@ -2490,10 +2626,10 @@ wadClaim:
         mov     al, [mowad__wadKey + bx]
         pop     bx
         mov     [bx], al
-.L288:
+.L301:
         inc     word [wadClaim__k]
-        jmp     .L287
-.L289:
+        jmp     .L300
+.L302:
 ; ---- poke8( at + wadNameBytes, u8( type ) )
         mov     ax, [wadClaim__at]
         add     ax, 8
@@ -2511,10 +2647,10 @@ wadClaim:
 mowad__wadPutRow:
 ; ---- for ( u16 k = 0; k < wadNameBytes; k++ ) {
         mov     word [mowad__wadPutRow__k], 0
-.L291:
+.L304:
         mov     ax, [mowad__wadPutRow__k]
         cmp     ax, 8
-        jae     .L293                       ; unsigned <
+        jae     .L306                       ; unsigned <
 ; ---- wadRowOut[k] = peek8( name + k )
         mov     ax, [mowad__wadPutRow__name]
         mov     bx, [mowad__wadPutRow__k]
@@ -2523,10 +2659,10 @@ mowad__wadPutRow:
         mov     al, [bx]                    ; peek8 - unchecked, by design
         mov     bx, [mowad__wadPutRow__k]
         mov     [mowad__wadRowOut + bx], al
-.L292:
+.L305:
         inc     word [mowad__wadPutRow__k]
-        jmp     .L291
-.L293:
+        jmp     .L304
+.L306:
 ; ---- wadRowOut[wadNameBytes] = type
         mov     al, [mowad__wadPutRow__type]
         mov     [mowad__wadRowOut + 8], al
@@ -2543,18 +2679,18 @@ wadFinish:
 ; ---- if ( wadOutLump ) wadEnd()
         mov     al, [mowad__wadOutLump]
         test    al, al
-        jz      .L295
+        jz      .L308
         call    wadEnd
-.L295:
+.L308:
 ; ---- for ( u16 c = 0; c < wadOutRows; c++ ) {
         mov     word [wadFinish__c], 0
-.L298:
+.L311:
         mov     ax, [wadFinish__c]
         mov     bx, [mowad__wadOutRows]
         cmp     ax, bx
-        jb      .L301                       ; unsigned <
-        jmp     .L300
-.L301:
+        jb      .L314                       ; unsigned <
+        jmp     .L313
+.L314:
 ; ---- claim = addr( wadClaims ) + c * wadRowBytes
         mov     ax, mowad__wadClaims        ; link-time constant
         push    ax                          ; save lhs: rhs is not a leaf
@@ -2567,21 +2703,21 @@ wadFinish:
         mov     [wadFinish__claim], ax
 ; ---- for ( u16 e = 0; e < wadOutCount; e++ ) {
         mov     word [wadFinish__e], 0
-.L302:
+.L315:
         mov     ax, [wadFinish__e]
         mov     bx, [mowad__wadOutCount]
         cmp     ax, bx
-        jb      .L305                       ; unsigned <
-        jmp     .L304
-.L305:
+        jb      .L318                       ; unsigned <
+        jmp     .L317
+.L318:
 ; ---- if ( wadKind[e] != 0 && wadSameName( wadOutEntry( e ) + wadEntName, claim ) ) {
         mov     ax, [wadFinish__e]
         mov     bx, ax
         mov     al, [mowad__wadKind + bx]
         test    al, al
-        jne     .L308                       ; unsigned !=
-        jmp     .L306
-.L308:
+        jne     .L321                       ; unsigned !=
+        jmp     .L319
+.L321:
         mov     ax, [wadFinish__e]
         mov     [mowad__wadOutEntry__e], ax
         call    mowad__wadOutEntry
@@ -2596,26 +2732,26 @@ wadFinish:
         mov     al, [mowad__wadSameName__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jnz     .L309
-        jmp     .L306
-.L309:
+        jnz     .L322
+        jmp     .L319
+.L322:
 ; ---- putStr( addr( wadSaysMowad ) )
         mov     ax, mowad__wadSaysMowad     ; link-time constant
         mov     [putStr__at], ax
         call    putStr
 ; ---- for ( u16 k = 0; k < wadNameBytes && peek8( claim + k ) != 0; k++ ) {
         mov     word [wadFinish__k], 0
-.L310:
+.L323:
         mov     ax, [wadFinish__k]
         cmp     ax, 8
-        jae     .L312                       ; unsigned <
+        jae     .L325                       ; unsigned <
         mov     ax, [wadFinish__claim]
         mov     bx, [wadFinish__k]
         add     ax, bx
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
         test    al, al
-        je      .L312                       ; unsigned !=
+        je      .L325                       ; unsigned !=
 ; ---- putChar( peek8( claim + k ) )
         mov     ax, [wadFinish__claim]
         mov     bx, [wadFinish__k]
@@ -2624,77 +2760,82 @@ wadFinish:
         mov     al, [bx]                    ; peek8 - unchecked, by design
         mov     [putChar__c], al            ; u8 -> u8, no widening
         call    putChar
-.L311:
+.L324:
         inc     word [wadFinish__k]
-        jmp     .L310
-.L312:
+        jmp     .L323
+.L325:
 ; ---- putStr( addr( wadSaysHasHead ) )
         mov     ax, mowad__wadSaysHasHead   ; link-time constant
         mov     [putStr__at], ax
         call    putStr
 ; ---- wadStop()
         call    mowad__wadStop
-.L306:
-.L303:
-        inc     word [wadFinish__e]
-        jmp     .L302
-.L304:
-.L299:
-        inc     word [wadFinish__c]
-        jmp     .L298
-.L300:
-; ---- typed = 0
-        mov     word [wadFinish__typed], 0
-; ---- for ( u16 e = 0; e < wadOutCount; e++ ) {
-        mov     word [wadFinish__e], 0
-.L315:
-        mov     ax, [wadFinish__e]
-        mov     bx, [mowad__wadOutCount]
-        cmp     ax, bx
-        jae     .L317                       ; unsigned <
-; ---- if ( wadKind[e] != 0 ) typed++
-        mov     ax, [wadFinish__e]
-        mov     bx, ax
-        mov     al, [mowad__wadKind + bx]
-        test    al, al
-        je      .L319                       ; unsigned !=
-        inc     word [wadFinish__typed]
 .L319:
 .L316:
         inc     word [wadFinish__e]
         jmp     .L315
 .L317:
+.L312:
+        inc     word [wadFinish__c]
+        jmp     .L311
+.L313:
+; ---- typed = 0
+        mov     word [wadFinish__typed], 0
+; ---- for ( u16 e = 0; e < wadOutCount; e++ ) {
+        mov     word [wadFinish__e], 0
+.L328:
+        mov     ax, [wadFinish__e]
+        mov     bx, [mowad__wadOutCount]
+        cmp     ax, bx
+        jae     .L330                       ; unsigned <
+; ---- if ( wadKind[e] != 0 ) typed++
+        mov     ax, [wadFinish__e]
+        mov     bx, ax
+        mov     al, [mowad__wadKind + bx]
+        test    al, al
+        je      .L332                       ; unsigned !=
+        inc     word [wadFinish__typed]
+.L332:
+.L329:
+        inc     word [wadFinish__e]
+        jmp     .L328
+.L330:
 ; ---- if ( typed > 0 || wadOutRows > 0 ) {
         mov     ax, [wadFinish__typed]
         test    ax, ax
-        ja      .L324                       ; unsigned >
+        ja      .L337                       ; unsigned >
         mov     ax, [mowad__wadOutRows]
         test    ax, ax
-        ja      .L326                       ; unsigned >
-        jmp     .L322
-.L326:
-.L324:
+        ja      .L339                       ; unsigned >
+        jmp     .L335
+.L339:
+.L337:
 ; ---- lumps = wadOutCount
         mov     ax, [mowad__wadOutCount]
         mov     [wadFinish__lumps], ax
-; ---- wadBegin( addr( wadTypesName ), wadTypeTypes )
+; ---- wadOpenEntry( addr( wadTypesName ), wadTypeTypes, room: wadOutSlots )
         mov     ax, mowad__wadTypesName     ; link-time constant
-        mov     [wadBegin__name], ax
-        mov     byte [wadBegin__type], 5
-        call    wadBegin
+        mov     [mowad__wadOpenEntry__name], ax
+        mov     byte [mowad__wadOpenEntry__type], 5
+        mov     word [mowad__wadOpenEntry__room], 65
+        call    mowad__wadOpenEntry
+; ---- wadPutHead( wadTypeTypes, 1 )
+        mov     byte [mowad__wadPutHead__type], 5
+        mov     byte [mowad__wadPutHead__version], 1
+        call    mowad__wadPutHead
 ; ---- for ( u16 e = 0; e < lumps; e++ ) {
         mov     word [wadFinish__e], 0
-.L327:
+.L340:
         mov     ax, [wadFinish__e]
         mov     bx, [wadFinish__lumps]
         cmp     ax, bx
-        jae     .L329                       ; unsigned <
+        jae     .L342                       ; unsigned <
 ; ---- if ( wadKind[e] != 0 ) wadPutRow( wadOutEntry( e ) + wadEntName, wadKind[e] )
         mov     ax, [wadFinish__e]
         mov     bx, ax
         mov     al, [mowad__wadKind + bx]
         test    al, al
-        je      .L331                       ; unsigned !=
+        je      .L344                       ; unsigned !=
         mov     ax, [wadFinish__e]
         mov     [mowad__wadOutEntry__e], ax
         call    mowad__wadOutEntry
@@ -2708,18 +2849,18 @@ wadFinish:
         pop     ax
         mov     [mowad__wadPutRow__name], ax
         call    mowad__wadPutRow
-.L331:
-.L328:
+.L344:
+.L341:
         inc     word [wadFinish__e]
-        jmp     .L327
-.L329:
+        jmp     .L340
+.L342:
 ; ---- for ( u16 c = 0; c < wadOutRows; c++ ) {
         mov     word [wadFinish__c], 0
-.L334:
+.L347:
         mov     ax, [wadFinish__c]
         mov     bx, [mowad__wadOutRows]
         cmp     ax, bx
-        jae     .L336                       ; unsigned <
+        jae     .L349                       ; unsigned <
 ; ---- claim = addr( wadClaims ) + c * wadRowBytes
         mov     ax, mowad__wadClaims        ; link-time constant
         push    ax                          ; save lhs: rhs is not a leaf
@@ -2738,13 +2879,13 @@ wadFinish:
         mov     al, [bx]                    ; peek8 - unchecked, by design
         mov     [mowad__wadPutRow__type], al; u8 -> u8, no widening
         call    mowad__wadPutRow
-.L335:
+.L348:
         inc     word [wadFinish__c]
-        jmp     .L334
-.L336:
+        jmp     .L347
+.L349:
 ; ---- wadEnd()
         call    wadEnd
-.L322:
+.L335:
 ; ---- dirHi = wadOutPosHi
         mov     ax, [mowad__wadOutPosHi]
         mov     [wadFinish__dirHi], ax
@@ -2764,12 +2905,12 @@ wadFinish:
         mov     [mowad__wadMagicAt__to], ax
         mov     al, [mowad__wadOutIwad]
         test    al, al
-        jz      .L338
+        jz      .L351
         mov     ax, mowad__wadIwadMagic     ; link-time constant
-        jmp     .L339
-.L338:
+        jmp     .L352
+.L351:
         mov     ax, mowad__wadPwadMagic     ; link-time constant
-.L339:
+.L352:
         mov     [mowad__wadMagicAt__from], ax
         call    mowad__wadMagicAt
 ; ---- poke16( addr( wadStage ) + 4, wadOutCount )
@@ -2814,9 +2955,9 @@ wadFinish:
         call    fileWrite
         mov     ax, [fileWrite__ret]
         cmp     ax, 12
-        je      .L341                       ; unsigned !=
+        je      .L354                       ; unsigned !=
         mov     byte [mowad__wadOutShort], 1
-.L341:
+.L354:
 ; ---- fileClose( wadOutHandle )
         mov     ax, [mowad__wadOutHandle]
         mov     [fileClose__handle], ax
@@ -2826,18 +2967,18 @@ wadFinish:
         mov     al, [fileFailed__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L344
+        jz      .L357
         mov     byte [mowad__wadOutShort], 1
-.L344:
+.L357:
 ; ---- return !wadOutShort
         mov     al, [mowad__wadOutShort]
         test    al, al
-        jnz     .L347
+        jnz     .L360
         mov     ax, 1
-        jmp     .L348
-.L347:
+        jmp     .L361
+.L360:
         xor     ax, ax
-.L348:
+.L361:
         mov     [wadFinish__ret], al        ; narrowed to bool
         ret
 
@@ -2846,10 +2987,10 @@ wadFinish:
 mowad__wadMagicAt:
 ; ---- for ( u16 i = 0; i < 4; i++ ) {
         mov     word [mowad__wadMagicAt__i], 0
-.L350:
+.L363:
         mov     ax, [mowad__wadMagicAt__i]
         cmp     ax, 4
-        jae     .L352                       ; unsigned <
+        jae     .L365                       ; unsigned <
 ; ---- poke8( to + i, peek8( from + i ) )
         mov     ax, [mowad__wadMagicAt__to]
         mov     bx, [mowad__wadMagicAt__i]
@@ -2862,10 +3003,10 @@ mowad__wadMagicAt:
         mov     al, [bx]                    ; peek8 - unchecked, by design
         pop     bx
         mov     [bx], al
-.L351:
+.L364:
         inc     word [mowad__wadMagicAt__i]
-        jmp     .L350
-.L352:
+        jmp     .L363
+.L365:
         ret
 
 ; ============================================== sub writeBase ====
@@ -2988,6 +3129,55 @@ writePatch:
         mov     [wadClaim__name], ax
         mov     byte [wadClaim__type], 2
         call    wadClaim
+; ---- wadBegin( addr( nBlob ), wadTypeRaw )
+        mov     ax, nBlob                   ; link-time constant
+        mov     [wadBegin__name], ax
+        mov     byte [wadBegin__type], 1
+        call    wadBegin
+; ---- wadPut( addr( blob ), len( blob ) )
+        mov     ax, blob                    ; link-time constant
+        mov     [wadPut__at], ax
+        mov     word [wadPut__count], 3
+        call    wadPut
+; ---- wadEnd()
+        call    wadEnd
+; ---- putNumber( u16( wadFinish() ) )
+        call    wadFinish
+        mov     al, [wadFinish__ret]
+        xor     ah, ah                      ; bool -> u16
+        mov     [putNumber__n], ax
+        call    putNumber
+        ret
+
+; ============================================== sub writeFull ====
+
+writeFull:
+; ---- wadCreate( addr( fullName ) )
+        mov     ax, fullName                ; link-time constant
+        mov     [wadCreate__file], ax
+        call    wadCreate
+; ---- for ( u16 i = 0; i < wadWriteMax; i++ ) {
+        mov     word [writeFull__i], 0
+.L367:
+        mov     ax, [writeFull__i]
+        cmp     ax, 64
+        jae     .L369                       ; unsigned <
+; ---- wadBegin( addr( nBlob ), wadTypeRaw )
+        mov     ax, nBlob                   ; link-time constant
+        mov     [wadBegin__name], ax
+        mov     byte [wadBegin__type], 1
+        call    wadBegin
+; ---- wadPut( addr( blob ), len( blob ) )
+        mov     ax, blob                    ; link-time constant
+        mov     [wadPut__at], ax
+        mov     word [wadPut__count], 3
+        call    wadPut
+; ---- wadEnd()
+        call    wadEnd
+.L368:
+        inc     word [writeFull__i]
+        jmp     .L367
+.L369:
 ; ---- putNumber( u16( wadFinish() ) )
         call    wadFinish
         mov     al, [wadFinish__ret]
@@ -3006,13 +3196,13 @@ checksum:
         mov     al, [wadTypeOf__ret]
         xor     ah, ah                      ; u8 -> u16
         test    ax, ax
-        jne     .L354                       ; unsigned ==
+        jne     .L371                       ; unsigned ==
 ; ---- wadStart( i )
         mov     ax, [checksum__i]
         mov     [wadStart__lump], ax
         call    wadStart
-        jmp     .L355
-.L354:
+        jmp     .L372
+.L371:
 ; ---- wadStartAs( i, wadTypeOf( i ) )
         mov     ax, [checksum__i]
         push    ax                          ; argument evaluated before any is stored
@@ -3025,11 +3215,11 @@ checksum:
         pop     ax
         mov     [wadStartAs__lump], ax
         call    wadStartAs
-.L355:
+.L372:
 ; ---- sum = 0
         mov     word [checksum__sum], 0
 ; ---- for ( ;; ) {
-.L357:
+.L374:
 ; ---- n = wadNext( addr( buf ), bufBytes )
         mov     ax, buf                     ; link-time constant
         mov     [wadNext__at], ax
@@ -3039,16 +3229,16 @@ checksum:
         mov     [checksum__n], ax
 ; ---- if ( n == 0 ) break
         test    ax, ax
-        jne     .L360                       ; unsigned ==
-        jmp     .L359
-.L360:
+        jne     .L377                       ; unsigned ==
+        jmp     .L376
+.L377:
 ; ---- for ( u16 k = 0; k < n; k++ ) {
         mov     word [checksum__k], 0
-.L363:
+.L380:
         mov     ax, [checksum__k]
         mov     bx, [checksum__n]
         cmp     ax, bx
-        jae     .L365                       ; unsigned <
+        jae     .L382                       ; unsigned <
 ; ---- sum = ( ( sum << 1 ) | ( sum >> 15 ) ) + buf[k]
         mov     ax, [checksum__sum]
         shl     ax, 1
@@ -3068,13 +3258,13 @@ checksum:
         pop     ax
         add     ax, bx
         mov     [checksum__sum], ax
-.L364:
+.L381:
         inc     word [checksum__k]
-        jmp     .L363
-.L365:
-.L358:
-        jmp     .L357
-.L359:
+        jmp     .L380
+.L382:
+.L375:
+        jmp     .L374
+.L376:
 ; ---- return sum
         mov     ax, [checksum__sum]
         mov     [checksum__ret], ax
@@ -3088,31 +3278,31 @@ putSource:
         mov     al, [wadTypeFrom__ret]
         xor     ah, ah                      ; u8 -> u16
         cmp     ax, 1
-        jne     .L367                       ; unsigned ==
+        jne     .L384                       ; unsigned ==
 ; ---- putStr( addr( sHeader ) )
         mov     ax, sHeader                 ; link-time constant
         mov     [putStr__at], ax
         call    putStr
-        jmp     .L368
-.L367:
+        jmp     .L385
+.L384:
 ; ---- } else if ( wadTypeFrom() == wadFromManifest ) {
         call    wadTypeFrom
         mov     al, [wadTypeFrom__ret]
         xor     ah, ah                      ; u8 -> u16
         cmp     ax, 2
-        jne     .L370                       ; unsigned ==
+        jne     .L387                       ; unsigned ==
 ; ---- putStr( addr( sRow ) )
         mov     ax, sRow                    ; link-time constant
         mov     [putStr__at], ax
         call    putStr
-        jmp     .L371
-.L370:
+        jmp     .L388
+.L387:
 ; ---- putStr( addr( sNone ) )
         mov     ax, sNone                   ; link-time constant
         mov     [putStr__at], ax
         call    putStr
-.L371:
-.L368:
+.L388:
+.L385:
         ret
 
 ; ============================================== sub showText ====
@@ -3154,21 +3344,21 @@ showText:
         call    space
 ; ---- for ( u16 k = 0; k < n; k++ ) {
         mov     word [showText__k], 0
-.L373:
+.L390:
         mov     ax, [showText__k]
         mov     bx, [showText__n]
         cmp     ax, bx
-        jae     .L375                       ; unsigned <
+        jae     .L392                       ; unsigned <
 ; ---- putChar( buf[k] )
         mov     ax, [showText__k]
         mov     bx, ax
         mov     al, [buf + bx]
         mov     [putChar__c], al            ; u8 -> u8, no widening
         call    putChar
-.L374:
+.L391:
         inc     word [showText__k]
-        jmp     .L373
-.L375:
+        jmp     .L390
+.L392:
 ; ---- newline()
         call    newline
         ret
@@ -3295,6 +3485,9 @@ mowad__wadHeaded__lump: dw      0        ; u16
 mowad__wadHeaded__ret: db      0        ; bool
 wadRowType__name: dw      0        ; u16
 wadRowType__ret: db      0        ; u8
+mowad__wadHeadsName__f: dw      0        ; u16
+mowad__wadHeadsName__name: dw      0        ; u16
+mowad__wadHeadsName__ret: db      0        ; bool
 wadTypeOf__lump: dw      0        ; u16
 wadTypeOf__ret: db      0        ; u8
 wadTypeFrom__ret: db      0        ; u8
@@ -3331,9 +3524,12 @@ wadPut__at:     dw      0        ; u16
 wadPut__count:  dw      0        ; u16
 mowad__wadOpenEntry__name: dw      0        ; u16
 mowad__wadOpenEntry__type: db      0        ; u8
+mowad__wadOpenEntry__room: dw      64        ; u16 = 64
 wadBegin__name: dw      0        ; u16
 wadBegin__type: db      0        ; u8
 wadBegin__version: db      1        ; u8 = 1
+mowad__wadPutHead__type: db      0        ; u8
+mowad__wadPutHead__version: db      0        ; u8
 wadForeign__name: dw      0        ; u16
 wadClaim__name: dw      0        ; u16
 wadClaim__type: db      0        ; u8
@@ -3374,6 +3570,7 @@ wadOpen__types: dw      0        ; u16
 wadOpen__from:  dw      0        ; u16
 wadOpen__to:    dw      0        ; u16
 wadOpen__m0:    db      0        ; u8
+wadClose__f:    dw      0        ; u16
 wadRowType__f:  dw      0        ; u16
 wadRowType__r:  dw      0        ; u16
 wadRowType__m:  dw      0        ; u16
@@ -3382,6 +3579,8 @@ wadRowType__n:  dw      0        ; u16
 wadRowType__row: dw      0        ; u16
 wadRowType__t:  db      0        ; u8
 wadRowType__found: db      0        ; bool
+mowad__wadHeadsName__i: dw      0        ; u16
+mowad__wadHeadsName__first: dw      0        ; u16
 wadTypeOf__t:   db      0        ; u8
 mowad__wadStreamFrom__lo: dw      0        ; u16
 wadStartAs__t:  db      0        ; u8
@@ -3406,6 +3605,7 @@ wadFinish__dirHi: dw      0        ; u16
 wadFinish__dirLo: dw      0        ; u16
 wadFinish__claim: dw      0        ; u16
 mowad__wadMagicAt__i: dw      0        ; u16
+writeFull__i:   dw      0        ; u16
 checksum__k:    dw      0        ; u16
 checksum__sum:  dw      0        ; u16
 checksum__n:    dw      0        ; u16
@@ -3459,6 +3659,7 @@ mowad__wadIwadMagic: db      'IWAD'        ; u8[4] const
 mowad__wadPwadMagic: db      'PWAD'        ; u8[4] const
 baseName:       db      'TRIPBASE.WAD', 0        ; u8[13] const
 patchName:      db      'TRIPPAT.WAD', 0        ; u8[12] const
+fullName:       db      'TRIPFULL.WAD', 0        ; u8[13] const
 junkName:       db      'NOTAWAD.TMP', 0        ; u8[12] const
 noName:         db      'NOSUCH.WAD', 0        ; u8[11] const
 nGreet:         db      'GREET', 0        ; u8[6] const
@@ -3495,7 +3696,7 @@ putNumber__digits: times 5 db 0        ; u8[5]
 ; No storage is emitted - a .COM owns everything past its image, so
 ; these are addresses and NASM does the arithmetic.
 
-_hstack:        equ     282        ; 26 worst-case + 256 interrupt reserve
+_hstack:        equ     288        ; 32 worst-case + 256 interrupt reserve
 _htop:          equ     0FFFEh - _hstack
 
 _hsize:         dw      _htop - _heap        ; NASM computes this
@@ -3508,7 +3709,7 @@ _heapw:         equ     _heap        ; same bytes, u16 view
 
 mowad__wadNames: equ     _heap        ; u8[45056]
 mowad__wadStage: equ     _heap + 45056        ; u8[512]
-mowad__wadOut:  equ     _heap + 45568        ; u8[1024]
-mowad__wadKind: equ     _heap + 46592        ; u8[64]
-mowad__wadClaims: equ     _heap + 46656        ; u8[144]
+mowad__wadOut:  equ     _heap + 45568        ; u8[1040]
+mowad__wadKind: equ     _heap + 46608        ; u8[65]
+mowad__wadClaims: equ     _heap + 46673        ; u8[144]
 buf:            equ     _heap + 47104        ; u8[64]
