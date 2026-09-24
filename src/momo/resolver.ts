@@ -2946,6 +2946,40 @@ export const resolve = (program: Program): ResolveResult => {
     }
   }
 
+  // §4's constant rule, looking inside a runtime ternary. `x = c == 0 ? 1 : 300`
+  // into a u8 used to compile: the merged value is runtime, so the fit and range
+  // checks never ran - but the arms are constants a reader can see, and §4 says
+  // a visible constant that does not fit is an error, not a narrowing. Found
+  // during §41's build (DECISIONS §41 has the record), fixed the same day on
+  // §4's own words. Recurses, so an arm that is itself a ternary is reached.
+  const checkArms = (
+    at: Location,
+    target: ValueType,
+    targetFrac: number,
+    targetUnit: string | null,
+  ) => {
+    const node = at as unknown as { type?: string; consequent?: Expression; alternate?: Expression }
+    if (node.type !== 'ConditionalExpression' || !node.consequent || !node.alternate) return
+
+    for (const arm of [node.consequent, node.alternate]) {
+      if (arm.type === 'ConditionalExpression') {
+        checkArms(arm, target, targetFrac, targetUnit)
+        continue
+      }
+      const value = arm.constValue
+      if (value === null || value === undefined) continue
+      if (!fits(value, target)) {
+        const spelling = spell(target, targetFrac)
+        raise(
+          arm,
+          `value ${value} does not fit in ${spelling}` +
+            ` - write ${spelling}(${value}) if the truncation is deliberate`,
+        )
+      }
+      checkRange(value, targetUnit, arm)
+    }
+  }
+
   const checkAssignable = (
     value: Resolved,
     target: ValueType,
@@ -2961,6 +2995,7 @@ export const resolve = (program: Program): ResolveResult => {
       const to = targetUnit ?? `plain ${spell(target, targetFrac)}`
       raise(at, `cannot put ${from} in ${to} - it needs a cast`)
     }
+
 
     // Scale before width. A units mismatch is wrong whatever the ranges say, and
     // section 4's implicit narrowing has nothing to say about it - see DESIGN.md
@@ -2983,6 +3018,10 @@ export const resolve = (program: Program): ResolveResult => {
           ' - the scales differ, so it needs a cast',
       )
     }
+
+    // After units and scale, both of which are the better diagnosis when they
+    // disagree: a runtime ternary's constant arms are still §4's to refuse.
+    if (value.value === null) checkArms(at, target, targetFrac, targetUnit)
 
     if (value.type === 'untyped') {
       // A constant we can already see is a different case from the implicit

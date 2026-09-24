@@ -1,0 +1,8 @@
+// EXPECT-ERROR: value 300 does not fit in u8 - write u8(300) if the truncation is deliberate
+// EXPECT-AT: 8:30
+// §4's constant rule reaches inside a runtime ternary: the arms are constants
+// a reader can see, and one that does not fit is an error, not a narrowing.
+// Nested one deep, to prove the recursion.
+u16 c = 0
+u8 x = 0
+x = c == 0 ? 1 : c < 5 ? 2 : 300

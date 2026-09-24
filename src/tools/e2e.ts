@@ -132,8 +132,8 @@ const buildAndRun = async (exe: string, conf: string, project: string): Promise<
   await mkdir(buildDir, { recursive: true })
   await cp(sourceDir, buildDir, { recursive: true })
 
-  // One line, trimmed, appended to the command. Absent for all but one project,
-  // and a project that grows one is worth a second look first.
+  // One line, trimmed, appended to the command. Most projects have none;
+  // momoed's names the file its /? run opens, and wadinfo's names its WADs.
   const argsFile = argsFor(project)
   const args = existsSync(argsFile)
     ? ' ' + (await readFile(argsFile, 'utf8')).trim()

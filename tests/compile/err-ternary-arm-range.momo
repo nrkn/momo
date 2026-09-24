@@ -1,0 +1,9 @@
+// EXPECT-ERROR: value 99 does not fit in tone, which is u8 <= 63
+// EXPECT-AT: 9:18
+// The same reach, one check along: a unit's bound holds a ternary's constant
+// arm. One arm carries the unit, so the merge does - which is exactly the
+// shape that slipped past §75 during §41's build.
+unit tone = u8 <= 63
+u16 c = 0
+tone t = 0
+t = c == 0 ? t : 99
