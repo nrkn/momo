@@ -3,7 +3,7 @@
 // Every tool needs the same chain - load, resolve, prune, emit - so it lives
 // here rather than being repeated four times with slightly different bugs.
 
-import { prune, type CallGraph } from './analysis.js'
+import { checkExpectations, prune, type CallGraph } from './analysis.js'
 import { emit } from './emitter.js'
 import { load } from './loader.js'
 import { resolve, type MomoSymbol } from './resolver.js'
@@ -26,6 +26,8 @@ export const compile = (
   const { program, files } = load(entryFile, sharedRoot, sources)
   const resolved = resolve(program)
   const pruned = { ...resolved, ...prune(resolved) }
+  // §73: whether an expect nothing answered binds is decided by what survived.
+  checkExpectations(pruned.program, resolved.callGraph, resolved.expectations)
   const { assembly, temporaries } = emit(pruned, sources)
 
   return {

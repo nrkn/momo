@@ -63,6 +63,7 @@ const declaredName = (statement: Statement): string | null => {
     case 'ViewDeclaration':
     case 'UnitDeclaration':
     case 'RoutineDeclaration':
+    case 'ExpectDeclaration':
       return statement.name
     default:
       return null

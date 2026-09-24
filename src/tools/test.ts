@@ -663,6 +663,7 @@ const identityPairs: [string, string, string][] = [
   ],
   ['a require emits nothing, and is not a use (§74)', 'ok-require-checked.momo', 'ok-require-plain.momo'],
   ['a comprehension is its table written out (§76)', 'ok-gentable-comp.momo', 'ok-gentable-written.momo'],
+  ['an expect emits nothing (§73)', 'ok-expect-checked.momo', 'ok-expect-plain.momo'],
 ]
 
 const identityTests = (): number => {

@@ -1,0 +1,16 @@
+// e_lib.momo - the library half of exptest: three routines it calls and does
+// not define, stated where the calls are made (§73). One typed, one sub with
+// parameters, and one bare sub, which is every head a routine can have.
+
+expect u16 weigh( u16 v, a16 at )
+expect sub report( u16 n )
+expect sub tick
+
+local const u8[] steps = [ 1, 2, 3, 4 ]
+
+sub libRun {
+  for ( u16 i = 0; i < len( steps ); i++ ) {
+    report( weigh( i, addr( steps ) + i ) )
+    tick()
+  }
+}

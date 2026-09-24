@@ -1,0 +1,26 @@
+// The other half of the pair. Identical to `ok-expect-checked.momo` except that
+// the expects are gone, which every routine here being defined allows: an
+// expect nothing answers is the one thing the plain half could not hold.
+
+u16 total
+
+sub put( u16 y, a16 at ) {
+  total = total + y + peek8( at )
+}
+
+u8[4] line = [ 3, 1, 4, 1 ]
+
+sub paint {
+  for ( u16 i = 0; i < 4; i++ ) {
+    put( cell( i ), addr( line ) + i )
+  }
+  flush()
+}
+
+u8 cell( u16 i ) => line[ i ] * 2
+
+sub flush {
+  total = total * 2
+}
+
+paint()

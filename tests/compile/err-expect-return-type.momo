@@ -1,0 +1,8 @@
+// EXPECT-ERROR: "nextKey" returns u8 here, and expects.momo:6 expects u16: "u16 nextKey()"
+// EXPECT-AT: 8:1
+// The return type is part of the contract, even where the library's own call
+// would compile against either (§73).
+include "inc/expects.momo"
+
+sub show( u16 y, a16 at, u16 n ) { }
+u8 nextKey() => 0

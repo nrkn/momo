@@ -1,0 +1,8 @@
+// EXPECT-ERROR: parameter 2 of "show" is u16 here, and expects.momo:5 expects a16: "sub show( u16 y, a16 at, u16 n )"
+// EXPECT-AT: 7:18
+// A unit is part of a parameter's type (§39, §71), so the same storage under
+// another name is still a different contract (§73).
+include "inc/expects.momo"
+
+sub show( u16 y, u16 at, u16 n ) { }
+u16 nextKey() => 0

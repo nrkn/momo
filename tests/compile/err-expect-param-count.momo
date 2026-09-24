@@ -1,0 +1,7 @@
+// EXPECT-ERROR: "show" takes 2 parameters here, and expects.momo:5 expects 3: "sub show( u16 y, a16 at, u16 n )"
+// EXPECT-AT: 6:1
+// Counted before any type is compared, and reported at the head (§73).
+include "inc/expects.momo"
+
+sub show( u16 y, a16 at ) { }
+u16 nextKey() => 0

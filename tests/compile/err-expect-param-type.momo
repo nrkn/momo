@@ -1,0 +1,8 @@
+// EXPECT-ERROR: parameter 1 of "show" is u8 here, and expects.momo:5 expects u16: "sub show( u16 y, a16 at, u16 n )"
+// EXPECT-AT: 7:11
+// A definition that disagrees with an expect is reported at the definition,
+// quoting the library, rather than at a call inside the library (§73).
+include "inc/expects.momo"
+
+sub show( u8 y, a16 at, u16 n ) { }
+u16 nextKey() => 0

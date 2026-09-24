@@ -1,0 +1,8 @@
+// EXPECT-ERROR: expect belongs at the top level of the file that makes the calls
+// EXPECT-AT: 5:3
+// An expect says what the program owes, which no routine body can say (§73).
+sub run {
+  expect sub hook
+}
+
+run()

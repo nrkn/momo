@@ -1,0 +1,10 @@
+// EXPECT-ERROR: the local one in err-expect-local.momo is private to that file and cannot answer it
+// A local routine cannot answer an expect: the library's call looks in its own
+// file and then in the program's, and never in this file's privates (§73). The
+// error lands in the library, so there is no EXPECT-AT here.
+include "inc/expects.momo"
+
+local sub show( u16 y, a16 at, u16 n ) { }
+u16 nextKey() => 1
+
+libDraw()

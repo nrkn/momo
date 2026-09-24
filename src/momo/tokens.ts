@@ -70,6 +70,10 @@ export const keywords = [
   // and checked by the resolver, and emitting nothing - so it sits with the
   // declarations rather than with the statements that run.
   'require',
+  // `expect sub viewRow( u16 y, a16 at, u16 n )` (§73). A routine the file
+  // calls and the program defines, stated where the call is made so that a
+  // wrong definition is reported at the definition. Emits nothing.
+  'expect',
   'local',
   'sub',
   'fn',

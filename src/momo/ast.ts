@@ -573,6 +573,20 @@ export type RequireStatement = Spanned & {
   test: Expression
 }
 
+// §73. `expect sub viewRow( u16 y, a16 at, u16 n )` - a routine this file calls
+// and the program defines. The head of a RoutineDeclaration with no body: the
+// resolver holds the definition to it, and reports an absence only when a call
+// survives pruning. The emitter skips it, so it costs nothing. Top level only,
+// which is the resolver's check.
+export type ExpectDeclaration = Spanned & {
+  type: 'ExpectDeclaration'
+  name: string
+  params: Parameter[]
+  returnType: TypeName | null
+  returnFrac: number
+  returnUnit?: string
+}
+
 export type Statement =
   | ConstDeclaration
   | ConstFunctionDeclaration
@@ -583,6 +597,7 @@ export type Statement =
   | UnitDeclaration
   | BracketDeclaration
   | RequireStatement
+  | ExpectDeclaration
   | RoutineDeclaration
   | BlockStatement
   | BracketStatement

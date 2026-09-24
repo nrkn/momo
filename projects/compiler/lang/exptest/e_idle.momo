@@ -1,0 +1,12 @@
+// e_idle.momo - a library exptest includes and never calls into. Its expect asks
+// for a routine nothing defines, and an expect binds only when a call to it
+// survives pruning: `idleRun` is pruned, the call with it, so nothing is owed.
+//
+// Without the expect this file would not compile at all - "idleHook" is not
+// declared - because the resolver runs before pruning does.
+
+expect sub idleHook( u8 c )
+
+sub idleRun {
+  idleHook( 65 )
+}
