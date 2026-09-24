@@ -120,11 +120,14 @@ bool quadLimited( i16 x0, i16 y0, i16 x1, i16 y1, i16 x2, i16 y2 ) {
   return true
 }
 
-// **Coordinates must satisfy |x| <= 8191 and |y| <= 8191.**
+// **Coordinates must satisfy |x| <= maxCoord and |y| <= maxCoord.**
 //
 // The midpoint ladder sums two coordinates before halving, so the sum has to fit a
-// signed word; 8,191 leaves a factor of four spare. That is a trade of one
-// precondition for another and a much better one - "stay inside a 16k box" is
+// signed word - which is exactly the bound `types.momo` derives for maxCoord and
+// now holds with a require, so this file no longer states its own number: an
+// earlier copy here said 8,191 with "a factor of four spare", which types.momo
+// records as caution rather than a derivation. The trade is of one
+// precondition for another and a much better one - "stay inside the box" is
 // something a caller can satisfy without knowing anything about Bresenham, where
 // "keep every segment under 15 pixels" is not.
 //
