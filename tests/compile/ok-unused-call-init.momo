@@ -1,0 +1,11 @@
+// A variable initialised by a call, with nothing ever reading it. The store
+// still happens at the point of declaration (§5), so the slot must survive
+// pruning - this used to crash the compiler with `internal: unresolved symbol`
+// once pruning dropped the symbol and the emitter met the store. Found during
+// §75's build; DECISIONS §75 has the record.
+
+u8 bright() {
+  return 9
+}
+
+u8 level = bright()

@@ -1664,18 +1664,23 @@ export const resolve = (program: Program): ResolveResult => {
         }
         raise(element, 'array element must be a constant')
       }
-      if (resolved.frac !== elementFrac) {
-        checkAssignable(resolved, elementType ?? 'u16', elementFrac, element)
-      }
+      // §75's reason for existing: a whole table held against the range, and
+      // the refusal names the element, since a caret in a 768-entry literal is
+      // not enough to count by. Before checkAssignable, whose own range check
+      // would otherwise say the same thing without the count.
+      checkRange(resolved.value, elementUnit, element, `element ${values.length} (${resolved.value})`)
+
+      // Unconditionally, so an element obeys the same unit rule an assignment
+      // does. This used to run only when the scales differed, which let a typed
+      // constant of the WRONG unit into a table so long as its scale matched -
+      // `const ms k = 3` sat in a `px[2]` without a word said. Found during
+      // §75's build and recorded in DECISIONS §75.
+      checkAssignable(resolved, elementType ?? 'u16', elementFrac, element, elementUnit)
 
       const value = resolved.value
       if (elementType && !fits(value, elementType)) {
         raise(element, `value ${value} does not fit in ${elementType}`)
       }
-      // §75's reason for existing: a whole table held against the range, and
-      // the refusal names the element, since a caret in a 768-entry literal is
-      // not enough to count by.
-      checkRange(value, elementUnit, element, `element ${values.length} (${value})`)
       values.push(value)
     }
     return values
@@ -2303,9 +2308,9 @@ export const resolve = (program: Program): ResolveResult => {
     scaleDecimals(field.init, field.typeNode.frac)
     const resolved = resolveExpression(field.init)
     if (resolved.value === null) raise(field.init, 'group data must be constant')
-    if (resolved.frac !== field.typeNode.frac) {
-      checkAssignable(resolved, field.typeNode.name, field.typeNode.frac, field.init)
-    }
+    // Unconditionally, and with the unit - the same fix as arrayValuesFrom's:
+    // a scale-matching constant of the wrong unit went in unremarked.
+    checkAssignable(resolved, field.typeNode.name, field.typeNode.frac, field.init, field.typeNode.unit ?? null)
     if (!fits(resolved.value, field.typeNode.name)) {
       raise(field.init, `value ${resolved.value} does not fit in ${field.typeNode.name}`)
     }

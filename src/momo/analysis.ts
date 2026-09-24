@@ -320,9 +320,25 @@ export const prune = <S extends PrunableSymbol>(result: {
       return
     }
 
-    // A declaration's own label is not a use - only references count.
+    // A declaration's own label is not a use - only references count. With one
+    // exception: a variable whose initialiser is a runtime value compiles to a
+    // store at the point of declaration (§5), so the slot is written whether or
+    // not anything reads it, and the store needs its label to exist. Without
+    // this, `u8 level = bright()` with nothing reading `level` pruned the
+    // symbol and left the store behind - the emitter then threw
+    // `internal: unresolved symbol`. Found during §75's build; DECISIONS §75.
     if (node.type === 'VariableDeclaration' || node.type === 'ConstDeclaration') {
-      const init = node.init as { type?: string } | null
+      const init = node.init as { type?: string; constValue?: number | null } | null
+      if (
+        node.type === 'VariableDeclaration' &&
+        init !== null &&
+        init.type !== 'ArrayLiteral' &&
+        init.type !== 'StringLiteral' &&
+        (init.constValue === null || init.constValue === undefined) &&
+        typeof node.label === 'string'
+      ) {
+        used.add(node.label)
+      }
       walk(init, init?.type === 'ArrayLiteral')
       return
     }

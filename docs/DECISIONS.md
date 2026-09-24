@@ -4379,18 +4379,24 @@ failed twenty-six tier-1 assertions: a type token cannot end a statement, so the
 lexer writes no newline after `unit px = u16`, and there was none to take. The
 check runs only after a bound, which ends in something that can.
 
-### Two holes in §39, found and not closed here
+### Two holes in §39, found here and closed the same day
 
-An array element and a group datum are held against their unit only when their
-scale differs, so `const ms k = 3` goes into a `px` table, or a `px` group
-field, without a word. A range still speaks there - the value is checked
+An array element and a group datum were held against their unit only when their
+scale differed, so `const ms k = 3` went into a `px` table, or a `px` group
+field, without a word. A range still spoke there - the value was checked
 whatever unit it came from - but the unit mismatch is §39's to refuse, and
-nothing does.
+nothing did. Closed by making the element and datum checks unconditional, with
+the element-numbered range message kept ahead of the general one so a 768-entry
+table still says which element; `err-unit-mix-element` and `err-unit-mix-field`
+hold it.
 
-A top-level variable initialised by a call, and read by nothing, is an internal
-error rather than a program: `u8 level = bright()` alone reports
+A top-level variable initialised by a call, and read by nothing, was an internal
+error rather than a program: `u8 level = bright()` alone reported
 `unresolved symbol "level"`. A neutered range check led an err- fixture into it,
-which is how it was found; the fixture now reaches only the check it names.
+which is how it was found. The cause was pruning's "a declaration's own label is
+not a use" rule meeting §5's store-at-declaration: the store was emitted and its
+target was not. A runtime initialiser now counts as its own use;
+`ok-unused-call-init` holds it.
 
 ### The teeth, and three fixtures that were passing for the wrong reason
 

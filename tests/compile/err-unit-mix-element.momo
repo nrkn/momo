@@ -1,0 +1,10 @@
+// EXPECT-ERROR: cannot put ms in px - it needs a cast
+// EXPECT-AT: 9:19
+// §39's mixing rule, applied to a table: a typed constant of the wrong unit
+// used to sit in an array so long as its SCALE matched, because the element
+// check only ran when the scales differed. Found during §75's build.
+unit px = u16
+unit ms = u16
+const ms k = 3
+const px[2] t = [ k, 2 ]
+u16 out = t[ 0 ]

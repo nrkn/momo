@@ -1,0 +1,11 @@
+// EXPECT-ERROR: cannot put ms in px - it needs a cast
+// EXPECT-AT: 9:10
+// The single-instance group datum takes the same rule as an array element,
+// and skipped it the same way. Found during §75's build.
+unit px = u16
+unit ms = u16
+const ms k = 3
+group place {
+  px x = k
+}
+u16 out = place.x
