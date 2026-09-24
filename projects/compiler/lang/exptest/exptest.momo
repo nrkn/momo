@@ -1,0 +1,36 @@
+// exptest.momo - `expect`: a library states the routines it calls and the
+// program defines, and the program's definitions are held to it (§73).
+//
+// e_lib.momo expects three routines. One is defined above its include and two
+// below, so the merged program meets a definition before its expect and an
+// expect before its definition - expectations are registered before anything
+// is declared, so both orders are checked alike. e_idle.momo expects a routine
+// nothing here defines, and nothing calls the routine that would call it.
+//
+// Everything holds, so the program compiling is the test; the refusals are the
+// err-expect-* files in tests/compile. The expects emit nothing, which
+// ok-expect-checked and ok-expect-plain hold to.
+
+include "lib/std/io.momo"
+
+// Before the include that expects it.
+u16 weigh( u16 v, a16 at ) => v * 3 + peek8( at )
+
+include "e_lib.momo"
+include "e_idle.momo"
+
+u16 ticks
+
+// After it. Parameter names are the definer's own; only the types are held.
+sub report( u16 value ) {
+  putNumber( value )
+  newline()
+}
+
+sub tick {
+  ticks++
+}
+
+libRun()
+putNumber( ticks )
+newline()

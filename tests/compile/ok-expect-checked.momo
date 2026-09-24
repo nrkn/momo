@@ -1,0 +1,40 @@
+// Half of the pair behind §73's zero-cost claim: an expect holds a definition
+// to a signature and is then gone. `ok-expect-plain.momo` is the same program
+// with the expects taken out, and tier 1 requires both to emit exactly the same
+// instructions.
+//
+// `put` is expected twice, as two files expecting one routine would, and is
+// defined above the expects; `cell` and `flush` are defined below them. That is
+// both orders the merged body can put an expect and its definition in.
+//
+// Keep the two in step. A difference is either a real leak or an edit that only
+// landed on one of them, and the assertion cannot tell those apart.
+
+u16 total
+
+sub put( u16 y, a16 at ) {
+  total = total + y + peek8( at )
+}
+
+expect sub put( u16 row, a16 from )
+expect u8 cell( u16 i )
+expect sub flush
+
+u8[4] line = [ 3, 1, 4, 1 ]
+
+sub paint {
+  for ( u16 i = 0; i < 4; i++ ) {
+    put( cell( i ), addr( line ) + i )
+  }
+  flush()
+}
+
+expect sub put( u16 y, a16 at )
+
+u8 cell( u16 i ) => line[ i ] * 2
+
+sub flush {
+  total = total * 2
+}
+
+paint()

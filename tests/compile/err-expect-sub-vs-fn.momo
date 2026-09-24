@@ -1,0 +1,7 @@
+// EXPECT-ERROR: "nextKey" is a sub here, and expects.momo:6 expects it to return u16: "u16 nextKey()"
+// EXPECT-AT: 7:1
+// A sub cannot answer for a routine the library reads a value from (§73).
+include "inc/expects.momo"
+
+sub show( u16 y, a16 at, u16 n ) { }
+sub nextKey { }

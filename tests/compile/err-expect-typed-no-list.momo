@@ -1,0 +1,4 @@
+// EXPECT-ERROR: an expected routine needs a parameter list - write expect u16 nextKey()
+// EXPECT-AT: 4:19
+// Only a sub may leave its list out, in an expect as in a definition (§7, §73).
+expect u16 nextKey

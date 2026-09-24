@@ -94,6 +94,9 @@ sub clearClipPath {
 // A clipping program defines `emitClipped` and `plotClipped` rather than `emitSpan` and
 // `plot`, because those two are taken: they are the filter.
 
+expect sub emitClipped( u16 y, i16 x0, i16 x1 )
+expect sub plotClipped( i16 x, i16 y )
+
 // One pixel against the clip. Used by the stroke path, where there is no span to
 // intersect.
 bool insideClip( i16 x, i16 y ) {

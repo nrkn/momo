@@ -54,8 +54,8 @@ be a second thing to test and hold against drift. The libraries' half of the
 same destination is **toolkit under surface** - `motext` under `moview`,
 `mofind` and `morange` is the existing instance - where a consumer the surface
 does not fit reaches into the toolkit and pays, via pruning, for exactly what
-it touches. The seam wants §73's contract; the surfaces want §49's arguments;
-neither wants a new kind of thing.
+it touches. The seam has its contract in §73; the surfaces want §49's arguments;
+neither wanted a new kind of thing.
 
 It is also the likeliest thing to reach `CONTRIBUTING.md`'s first case for a
 branch, and by some margin.
@@ -168,11 +168,6 @@ at all, which makes one a floor rather than a measurement.
   document. §49 (built 2026-09-24) was its gate; what remains ahead of it is
   the cfg retirement above, so the openers this would call are the retired
   shape's replacements rather than the carrier.
-- **`expect`.** §73 - a contract for the forward-call seam. Five libraries
-  already document the routine they expect the program to define, in comments
-  the compiler cannot read, and a wrong definition errors inside the library,
-  naming the wrong party. Resolver-only, emits nothing, and the identity tier
-  can say so.
 - **`alias`.** §46 - a compile-time name for one element or one group instance, at
   an index the program chooses. §45's `of` is this with the index owned by the
   compiler, so the substitution is already built and what is new is a capture rule;
@@ -353,6 +348,17 @@ All are set out in DESIGN §20 unless noted.
 section that was itself a plan - see the note at the top for why, and where to
 look for the rest.
 
+- **`expect`.** 2026-09-24. §73, now in `DESIGN.md`, and the record is DECISIONS
+  §73. `expect sub viewRow( u16 y, a16 at, u16 n )` holds the program's
+  definition to the library's signature and reports a wrong one at the
+  definition, and an absence only when a call survives pruning. The design did
+  not say that the second half makes an unused library compile where it could
+  not, or when an expectation becomes known: expects register before any
+  declaration, as §75's ranges do. The comment-contracts in `moview`, `momenu`,
+  `mofield` and momovec are expects now, and no instruction moved. Two of its
+  three unsettled points closed without a decision - a `local` cannot answer an
+  expect because a library's call cannot see one, and nothing in the corpus was
+  called `expect` - and §24's stays open.
 - **Table comprehensions.** 2026-09-24. §76, now in `DESIGN.md`, and the record
   is DECISIONS §76. `[ for ( i in 256 ) curve( i ) ]` is §8's substitution run
   once per element, and every element goes through the loop written elements go
@@ -2535,68 +2541,3 @@ new storage model underneath it.
 **The condition for building it is a document somebody needs to edit and cannot.**
 That has not happened yet, and PROVENANCE is emphatic about what building for a
 consumer that does not exist costs.
-
----
-
-## 73. `expect` - the forward-call seam gets a contract
-
-**Undesigned until 2026-09-24, and named now because the seam it covers is
-already load-bearing.** A library file may call a routine the program defines,
-and it compiles to a direct `call` (DESIGN §37) - `momovec` binds `plot` this
-way, `moview` binds `viewRow`, `mofield` binds `fieldCopyOut`, `momenu` binds
-four table routines, and `edloop`'s `nextKey` is the trick's whole payoff. The
-contract is real in every case and the compiler cannot see it: `moview.momo`'s
-header says `sub viewRow( u16 y, a16 at, u16 n )` in a comment, and `momenu`
-documents its four the same way.
-
-### What goes wrong today
-
-Define `viewRow` with the wrong signature and the error lands at the call site
-*inside* `moview` - a diagnostic pointing into library code the program's
-author did not write, naming the wrong party. Define nothing and
-`"viewRow" is not declared` does the same. The library knows exactly what it
-wants and has nowhere to say it.
-
-### The shape
-
-```momo
-expect sub viewRow( u16 y, a16 at, u16 n )
-expect u16 nextKey()
-```
-
-Top level of the file that makes the calls, one per expected routine. The
-resolver holds the program's definition against every expectation that names
-it: a mismatch is reported against the *program's* declaration, quoting the
-library's line; an absence is reported once, naming the library that wants the
-routine, rather than at every call site. Two files may expect the same name -
-`tiger` and `tigerpic` both feed `plot` - and must agree with each other for
-the same reason they must agree with the definition.
-
-**It emits nothing.** The call is the same direct `call` it is today, so the
-identity tier can assert the feature costs zero instructions - the same claim
-§48 makes and tests.
-
-**Pruning decides whether an expectation binds.** An `expect` whose calls are
-all pruned asks for nothing: include `moview`, never open a view, and the
-program owes no `viewRow`. That is the rule everything else already follows -
-what survives pruning is what must resolve.
-
-### What it is not
-
-Not §19's routine parameters and not function pointers: the binding is still by
-name, at compile time, exactly as it is now. Not a default body - an `expect`
-with a fallback implementation is a different feature with a different §, and
-the empty-`plot`-as-filter trick in `clippath.momo` shows the library side can
-already express "taken, deliberately" without one.
-
-### Unsettled
-
-- **Whether a `local` routine can satisfy one.** The seam is cross-file by
-  nature, so instinct says no - but momoed satisfying `momenu`'s four from its
-  own file is a real case to check before the rule is written.
-- **The spelling.** `expect` reads right at the use site; whether it collides
-  with anything a program plausibly names is a grep away.
-- **Whether `expect` also serves §24.** A handler is another routine something
-  else calls by contract, but the caller there is hardware and the signature
-  question is different (`iret`, saved registers). Kept separate unless the
-  designs turn out to rhyme.

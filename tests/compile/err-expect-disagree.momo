@@ -1,0 +1,7 @@
+// EXPECT-ERROR: parameter 2 of "show" is u16 here, and expects.momo:5 expects a16: "sub show( u16 y, a16 at, u16 n )" - one definition answers both, so the two must agree
+// EXPECT-AT: 7:25
+// Two files may expect one routine, and one definition answers both - so the
+// second expect is held to the first before any definition is looked at (§73).
+include "inc/expects.momo"
+
+expect sub show( u16 y, u16 at, u16 n )

@@ -1488,6 +1488,9 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     // Checked in the resolver and finished there (§74). No source quote either,
     // so a program with its requires and one without are the same text.
     if (node.type === 'RequireStatement') return
+    // Held against the definition in the resolver (§73), and silent here for the
+    // same reason as a require.
+    if (node.type === 'ExpectDeclaration') return
     if (node.type === 'RoutineDeclaration') return
 
     if (node.type === 'BlockStatement') {

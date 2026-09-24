@@ -1,0 +1,7 @@
+// EXPECT-ERROR: "nextKey" is declared here as a variable, and expects.momo:6 expects a routine: "u16 nextKey()"
+// EXPECT-AT: 7:1
+// Anything but a routine under an expected name is refused where it is
+// declared (§73).
+include "inc/expects.momo"
+
+u16 nextKey

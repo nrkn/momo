@@ -362,6 +362,17 @@ export const printStatement = (node: Statement, depth = 0): string => {
     case 'RequireStatement':
       return `${pad}require ${printExpression(node.test)}`
 
+    // Printed for the same reason (§73), and in a routine's own head: the merged
+    // program holds the expect and the definition both, and has to be held to one
+    // by the other again when it is compiled back.
+    case 'ExpectDeclaration': {
+      const head = node.returnType
+        ? `${node.returnUnit ?? spell(node.returnType, node.returnFrac)} ${node.name}`
+        : `sub ${node.name}`
+      const params = node.returnType || node.params.length ? printParams(node.params) : ''
+      return `${pad}expect ${head}${params}`
+    }
+
     case 'BlockStatement':
       return `${pad}${printBlock(node.body, depth)}`
 

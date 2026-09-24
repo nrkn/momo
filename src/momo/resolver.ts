@@ -13,6 +13,7 @@ import type {
   ArrayLiteral,
   ComprehensionLiteral,
   ConstFunctionDeclaration,
+  ExpectDeclaration,
   Expression,
   FarAddress,
   FarDeclaration,
@@ -32,7 +33,13 @@ import type {
 } from './ast.js'
 import { basename } from 'node:path'
 
-import { alwaysReturns, buildCallGraph, fallsThrough, type CallGraph } from './analysis.js'
+import {
+  alwaysReturns,
+  buildCallGraph,
+  fallsThrough,
+  type CallGraph,
+  type Expectation,
+} from './analysis.js'
 import { lowerBrackets } from './brackets.js'
 import { printExpression } from './printer.js'
 import { builtinUnits } from './tokens.js'
@@ -145,6 +152,12 @@ export type MomoSymbol =
       returnFrac?: number
       returnUnit?: string
       retLabel: string | null
+      // §73. Set on a placeholder an `expect` registered, and nowhere else: where
+      // the expectation was written. A definition replaces the placeholder, so a
+      // symbol still carrying this after the resolver is a routine nothing
+      // defined - and it is never pushed to `symbols`, so the emitter cannot
+      // meet one.
+      expected?: Location
     }
   | {
       kind: 'constfn'
@@ -199,6 +212,77 @@ export type ResolveResult = {
   program: Program
   symbols: MomoSymbol[]
   callGraph: CallGraph
+  // §73. The expectations nothing defined. Whether each one binds is decided
+  // after pruning, by checkExpectations, so it cannot be decided here.
+  expectations: Expectation[]
+}
+
+type RoutineSymbol = Extract<MomoSymbol, { kind: 'routine' }>
+
+// A routine's signature as the resolver compares it: positional types, and names
+// only for printing. Both a declaration's symbol and an expect's placeholder are
+// one of these.
+type RoutineShape = Pick<RoutineSymbol, 'params' | 'returnType' | 'returnFrac' | 'returnUnit'>
+
+const spellWith = (type: ValueType, frac: number | undefined, unit: string | undefined): string =>
+  unit ?? spell(type, frac ?? 0)
+
+// The head a declaration writes, which is what an error quotes: `sub viewRow( u16
+// y, a16 at, u16 n )`, `u16 nextKey()`, or a bare `sub name`.
+const signatureOf = (name: string, shape: RoutineShape): string => {
+  const params = shape.params.map((p) => `${spellWith(p.type, p.frac, p.unit)} ${p.name}`).join(', ')
+  const list = params ? `( ${params} )` : shape.returnType ? '()' : ''
+  const head = shape.returnType
+    ? `${spellWith(shape.returnType, shape.returnFrac, shape.returnUnit)} ${name}`
+    : `sub ${name}`
+  return head + list
+}
+
+const whereOf = (at: Location): string => `${basename(at.file)}:${at.line}`
+
+// What differs between a routine here and an expectation of it, as the opening
+// of an error, or null when they agree. `param` is the index to put the caret on,
+// null for the head. Parameter names are documentation and take no part: the
+// call writes to slots by position.
+const shapeDifference = (
+  name: string,
+  here: RoutineShape,
+  there: RoutineShape,
+  where: string,
+): { param: number | null; text: string } | null => {
+  if (here.returnType === null && there.returnType !== null) {
+    const wanted = spellWith(there.returnType, there.returnFrac, there.returnUnit)
+    return { param: null, text: `"${name}" is a sub here, and ${where} expects it to return ${wanted}` }
+  }
+  if (here.returnType !== null && there.returnType === null) {
+    const got = spellWith(here.returnType, here.returnFrac, here.returnUnit)
+    return { param: null, text: `"${name}" returns ${got} here, and ${where} expects a sub` }
+  }
+  if (here.returnType !== null && there.returnType !== null) {
+    const got = spellWith(here.returnType, here.returnFrac, here.returnUnit)
+    const wanted = spellWith(there.returnType, there.returnFrac, there.returnUnit)
+    if (got !== wanted) {
+      return { param: null, text: `"${name}" returns ${got} here, and ${where} expects ${wanted}` }
+    }
+  }
+
+  if (here.params.length !== there.params.length) {
+    const count = (n: number): string => `${n} parameter${n === 1 ? '' : 's'}`
+    return {
+      param: null,
+      text: `"${name}" takes ${count(here.params.length)} here, and ${where} expects ${there.params.length}`,
+    }
+  }
+
+  for (let i = 0; i < here.params.length; i++) {
+    const got = spellWith(here.params[i].type, here.params[i].frac, here.params[i].unit)
+    const wanted = spellWith(there.params[i].type, there.params[i].frac, there.params[i].unit)
+    if (got !== wanted) {
+      return { param: i, text: `parameter ${i + 1} of "${name}" is ${got} here, and ${where} expects ${wanted}` }
+    }
+  }
+
+  return null
 }
 
 // The reserved globals are the machine registers. A byte half is a scalar view
@@ -448,8 +532,19 @@ export const resolve = (program: Program): ResolveResult => {
 
   const declare = (symbol: MomoSymbol, at: Location, local = false) => {
     const scope = locals ?? (local ? privatesFor(currentFile) : globals)
-    if (scope.has(symbol.name)) {
+    // §73. A placeholder an expect registered gives way to the definition, which
+    // declareRoutine has already held to it. Anything else under that name is not
+    // a routine at all, and is said so here, at the declaration.
+    const expected = placeholderOf(scope.get(symbol.name))
+    if (scope.has(symbol.name) && !expected) {
       raise(at, `"${symbol.name}" is already declared in this scope`)
+    }
+    if (expected?.expected && symbol.kind !== 'routine') {
+      raise(
+        at,
+        `"${symbol.name}" is declared here as ${kindOf(symbol)}, and ${whereOf(expected.expected)}` +
+          ` expects a routine: "${signatureOf(expected.name, expected)}"`,
+      )
     }
     // A local may shadow a global - it must, or a library's private name could
     // be broken by a global added later in the program that includes it. The
@@ -467,9 +562,30 @@ export const resolve = (program: Program): ResolveResult => {
     // Groups are claimed too. One emits no storage, but it still occupies the
     // emitter's label->symbol map, so `group a__b` alongside `group a { u8 b }`
     // would have a field access find the group instead of its array.
-    claimLabel(symbol.label, at, `"${symbol.name}"`)
+    //
+    // A definition replacing a placeholder does not claim: the expect claimed
+    // this label already, and the two are the same by construction.
+    if (!expected) {
+      claimLabel(symbol.label, at, `"${symbol.name}"`)
+    } else if (expected.label !== symbol.label) {
+      throw new Error(`internal: "${symbol.name}" expected as ${expected.label}, defined as ${symbol.label}`)
+    }
     scope.set(symbol.name, symbol)
     symbols.push(symbol)
+  }
+
+  // §73. The placeholder under a name, if an expect put one there.
+  const placeholderOf = (symbol: MomoSymbol | undefined): RoutineSymbol | null =>
+    symbol?.kind === 'routine' && symbol.expected ? symbol : null
+
+  const kindOf = (symbol: MomoSymbol): string => {
+    if (symbol.kind === 'const') return 'a const'
+    if (symbol.kind === 'constfn') return 'a parameterised const'
+    if (symbol.kind === 'array') return 'an array'
+    if (symbol.kind === 'var') return 'a variable'
+    if (symbol.kind === 'far') return 'a far region'
+    if (symbol.kind === 'group') return 'a group'
+    return 'a routine'
   }
 
   // Inside a sub, the sub owns the name. At the top level a `local` is owned by
@@ -3049,6 +3165,16 @@ export const resolve = (program: Program): ResolveResult => {
       )
     }
 
+    // §73. The expectation pass takes a top-level expect, so one arriving here is
+    // nested - and a routine body is not where a file says what the program owes.
+    if (node.type === 'ExpectDeclaration') {
+      raise(
+        node,
+        'expect belongs at the top level of the file that makes the calls -' +
+          ' it says what the program must define, and a body is not where that is said',
+      )
+    }
+
     if (node.type === 'RoutineDeclaration') {
       raise(node, 'routines cannot be nested')
     }
@@ -3391,6 +3517,22 @@ export const resolve = (program: Program): ResolveResult => {
 
     const retLabel = node.returnType ? `${routineLabel}__ret` : null
 
+    // §73. The definition answers every expect of this name, and is held to them
+    // here, where the program wrote it: the error names the program's line and
+    // quotes the library's. A `local` routine answers none - see the expectation
+    // pass below.
+    const expected = node.local ? null : placeholderOf(globals.get(node.name))
+    if (expected?.expected) {
+      const shape = { params, returnType: node.returnType, returnFrac: node.returnFrac, returnUnit: node.returnUnit }
+      const difference = shapeDifference(node.name, shape, expected, whereOf(expected.expected))
+      if (difference) {
+        raise(
+          difference.param === null ? node : node.params[difference.param],
+          `${difference.text}: "${signatureOf(node.name, expected)}"`,
+        )
+      }
+    }
+
     declare(
       {
         kind: 'routine',
@@ -3504,6 +3646,79 @@ export const resolve = (program: Program): ResolveResult => {
     resolveUnitDeclaration(statement)
   }
 
+  // ---- expectations (§73) ----------------------------------------------------
+  //
+  // A pass of their own, before any declaration, for §75's reason: an include may
+  // sit below the routine that answers it, and a definition met before its
+  // expectation would be declared unchecked. Registered first, every expect is a
+  // placeholder by the time any routine is declared, so the definition is held to
+  // it in one place whichever the merged body puts first.
+  //
+  // A placeholder is a routine symbol with the expected signature and no slots of
+  // its own - `add__a` and `add__ret` come from the definition, never from here -
+  // so a call to one resolves and checks its arguments as a call to the real
+  // thing will. It lives in `globals` only, never `symbols`.
+  //
+  // **A `local` routine cannot answer an expect, and needs no rule saying so.**
+  // `lookup` reads the calling file's privates and then the globals, so a call in
+  // the expecting file can reach another file's local only if it is that file's
+  // own. The placeholder stays, and the absence is reported like any other.
+
+  const registerExpect = (node: ExpectDeclaration) => {
+    const label = safeLabel(node.name)
+    const seen = new Set<string>()
+    const params: RoutineSymbol['params'] = []
+    for (const parameter of node.params) {
+      if (seen.has(parameter.name)) raise(parameter, `duplicate parameter "${parameter.name}"`)
+      seen.add(parameter.name)
+      params.push({
+        name: parameter.name,
+        label: `${label}__${parameter.name}`,
+        type: parameter.typeNode.name,
+        frac: parameter.typeNode.frac,
+        unit: parameter.typeNode.unit,
+      })
+    }
+
+    const placeholder: RoutineSymbol = {
+      kind: 'routine',
+      name: node.name,
+      label,
+      params,
+      returnType: node.returnType,
+      returnFrac: node.returnFrac,
+      returnUnit: node.returnUnit,
+      retLabel: null,
+      expected: { file: node.file, line: node.line, col: node.col },
+    }
+
+    // Two files may expect one routine - `line.momo` and `quad.momo` both call
+    // `plot` - and one definition has to answer both, so they must agree.
+    const held = globals.get(node.name)
+    const earlier = placeholderOf(held)
+    if (earlier?.expected) {
+      const difference = shapeDifference(node.name, placeholder, earlier, whereOf(earlier.expected))
+      if (difference) {
+        raise(
+          difference.param === null ? node : node.params[difference.param],
+          `${difference.text}: "${signatureOf(node.name, earlier)}"` +
+            ' - one definition answers both, so the two must agree',
+        )
+      }
+      return
+    }
+    if (held) raise(node, `"${node.name}" is already declared in this scope`)
+
+    claimLabel(label, node, `"${node.name}"`)
+    globals.set(node.name, placeholder)
+  }
+
+  for (const statement of program.body) {
+    if (statement.type !== 'ExpectDeclaration') continue
+    currentFile = statement.file
+    registerExpect(statement)
+  }
+
   // ---- pass 1: top-level declarations ---------------------------------------
 
   for (const statement of program.body) {
@@ -3559,6 +3774,7 @@ export const resolve = (program: Program): ResolveResult => {
       resolveRequire(statement)
       continue
     }
+    if (statement.type === 'ExpectDeclaration') continue
     resolveStatement(statement)
   }
 
@@ -3568,6 +3784,28 @@ export const resolve = (program: Program): ResolveResult => {
   // was resolved.
   checkReachable(program.body)
 
-  // Last, so that undefined-sub errors surface before graph shape ones.
-  return { program, symbols, callGraph: buildCallGraph(program) }
+  // §73. What no definition replaced, for checkExpectations to hold against the
+  // program pruning leaves. A local of the same name is recorded because it is
+  // the likeliest reason for the absence, and the error can say so.
+  const expectations: Expectation[] = []
+  for (const symbol of globals.values()) {
+    const placeholder = placeholderOf(symbol)
+    if (!placeholder?.expected) continue
+    const privateIn: string[] = []
+    for (const [file, scope] of privates) {
+      if (scope.get(placeholder.name)?.kind === 'routine') privateIn.push(basename(file))
+    }
+    expectations.push({
+      ...placeholder.expected,
+      name: placeholder.name,
+      label: placeholder.label,
+      signature: signatureOf(placeholder.name, placeholder),
+      privateIn,
+    })
+  }
+
+  // Last, so that undefined-sub errors surface before graph shape ones. A call to
+  // an unanswered placeholder is an edge to a label with no body, which the graph
+  // reads as a leaf: nothing here depends on it being defined.
+  return { program, symbols, callGraph: buildCallGraph(program), expectations }
 }

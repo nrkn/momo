@@ -46,6 +46,7 @@ type PrunableSymbol =
       retLabel: string | null
     }
 import { raise } from './diagnostics.js'
+import { basename } from 'node:path'
 
 export const entryName = '__entry'
 
@@ -443,6 +444,60 @@ export const prune = <S extends PrunableSymbol>(result: {
   })
 
   return { program: { ...result.program, body }, symbols }
+}
+
+// §73. An expect nothing defined, as the resolver hands it over: where it was
+// written, the label its calls carry, and what the program would have to write.
+export type Expectation = {
+  file: string
+  line: number
+  col: number
+  name: string
+  label: string
+  signature: string
+  // Files declaring a `local` routine of this name, which the expecting file
+  // cannot see - the likeliest reason for the absence, so the error names them.
+  privateIn: string[]
+}
+
+// Pruning decides whether an expectation binds (§73). A routine nothing defines
+// is owed only if a call to it survived: include `moview`, never open a view,
+// and no `viewRow` is wanted. That is the rule the rest of the program already
+// follows - what survives pruning is what must resolve - and it runs here, after
+// prune and before emit, because the emitter would otherwise meet a call to a
+// label no symbol backs.
+//
+// Reported once, at the expect, naming one surviving call so the reader can see
+// why it binds: the entry point's first, then those of the routines prune kept,
+// in the order they are written.
+export const checkExpectations = (
+  program: Program,
+  graph: CallGraph,
+  expectations: Expectation[],
+) => {
+  const callers = [entryName]
+  for (const statement of program.body) {
+    if (statement.type === 'RoutineDeclaration') callers.push(statement.label as string)
+  }
+
+  for (const expectation of expectations) {
+    let site: CallSite | undefined
+    for (const caller of callers) {
+      site = graph.edges.get(caller)?.find((call) => call.label === expectation.label)
+      if (site) break
+    }
+    if (!site) continue
+
+    const hidden = expectation.privateIn.length
+      ? `; the local one in ${expectation.privateIn.join(' and ')} is private to that file and cannot answer it`
+      : ''
+    raise(
+      expectation,
+      `"${expectation.name}" is expected by ${basename(expectation.file)} and nothing defines it` +
+        ` - the call at ${basename(site.file)}:${site.line} is reached, so the program must define` +
+        ` "${expectation.signature}"${hidden}`,
+    )
+  }
 }
 
 export const buildCallGraph = (program: Program): CallGraph => {

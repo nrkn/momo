@@ -1,0 +1,12 @@
+// Included by the err-expect-* fixtures: a library that calls two routines the
+// program defines, and says so (§73). `libDraw` is the only way in, so a
+// fixture that never calls it leaves both calls to pruning.
+
+expect sub show( u16 y, a16 at, u16 n )
+expect u16 nextKey()
+
+local u8[4] row
+
+sub libDraw {
+  if ( nextKey() != 0 ) show( 0, addr( row ), 4 )
+}

@@ -87,7 +87,7 @@ text for.
 | 70 | `const group` - rows of data that nothing may write | [section](DESIGN.md#70-const-group---rows-of-data-that-nothing-may-write) |  | [section](DECISIONS.md#70-const-group) |
 | 71 | `a16` - an address that says so | [section](DESIGN.md#71-a16---an-address-that-says-so) |  | [section](DECISIONS.md#71-a16) |
 | 72 | The machine - emitted assembly, run without DOSBox | [section](DESIGN.md#72-the-machine---emitted-assembly-run-without-dosbox) |  | [section](DECISIONS.md#72-the-machine) |
-| 73 | `expect` - the forward-call seam gets a contract | listed | [section](PLAN.md#73-expect---the-forward-call-seam-gets-a-contract) |  |
+| 73 | `expect` - the forward-call seam gets a contract | [section](DESIGN.md#73-expect---the-forward-call-seam-gets-a-contract) |  | [section](DECISIONS.md#73-expect) |
 | 74 | `require` - a compile-time assertion | [section](DESIGN.md#74-require---a-compile-time-assertion) |  | [section](DECISIONS.md#74-require) |
 | 75 | Ranged units | [section](DESIGN.md#75-ranged-units) |  | [section](DECISIONS.md#75-ranged-units) |
 | 76 | Table comprehensions | [section](DESIGN.md#76-table-comprehensions) |  | [section](DECISIONS.md#76-table-comprehensions) |

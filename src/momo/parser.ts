@@ -22,6 +22,7 @@ import type {
   ConstFunctionDeclaration,
   Parameter,
   DoWhileStatement,
+  ExpectDeclaration,
   Expression,
   RoutineDeclaration,
   FarAddress,
@@ -1079,6 +1080,63 @@ export const parse = (tokens: Token[]): Program => {
     return {
       type: 'RequireStatement',
       test,
+      file: start.file,
+      line: start.line,
+      col: start.col,
+      endLine,
+    }
+  }
+
+  // `expect sub viewRow( u16 y, a16 at, u16 n )` or `expect u16 nextKey()` (§73).
+  // A routine's head exactly as a declaration writes it, parameters included, and
+  // no body: the body is the program's to write. Whether the position allows one
+  // is the resolver's question, as it is for `require`.
+  const parseExpectDeclaration = (): ExpectDeclaration => {
+    const start = expect('keyword', 'expect')
+    let name: Token
+    let params: Parameter[] = []
+    let returnType: TypeName | null = null
+    let returnFrac = 0
+    let returnUnit: string | undefined
+
+    if (at('keyword', 'sub')) {
+      advance()
+      name = expect('ident')
+      if (at('op', '(')) params = parseParameterList()
+    } else if (at('type')) {
+      const typeNode = parseTypeNode()
+      if (typeNode.array) raise(typeNode, 'a routine cannot return an array')
+      name = expect('ident')
+      // The declaration's own rule (§7): only a sub may leave the list out.
+      if (!at('op', '(')) {
+        raise(peek(), `an expected routine needs a parameter list - write expect ${describeTypeNode(typeNode)} ${name.text}()`)
+      }
+      params = parseParameterList()
+      returnType = typeNode.name
+      returnFrac = typeNode.frac
+      returnUnit = typeNode.unit
+    } else {
+      raise(peek(), 'expect names a routine - write "expect sub name( ... )" or "expect u16 name( ... )"')
+    }
+
+    if (at('op', '{') || at('op', '=>')) {
+      raise(
+        peek(),
+        'an expect has no body - the program writes the routine, and this says only' +
+          ' what it must look like',
+      )
+    }
+
+    const endLine = previous().line
+    expectTerminator()
+
+    return {
+      type: 'ExpectDeclaration',
+      name: name.text,
+      params,
+      returnType,
+      returnFrac,
+      returnUnit,
       file: start.file,
       line: start.line,
       col: start.col,
@@ -2222,6 +2280,7 @@ const nextOfSlot = (file: string): string => `ofa__${fileTag(file)}__${ofSlots++
       if (token.text === 'unit') return parseUnitDeclaration()
       if (token.text === 'bracket') return parseBracketDeclaration()
       if (token.text === 'require') return parseRequireStatement()
+      if (token.text === 'expect') return parseExpectDeclaration()
       if (token.text === 'sub') return parseSubDeclaration()
       if (token.text === 'fn') {
         // Migration aid - delete once the old spelling is out of muscle memory.

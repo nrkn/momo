@@ -1,0 +1,4 @@
+// EXPECT-ERROR: an expect has no body
+// EXPECT-AT: 4:26
+// The body is the program's to write, and an expect is only the head (§73).
+expect sub hook( u16 n ) { }

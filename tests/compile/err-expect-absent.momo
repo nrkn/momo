@@ -1,0 +1,12 @@
+// EXPECT-ERROR: "hook" is expected by err-expect-absent.momo and nothing defines it - the call at err-expect-absent.momo:9 is reached, so the program must define "sub hook( u16 n )"
+// EXPECT-AT: 6:1
+// Reported once, at the expect, rather than at each call - and only because a
+// call survives pruning. exptest has an expect whose calls are all pruned (§73).
+
+expect sub hook( u16 n )
+
+sub run {
+  hook( 1 )
+}
+
+run()

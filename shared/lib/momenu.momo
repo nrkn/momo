@@ -13,12 +13,12 @@
 // and two comparisons; this is the other side of that line.
 //
 // ---- what the program defines (§37) ----------------------------------------
-//
-//   u16 menuCount()                      how many menus on the bar
-//   a16 menuTitle( u16 m )               its label, `$`-terminated
-//   u16 menuItemCount( u16 m )           how many items menu `m` drops
-//   a16 menuItemText( u16 m, u16 i )     item `i`'s label, `$`-terminated
-//
+
+expect u16 menuCount()                    // how many menus on the bar
+expect a16 menuTitle( u16 m )             // its label, `$`-terminated
+expect u16 menuItemCount( u16 m )         // how many items menu `m` drops
+expect a16 menuItemText( u16 m, u16 i )   // item `i`'s label, `$`-terminated
+
 // The same seam `viewRow` and `fieldCopyOut` use, and for the same reason: the
 // tables are the program's, the arithmetic is not. Every one of these is a
 // routine the drawing needs anyway, so nothing exists here for this file's sake.
