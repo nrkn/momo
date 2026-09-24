@@ -107,9 +107,7 @@ sub w311ReadClient {
 // A corner box: close, minimise, maximise. One unit square, which at this scale
 // is all the room there is - the study's pixel target draws a real glyph in it.
 sub titleBox {
-  cfgFixedW( lineHeight )
-  cfgFixedH( lineHeight )
-  framed( lightGray, 1, darkGray ) {
+  framed( lightGray, 1, darkGray, fixedW: lineHeight, fixedH: lineHeight ) {
   }
 }
 
@@ -128,20 +126,15 @@ sub titleBar( a16 caption, bool active ) {
     fg = black
   }
 
-  cfgGrowW()
-  cfgFixedH( lineHeight )
-  cfg.alignCross = alignCenter
-  panel( bg ) {
+  panel( bg, wGrow: true, fixedH: lineHeight, alignCross: alignCenter ) {
     titleBox()
 
-    cfgGrowW()
-    box {
+    box( wGrow: true ) {
     }
 
     labelPaint( caption, fg, bg )
 
-    cfgGrowW()
-    box {
+    box( wGrow: true ) {
     }
 
     titleBox()
@@ -154,19 +147,13 @@ sub titleBar( a16 caption, bool active ) {
 // limitation arriving in practice - and a rule between two things is honestly a
 // thing between them rather than a property of one of them.
 sub menuBar {
-  cfgGrowW()
-  cfgFixedH( lineHeight )
-  cfgInsetX( u )
-  cfg.gap = 2 * u
-  panel( lightGray ) {
+  panel( lightGray, wGrow: true, fixedH: lineHeight, insetX: u, gap: 2 * u ) {
     for ( u16 i = 0; i < menuCount; i++ ) {
       labelPaint( addr( sMenu[i] ), black, lightGray )
     }
   }
 
-  cfgGrowW()
-  cfgFixedH( 1 )
-  panel( darkGray ) {
+  panel( darkGray, wGrow: true, fixedH: 1 ) {
   }
 }
 
@@ -177,14 +164,8 @@ sub menuBar {
 const iconW = 11
 
 sub progIcon( a16 name ) {
-  cfgCol()
-  cfgFixedW( iconW * u )
-  cfg.alignCross = alignCenter
-  cfg.gap = 1
-  panel( lightGray ) {
-    cfgFixedW( 2 * u )
-    cfgFixedH( lineHeight )
-    framed( white, 1, darkGray ) {
+  panel( lightGray, isCol: true, fixedW: iconW * u, alignCross: alignCenter, gap: 1 ) {
+    framed( white, 1, darkGray, fixedW: 2 * u, fixedH: lineHeight ) {
     }
 
     // A paragraph rather than a label, so a caption too wide for the cell wraps
@@ -216,25 +197,13 @@ sub w311Group( a16 title, a16 names, u16 count, u16 width ) {
 
   packRows( count, inner, u )
 
-  cfgCol()
-  cfgGrowW()
-  cfgGrowH()
-  framed( lightGray, border, darkGray ) {
+  framed( lightGray, border, darkGray, isCol: true, wGrow: true, hGrow: true ) {
     titleBar( title, false )
 
-    cfgCol()
-    cfgGrowW()
-    cfgGrowH()
-    cfgInset( u )
-    panel( lightGray ) {
-      cfgCol()
-      cfgFixedW( inner )
-      cfg.gap = lineHeight >> 1
-      box {
+    panel( lightGray, isCol: true, wGrow: true, hGrow: true, insetX: u, insetY: u ) {
+      box( isCol: true, fixedW: inner, gap: lineHeight >> 1 ) {
         for ( u16 r = 0; r < flowRowCount; r++ ) {
-          cfgGrowW()
-          cfg.gap = u
-          box {
+          box( wGrow: true, gap: u ) {
             for ( u16 k = 0; k < flowRow[ r ].count; k++ ) {
               progIcon( a16( peek16( names + 2 * ( flowRow[ r ].first + k ) ) ) )
             }
@@ -251,33 +220,21 @@ sub buildW311Main        => w311Group( addr( sMainTitle ), addr( sMainNames ), m
 // ---- the dialog -----------------------------------------------------------
 
 sub buildW311Dialog {
-  cfgCol()
-  cfgGrowW()
-  cfgGrowH()
-  framed( lightGray, border, darkGray ) {
+  framed( lightGray, border, darkGray, isCol: true, wGrow: true, hGrow: true ) {
     titleBar( addr( sAbout ), true )
 
-    cfgCol()
-    cfgGrowW()
-    cfgGrowH()
-    cfgInset( u )
-    cfg.gap = lineHeight >> 1
-    panel( lightGray ) {
+    panel( lightGray, isCol: true, wGrow: true, hGrow: true,
+           insetX: u, insetY: u, gap: lineHeight >> 1 ) {
       labelPaint( addr( sMsWin ), black, lightGray )
       labelPaint( addr( sVersion ), black, lightGray )
 
       // A spacer that takes whatever height is left, which pushes the button to
       // the bottom without anything having to say so.
-      cfgGrowH()
-      box {
+      box( hGrow: true ) {
       }
 
-      cfgGrowW()
-      cfg.alignMain = alignCenter
-      box {
-        cfgInsetX( 3 * u )
-        cfg.alignMain = alignCenter
-        framed( lightGray, 1, darkGray ) {
+      box( wGrow: true, alignMain: alignCenter ) {
+        framed( lightGray, 1, darkGray, insetX: 3 * u, alignMain: alignCenter ) {
           labelPaint( addr( sOk ), black, lightGray )
         }
       }
@@ -292,24 +249,14 @@ sub buildW311Dialog {
 // index back but a bracket's open does not, and elCount is where it comes from
 // either way.
 sub buildW311Shell {
-  cfgCol()
-  cfgGrowW()
-  cfgGrowH()
-  cfgInset( 2 * u )
-  panel( cyan ) {
-    cfgCol()
-    cfgGrowW()
-    cfgGrowH()
-    framed( lightGray, border, darkGray ) {
+  panel( cyan, isCol: true, wGrow: true, hGrow: true, insetX: 2 * u, insetY: 2 * u ) {
+    framed( lightGray, border, darkGray, isCol: true, wGrow: true, hGrow: true ) {
       titleBar( addr( sProgMan ), true )
       menuBar()
 
       w311Client = elCount
 
-      cfgCol()
-      cfgGrowW()
-      cfgGrowH()
-      framed( darkGray, 1, black ) {
+      framed( darkGray, 1, black, isCol: true, wGrow: true, hGrow: true ) {
       }
     }
   }

@@ -1,5 +1,4 @@
-// build.momo - the immediate-mode surface: the config block, begin, openBox,
-// closeBox, leaf.
+// build.momo - the immediate-mode surface: begin, openBox, closeBox, leaf.
 //
 // Ported from the clay study. Elements are pushed onto one flat array as they
 // open, and a parent collects its children when it closes. Every entry point
@@ -7,134 +6,65 @@
 // out - it is how a caller joins its own tables onto the geometry without the
 // engine knowing they exist.
 //
-// momolo's builders take a config object with fourteen optional fields and `??`
-// defaults. Momo has no object literals, no named arguments and no `??`, and a
-// fourteen-parameter sub would be unreadable at every call site - so the config
-// is a single `group` written before the call, and `cfgReset` is the one place
-// the defaults live.
+// **A box's settings are defaulted parameters (§49), named at the call.**
+// momolo's builders take a config object with optional fields and `??`
+// defaults; here the same fields are parameters with defaults, and a call site
+// names only what differs - `openBox( isCol: true, gap: u )`. A default is
+// restored by the routine on its way out, so the next box starts clean whether
+// its call site says anything or not. The defaults are the element's: row, fit,
+// no inset, no gap, start alignment, no upper bound.
 //
-// **cfg is single-use: the builder consumes it.** pushElement copies it onto the
-// element and then calls cfgReset, so every box starts from the defaults and a
-// call site sets only what differs. Nothing has to remember to reset.
+// The settings are shaped for the call site rather than copied field for field
+// from `el`:
 //
-// That was not the first design, and the first design was wrong. It asked the
-// caller for `cfgReset()` before each box, and the very first scene written
-// against it forgot one before a leaf - so the leaf inherited its parent's
-// `inset` and came out 5x3 instead of 3x1. In TypeScript that bug cannot exist,
-// because `leaf(l, w, h, c = {})` gets a fresh object every call; the config
-// group is what introduces it, so the config group is where it gets removed.
-// Being careful was not going to be a method: the mistake happened inside ten
-// minutes of the rule being written down.
+//   insetX, insetY   the inset on both sides of one axis. Every box that has one
+//                    wants it even, and a frame drawn above this layer adds its
+//                    width to both
+//   fixedW, fixedH   a fit whose minimum and maximum are equal, which is exactly
+//                    what CLAY_SIZING_FIXED expands to - so two kinds, not three.
+//                    0 is not fixed: a box fixed at nothing is not there
+//   wMax, hMax       a ceiling on a fit or a grow, for when it is not fixed
 //
-// Note that a field left unwritten in `el` is a different hazard with the same
-// cause - elements are reused between frames and `group` has no field
-// initialisers - and pushElement handles it by writing every field, including
-// the ones whose value it is clearing to zero.
+// Every layer that forwards the settings restates the defaults, because an
+// omitted argument cannot be passed on as omitted. That is why there are as few
+// such layers as there are: pushElement applies them, openBox forwards them, and
+// above this file each opener that takes them forwards them once more.
 //
-// Helpers exist only where more than one field is set. A single field is written
-// directly at the call site - `cfg.gap = u` reads better than `cfgGap( u )` and
-// there is nothing for a wrapper to get wrong.
+// A field left unwritten in `el` is a separate hazard - elements are reused
+// between frames and `group` has no field initialisers - and pushElement
+// handles it by writing every field, including the ones whose value it is
+// clearing to zero.
 
 include "lib/std/math.momo"
 
-group cfg {
-  bool isCol
-  u8   insetL
-  u8   insetR
-  u8   insetT
-  u8   insetB
-  u8   gap
-  u8   alignMain
-  u8   alignCross
-  bool wGrow
-  u16  wMin
-  u16  wMax
-  bool hGrow
-  u16  hMin
-  u16  hMax
-}
-
-sub cfgReset {
-  cfg.isCol = false
-  cfg.insetL = 0
-  cfg.insetR = 0
-  cfg.insetT = 0
-  cfg.insetB = 0
-  cfg.gap = 0
-  cfg.alignMain = alignStart
-  cfg.alignCross = alignStart
-  cfg.wGrow = false
-  cfg.wMin = 0
-  cfg.wMax = unbounded
-  cfg.hGrow = false
-  cfg.hMin = 0
-  cfg.hMax = unbounded
-}
-
-sub cfgCol => cfg.isCol = true
-
-// `fixed` is a fit whose minimum and maximum are equal, which is exactly what
-// CLAY_SIZING_FIXED expands to. Two kinds, not three.
-sub cfgFixedW( u16 n ) {
-  cfg.wGrow = false
-  cfg.wMin = n
-  cfg.wMax = n
-}
-
-sub cfgFixedH( u16 n ) {
-  cfg.hGrow = false
-  cfg.hMin = n
-  cfg.hMax = n
-}
-
-// Only the flag, because cfgReset has already put the bounds back to 0 and
-// unbounded. That is an ordering dependency on cfgReset being called first,
-// which every call site does and which is stated at the top of this file.
-sub cfgGrowW => cfg.wGrow = true
-sub cfgGrowH => cfg.hGrow = true
-
-// The gap between this box's edge and its content, per side. Called inset rather
-// than padding because momolo has no border for padding to sit inside of - a
-// caller that draws a frame adds the frame's width here itself.
-sub cfgInset( u8 n ) {
-  cfg.insetL = n
-  cfg.insetR = n
-  cfg.insetT = n
-  cfg.insetB = n
-}
-
-sub cfgInsetX( u8 n ) {
-  cfg.insetL = n
-  cfg.insetR = n
-}
-
-sub cfgInsetY( u8 n ) {
-  cfg.insetT = n
-  cfg.insetB = n
-}
-
-// Everything that comes straight from the config, shared by openBox and leaf.
+// The one place a box's settings reach the element, shared by openBox and leaf.
 // Private to this file: nothing outside pushes an element without going through
-// one of those two.
-local u16 pushElement() {
+// one of those two. A leaf passes nothing, since its size is given - so these
+// defaults are what every leaf gets.
+local u16 pushElement(
+  bool isCol = false, u8 insetX = 0, u8 insetY = 0, u8 gap = 0,
+  u8 alignMain = alignStart, u8 alignCross = alignStart,
+  bool wGrow = false, u16 fixedW = 0, u16 wMax = unbounded,
+  bool hGrow = false, u16 fixedH = 0, u16 hMax = unbounded
+) {
   u16 i
 
   i = elCount
 
-  el[i].isCol = cfg.isCol
-  el[i].insetL = cfg.insetL
-  el[i].insetR = cfg.insetR
-  el[i].insetT = cfg.insetT
-  el[i].insetB = cfg.insetB
-  el[i].gap = cfg.gap
-  el[i].alignMain = cfg.alignMain
-  el[i].alignCross = cfg.alignCross
-  el[i].wGrow = cfg.wGrow
-  el[i].wMin = cfg.wMin
-  el[i].wMax = cfg.wMax
-  el[i].hGrow = cfg.hGrow
-  el[i].hMin = cfg.hMin
-  el[i].hMax = cfg.hMax
+  el[i].isCol = isCol
+  el[i].insetL = insetX
+  el[i].insetR = insetX
+  el[i].insetT = insetY
+  el[i].insetB = insetY
+  el[i].gap = gap
+  el[i].alignMain = alignMain
+  el[i].alignCross = alignCross
+  el[i].wGrow = wGrow
+  el[i].wMin = fixedW
+  el[i].wMax = fixedW > 0 ? fixedW : wMax
+  el[i].hGrow = hGrow
+  el[i].hMin = fixedH
+  el[i].hMax = fixedH > 0 ? fixedH : hMax
 
   // Cleared rather than assumed zero, for the reason in types.momo: nothing
   // re-zeroes a group between frames.
@@ -151,10 +81,6 @@ local u16 pushElement() {
 
   elCount++
 
-  // cfg is spent. The next box starts from the defaults whether its call site
-  // says so or not, which is what stops a sibling inheriting an inset.
-  cfgReset()
-
   return i
 }
 
@@ -169,10 +95,20 @@ local sub attachToParent( u16 i ) {
   childBufLen++
 }
 
-u16 openBox() {
+u16 openBox(
+  bool isCol = false, u8 insetX = 0, u8 insetY = 0, u8 gap = 0,
+  u8 alignMain = alignStart, u8 alignCross = alignStart,
+  bool wGrow = false, u16 fixedW = 0, u16 wMax = unbounded,
+  bool hGrow = false, u16 fixedH = 0, u16 hMax = unbounded
+) {
   u16 i
 
-  i = pushElement()
+  i = pushElement(
+    isCol: isCol, insetX: insetX, insetY: insetY, gap: gap,
+    alignMain: alignMain, alignCross: alignCross,
+    wGrow: wGrow, fixedW: fixedW, wMax: wMax,
+    hGrow: hGrow, fixedH: fixedH, hMax: hMax
+  )
   openStack[ openDepth ] = i
   openDepth++
 
@@ -246,14 +182,7 @@ sub begin( u16 w, u16 h ) {
   childBufLen = 0
   childListLen = 0
 
-  // The one cfgReset a caller never sees the need for: at load, wMax and hMax
-  // are 0 rather than unbounded, because a group zero-fills and this is the
-  // first box of the program. Every later box is reset by pushElement.
-  cfgReset()
-  cfgCol()
-  cfgFixedW( w )
-  cfgFixedH( h )
-  openBox()
+  openBox( isCol: true, fixedW: w, fixedH: h )
 }
 
 // ---- the reflow seam ------------------------------------------------------

@@ -117,40 +117,28 @@ const s6BarH = 1
 // ---- chrome ---------------------------------------------------------------
 
 sub s6Rule {
-  cfgGrowW()
-  cfgFixedH( 1 )
-  panel( black ) {
+  panel( black, wGrow: true, fixedH: 1 ) {
   }
 }
 
 sub s6BoxButton {
-  cfgFixedW( lineHeight )
-  cfgFixedH( lineHeight )
-  framed( white, 1, black ) {
+  framed( white, 1, black, fixedW: lineHeight, fixedH: lineHeight ) {
   }
 }
 
 // One row using every sizing rule there is - see the header.
 sub s6TitleBar( a16 title ) {
-  cfgGrowW()
-  cfgFixedH( lineHeight )
-  cfg.alignCross = alignCenter
-  panel( white ) {
+  panel( white, wGrow: true, fixedH: lineHeight, alignCross: alignCenter ) {
     s6BoxButton()
 
-    cfgGrowW()
-    cfgGrowH()
-    textured( white, black, fillStripes ) {
+    textured( white, black, fillStripes, wGrow: true, hGrow: true ) {
     }
 
-    cfgInsetX( u )
-    panel( white ) {
+    panel( white, insetX: u ) {
       labelPaint( title, black, white )
     }
 
-    cfgGrowW()
-    cfgGrowH()
-    textured( white, black, fillStripes ) {
+    textured( white, black, fillStripes, wGrow: true, hGrow: true ) {
     }
 
     s6BoxButton()
@@ -161,52 +149,28 @@ sub s6TitleBar( a16 title ) {
 
 // A track with a fixed button at each end and a thumb inside. One routine for
 // both axes, as the study has it, because what changes between them is which
-// axis each rule is spelled on rather than what the rules are.
+// axis each rule is spelled on rather than what the rules are - so each setting
+// is computed from `vertical`, and a fixed size of 0 on the other axis is none.
 sub s6ScrollBar( bool vertical, u16 thumbAt ) {
-  if ( vertical ) {
-    cfgCol()
-    cfgFixedW( s6Thick )
-    cfgGrowH()
-  } else {
-    cfgGrowW()
-    cfgFixedH( s6Thick )
-  }
-
-  framed( white, 1, black ) {
-    cfgFixedW( s6Thick )
-    cfgFixedH( s6Thick )
-    framed( white, 1, black ) {
+  framed( white, 1, black,
+          isCol: vertical, wGrow: !vertical, hGrow: vertical,
+          fixedW: vertical ? s6Thick : 0, fixedH: vertical ? 0 : s6Thick ) {
+    framed( white, 1, black, fixedW: s6Thick, fixedH: s6Thick ) {
     }
 
-    cfgGrowW()
-    cfgGrowH()
-    textured( white, black, fillStipple ) {
+    textured( white, black, fillStipple, wGrow: true, hGrow: true ) {
       if ( thumbAt > 0 ) {
-        if ( vertical ) {
-          cfgFixedH( thumbAt )
-        } else {
-          cfgFixedW( thumbAt )
-        }
-
-        box {
+        box( fixedW: vertical ? 0 : thumbAt, fixedH: vertical ? thumbAt : 0 ) {
         }
       }
 
-      if ( vertical ) {
-        cfgGrowW()
-        cfgFixedH( s6Thick * 2 )
-      } else {
-        cfgFixedW( s6Thick * 2 )
-        cfgGrowH()
-      }
-
-      framed( white, 1, black ) {
+      framed( white, 1, black,
+              wGrow: vertical, hGrow: !vertical,
+              fixedW: vertical ? 0 : s6Thick * 2, fixedH: vertical ? s6Thick * 2 : 0 ) {
       }
     }
 
-    cfgFixedW( s6Thick )
-    cfgFixedH( s6Thick )
-    framed( white, 1, black ) {
+    framed( white, 1, black, fixedW: s6Thick, fixedH: s6Thick ) {
     }
   }
 }
@@ -214,17 +178,11 @@ sub s6ScrollBar( bool vertical, u16 thumbAt ) {
 // A window is its own layout, so this opens one and leaves it open - the caller
 // writes the body inside it and the bracket closes both boxes.
 sub s6WindowOpen( a16 title ) {
-  cfgCol()
-  cfgGrowW()
-  cfgGrowH()
-  panelFramed( white, 1, black )
+  panelFramed( white, 1, black, isCol: true, wGrow: true, hGrow: true )
 
   s6TitleBar( title )
 
-  cfgCol()
-  cfgGrowW()
-  cfgGrowH()
-  panelOpen( white )
+  panelOpen( white, isCol: true, wGrow: true, hGrow: true )
 }
 
 sub s6WindowClose {
@@ -237,23 +195,18 @@ bracket s6Window = s6WindowOpen / s6WindowClose
 // ---- the Finder window ----------------------------------------------------
 
 sub finderRow( u16 i ) {
-  cfgGrowW()
-  cfgFixedH( lineHeight )
-  panel( white ) {
+  panel( white, wGrow: true, fixedH: lineHeight ) {
     labelPaint( addr( sRowNames[i] ), black, white )
 
-    cfgGrowW()
-    box {
+    box( wGrow: true ) {
     }
 
     labelPaint( addr( sRowSizes[i] ), black, white )
 
-    cfgFixedW( 3 * u )
-    box {
+    box( fixedW: 3 * u ) {
     }
 
-    cfgFixedW( 12 * u )
-    panel( white ) {
+    panel( white, fixedW: 12 * u ) {
       labelPaint( addr( sRowKinds[i] ), black, white )
     }
   }
@@ -261,20 +214,15 @@ sub finderRow( u16 i ) {
 
 sub buildS6Finder {
   s6Window( addr( sHdTitle ) ) {
-    cfgGrowW()
-    cfgFixedH( lineHeight )
-    cfgInsetX( u )
-    panel( white ) {
+    panel( white, wGrow: true, fixedH: lineHeight, insetX: u ) {
       labelPaint( addr( sColName ), black, white )
 
-      cfgGrowW()
-      box {
+      box( wGrow: true ) {
       }
 
       labelPaint( addr( sColSize ), black, white )
 
-      cfgFixedW( 10 * u )
-      box {
+      box( fixedW: 10 * u ) {
       }
 
       labelPaint( addr( sColKind ), black, white )
@@ -282,14 +230,8 @@ sub buildS6Finder {
 
     s6Rule()
 
-    cfgGrowW()
-    cfgGrowH()
-    panel( white ) {
-      cfgCol()
-      cfgGrowW()
-      cfgGrowH()
-      cfgInsetX( u )
-      panel( white ) {
+    panel( white, wGrow: true, hGrow: true ) {
+      panel( white, isCol: true, wGrow: true, hGrow: true, insetX: u ) {
         for ( u16 i = 0; i < s6RowCount; i++ ) {
           finderRow( i )
         }
@@ -298,13 +240,10 @@ sub buildS6Finder {
       s6ScrollBar( true, 2 * lineHeight )
     }
 
-    cfgGrowW()
-    panel( white ) {
+    panel( white, wGrow: true ) {
       s6ScrollBar( false, 3 * u )
 
-      cfgFixedW( s6Thick )
-      cfgGrowH()
-      framed( white, 1, black ) {
+      framed( white, 1, black, fixedW: s6Thick, hGrow: true ) {
       }
     }
   }
@@ -313,22 +252,13 @@ sub buildS6Finder {
 // ---- About This Macintosh -------------------------------------------------
 
 sub memoryBar( u16 i ) {
-  cfgGrowW()
-  cfgFixedH( lineHeight )
-  cfg.gap = u
-  cfg.alignCross = alignCenter
-  panel( white ) {
-    cfgFixedW( 16 * u )
-    panel( white ) {
+  panel( white, wGrow: true, fixedH: lineHeight, gap: u, alignCross: alignCenter ) {
+    panel( white, fixedW: 16 * u ) {
       labelPaint( addr( sBarNames[i] ), black, white )
     }
 
-    cfgGrowW()
-    cfgFixedH( s6BarH )
-    framed( white, 1, black ) {
-      cfgFixedW( barSize[i] * 3 * u )
-      cfgGrowH()
-      panel( black ) {
+    framed( white, 1, black, wGrow: true, fixedH: s6BarH ) {
+      panel( black, fixedW: barSize[i] * 3 * u, hGrow: true ) {
       }
     }
   }
@@ -336,18 +266,12 @@ sub memoryBar( u16 i ) {
 
 sub buildS6About {
   s6Window( addr( sAboutTitle ) ) {
-    cfgCol()
-    cfgGrowW()
-    cfgGrowH()
-    cfgInset( u )
-    cfg.gap = lineHeight >> 1
-    panel( white ) {
-      cfgGrowW()
-      panel( white ) {
+    panel( white, isCol: true, wGrow: true, hGrow: true,
+           insetX: u, insetY: u, gap: lineHeight >> 1 ) {
+      panel( white, wGrow: true ) {
         labelPaint( addr( sTotalMem ), black, white )
 
-        cfgGrowW()
-        box {
+        box( wGrow: true ) {
         }
 
         labelPaint( addr( sMemFigure ), black, white )
@@ -365,30 +289,20 @@ sub buildS6About {
 // A two-unit border is what marks the default button, which is the one piece of
 // Macintosh chrome that survives the drop to a character cell unchanged.
 sub dialogButton( a16 caption, u8 thickness ) {
-  cfgInsetX( 2 * u )
-  cfg.alignMain = alignCenter
-  framed( white, thickness, black ) {
+  framed( white, thickness, black, insetX: 2 * u, alignMain: alignCenter ) {
     labelPaint( caption, black, white )
   }
 }
 
 sub buildS6Dialog {
-  cfgCol()
-  cfgGrowW()
-  cfgGrowH()
-  cfgInset( u )
-  cfg.gap = lineHeight >> 1
-  framed( white, 2, black ) {
+  framed( white, 2, black, isCol: true, wGrow: true, hGrow: true,
+          insetX: u, insetY: u, gap: lineHeight >> 1 ) {
     paraAuto( addr( sSaveAsk ), black, white )
 
-    cfgGrowH()
-    box {
+    box( hGrow: true ) {
     }
 
-    cfgGrowW()
-    cfg.gap = 2 * u
-    cfg.alignMain = alignEnd
-    box {
+    box( wGrow: true, gap: 2 * u, alignMain: alignEnd ) {
       dialogButton( addr( sCancel ), 1 )
       dialogButton( addr( sDontSave ), 1 )
       dialogButton( addr( sSave ), 2 )
@@ -404,8 +318,7 @@ sub buildS6Dialog {
 const s6Pad = 1
 
 sub desktopIcon( a16 name ) {
-  cfgInsetX( s6Pad )
-  panel( white ) {
+  panel( white, insetX: s6Pad ) {
     labelPaint( name, black, white )
   }
 }
@@ -417,21 +330,13 @@ sub buildS6Screen {
 
   packRows( s6IconCount, 80 * u - 2 * u, u )
 
-  cfgCol()
-  cfgGrowW()
-  cfgGrowH()
-  panel( white ) {
-    cfgGrowW()
-    cfgFixedH( lineHeight )
-    cfgInsetX( u )
-    cfg.gap = 2 * u
-    panel( white ) {
+  panel( white, isCol: true, wGrow: true, hGrow: true ) {
+    panel( white, wGrow: true, fixedH: lineHeight, insetX: u, gap: 2 * u ) {
       for ( u16 i = 0; i < s6MenuCount; i++ ) {
         labelPaint( addr( sS6Menu[i] ), black, white )
       }
 
-      cfgGrowW()
-      box {
+      box( wGrow: true ) {
       }
 
       labelPaint( addr( sS6Finder ), black, white )
@@ -439,19 +344,11 @@ sub buildS6Screen {
 
     s6Rule()
 
-    cfgCol()
-    cfgGrowW()
-    cfgGrowH()
-    cfgInset( u )
-    textured( white, black, fillStipple ) {
-      cfgCol()
-      cfgFixedW( 80 * u - 2 * u )
-      cfg.gap = lineHeight >> 1
-      box {
+    textured( white, black, fillStipple,
+              isCol: true, wGrow: true, hGrow: true, insetX: u, insetY: u ) {
+      box( isCol: true, fixedW: 80 * u - 2 * u, gap: lineHeight >> 1 ) {
         for ( u16 r = 0; r < flowRowCount; r++ ) {
-          cfgGrowW()
-          cfg.gap = u
-          box {
+          box( wGrow: true, gap: u ) {
             for ( u16 k = 0; k < flowRow[ r ].count; k++ ) {
               desktopIcon( addr( sS6Icons[ flowRow[ r ].first + k ] ) )
             }

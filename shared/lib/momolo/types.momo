@@ -12,7 +12,7 @@
 // because `group` has no field initialisers and an array zero-fills only at
 // load. `isCol` is false for momolo's default `row`; `wGrow` is false for its
 // default `fit`; `alignStart` is 0. The only fields whose default is not zero
-// are `wMax` and `hMax`, and cfgReset writes them.
+// are `wMax` and `hMax`, and pushElement's defaults write them.
 //
 // That polarity is not a nicety, it is the reason `pushElement` can be trusted:
 // elements are reused between frames, so a field left unwritten holds the

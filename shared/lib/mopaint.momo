@@ -98,18 +98,44 @@ sub paintBegin( u16 w, u16 h ) {
   lineTop = 0
 }
 
+// Every opener below takes the box's settings as momolo's openBox does, with the
+// same names and the same defaults, and hands them on - so a scene names them at
+// the brace: `panel( blue, isCol: true, hGrow: true ) {`. The defaults are
+// restated here because an omitted argument cannot be forwarded as omitted.
+
 // A container with nothing to draw: a spacer, or a row that only groups.
-sub boxOpen {
+sub boxOpen(
+  bool isCol = false, u8 insetX = 0, u8 insetY = 0, u8 gap = 0,
+  u8 alignMain = alignStart, u8 alignCross = alignStart,
+  bool wGrow = false, u16 fixedW = 0, u16 wMax = unbounded,
+  bool hGrow = false, u16 fixedH = 0, u16 hMax = unbounded
+) {
   u16 i
 
-  i = openBox()
+  i = openBox(
+    isCol: isCol, insetX: insetX, insetY: insetY, gap: gap,
+    alignMain: alignMain, alignCross: alignCross,
+    wGrow: wGrow, fixedW: fixedW, wMax: wMax,
+    hGrow: hGrow, fixedH: fixedH, hMax: hMax
+  )
   stClear( i )
 }
 
-sub panelOpen( u8 bg ) {
+sub panelOpen(
+  u8 bg,
+  bool isCol = false, u8 insetX = 0, u8 insetY = 0, u8 gap = 0,
+  u8 alignMain = alignStart, u8 alignCross = alignStart,
+  bool wGrow = false, u16 fixedW = 0, u16 wMax = unbounded,
+  bool hGrow = false, u16 fixedH = 0, u16 hMax = unbounded
+) {
   u16 i
 
-  i = openBox()
+  i = openBox(
+    isCol: isCol, insetX: insetX, insetY: insetY, gap: gap,
+    alignMain: alignMain, alignCross: alignCross,
+    wGrow: wGrow, fixedW: fixedW, wMax: wMax,
+    hGrow: hGrow, fixedH: fixedH, hMax: hMax
+  )
   stClear( i )
   st[i].bg = bg
 }
@@ -118,10 +144,21 @@ sub panelOpen( u8 bg ) {
 // desktop, stripes for a title bar. The foreground is the texture's colour, not
 // a text colour: a textured panel with text in it would need two, and no scene
 // here wants one.
-sub panelTextured( u8 bg, u8 fg, u8 fill ) {
+sub panelTextured(
+  u8 bg, u8 fg, u8 fill,
+  bool isCol = false, u8 insetX = 0, u8 insetY = 0, u8 gap = 0,
+  u8 alignMain = alignStart, u8 alignCross = alignStart,
+  bool wGrow = false, u16 fixedW = 0, u16 wMax = unbounded,
+  bool hGrow = false, u16 fixedH = 0, u16 hMax = unbounded
+) {
   u16 i
 
-  i = openBox()
+  i = openBox(
+    isCol: isCol, insetX: insetX, insetY: insetY, gap: gap,
+    alignMain: alignMain, alignCross: alignCross,
+    wGrow: wGrow, fixedW: fixedW, wMax: wMax,
+    hGrow: hGrow, fixedH: fixedH, hMax: hMax
+  )
   stClear( i )
   st[i].bg = bg
   st[i].fg = fg
@@ -131,15 +168,21 @@ sub panelTextured( u8 bg, u8 fg, u8 fill ) {
 // A frame's width is added to the inset before the engine sees it, so content is
 // never drawn over. This is the whole of the argument that a border is paint
 // rather than geometry - momolo is told a bigger inset and never hears the word.
-sub panelFramed( u8 bg, u8 borderW, u8 frameColor ) {
+sub panelFramed(
+  u8 bg, u8 borderW, u8 frameColor,
+  bool isCol = false, u8 insetX = 0, u8 insetY = 0, u8 gap = 0,
+  u8 alignMain = alignStart, u8 alignCross = alignStart,
+  bool wGrow = false, u16 fixedW = 0, u16 wMax = unbounded,
+  bool hGrow = false, u16 fixedH = 0, u16 hMax = unbounded
+) {
   u16 i
 
-  cfg.insetL += borderW
-  cfg.insetR += borderW
-  cfg.insetT += borderW
-  cfg.insetB += borderW
-
-  i = openBox()
+  i = openBox(
+    isCol: isCol, insetX: insetX + borderW, insetY: insetY + borderW, gap: gap,
+    alignMain: alignMain, alignCross: alignCross,
+    wGrow: wGrow, fixedW: fixedW, wMax: wMax,
+    hGrow: hGrow, fixedH: fixedH, hMax: hMax
+  )
   stClear( i )
   st[i].bg = bg
   st[i].border = borderW

@@ -95,15 +95,11 @@ const foxMinW      = 5          // "quick", "brown" and "jumps" all tie
 
 // A caption above a strip of content.
 sub stripOpen( a16 caption ) {
-  cfgCol()
-  cfgGrowW()
-  boxOpen()
+  boxOpen( isCol: true, wGrow: true )
 
     labelPaint( caption, lightGray, black )
 
-    cfgGrowW()
-    cfg.gap = u
-    boxOpen()
+    boxOpen( wGrow: true, gap: u )
 }
 
 sub stripClose {
@@ -117,35 +113,15 @@ sub stripClose {
 // open - and that costs nothing at the four places `strip` is used.
 bracket strip = stripOpen / stripClose
 
-// A centred label on a coloured panel. The width is whatever the caller left in
-// cfg, which works because cfg is not spent until the box opens - so the four
-// wrappers below differ only in how they set it.
-local sub swatchBody( a16 at, u8 bg ) {
-  cfgInsetX( u )
-  cfg.alignMain = alignCenter
-  panel( bg ) {
+// A centred label on a coloured panel. How wide it is comes by name, with the
+// panel's own defaults: nothing said is a fit, `wGrow: true` a grow, `fixedW` a
+// fixed width, and a grow with a `wMax` is capped - so the candidate drops out
+// of the convergence loop when it reaches its ceiling.
+sub swatch( a16 at, u8 bg, bool wGrow = false, u16 fixedW = 0, u16 wMax = unbounded ) {
+  panel( bg, insetX: u, alignMain: alignCenter,
+         wGrow: wGrow, fixedW: fixedW, wMax: wMax ) {
     labelPaint( at, black, bg )
   }
-}
-
-sub swatchFit( a16 at, u8 bg ) => swatchBody( at, bg )
-
-sub swatchGrow( a16 at, u8 bg ) {
-  cfgGrowW()
-  swatchBody( at, bg )
-}
-
-sub swatchFixed( a16 at, u8 bg, u16 n ) {
-  cfgFixedW( n )
-  swatchBody( at, bg )
-}
-
-// A grow with a ceiling, so the candidate drops out of the convergence loop when
-// it reaches it.
-sub swatchCapped( a16 at, u8 bg, u16 n ) {
-  cfgGrowW()
-  cfg.wMax = n
-  swatchBody( at, bg )
 }
 
 // ---- scene: shell ---------------------------------------------------------
@@ -154,77 +130,52 @@ sub swatchCapped( a16 at, u8 bg, u16 n ) {
 // and squeezing together. 80x25, because that is a text mode screen.
 
 sub buildShell {
-  cfgCol()
-  cfgGrowW()
-  cfgGrowH()
-  panel( blue ) {
+  panel( blue, isCol: true, wGrow: true, hGrow: true ) {
     // ---- title bar. The empty grow box between the two labels is a spacer -
     // it is how you push something to the far end without a dedicated alignment
     // rule for it.
-    cfgGrowW()
-    cfgFixedH( lineHeight )
-    cfgInsetX( u )
-    panel( cyan ) {
+    panel( cyan, wGrow: true, fixedH: lineHeight, insetX: u ) {
       labelPaint( addr( sMomolo ), black, cyan )
 
       // The gap on a childless box is deliberate and does nothing - there are no
       // gaps between no children. It is here so that `gap * (n - 1)` without a
       // guard reads 65535 and says so; see momolo/fit.momo.
-      cfgGrowW()
-      cfg.gap = u
-      box {
+      box( wGrow: true, gap: u ) {
       }
 
       labelPaint( addr( sGeometry ), black, cyan )
     }
 
     // ---- body: a fixed sidebar and a growing pane
-    cfgGrowW()
-    cfgGrowH()
-    cfgInset( u )
-    cfg.gap = u
-    box {
+    box( wGrow: true, hGrow: true, insetX: u, insetY: u, gap: u ) {
       // ---- sidebar. The frame's width is added to the inset by panelFramed,
       // so the engine is told a bigger inset and never hears the word border.
-      cfgCol()
-      cfgFixedW( 16 * u )
-      cfgGrowH()
-      cfgInset( u )
-      framed( darkGray, border, white ) {
+      framed( darkGray, border, white,
+              isCol: true, fixedW: 16 * u, hGrow: true, insetX: u, insetY: u ) {
         labelPaint( addr( sNew ), white, darkGray )
         labelPaint( addr( sOpen ), white, darkGray )
         labelPaint( addr( sSave ), white, darkGray )
         labelPaint( addr( sQuit ), white, darkGray )
 
-        cfgFixedH( lineHeight )
-        box {
+        box( fixedH: lineHeight ) {
         }
 
         paraPaint( addr( sBody ), bodyMinW, yellow, darkGray )
       }
 
       // ---- main pane
-      cfgCol()
-      cfgGrowW()
-      cfgGrowH()
-      cfgInset( u )
-      cfg.gap = u
-      cfg.alignMain = alignCenter
-      cfg.alignCross = alignCenter
-      framed( black, border, lightGray ) {
+      framed( black, border, lightGray,
+              isCol: true, wGrow: true, hGrow: true, insetX: u, insetY: u, gap: u,
+              alignMain: alignCenter, alignCross: alignCenter ) {
         labelPaint( addr( sCentred ), yellow, black )
 
-        cfgGrowW()
-        cfg.gap = u
-        box {
-          swatchGrow( addr( sA ), darkGray )
-          swatchGrow( addr( sB ), darkGray )
-          swatchGrow( addr( sC ), darkGray )
+        box( wGrow: true, gap: u ) {
+          swatch( addr( sA ), darkGray, wGrow: true )
+          swatch( addr( sB ), darkGray, wGrow: true )
+          swatch( addr( sC ), darkGray, wGrow: true )
         }
 
-        cfgFixedW( 24 * u )
-        cfg.gap = u
-        box {
+        box( fixedW: 24 * u, gap: u ) {
           paraPaint( addr( sLeft ), squeezedMinW, white, darkGray )
           paraPaint( addr( sRight ), squeezedMinW, white, darkGray )
         }
@@ -232,10 +183,7 @@ sub buildShell {
     }
 
     // ---- status bar
-    cfgGrowW()
-    cfgFixedH( lineHeight )
-    cfgInsetX( u )
-    panel( lightGray ) {
+    panel( lightGray, wGrow: true, fixedH: lineHeight, insetX: u ) {
       labelPaint( addr( sReady ), black, lightGray )
     }
   }
@@ -249,28 +197,23 @@ sub buildShell {
 // taking.
 
 sub buildSizing {
-  cfgCol()
-  cfgGrowW()
-  cfgGrowH()
-  cfgInset( u )
-  cfg.gap = u
-  panel( black ) {
+  panel( black, isCol: true, wGrow: true, hGrow: true, insetX: u, insetY: u, gap: u ) {
     strip( addr( sCapFit ) ) {
-      swatchFit( addr( sAbc ), cyan )
-      swatchFit( addr( sDe ), green )
-      swatchFit( addr( sFghi ), yellow )
+      swatch( addr( sAbc ), cyan )
+      swatch( addr( sDe ), green )
+      swatch( addr( sFghi ), yellow )
     }
 
     strip( addr( sCapGrow ) ) {
-      swatchGrow( addr( sAbc ), cyan )
-      swatchGrow( addr( sDe ), green )
-      swatchGrow( addr( sFghi ), yellow )
+      swatch( addr( sAbc ), cyan, wGrow: true )
+      swatch( addr( sDe ), green, wGrow: true )
+      swatch( addr( sFghi ), yellow, wGrow: true )
     }
 
     strip( addr( sCapMixed ) ) {
-      swatchFixed( addr( sAbc ), cyan, 6 * u )
-      swatchCapped( addr( sDe ), green, 8 * u )
-      swatchGrow( addr( sFghi ), yellow )
+      swatch( addr( sAbc ), cyan, fixedW: 6 * u )
+      swatch( addr( sDe ), green, wGrow: true, wMax: 8 * u )
+      swatch( addr( sFghi ), yellow, wGrow: true )
     }
   }
 }
@@ -289,18 +232,12 @@ sub buildSizing {
 // 7, 5, 7, 6.
 
 sub buildCapped {
-  cfgCol()
-  cfgGrowW()
-  cfgGrowH()
-  cfgInset( u )
-  panel( black ) {
-    cfgFixedW( 28 * u )
-    cfg.gap = u
-    box {
-      swatchGrow( addr( sAa ), cyan )
-      swatchCapped( addr( sBb ), green, 5 * u )
-      swatchGrow( addr( sCc ), yellow )
-      swatchGrow( addr( sDd ), magenta )
+  panel( black, isCol: true, wGrow: true, hGrow: true, insetX: u, insetY: u ) {
+    box( fixedW: 28 * u, gap: u ) {
+      swatch( addr( sAa ), cyan, wGrow: true )
+      swatch( addr( sBb ), green, wGrow: true, wMax: 5 * u )
+      swatch( addr( sCc ), yellow, wGrow: true )
+      swatch( addr( sDd ), magenta, wGrow: true )
     }
   }
 }
@@ -313,9 +250,7 @@ sub buildCapped {
 
 sub squeezeTrack( a16 caption, u16 width ) {
   strip( caption ) {
-    cfgFixedW( width )
-    cfg.gap = u
-    panel( darkGray ) {
+    panel( darkGray, fixedW: width, gap: u ) {
       paraPaint( addr( sAlpha ), trackMinW, black, magenta )
       paraPaint( addr( sGamma ), trackMinW, black, red )
     }
@@ -323,12 +258,7 @@ sub squeezeTrack( a16 caption, u16 width ) {
 }
 
 sub buildSqueeze {
-  cfgCol()
-  cfgGrowW()
-  cfgGrowH()
-  cfgInset( u )
-  cfg.gap = u
-  panel( black ) {
+  panel( black, isCol: true, wGrow: true, hGrow: true, insetX: u, insetY: u, gap: u ) {
     squeezeTrack( addr( sTrack26 ), 26 * u )
     squeezeTrack( addr( sTrack22 ), 22 * u )
     squeezeTrack( addr( sTrack14 ), 14 * u )
@@ -346,15 +276,8 @@ sub buildSqueeze {
 // room" rather than a negative number.
 
 sub buildOverflow {
-  cfgCol()
-  cfgGrowW()
-  cfgGrowH()
-  cfgInset( u )
-  panel( black ) {
-    cfgFixedW( 10 * u )
-    cfg.gap = u
-    cfg.alignMain = alignCenter
-    panel( darkGray ) {
+  panel( black, isCol: true, wGrow: true, hGrow: true, insetX: u, insetY: u ) {
+    panel( darkGray, fixedW: 10 * u, gap: u, alignMain: alignCenter ) {
       labelPaint( addr( sWider ), black, darkGray )
       labelPaint( addr( sThan ), black, darkGray )
       labelPaint( addr( sThis ), black, darkGray )
@@ -373,19 +296,13 @@ sub buildOverflow {
 // branch never runs on either axis.
 
 sub alignCell( a16 at, u8 main, u8 cross ) {
-  cfgFixedW( 12 * u )
-  cfgFixedH( 3 * lineHeight )
-  cfg.alignMain = main
-  cfg.alignCross = cross
-  panel( darkGray ) {
+  panel( darkGray, fixedW: 12 * u, fixedH: 3 * lineHeight, alignMain: main, alignCross: cross ) {
     labelPaint( at, yellow, darkGray )
   }
 }
 
 sub alignRow( a16 a, a16 b, a16 c, u8 cross ) {
-  cfgGrowW()
-  cfg.gap = u
-  box {
+  box( wGrow: true, gap: u ) {
     alignCell( a, alignStart, cross )
     alignCell( b, alignCenter, cross )
     alignCell( c, alignEnd, cross )
@@ -393,12 +310,7 @@ sub alignRow( a16 a, a16 b, a16 c, u8 cross ) {
 }
 
 sub buildAlignment {
-  cfgCol()
-  cfgGrowW()
-  cfgGrowH()
-  cfgInset( u )
-  cfg.gap = u
-  panel( black ) {
+  panel( black, isCol: true, wGrow: true, hGrow: true, insetX: u, insetY: u, gap: u ) {
     alignRow( addr( sAlSs ), addr( sAlCs ), addr( sAlEs ), alignStart )
     alignRow( addr( sAlSc ), addr( sAlCc ), addr( sAlEc ), alignCenter )
     alignRow( addr( sAlSe ), addr( sAlCe ), addr( sAlEe ), alignEnd )
@@ -416,9 +328,7 @@ sub buildAlignment {
 // difference on screen comes from the column it was put in.
 
 sub wrapCol( a16 caption, u16 width ) {
-  cfgCol()
-  cfgFixedW( width )
-  panel( darkGray ) {
+  panel( darkGray, isCol: true, fixedW: width ) {
     labelPaint( caption, lightGray, darkGray )
     paraPaint( addr( sFox ), foxMinW, yellow, darkGray )
   }
@@ -426,14 +336,10 @@ sub wrapCol( a16 caption, u16 width ) {
 
 // A row, which is the default direction - the columns are the children, and
 // each one is a col in its own right. alignCross is left alone for the same
-// reason: start is what a reset gives, and the scene wants the three columns
+// reason: start is the default, and the scene wants the three columns
 // hanging from the top rather than centred against the tallest.
 sub buildWrapping {
-  cfgGrowW()
-  cfgGrowH()
-  cfgInset( u )
-  cfg.gap = u
-  panel( black ) {
+  panel( black, wGrow: true, hGrow: true, insetX: u, insetY: u, gap: u ) {
     wrapCol( addr( sW8 ), 8 * u )
     wrapCol( addr( sW14 ), 14 * u )
     wrapCol( addr( sW26 ), 26 * u )
