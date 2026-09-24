@@ -471,11 +471,11 @@ pollKeyboard:
         xor     ax, ax
 .L76:
         mov     [pollKeyboard__down], al    ; narrowed to bool
-; ---- applyKey( code & 0x7F, down )
+; ---- applyKey( scancode( code & 0x7F ), down )
         mov     al, [pollKeyboard__code]
         xor     ah, ah                      ; u8 -> u16
         and     ax, 127
-        mov     [t_kbd__applyKey__key], al  ; narrowed to u8
+        mov     [t_kbd__applyKey__key], al  ; u16 -> u8, no widening
         mov     al, [pollKeyboard__down]
         mov     [t_kbd__applyKey__pressed], al; bool -> bool, no widening
         call    t_kbd__applyKey

@@ -30,6 +30,12 @@ const modeGfx256 = 2
 
 const modeCount = 3
 
+// A row of the table below, so `setMode` refuses a constant past its end (§75).
+// The bound is `modeCount` written out, because a bound folds before any const
+// exists; the require is what makes a fourth row edit both.
+unit modeId = u8 < 3
+require modeCount == 3
+
 // `elems` is the row stride in whatever the mode's element is: cells for text,
 // bytes for 8-bit linear. `elemBytes` says how wide one is, so a caller knows
 // whether to declare a `far u8[]` or a `far u16[]` over the segment.
@@ -150,7 +156,7 @@ sub restoreMode {
 //   }
 bracket videoMode = saveMode / restoreMode
 
-sub setMode( u8 id ) {
+sub setMode( modeId id ) {
   _ah = 0x00
   _al = screenMode[id].bios
   int 0x10

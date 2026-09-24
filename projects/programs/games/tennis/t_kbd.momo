@@ -6,15 +6,20 @@ local const kbStatus = 0x64
 local const kbFull = 1
 local const irqKbd = 1 << 1
 
-local const scEsc = 0x01
-local const scW = 0x11
-local const scA = 0x1e
-local const scS = 0x1f
-local const scD = 0x20
-local const scUp = 0x48
-local const scLeft = 0x4b
-local const scRight = 0x4d
-local const scDown = 0x50
+// A set 1 make code, as the 8042 hands it over. The top bit is the break flag,
+// which `pollKeyboard` masks off before `applyKey` sees the code - so a code
+// written here with it set would name a key that never matches (§75).
+unit scancode = u8 < 0x80
+
+local const scancode scEsc = 0x01
+local const scancode scW = 0x11
+local const scancode scA = 0x1e
+local const scancode scS = 0x1f
+local const scancode scD = 0x20
+local const scancode scUp = 0x48
+local const scancode scLeft = 0x4b
+local const scancode scRight = 0x4d
+local const scancode scDown = 0x50
 
 // Level state - true while the key is down. Indexed by player, so nothing
 // downstream has to know that WASD is player 0 and the arrows are player 1.
@@ -81,7 +86,7 @@ sub keyboardEnd {
 //   }
 bracket keyboard = keyboardBegin / keyboardEnd
 
-local sub applyKey( u8 key, bool pressed ) {
+local sub applyKey( scancode key, bool pressed ) {
   if ( key == scW ) held[ leftPlayer ].up = pressed
   else if ( key == scS ) held[ leftPlayer ].down = pressed
   else if ( key == scA ) held[ leftPlayer ].left = pressed
@@ -117,6 +122,6 @@ sub pollKeyboard {
     // this ignores: aux (mouse)/transmit timeout on at controllers
     down = code < 0x80
 
-    applyKey( code & 0x7F, down )
+    applyKey( scancode( code & 0x7F ), down )
   }
 }
