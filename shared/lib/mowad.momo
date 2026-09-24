@@ -21,8 +21,8 @@
 // The index is **names only**, eight bytes a lump in a view of the heap, and a
 // lump's position and size are read back from its directory entry when asked
 // for. That is §41's middle option. The whole directory at sixteen bytes a lump
-// would not leave room for a program beside DOOM2.WAD's 2,919 entries; the
-// names do.
+// is 46,704 bytes for DOOM2.WAD's 2,919 entries, which is most of a heap and
+// leaves a program a few kilobytes; the names are half that.
 
 include "lib/std/io.momo"
 include "lib/std/file.momo"
