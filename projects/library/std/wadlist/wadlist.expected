@@ -1,5 +1,5 @@
 0 BASE.WAD: IWAD, 7 lumps, directory at 131, 243 bytes
-1 PATCH.WAD: PWAD, 5 lumps, directory at 103, 183 bytes
+1 PATCH.WAD: PWAD, 9 lumps, directory at 125, 269 bytes
 
     #  f  name        offset      size  type     from
     0  0  HELLO           12        23  text     header
@@ -12,5 +12,9 @@
     7  1  HELLO           12        24  text     header
     8  1  ECHO            12         8  text     header
     9  1  LOST          4000        10  -        -
-   10  1  NOISE           39        15  raw      manifest
-   11  1  TYPES           54        49  types    header
+   10  1  DSSILENT        39        13  raw      header
+   11  1  DSNOWAY         39        13  raw      header
+   12  1  DSBGACT         39        13  raw      header
+   13  1  DSPOSIT1        39        13  raw      header
+   14  1  NOISE           52        15  raw      manifest
+   15  1  TYPES           67        58  types    header

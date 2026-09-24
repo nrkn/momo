@@ -1,18 +1,25 @@
 0 BASE.WAD: IWAD, 7 lumps, directory at 131, 243 bytes
-1 PATCH.WAD: PWAD, 5 lumps, directory at 103, 183 bytes
-2 DUPS.WAD: PWAD, 6 lumps, directory at 147, 243 bytes
+1 PATCH.WAD: PWAD, 9 lumps, directory at 125, 269 bytes
+2 DUPS.WAD: PWAD, 13 lumps, directory at 147, 355 bytes
 
 findings
 PATCH.WAD: LOST at 4000, 10 bytes, runs past the end of the file
-PATCH.WAD: ECHO at 12 overlaps HELLO
-HELLO: 4 lumps, and #16 in DUPS.WAD wins
-PAL: 2 lumps, and #15 in DUPS.WAD wins
+PATCH.WAD: #14 NOISE starts Mo, but 65 is no type a header carries, so it is read as foreign
+PATCH.WAD: #8 ECHO at 12 overlaps #7 HELLO
+HELLO: 4 lumps, and #20 in DUPS.WAD wins
+PAL: 2 lumps, and #19 in DUPS.WAD wins
 PATCH.WAD: TYPES row MAP01 says text, and its header says scene
 PATCH.WAD: TYPES row GHOST names no lump
 
 tally
 BASE.WAD: 7 lumps - 5 win, 2 shadowed by a later file, 0 repeated within the file
-PATCH.WAD: 5 lumps - 4 win, 1 shadowed by a later file, 0 repeated within the file
+PATCH.WAD: 9 lumps - 8 win, 1 shadowed by a later file, 0 repeated within the file
 PATCH.WAD: 3 bytes in 1 gap that nothing references
-DUPS.WAD: 6 lumps - 4 win, 0 shadowed by a later file, 2 repeated within the file
+PATCH.WAD: 1 alias set - 5 distinct payloads serve 8 entries
+PATCH.WAD: 4 entries share 13 bytes at 39 - #10 DSSILENT, #11 DSNOWAY, #12 DSBGACT, and 1 more
+DUPS.WAD: 13 lumps - 11 win, 0 shadowed by a later file, 2 repeated within the file
 DUPS.WAD: 7 bytes in 2 gaps that nothing references
+DUPS.WAD: 4 alias sets - 6 distinct payloads serve 13 entries
+DUPS.WAD: 4 entries share 25 bytes at 73 - #20 HELLO, #25 HI, #26 HOWDY, and 1 more
+DUPS.WAD: 3 entries share 8 bytes at 46 - #18 DSPISTOL, #22 DSPUNCH, #23 DSSAWUP
+DUPS.WAD: 2 entries share 8 bytes at 38 - #17 DSPISTOL, #21 DSOOF

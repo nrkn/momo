@@ -11,18 +11,25 @@
 // Then what it found:
 //
 // - an entry whose bytes run past the end of its file;
-// - two entries sharing bytes, and bytes no entry, header or directory covers;
+// - a lump that starts `Mo` with a type no header carries, which mowad reads as
+//   foreign and says nothing about;
+// - entries with the same position and size - an alias set, one payload under
+//   several names, which is structure and is one line for the lot;
+// - an entry sharing some of another's bytes without being the same span, which
+//   is the suspect, a line a pair naming both;
+// - bytes no entry, header or directory covers;
 // - a name more than one lump carries, and which one wins;
 // - a TYPES row naming a lump nobody has, and a TYPES row disagreeing with the
 //   header of the lump it names - the header wins, and the row is what is wrong.
 //
 // **Two switches say less.** `/s` is the summary: no listing, and the bulk -
-// gaps, and a name repeated inside one file - counted per file instead of
-// printed. Everything else still prints in full: an override across files,
-// which is the story a patch tells, and every finding that says the file is
-// damaged, because a summary that hid one would be a lie. `/l` is the listing
-// and nothing after it, and it skips the checks rather than running them
-// quietly - a fast read of the directory is the whole of what it is for.
+// gaps, a name repeated inside one file, and alias sets - counted per file
+// instead of printed, with a file's largest sets named. Everything else still
+// prints in full: an override across files, which is the story a patch tells,
+// and every finding that says the file is damaged, because a summary that hid
+// one would be a lie. `/l` is the listing and nothing after it, and it skips
+// the checks rather than running them quietly - a fast read of the directory is
+// the whole of what it is for.
 //
 // **It has to cope with DOOM.WAD's thousands of lumps.** The listing streams:
 // nothing about a lump is kept but the name mowad already indexes. The checks
@@ -315,6 +322,12 @@ local const u8[] sPast     = " bytes, runs past the end of the file$"
 local const u8[] sOverlaps = " overlaps $"
 local const u8[] sHeaderIs = "the header$"
 local const u8[] sDirIs    = "the directory$"
+local const u8[] sStartsMo = " starts Mo, but $"
+local const u8[] sNoCarry  = " is no type a header carries, so it is read as foreign$"
+local const u8[] sShare    = " entries share $"
+local const u8[] sThen     = " - $"
+local const u8[] sAndMore  = ", and $"
+local const u8[] sMore     = " more$"
 local const u8[] sGapTail  = " that nothing references$"
 local const u8[] sLumps    = " lumps, and #$"
 local const u8[] sIn       = " in $"
@@ -334,13 +347,53 @@ local sub findingIn( u16 f ) {
   putStr( addr( sColon ) )
 }
 
-// A directory entry's own name, or what the extra row stands for.
+// A lump by its index and its name, because two lumps can share a name and a
+// finding about the pair has to say which is which.
+local sub putMember( u16 lump ) {
+  putChar( '#' )
+  putNumber( lump )
+  space()
+  wadPutName( lump )
+}
+
+// A directory entry, or what the extra row stands for.
 local sub putEntry( u16 f, u16 e ) {
   if ( e == wadFileLumps( f ) ) {
     putStr( addr( sDirIs ) )
   } else {
-    wadPutName( wadFileBase( f ) + e )
+    putMember( wadFileBase( f ) + e )
   }
+}
+
+// **An alias set, in one line**: how many entries, the span they share, and the
+// first three by index. `m1` and `m2` are `wadNone` past the end of the set.
+local sub putAlias( u16 count, u16 m0, u16 m1, u16 m2 ) {
+  putNumber( count )
+  putStr( addr( sShare ) )
+  put32( wadSizeHigh( m0 ), wadSizeLow( m0 ) )
+  putStr( addr( sBytes ) )
+  putStr( addr( sAt ) )
+  put32( wadPosHigh( m0 ), wadPosLow( m0 ) )
+  putStr( addr( sThen ) )
+  putMember( m0 )
+
+  if ( m1 != wadNone ) {
+    putStr( addr( sComma ) )
+    putMember( m1 )
+  }
+
+  if ( m2 != wadNone ) {
+    putStr( addr( sComma ) )
+    putMember( m2 )
+  }
+
+  if ( count > 3 ) {
+    putStr( addr( sAndMore ) )
+    putNumber( count - 3 )
+    putStr( addr( sMore ) )
+  }
+
+  newline()
 }
 
 // ---- what a summary counts, per file ----
@@ -350,6 +403,10 @@ local sub putEntry( u16 f, u16 e ) {
 // later lump in its own file does, and no file after carries the name. The
 // last is the bulk - a file repeating a name is that file's business - and the
 // middle one is the override story, which prints in every mode as well.
+//
+// Beside that, its alias sets: how many, and how many distinct spans serve how
+// many entries - so a file that is mostly one payload under many names says so
+// in one line - and the largest few, each as the full mode prints it.
 
 local group tally[wadMaxFiles] {
   u16 wins
@@ -358,6 +415,20 @@ local group tally[wadMaxFiles] {
   u16 gaps
   u16 gapHi
   u16 gapLo
+  u16 sets
+  u16 payloads
+  u16 served
+}
+
+local const topSets = 3
+
+// A file's largest sets, largest first, at `f * topSets`. A count of 0 is a
+// slot nothing filled.
+local group top[wadMaxFiles * topSets] {
+  u16 count
+  u16 m0
+  u16 m1
+  u16 m2
 }
 
 // ---- sorting ----
@@ -383,6 +454,11 @@ local bool before( u16 a, u16 b ) {
   } else {
     if ( posHi[a] != posHi[b] ) return posHi[a] < posHi[b]
     if ( posLo[a] != posLo[b] ) return posLo[a] < posLo[b]
+
+    // The larger first, so a span comes before one it contains from its start,
+    // and identical spans sit together in index order.
+    if ( sizeHi[a] != sizeHi[b] ) return sizeHi[a] > sizeHi[b]
+    if ( sizeLo[a] != sizeLo[b] ) return sizeLo[a] > sizeLo[b]
   }
 
   return a < b
@@ -428,7 +504,9 @@ local sub checkFile( u16 f ) {
   u16 reachLo
   u16 owner
   u16 e
+  u16 run
   u16 manifests
+  u16 stray
 
   lumps = wadFileLumps( f )
   base = wadFileBase( f )
@@ -459,6 +537,19 @@ local sub checkFile( u16 f ) {
       putStr( addr( sPast ) )
       newline()
     }
+
+    // `Mo` alone is two bytes a foreign lump can start with. mowad reads one
+    // with no header, silently, and the listing shows what that left it; this
+    // is where it is said.
+    stray = wadLookalike( base + i )
+    if ( stray != wadNone ) {
+      findingIn( f )
+      putMember( base + i )
+      putStr( addr( sStartsMo ) )
+      putNumber( stray )
+      putStr( addr( sNoCarry ) )
+      newline()
+    }
   }
 
   if ( manifests > 1 ) {
@@ -483,15 +574,33 @@ local sub checkFile( u16 f ) {
   // starting short of the reach overlaps its owner; one starting past it leaves
   // a gap. A range starting at or past the end of the file is the finding
   // above and nothing here, and a marker covers nothing.
+  //
+  // **Entries with the same position and size are one range**, taken together
+  // as an alias set: one payload under several names, which is structure and
+  // not damage, so it is one line and never a pair. Only a range that shares
+  // some bytes without being the same span is an overlap. The directory is not
+  // an entry, and never joins a set.
   reachHi = 0
   reachLo = wadHeaderBytes
   owner = wadNone
 
-  for ( u16 k = 0; k <= lumps; k++ ) {
+  for ( u16 k = 0; k <= lumps; k += run ) {
     e = order[k]
+    run = 1
 
     if ( sizeHi[e] == 0 && sizeLo[e] == 0 ) continue
     if ( !below32( posHi[e], posLo[e], endHi, endLo ) ) continue
+
+    // Identical spans sort together, and the directory's index sorts it after
+    // any entry sharing its span.
+    while ( k + run <= lumps && order[ k + run ] != lumps && sameSpan( e, order[ k + run ] ) ) {
+      run++
+    }
+
+    if ( e != lumps ) {
+      tally[f].payloads++
+      tally[f].served += run
+    }
 
     if ( below32( posHi[e], posLo[e], reachHi, reachLo ) ) {
       findingIn( f )
@@ -510,6 +619,8 @@ local sub checkFile( u16 f ) {
       reportGap( f, reachHi, reachLo )
     }
 
+    if ( run > 1 ) aliasSet( f, k, run )
+
     add32( posHi[e], posLo[e], sizeHi[e], sizeLo[e] )
     if ( below32( reachHi, reachLo, sumHi, sumLo ) ) {
       reachHi = sumHi
@@ -522,6 +633,53 @@ local sub checkFile( u16 f ) {
     sub32( endHi, endLo, reachHi, reachLo )
     reportGap( f, reachHi, reachLo )
   }
+}
+
+local bool sameSpan( u16 a, u16 b ) {
+  return posHi[a] == posHi[b] && posLo[a] == posLo[b] &&
+         sizeHi[a] == sizeHi[b] && sizeLo[a] == sizeLo[b]
+}
+
+// The `run` entries of `order` from `k`, one span. **Bulk**: a summary counts
+// it, and keeps it if it is one of its file's largest.
+local sub aliasSet( u16 f, u16 k, u16 run ) {
+  u16 base
+  u16 m2
+  u16 slot
+  u16 j
+
+  base = wadFileBase( f )
+  m2 = run > 2 ? base + order[ k + 2 ] : wadNone
+  tally[f].sets++
+
+  if ( mode != infoSummary ) {
+    findingIn( f )
+    putAlias( run, base + order[k], base + order[ k + 1 ], m2 )
+    return
+  }
+
+  counted++
+
+  // Strictly larger displaces, so of two sets the same size the earlier stays.
+  slot = f * topSets
+  j = 0
+  while ( j < topSets && top[ slot + j ].count >= run ) {
+    j++
+  }
+
+  if ( j == topSets ) return
+
+  for ( u16 i = topSets - 1; i > j; i-- ) {
+    top[ slot + i ].count = top[ slot + i - 1 ].count
+    top[ slot + i ].m0 = top[ slot + i - 1 ].m0
+    top[ slot + i ].m1 = top[ slot + i - 1 ].m1
+    top[ slot + i ].m2 = top[ slot + i - 1 ].m2
+  }
+
+  top[ slot + j ].count = run
+  top[ slot + j ].m0 = base + order[k]
+  top[ slot + j ].m1 = base + order[ k + 1 ]
+  top[ slot + j ].m2 = m2
 }
 
 // `sumHi:sumLo` bytes at `hi:lo`. **Bulk**: a summary adds it to its file's
@@ -722,6 +880,11 @@ local const u8[] sRepeated = " repeated within the file$"
 local const u8[] sBytesIn  = " bytes in $"
 local const u8[] sGap      = " gap$"
 local const u8[] sGaps     = " gaps$"
+local const u8[] sSet      = " alias set - $"
+local const u8[] sSets     = " alias sets - $"
+local const u8[] sPayload  = " distinct payload serves $"
+local const u8[] sPayloads = " distinct payloads serve $"
+local const u8[] sEntries  = " entries$"
 
 // A line a file, and a second for its gaps when it has any - the full mode's
 // gap lines, added up.
@@ -743,16 +906,41 @@ local sub putTally {
     putStr( addr( sRepeated ) )
     newline()
 
-    if ( tally[f].gaps == 0 ) continue
+    if ( tally[f].gaps > 0 ) {
+      putPath( f )
+      putStr( addr( sColon ) )
+      put32( tally[f].gapHi, tally[f].gapLo )
+      putStr( addr( sBytesIn ) )
+      putNumber( tally[f].gaps )
+      putStr( tally[f].gaps == 1 ? addr( sGap ) : addr( sGaps ) )
+      putStr( addr( sGapTail ) )
+      newline()
+    }
 
+    if ( tally[f].sets > 0 ) putSets( f )
+  }
+}
+
+// A file's alias sets in a line, then its largest.
+local sub putSets( u16 f ) {
+  u16 slot
+
+  putPath( f )
+  putStr( addr( sColon ) )
+  putNumber( tally[f].sets )
+  putStr( tally[f].sets == 1 ? addr( sSet ) : addr( sSets ) )
+  putNumber( tally[f].payloads )
+  putStr( tally[f].payloads == 1 ? addr( sPayload ) : addr( sPayloads ) )
+  putNumber( tally[f].served )
+  putStr( addr( sEntries ) )
+  newline()
+
+  slot = f * topSets
+
+  for ( u16 j = 0; j < topSets && top[ slot + j ].count > 0; j++ ) {
     putPath( f )
     putStr( addr( sColon ) )
-    put32( tally[f].gapHi, tally[f].gapLo )
-    putStr( addr( sBytesIn ) )
-    putNumber( tally[f].gaps )
-    putStr( tally[f].gaps == 1 ? addr( sGap ) : addr( sGaps ) )
-    putStr( addr( sGapTail ) )
-    newline()
+    putAlias( top[ slot + j ].count, top[ slot + j ].m0, top[ slot + j ].m1, top[ slot + j ].m2 )
   }
 }
 

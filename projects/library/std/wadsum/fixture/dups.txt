@@ -19,3 +19,16 @@ lump PAL palette pal2.txt
 pad 5
 
 lump HELLO text hello4.txt
+
+# Four alias sets, which a summary counts and names the largest three of,
+# largest first - so the set of four at 73 leads, the three at 46 follows, and
+# of the two sets of two the earlier, at 38, is named and the one at 54 is not.
+# The spans are the lumps above: HELLO at 12 is 24 bytes, the pad takes it to
+# 38, each DSPISTOL is 8, PAL is 14 from 54, and the pad puts HELLO at 73, 25.
+entry DSOOF 38 8
+entry DSPUNCH 46 8
+entry DSSAWUP 46 8
+entry ALTPAL 54 14
+entry HI 73 25
+entry HOWDY 73 25
+entry GREETING 73 25
