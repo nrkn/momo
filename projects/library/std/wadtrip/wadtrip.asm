@@ -1643,11 +1643,13 @@ mowad__wadCarried:
         mov     [mowad__wadCarried__ret], al; narrowed to bool
         ret
 
-; ============================================== bool mowad__wadMoAt ====
+; ============================================== bool mowad__wadHeaded ====
 
-mowad__wadMoAt:
+mowad__wadHeaded:
+; ---- wadStray = wadNone
+        mov     word [mowad__wadStray], 65535
 ; ---- if ( wadReadAt( lump, 0, addr( wadHead ), wadMoBytes ) != wadMoBytes ) return false
-        mov     ax, [mowad__wadMoAt__lump]
+        mov     ax, [mowad__wadHeaded__lump]
         mov     [mowad__wadReadAt__lump], ax
         mov     word [mowad__wadReadAt__skip], 0
         mov     ax, mowad__wadHead          ; link-time constant
@@ -1657,48 +1659,37 @@ mowad__wadMoAt:
         mov     ax, [mowad__wadReadAt__ret]
         cmp     ax, 4
         je      .L170                       ; unsigned !=
-        mov     byte [mowad__wadMoAt__ret], 0
+        mov     byte [mowad__wadHeaded__ret], 0
         ret
 .L170:
-; ---- return wadHead[0] == wadMoM && wadHead[1] == wadMoO
+; ---- if ( wadHead[0] != wadMoM || wadHead[1] != wadMoO ) return false
         mov     al, [mowad__wadHead]
         cmp     al, 77                      ; byte operands, no widening
-        jne     .L173                       ; unsigned ==
+        jne     .L175                       ; unsigned !=
         mov     al, [mowad__wadHead + 1]
         cmp     al, 111                     ; byte operands, no widening
-        jne     .L173                       ; unsigned ==
-        mov     ax, 1
-        jmp     .L174
-.L173:
-        xor     ax, ax
-.L174:
-        mov     [mowad__wadMoAt__ret], al   ; narrowed to bool
+        je      .L173                       ; unsigned !=
+.L175:
+        mov     byte [mowad__wadHeaded__ret], 0
         ret
-
-; ============================================== bool mowad__wadHeaded ====
-
-mowad__wadHeaded:
-; ---- local bool wadHeaded( u16 lump ) => wadMoAt( lump ) && wadCarried( wadHead[2] )
-        mov     ax, [mowad__wadHeaded__lump]
-        mov     [mowad__wadMoAt__lump], ax
-        call    mowad__wadMoAt
-        mov     al, [mowad__wadMoAt__ret]
-        xor     ah, ah                      ; bool -> u16
-        test    ax, ax
-        jz      .L177
+.L173:
+; ---- if ( wadCarried( wadHead[2] ) ) return true
         mov     al, [mowad__wadHead + 2]
         mov     [mowad__wadCarried__id], al ; u8 -> u8, no widening
         call    mowad__wadCarried
         mov     al, [mowad__wadCarried__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L177
-        mov     ax, 1
-        jmp     .L178
-.L177:
-        xor     ax, ax
+        jz      .L178
+        mov     byte [mowad__wadHeaded__ret], 1
+        ret
 .L178:
-        mov     [mowad__wadHeaded__ret], al ; narrowed to bool
+; ---- wadStray = wadHead[2]
+        mov     al, [mowad__wadHead + 2]
+        xor     ah, ah                      ; u8 -> u16
+        mov     [mowad__wadStray], ax
+; ---- return false
+        mov     byte [mowad__wadHeaded__ret], 0
         ret
 
 ; ============================================== u8 wadRowType ====
@@ -3292,8 +3283,7 @@ mowad__wadSource_: db      0        ; u8
 mowad__wadVersion_: db      0        ; u8
 mowad__wadCarried__id: db      0        ; u8
 mowad__wadCarried__ret: db      0        ; bool
-mowad__wadMoAt__lump: dw      0        ; u16
-mowad__wadMoAt__ret: db      0        ; bool
+mowad__wadStray: dw      0        ; u16
 mowad__wadHeaded__lump: dw      0        ; u16
 mowad__wadHeaded__ret: db      0        ; bool
 wadRowType__name: dw      0        ; u16
@@ -3498,7 +3488,7 @@ putNumber__digits: times 5 db 0        ; u8[5]
 ; No storage is emitted - a .COM owns everything past its image, so
 ; these are addresses and NASM does the arithmetic.
 
-_hstack:        equ     284        ; 28 worst-case + 256 interrupt reserve
+_hstack:        equ     282        ; 26 worst-case + 256 interrupt reserve
 _htop:          equ     0FFFEh - _hstack
 
 _hsize:         dw      _htop - _heap        ; NASM computes this

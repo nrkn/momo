@@ -522,23 +522,31 @@ local u8        wadVersion_
 // A type a header can carry: one in the table, and not `wadTypeNone`.
 local bool wadCarried( u8 id ) => id != 0 && u16( id ) < len( wadTypeNames )
 
-// Whether a lump opens `Mo`, leaving the four bytes in `wadHead`.
-local bool wadMoAt( u16 lump ) {
+// The type byte of the last lump `wadHeaded` turned down though it opened `Mo`,
+// or `wadNone`.
+local u16 wadStray
+
+// **Whether a lump opens with a header of ours**, leaving the four bytes in
+// `wadHead`. Two bytes are what foreign data starts with by chance, so the type
+// is part of the check: `Mo` and a type no header carries is not a header, and
+// the lump is read as the foreign lump it is - untyped, or typed by a row.
+local bool wadHeaded( u16 lump ) {
+  wadStray = wadNone
+
   if ( wadReadAt( lump, 0, addr( wadHead ), wadMoBytes ) != wadMoBytes ) return false
-  return wadHead[0] == wadMoM && wadHead[1] == wadMoO
+  if ( wadHead[0] != wadMoM || wadHead[1] != wadMoO ) return false
+  if ( wadCarried( wadHead[2] ) ) return true
+
+  wadStray = wadHead[2]
+  return false
 }
 
-// **Whether a lump opens with a header of ours.** Two bytes are what foreign
-// data starts with by chance, so the type is part of the check: `Mo` and a type
-// no header carries is not a header, and the lump is read as the foreign lump
-// it is - untyped, or typed by a row.
-local bool wadHeaded( u16 lump ) => wadMoAt( lump ) && wadCarried( wadHead[2] )
-
-// The type byte of a lump that opens `Mo` and is not ours, or `wadNone` - for a
-// checker, which says so, since a reader treats one as foreign without a word.
+// The type byte of a lump that opens `Mo` and is not ours, or `wadNone`. The
+// reader takes one as foreign without a word; this is for a checker to say so,
+// and it is the reader's own decision rather than a second one.
 u16 wadLookalike( u16 lump ) {
-  if ( wadMoAt( lump ) && !wadCarried( wadHead[2] ) ) return wadHead[2]
-  return wadNone
+  wadHeaded( lump )
+  return wadStray
 }
 
 // The manifest's word for a name: the last row naming it in the last file whose
