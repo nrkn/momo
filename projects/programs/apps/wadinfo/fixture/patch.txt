@@ -20,3 +20,8 @@ row GHOST palette
 pad 3
 entry ECHO 12 8
 entry LOST 4000 10
+
+# Someone else's bytes that happen to start 'M' 'o' 'A' - and 'A', 65, is no
+# type a header carries, so this is not a header and the row is its type.
+foreign NOISE noise.txt
+row NOISE raw

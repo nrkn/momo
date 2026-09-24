@@ -1,5 +1,5 @@
 0 BASE.WAD: IWAD, 7 lumps, directory at 131, 243 bytes
-1 PATCH.WAD: PWAD, 4 lumps, directory at 79, 143 bytes
+1 PATCH.WAD: PWAD, 5 lumps, directory at 103, 183 bytes
 
     #  f  name        offset      size  type     from
     0  0  HELLO           12        23  text     header
@@ -12,7 +12,8 @@
     7  1  HELLO           12        24  text     header
     8  1  ECHO            12         8  text     header
     9  1  LOST          4000        10  -        -
-   10  1  TYPES           39        40  types    header
+   10  1  NOISE           39        15  raw      manifest
+   11  1  TYPES           54        49  types    header
 
 findings
 PATCH.WAD: LOST at 4000, 10 bytes, runs past the end of the file

@@ -1547,11 +1547,30 @@ wadClose:
         mov     word [mowad__wadCur], 65535
         ret
 
-; ============================================== bool mowad__wadHeaded ====
+; ============================================== bool mowad__wadCarried ====
 
-mowad__wadHeaded:
+mowad__wadCarried:
+; ---- local bool wadCarried( u8 id ) => id != 0 && u16( id ) < len( wadTypeNames )
+        mov     al, [mowad__wadCarried__id]
+        test    al, al
+        je      .L176                       ; unsigned !=
+        mov     al, [mowad__wadCarried__id]
+        xor     ah, ah                      ; u8 -> u16
+        cmp     ax, 6
+        jae     .L176                       ; unsigned <
+        mov     ax, 1
+        jmp     .L177
+.L176:
+        xor     ax, ax
+.L177:
+        mov     [mowad__wadCarried__ret], al; narrowed to bool
+        ret
+
+; ============================================== bool mowad__wadMoAt ====
+
+mowad__wadMoAt:
 ; ---- if ( wadReadAt( lump, 0, addr( wadHead ), wadMoBytes ) != wadMoBytes ) return false
-        mov     ax, [mowad__wadHeaded__lump]
+        mov     ax, [mowad__wadMoAt__lump]
         mov     [mowad__wadReadAt__lump], ax
         mov     word [mowad__wadReadAt__skip], 0
         mov     ax, mowad__wadHead          ; link-time constant
@@ -1560,22 +1579,48 @@ mowad__wadHeaded:
         call    mowad__wadReadAt
         mov     ax, [mowad__wadReadAt__ret]
         cmp     ax, 4
-        je      .L176                       ; unsigned !=
-        mov     byte [mowad__wadHeaded__ret], 0
+        je      .L180                       ; unsigned !=
+        mov     byte [mowad__wadMoAt__ret], 0
         ret
-.L176:
+.L180:
 ; ---- return wadHead[0] == wadMoM && wadHead[1] == wadMoO
         mov     al, [mowad__wadHead]
         cmp     al, 77                      ; byte operands, no widening
-        jne     .L179                       ; unsigned ==
+        jne     .L183                       ; unsigned ==
         mov     al, [mowad__wadHead + 1]
         cmp     al, 111                     ; byte operands, no widening
-        jne     .L179                       ; unsigned ==
+        jne     .L183                       ; unsigned ==
         mov     ax, 1
-        jmp     .L180
-.L179:
+        jmp     .L184
+.L183:
         xor     ax, ax
-.L180:
+.L184:
+        mov     [mowad__wadMoAt__ret], al   ; narrowed to bool
+        ret
+
+; ============================================== bool mowad__wadHeaded ====
+
+mowad__wadHeaded:
+; ---- local bool wadHeaded( u16 lump ) => wadMoAt( lump ) && wadCarried( wadHead[2] )
+        mov     ax, [mowad__wadHeaded__lump]
+        mov     [mowad__wadMoAt__lump], ax
+        call    mowad__wadMoAt
+        mov     al, [mowad__wadMoAt__ret]
+        xor     ah, ah                      ; bool -> u16
+        test    ax, ax
+        jz      .L187
+        mov     al, [mowad__wadHead + 2]
+        mov     [mowad__wadCarried__id], al ; u8 -> u8, no widening
+        call    mowad__wadCarried
+        mov     al, [mowad__wadCarried__ret]
+        xor     ah, ah                      ; bool -> u16
+        test    ax, ax
+        jz      .L187
+        mov     ax, 1
+        jmp     .L188
+.L187:
+        xor     ax, ax
+.L188:
         mov     [mowad__wadHeaded__ret], al ; narrowed to bool
         ret
 
@@ -1585,12 +1630,12 @@ wadRowType:
 ; ---- for ( u16 f = wadFiles_; f > 0; f-- ) {
         mov     ax, [mowad__wadFiles_]
         mov     [wadRowType__f], ax
-.L183:
+.L191:
         mov     ax, [wadRowType__f]
         test    ax, ax
-        ja      .L186                       ; unsigned >
-        jmp     .L185
-.L186:
+        ja      .L194                       ; unsigned >
+        jmp     .L193
+.L194:
 ; ---- m = wadFile[ f - 1 ].manifest
         mov     ax, [wadRowType__f]
         dec     ax
@@ -1600,15 +1645,15 @@ wadRowType:
         mov     [wadRowType__m], ax
 ; ---- if ( m == wadNone ) continue
         cmp     ax, 65535
-        jne     .L187                       ; unsigned ==
-        jmp     .L184
-.L187:
+        jne     .L195                       ; unsigned ==
+        jmp     .L192
+.L195:
 ; ---- found = false
         mov     byte [wadRowType__found], 0
 ; ---- skip = wadMoBytes
         mov     word [wadRowType__skip], 4
 ; ---- for ( ;; ) {
-.L190:
+.L198:
 ; ---- n = wadReadAt( m, skip, addr( wadStage ), wadStageRows * wadRowBytes )
         mov     ax, [wadRowType__m]
         mov     [mowad__wadReadAt__lump], ax
@@ -1622,17 +1667,17 @@ wadRowType:
         mov     [wadRowType__n], ax
 ; ---- if ( n < wadRowBytes ) break
         cmp     ax, 9
-        jae     .L193                       ; unsigned <
-        jmp     .L192
-.L193:
+        jae     .L201                       ; unsigned <
+        jmp     .L200
+.L201:
 ; ---- for ( u16 r = 0; r + wadRowBytes <= n; r += wadRowBytes ) {
         mov     word [wadRowType__r], 0
-.L196:
+.L204:
         mov     ax, [wadRowType__r]
         add     ax, 9
         mov     bx, [wadRowType__n]
         cmp     ax, bx
-        ja      .L198                       ; unsigned <=
+        ja      .L206                       ; unsigned <=
 ; ---- row = addr( wadStage ) + r
         mov     ax, mowad__wadStage         ; link-time constant
         mov     bx, [wadRowType__r]
@@ -1646,7 +1691,7 @@ wadRowType:
         mov     al, [mowad__wadSameName__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L200
+        jz      .L208
 ; ---- t = peek8( row + wadNameBytes )
         mov     ax, [wadRowType__row]
         add     ax, 8
@@ -1655,13 +1700,13 @@ wadRowType:
         mov     [wadRowType__t], al         ; u8 -> u8, no widening
 ; ---- found = true
         mov     byte [wadRowType__found], 1
-.L200:
-.L197:
+.L208:
+.L205:
         mov     ax, [wadRowType__r]
         add     ax, 9
         mov     [wadRowType__r], ax
-        jmp     .L196
-.L198:
+        jmp     .L204
+.L206:
 ; ---- skip += n
         mov     ax, [wadRowType__skip]
         mov     bx, [wadRowType__n]
@@ -1670,25 +1715,25 @@ wadRowType:
 ; ---- if ( skip < n ) break
         mov     bx, [wadRowType__n]
         cmp     ax, bx
-        jae     .L203                       ; unsigned <
-        jmp     .L192
-.L203:
-.L191:
-        jmp     .L190
-.L192:
+        jae     .L211                       ; unsigned <
+        jmp     .L200
+.L211:
+.L199:
+        jmp     .L198
+.L200:
 ; ---- if ( found ) return wadType( t )
         mov     al, [wadRowType__found]
         test    al, al
-        jz      .L206
+        jz      .L214
         mov     al, [wadRowType__t]
         xor     ah, ah                      ; u8 -> u16
         mov     [wadRowType__ret], al       ; narrowed to u8
         ret
-.L206:
-.L184:
+.L214:
+.L192:
         dec     word [wadRowType__f]
-        jmp     .L183
-.L185:
+        jmp     .L191
+.L193:
 ; ---- return wadTypeNone
         mov     byte [wadRowType__ret], 0
         ret
@@ -1705,7 +1750,7 @@ wadTypeOf:
         mov     al, [mowad__wadHeaded__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L209
+        jz      .L217
 ; ---- wadSource_ = wadFromHeader
         mov     byte [mowad__wadSource_], 1
 ; ---- wadVersion_ = wadHead[3]
@@ -1716,7 +1761,7 @@ wadTypeOf:
         xor     ah, ah                      ; u8 -> u16
         mov     [wadTypeOf__ret], al        ; narrowed to u8
         ret
-.L209:
+.L217:
 ; ---- t = wadRowType( wadName( lump ) )
         mov     ax, [wadTypeOf__lump]
         mov     [wadName__lump], ax
@@ -1729,12 +1774,12 @@ wadTypeOf:
         mov     [wadTypeOf__t], al          ; narrowed to u8
 ; ---- wadSource_ = t == wadTypeNone ? wadUntyped : wadFromManifest
         test    al, al
-        jne     .L212                       ; unsigned ==
+        jne     .L220                       ; unsigned ==
         xor     ax, ax                      ; 0
-        jmp     .L213
-.L212:
+        jmp     .L221
+.L220:
         mov     ax, 2
-.L213:
+.L221:
         mov     [mowad__wadSource_], al     ; narrowed to u8
 ; ---- return t
         mov     al, [wadTypeOf__t]
@@ -1779,9 +1824,9 @@ mowad__wadStreamFrom:
 ; ---- if ( lo < skip ) wadStrPosHi++
         mov     bx, [mowad__wadStreamFrom__skip]
         cmp     ax, bx
-        jae     .L215                       ; unsigned <
+        jae     .L223                       ; unsigned <
         inc     word [mowad__wadStrPosHi]
-.L215:
+.L223:
 ; ---- wadStrPosLo = lo
         mov     ax, [mowad__wadStreamFrom__lo]
         mov     [mowad__wadStrPosLo], ax
@@ -1794,9 +1839,9 @@ mowad__wadStreamFrom:
         mov     ax, [mowad__wadCurSizeLo]
         mov     bx, [mowad__wadStreamFrom__skip]
         cmp     ax, bx
-        jae     .L218                       ; unsigned <
+        jae     .L226                       ; unsigned <
         dec     word [mowad__wadStrLeftHi]
-.L218:
+.L226:
         ret
 
 ; ============================================== sub wadStartAs ====
@@ -1811,9 +1856,9 @@ wadStartAs:
         mov     [wadStartAs__t], al         ; narrowed to u8
 ; ---- if ( t != want ) {
         cmp     al, [wadStartAs__want]      ; byte operands, no widening
-        jne     .L223                       ; unsigned !=
-        jmp     .L221
-.L223:
+        jne     .L231                       ; unsigned !=
+        jmp     .L229
+.L231:
 ; ---- putStr( addr( wadSaysMowad ) )
         mov     ax, mowad__wadSaysMowad     ; link-time constant
         mov     [putStr__at], ax
@@ -1825,13 +1870,13 @@ wadStartAs:
 ; ---- if ( t == wadTypeNone ) {
         mov     al, [wadStartAs__t]
         test    al, al
-        jne     .L224                       ; unsigned ==
+        jne     .L232                       ; unsigned ==
 ; ---- putStr( addr( wadSaysNone ) )
         mov     ax, mowad__wadSaysNone      ; link-time constant
         mov     [putStr__at], ax
         call    putStr
-        jmp     .L225
-.L224:
+        jmp     .L233
+.L232:
 ; ---- putStr( addr( wadSaysIs ) )
         mov     ax, mowad__wadSaysIs        ; link-time constant
         mov     [putStr__at], ax
@@ -1846,15 +1891,15 @@ wadStartAs:
 ; ---- putStr( wadSource_ == wadFromHeader ? addr( wadSaysHeader ) : addr( wadSaysRow ) )
         mov     al, [mowad__wadSource_]
         cmp     al, 1                       ; byte operands, no widening
-        jne     .L227                       ; unsigned ==
+        jne     .L235                       ; unsigned ==
         mov     ax, mowad__wadSaysHeader    ; link-time constant
-        jmp     .L228
-.L227:
+        jmp     .L236
+.L235:
         mov     ax, mowad__wadSaysRow       ; link-time constant
-.L228:
+.L236:
         mov     [putStr__at], ax
         call    putStr
-.L225:
+.L233:
 ; ---- putStr( addr( wadSaysAsked ) )
         mov     ax, mowad__wadSaysAsked     ; link-time constant
         mov     [putStr__at], ax
@@ -1868,21 +1913,21 @@ wadStartAs:
         call    putStr
 ; ---- wadStop()
         call    mowad__wadStop
-.L221:
+.L229:
 ; ---- if ( version != 0 && wadSource_ == wadFromHeader && wadVersion_ != version ) {
         mov     al, [wadStartAs__version]
         test    al, al
-        jne     .L232                       ; unsigned !=
-        jmp     .L230
-.L232:
+        jne     .L240                       ; unsigned !=
+        jmp     .L238
+.L240:
         mov     al, [mowad__wadSource_]
         cmp     al, 1                       ; byte operands, no widening
-        je      .L233                       ; unsigned ==
-        jmp     .L230
-.L233:
+        je      .L241                       ; unsigned ==
+        jmp     .L238
+.L241:
         mov     al, [mowad__wadVersion_]
         cmp     al, [wadStartAs__version]   ; byte operands, no widening
-        je      .L230                       ; unsigned !=
+        je      .L238                       ; unsigned !=
 ; ---- putStr( addr( wadSaysMowad ) )
         mov     ax, mowad__wadSaysMowad     ; link-time constant
         mov     [putStr__at], ax
@@ -1915,18 +1960,18 @@ wadStartAs:
         call    putNumber
 ; ---- wadStop()
         call    mowad__wadStop
-.L230:
+.L238:
 ; ---- wadStreamFrom( lump, wadSource_ == wadFromHeader ? wadMoBytes : 0 )
         mov     ax, [wadStartAs__lump]
         mov     [mowad__wadStreamFrom__lump], ax
         mov     al, [mowad__wadSource_]
         cmp     al, 1                       ; byte operands, no widening
-        jne     .L235                       ; unsigned ==
+        jne     .L243                       ; unsigned ==
         mov     ax, 4
-        jmp     .L236
-.L235:
+        jmp     .L244
+.L243:
         xor     ax, ax                      ; 0
-.L236:
+.L244:
         mov     [mowad__wadStreamFrom__skip], ax
         call    mowad__wadStreamFrom
         mov     byte [wadStartAs__version], 0; defaults restored on the way out
@@ -1938,21 +1983,21 @@ wadNext:
 ; ---- if ( wadStrLeftHi == 0 && count > wadStrLeftLo ) count = wadStrLeftLo
         mov     ax, [mowad__wadStrLeftHi]
         test    ax, ax
-        jne     .L238                       ; unsigned ==
+        jne     .L246                       ; unsigned ==
         mov     ax, [wadNext__count]
         mov     bx, [mowad__wadStrLeftLo]
         cmp     ax, bx
-        jbe     .L238                       ; unsigned >
+        jbe     .L246                       ; unsigned >
         mov     ax, [mowad__wadStrLeftLo]
         mov     [wadNext__count], ax
-.L238:
+.L246:
 ; ---- if ( count == 0 ) return 0
         mov     ax, [wadNext__count]
         test    ax, ax
-        jne     .L242                       ; unsigned ==
+        jne     .L250                       ; unsigned ==
         mov     word [wadNext__ret], 0
         ret
-.L242:
+.L250:
 ; ---- fileSeek( wadStrHandle, fileFromStart, wadStrPosHi, wadStrPosLo )
         mov     ax, [mowad__wadStrHandle]
         mov     [fileSeek__handle], ax
@@ -1980,9 +2025,9 @@ wadNext:
 ; ---- if ( lo < n ) wadStrPosHi++
         mov     bx, [wadNext__n]
         cmp     ax, bx
-        jae     .L245                       ; unsigned <
+        jae     .L253                       ; unsigned <
         inc     word [mowad__wadStrPosHi]
-.L245:
+.L253:
 ; ---- wadStrPosLo = lo
         mov     ax, [wadNext__lo]
         mov     [mowad__wadStrPosLo], ax
@@ -1990,9 +2035,9 @@ wadNext:
         mov     ax, [mowad__wadStrLeftLo]
         mov     bx, [wadNext__n]
         cmp     ax, bx
-        jae     .L248                       ; unsigned <
+        jae     .L256                       ; unsigned <
         dec     word [mowad__wadStrLeftHi]
-.L248:
+.L256:
 ; ---- wadStrLeftLo -= n
         mov     ax, [mowad__wadStrLeftLo]
         mov     bx, [wadNext__n]
@@ -2019,88 +2064,88 @@ moinfo__takeTail:
 ; ---- mode = infoFull
         mov     byte [moinfo__mode], 0
 ; ---- while ( n > 0 ) {
-.L251:
+.L259:
         mov     ax, [moinfo__takeTail__n]
         test    ax, ax
-        ja      .L254                       ; unsigned >
-        jmp     .L253
-.L254:
+        ja      .L262                       ; unsigned >
+        jmp     .L261
+.L262:
 ; ---- while ( n > 0 && peek8( at ) == ' ' ) {
-.L255:
+.L263:
         mov     ax, [moinfo__takeTail__n]
         test    ax, ax
-        jbe     .L257                       ; unsigned >
+        jbe     .L265                       ; unsigned >
         mov     ax, [moinfo__takeTail__at]
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
         cmp     al, 32                      ; byte operands, no widening
-        jne     .L257                       ; unsigned ==
+        jne     .L265                       ; unsigned ==
 ; ---- at++
         inc     word [moinfo__takeTail__at]
 ; ---- n--
         dec     word [moinfo__takeTail__n]
-.L256:
-        jmp     .L255
-.L257:
+.L264:
+        jmp     .L263
+.L265:
 ; ---- if ( n == 0 || peek8( at ) == 13 ) return
         mov     ax, [moinfo__takeTail__n]
         test    ax, ax
-        je      .L262                       ; unsigned ==
+        je      .L270                       ; unsigned ==
         mov     ax, [moinfo__takeTail__at]
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
         cmp     al, 13                      ; byte operands, no widening
-        jne     .L260                       ; unsigned ==
-.L262:
+        jne     .L268                       ; unsigned ==
+.L270:
         ret
-.L260:
+.L268:
 ; ---- w = 0
         mov     word [moinfo__takeTail__w], 0
 ; ---- while ( w < n && peek8( at + w ) != ' ' && peek8( at + w ) != 13 ) {
-.L265:
+.L273:
         mov     ax, [moinfo__takeTail__w]
         mov     bx, [moinfo__takeTail__n]
         cmp     ax, bx
-        jae     .L267                       ; unsigned <
+        jae     .L275                       ; unsigned <
         mov     ax, [moinfo__takeTail__at]
         mov     bx, [moinfo__takeTail__w]
         add     ax, bx
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
         cmp     al, 32                      ; byte operands, no widening
-        je      .L267                       ; unsigned !=
+        je      .L275                       ; unsigned !=
         mov     ax, [moinfo__takeTail__at]
         mov     bx, [moinfo__takeTail__w]
         add     ax, bx
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
         cmp     al, 13                      ; byte operands, no widening
-        je      .L267                       ; unsigned !=
+        je      .L275                       ; unsigned !=
 ; ---- w++
         inc     word [moinfo__takeTail__w]
-.L266:
-        jmp     .L265
-.L267:
+.L274:
+        jmp     .L273
+.L275:
 ; ---- if ( peek8( at ) == '/' ) {
         mov     ax, [moinfo__takeTail__at]
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
         cmp     al, 47                      ; byte operands, no widening
-        jne     .L271                       ; unsigned ==
+        jne     .L279                       ; unsigned ==
 ; ---- takeSwitch( at, w )
         mov     ax, [moinfo__takeTail__at]
         mov     [moinfo__takeSwitch__at], ax
         mov     ax, [moinfo__takeTail__w]
         mov     [moinfo__takeSwitch__w], ax
         call    moinfo__takeSwitch
-        jmp     .L272
-.L271:
+        jmp     .L280
+.L279:
 ; ---- } else if ( pathCount < wadMaxFiles ) {
         mov     ax, [moinfo__pathCount]
         cmp     ax, 4
-        jb      .L276                       ; unsigned <
-        jmp     .L274
-.L276:
+        jb      .L284                       ; unsigned <
+        jmp     .L282
+.L284:
 ; ---- to = pathOf( pathCount )
         mov     ax, [moinfo__pathCount]
         mov     [moinfo__pathOf__f], ax
@@ -2110,20 +2155,20 @@ moinfo__takeTail:
 ; ---- keep = w < pathRoom - 1 ? w : pathRoom - 1
         mov     ax, [moinfo__takeTail__w]
         cmp     ax, 79
-        jae     .L277                       ; unsigned <
+        jae     .L285                       ; unsigned <
         mov     ax, [moinfo__takeTail__w]
-        jmp     .L278
-.L277:
+        jmp     .L286
+.L285:
         mov     ax, 79
-.L278:
+.L286:
         mov     [moinfo__takeTail__keep], ax
 ; ---- for ( u16 k = 0; k < keep; k++ ) {
         mov     word [moinfo__takeTail__k], 0
-.L280:
+.L288:
         mov     ax, [moinfo__takeTail__k]
         mov     bx, [moinfo__takeTail__keep]
         cmp     ax, bx
-        jae     .L282                       ; unsigned <
+        jae     .L290                       ; unsigned <
 ; ---- poke8( to + k, peek8( at + k ) )
         mov     ax, [moinfo__takeTail__to]
         mov     bx, [moinfo__takeTail__k]
@@ -2136,10 +2181,10 @@ moinfo__takeTail:
         mov     al, [bx]                    ; peek8 - unchecked, by design
         pop     bx
         mov     [bx], al
-.L281:
+.L289:
         inc     word [moinfo__takeTail__k]
-        jmp     .L280
-.L282:
+        jmp     .L288
+.L290:
 ; ---- poke8( to + keep, 0 )
         mov     ax, [moinfo__takeTail__to]
         mov     bx, [moinfo__takeTail__keep]
@@ -2148,8 +2193,8 @@ moinfo__takeTail:
         mov     byte [bx], 0
 ; ---- pathCount++
         inc     word [moinfo__pathCount]
-.L274:
-.L272:
+.L282:
+.L280:
 ; ---- at += w
         mov     ax, [moinfo__takeTail__at]
         mov     bx, [moinfo__takeTail__w]
@@ -2160,9 +2205,9 @@ moinfo__takeTail:
         mov     bx, [moinfo__takeTail__w]
         sub     ax, bx
         mov     [moinfo__takeTail__n], ax
-.L252:
-        jmp     .L251
-.L253:
+.L260:
+        jmp     .L259
+.L261:
         ret
 
 ; ============================================== sub moinfo__takeSwitch ====
@@ -2173,7 +2218,7 @@ moinfo__takeSwitch:
 ; ---- if ( w == 2 ) ch = peek8( at + 1 ) | 0x20
         mov     ax, [moinfo__takeSwitch__w]
         cmp     ax, 2
-        jne     .L284                       ; unsigned ==
+        jne     .L292                       ; unsigned ==
         mov     ax, [moinfo__takeSwitch__at]
         inc     ax
         mov     bx, ax
@@ -2181,34 +2226,34 @@ moinfo__takeSwitch:
         xor     ah, ah                      ; u8 -> u16
         or      ax, 32
         mov     [moinfo__takeSwitch__ch], al; narrowed to u8
-.L284:
+.L292:
 ; ---- if ( ch == 's' ) {
         mov     al, [moinfo__takeSwitch__ch]
         cmp     al, 115                     ; byte operands, no widening
-        jne     .L287                       ; unsigned ==
+        jne     .L295                       ; unsigned ==
 ; ---- want = infoSummary
         mov     byte [moinfo__takeSwitch__want], 1
-        jmp     .L288
-.L287:
+        jmp     .L296
+.L295:
 ; ---- } else if ( ch == 'l' ) {
         mov     al, [moinfo__takeSwitch__ch]
         cmp     al, 108                     ; byte operands, no widening
-        jne     .L290                       ; unsigned ==
+        jne     .L298                       ; unsigned ==
 ; ---- want = infoListing
         mov     byte [moinfo__takeSwitch__want], 2
-        jmp     .L291
-.L290:
+        jmp     .L299
+.L298:
 ; ---- putStr( addr( sTool ) )
         mov     ax, moinfo__sTool           ; link-time constant
         mov     [putStr__at], ax
         call    putStr
 ; ---- for ( u16 k = 0; k < w; k++ ) {
         mov     word [moinfo__takeSwitch__k], 0
-.L293:
+.L301:
         mov     ax, [moinfo__takeSwitch__k]
         mov     bx, [moinfo__takeSwitch__w]
         cmp     ax, bx
-        jae     .L295                       ; unsigned <
+        jae     .L303                       ; unsigned <
 ; ---- putChar( peek8( at + k ) )
         mov     ax, [moinfo__takeSwitch__at]
         mov     bx, [moinfo__takeSwitch__k]
@@ -2217,25 +2262,25 @@ moinfo__takeSwitch:
         mov     al, [bx]                    ; peek8 - unchecked, by design
         mov     [putChar__c], al            ; u8 -> u8, no widening
         call    putChar
-.L294:
+.L302:
         inc     word [moinfo__takeSwitch__k]
-        jmp     .L293
-.L295:
+        jmp     .L301
+.L303:
 ; ---- putStr( addr( sNotSwitch ) )
         mov     ax, moinfo__sNotSwitch      ; link-time constant
         mov     [putStr__at], ax
         call    putStr
 ; ---- refuse()
         call    moinfo__refuse
-.L291:
-.L288:
+.L299:
+.L296:
 ; ---- if ( mode != infoFull && mode != want ) {
         mov     al, [moinfo__mode]
         test    al, al
-        je      .L297                       ; unsigned !=
+        je      .L305                       ; unsigned !=
         mov     al, [moinfo__mode]
         cmp     al, [moinfo__takeSwitch__want]; byte operands, no widening
-        je      .L297                       ; unsigned !=
+        je      .L305                       ; unsigned !=
 ; ---- putStr( addr( sTool ) )
         mov     ax, moinfo__sTool           ; link-time constant
         mov     [putStr__at], ax
@@ -2246,7 +2291,7 @@ moinfo__takeSwitch:
         call    putStr
 ; ---- refuse()
         call    moinfo__refuse
-.L297:
+.L305:
 ; ---- mode = want
         mov     al, [moinfo__takeSwitch__want]
         mov     [moinfo__mode], al          ; u8 -> u8, no widening
@@ -2318,22 +2363,22 @@ moinfo__putPath:
         call    moinfo__pathOf
         mov     ax, [moinfo__pathOf__ret]
         mov     [moinfo__putPath__at], ax
-.L301:
+.L309:
         mov     ax, [moinfo__putPath__at]
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
         test    al, al
-        je      .L303                       ; unsigned !=
+        je      .L311                       ; unsigned !=
 ; ---- putChar( peek8( at ) )
         mov     ax, [moinfo__putPath__at]
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
         mov     [putChar__c], al            ; u8 -> u8, no widening
         call    putChar
-.L302:
+.L310:
         inc     word [moinfo__putPath__at]
-        jmp     .L301
-.L303:
+        jmp     .L309
+.L311:
         ret
 
 ; ============================================== sub moinfo__add32 ====
@@ -2352,12 +2397,12 @@ moinfo__add32:
         mov     ax, [moinfo__sumLo]
         mov     bx, [moinfo__add32__aLo]
         cmp     ax, bx
-        jae     .L305                       ; unsigned <
+        jae     .L313                       ; unsigned <
         mov     ax, 1
-        jmp     .L306
-.L305:
+        jmp     .L314
+.L313:
         xor     ax, ax
-.L306:
+.L314:
         mov     bx, ax
         pop     ax
         add     ax, bx
@@ -2380,12 +2425,12 @@ moinfo__sub32:
         mov     ax, [moinfo__sub32__aLo]
         mov     bx, [moinfo__sub32__bLo]
         cmp     ax, bx
-        jae     .L308                       ; unsigned <
+        jae     .L316                       ; unsigned <
         mov     ax, 1
-        jmp     .L309
-.L308:
+        jmp     .L317
+.L316:
         xor     ax, ax
-.L309:
+.L317:
         mov     bx, ax
         pop     ax
         sub     ax, bx
@@ -2399,21 +2444,21 @@ moinfo__below32:
         mov     ax, [moinfo__below32__aHi]
         mov     bx, [moinfo__below32__bHi]
         cmp     ax, bx
-        jb      .L313                       ; unsigned <
+        jb      .L321                       ; unsigned <
         mov     ax, [moinfo__below32__aHi]
         mov     bx, [moinfo__below32__bHi]
         cmp     ax, bx
-        jne     .L311                       ; unsigned ==
+        jne     .L319                       ; unsigned ==
         mov     ax, [moinfo__below32__aLo]
         mov     bx, [moinfo__below32__bLo]
         cmp     ax, bx
-        jae     .L311                       ; unsigned <
-.L313:
+        jae     .L319                       ; unsigned <
+.L321:
         mov     ax, 1
-        jmp     .L312
-.L311:
+        jmp     .L320
+.L319:
         xor     ax, ax
-.L312:
+.L320:
         mov     [moinfo__below32__ret], al  ; narrowed to bool
         ret
 
@@ -2423,7 +2468,7 @@ moinfo__text32:
 ; ---- n = 0
         mov     word [moinfo__text32__n], 0
 ; ---- for ( ;; ) {
-.L317:
+.L325:
 ; ---- r = hi % 10
         mov     ax, [moinfo__text32__hi]
         mov     bx, 10
@@ -2501,22 +2546,22 @@ moinfo__text32:
 ; ---- if ( hi == 0 && lo == 0 ) break
         mov     ax, [moinfo__text32__hi]
         test    ax, ax
-        jne     .L320                       ; unsigned ==
+        jne     .L328                       ; unsigned ==
         mov     ax, [moinfo__text32__lo]
         test    ax, ax
-        jne     .L320                       ; unsigned ==
-        jmp     .L319
-.L320:
-.L318:
-        jmp     .L317
-.L319:
+        jne     .L328                       ; unsigned ==
+        jmp     .L327
+.L328:
+.L326:
+        jmp     .L325
+.L327:
 ; ---- for ( u16 i = 0; i < n; i++ ) {
         mov     word [moinfo__text32__i], 0
-.L324:
+.L332:
         mov     ax, [moinfo__text32__i]
         mov     bx, [moinfo__text32__n]
         cmp     ax, bx
-        jae     .L326                       ; unsigned <
+        jae     .L334                       ; unsigned <
 ; ---- poke8( at + i, digits[ n - 1 - i ] )
         mov     ax, [moinfo__text32__at]
         mov     bx, [moinfo__text32__i]
@@ -2530,10 +2575,10 @@ moinfo__text32:
         mov     al, [moinfo__digits + bx]
         pop     bx
         mov     [bx], al
-.L325:
+.L333:
         inc     word [moinfo__text32__i]
-        jmp     .L324
-.L326:
+        jmp     .L332
+.L334:
 ; ---- return n
         mov     ax, [moinfo__text32__n]
         mov     [moinfo__text32__ret], ax
@@ -2554,21 +2599,21 @@ moinfo__put32:
         mov     [moinfo__put32__n], ax
 ; ---- for ( u16 i = 0; i < n; i++ ) {
         mov     word [moinfo__put32__i], 0
-.L328:
+.L336:
         mov     ax, [moinfo__put32__i]
         mov     bx, [moinfo__put32__n]
         cmp     ax, bx
-        jae     .L330                       ; unsigned <
+        jae     .L338                       ; unsigned <
 ; ---- putChar( numBuf[i] )
         mov     ax, [moinfo__put32__i]
         mov     bx, ax
         mov     al, [moinfo__numBuf + bx]
         mov     [putChar__c], al            ; u8 -> u8, no widening
         call    putChar
-.L329:
+.L337:
         inc     word [moinfo__put32__i]
-        jmp     .L328
-.L330:
+        jmp     .L336
+.L338:
         ret
 
 ; ============================================== sub moinfo__spaces ====
@@ -2576,17 +2621,17 @@ moinfo__put32:
 moinfo__spaces:
 ; ---- for ( u16 i = 0; i < n; i++ ) {
         mov     word [moinfo__spaces__i], 0
-.L332:
+.L340:
         mov     ax, [moinfo__spaces__i]
         mov     bx, [moinfo__spaces__n]
         cmp     ax, bx
-        jae     .L334                       ; unsigned <
+        jae     .L342                       ; unsigned <
 ; ---- space()
         call    space
-.L333:
+.L341:
         inc     word [moinfo__spaces__i]
-        jmp     .L332
-.L334:
+        jmp     .L340
+.L342:
         ret
 
 ; ============================================== sub moinfo__right32 ====
@@ -2605,30 +2650,30 @@ moinfo__right32:
 ; ---- if ( n < width ) spaces( width - n )
         mov     bx, [moinfo__right32__width]
         cmp     ax, bx
-        jae     .L336                       ; unsigned <
+        jae     .L344                       ; unsigned <
         mov     ax, [moinfo__right32__width]
         mov     bx, [moinfo__right32__n]
         sub     ax, bx
         mov     [moinfo__spaces__n], ax
         call    moinfo__spaces
-.L336:
+.L344:
 ; ---- for ( u16 i = 0; i < n; i++ ) {
         mov     word [moinfo__right32__i], 0
-.L339:
+.L347:
         mov     ax, [moinfo__right32__i]
         mov     bx, [moinfo__right32__n]
         cmp     ax, bx
-        jae     .L341                       ; unsigned <
+        jae     .L349                       ; unsigned <
 ; ---- putChar( numBuf[i] )
         mov     ax, [moinfo__right32__i]
         mov     bx, ax
         mov     al, [moinfo__numBuf + bx]
         mov     [putChar__c], al            ; u8 -> u8, no widening
         call    putChar
-.L340:
+.L348:
         inc     word [moinfo__right32__i]
-        jmp     .L339
-.L341:
+        jmp     .L347
+.L349:
         ret
 
 ; ============================================== sub moinfo__right16 ====
@@ -2649,10 +2694,10 @@ moinfo__nameLen:
 ; ---- n = 0
         mov     word [moinfo__nameLen__n], 0
 ; ---- while ( n < wadNameBytes && peek8( wadName( lump ) + n ) != 0 ) {
-.L343:
+.L351:
         mov     ax, [moinfo__nameLen__n]
         cmp     ax, 8
-        jae     .L345                       ; unsigned <
+        jae     .L353                       ; unsigned <
         mov     ax, [moinfo__nameLen__lump]
         mov     [wadName__lump], ax
         call    wadName
@@ -2662,12 +2707,12 @@ moinfo__nameLen:
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
         test    al, al
-        je      .L345                       ; unsigned !=
+        je      .L353                       ; unsigned !=
 ; ---- n++
         inc     word [moinfo__nameLen__n]
-.L344:
-        jmp     .L343
-.L345:
+.L352:
+        jmp     .L351
+.L353:
 ; ---- return n
         mov     ax, [moinfo__nameLen__n]
         mov     [moinfo__nameLen__ret], ax
@@ -2701,13 +2746,13 @@ moinfo__putEntry:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jne     .L348                       ; unsigned ==
+        jne     .L356                       ; unsigned ==
 ; ---- putStr( addr( sDirIs ) )
         mov     ax, moinfo__sDirIs          ; link-time constant
         mov     [putStr__at], ax
         call    putStr
-        jmp     .L349
-.L348:
+        jmp     .L357
+.L356:
 ; ---- wadPutName( wadFileBase( f ) + e )
         mov     ax, [moinfo__putEntry__f]
         mov     [wadFileBase__f], ax
@@ -2717,7 +2762,7 @@ moinfo__putEntry:
         add     ax, bx
         mov     [wadPutName__lump], ax
         call    wadPutName
-.L349:
+.L357:
         ret
 
 ; ============================================== bool moinfo__before ====
@@ -2726,9 +2771,9 @@ moinfo__before:
 ; ---- if ( byName ) {
         mov     al, [moinfo__byName]
         test    al, al
-        jnz     .L353
-        jmp     .L351
-.L353:
+        jnz     .L361
+        jmp     .L359
+.L361:
 ; ---- na = wadName( a )
         mov     ax, [moinfo__before__a]
         mov     [wadName__lump], ax
@@ -2743,12 +2788,12 @@ moinfo__before:
         mov     [moinfo__before__nb], ax
 ; ---- for ( u16 k = 0; k < wadNameBytes; k += 2 ) {
         mov     word [moinfo__before__k], 0
-.L354:
+.L362:
         mov     ax, [moinfo__before__k]
         cmp     ax, 8
-        jb      .L357                       ; unsigned <
-        jmp     .L356
-.L357:
+        jb      .L365                       ; unsigned <
+        jmp     .L364
+.L365:
 ; ---- if ( peek16( na + k ) != peek16( nb + k ) ) return peek16( na + k ) < peek16( nb + k )
         mov     ax, [moinfo__before__na]
         mov     bx, [moinfo__before__k]
@@ -2764,7 +2809,7 @@ moinfo__before:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        je      .L358                       ; unsigned !=
+        je      .L366                       ; unsigned !=
         mov     ax, [moinfo__before__na]
         mov     bx, [moinfo__before__k]
         add     ax, bx
@@ -2779,23 +2824,23 @@ moinfo__before:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jae     .L361                       ; unsigned <
+        jae     .L369                       ; unsigned <
         mov     ax, 1
-        jmp     .L362
-.L361:
+        jmp     .L370
+.L369:
         xor     ax, ax
-.L362:
+.L370:
         mov     [moinfo__before__ret], al   ; narrowed to bool
         ret
-.L358:
-.L355:
+.L366:
+.L363:
         mov     ax, [moinfo__before__k]
         add     ax, 2
         mov     [moinfo__before__k], ax
-        jmp     .L354
-.L356:
-        jmp     .L352
-.L351:
+        jmp     .L362
+.L364:
+        jmp     .L360
+.L359:
 ; ---- if ( posHi[a] != posHi[b] ) return posHi[a] < posHi[b]
         mov     ax, [moinfo__before__a]
         shl     ax, 1                       ; word elements
@@ -2813,7 +2858,7 @@ moinfo__before:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        je      .L364                       ; unsigned !=
+        je      .L372                       ; unsigned !=
         mov     ax, [moinfo__before__a]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -2830,15 +2875,15 @@ moinfo__before:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jae     .L367                       ; unsigned <
+        jae     .L375                       ; unsigned <
         mov     ax, 1
-        jmp     .L368
-.L367:
+        jmp     .L376
+.L375:
         xor     ax, ax
-.L368:
+.L376:
         mov     [moinfo__before__ret], al   ; narrowed to bool
         ret
-.L364:
+.L372:
 ; ---- if ( posLo[a] != posLo[b] ) return posLo[a] < posLo[b]
         mov     ax, [moinfo__before__a]
         shl     ax, 1                       ; word elements
@@ -2856,7 +2901,7 @@ moinfo__before:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        je      .L370                       ; unsigned !=
+        je      .L378                       ; unsigned !=
         mov     ax, [moinfo__before__a]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -2873,26 +2918,26 @@ moinfo__before:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jae     .L373                       ; unsigned <
+        jae     .L381                       ; unsigned <
         mov     ax, 1
-        jmp     .L374
-.L373:
+        jmp     .L382
+.L381:
         xor     ax, ax
-.L374:
+.L382:
         mov     [moinfo__before__ret], al   ; narrowed to bool
         ret
-.L370:
-.L352:
+.L378:
+.L360:
 ; ---- return a < b
         mov     ax, [moinfo__before__a]
         mov     bx, [moinfo__before__b]
         cmp     ax, bx
-        jae     .L376                       ; unsigned <
+        jae     .L384                       ; unsigned <
         mov     ax, 1
-        jmp     .L377
-.L376:
+        jmp     .L385
+.L384:
         xor     ax, ax
-.L377:
+.L385:
         mov     [moinfo__before__ret], al   ; narrowed to bool
         ret
 
@@ -2902,7 +2947,7 @@ moinfo__sortOrder:
 ; ---- gap = 1
         mov     word [moinfo__sortOrder__gap], 1
 ; ---- while ( gap < n / 3 ) {
-.L379:
+.L387:
         mov     ax, [moinfo__sortOrder__gap]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [moinfo__sortOrder__n]
@@ -2912,33 +2957,33 @@ moinfo__sortOrder:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jae     .L381                       ; unsigned <
+        jae     .L389                       ; unsigned <
 ; ---- gap = gap * 3 + 1
         mov     ax, [moinfo__sortOrder__gap]
         mov     bx, 3
         mul     bx                          ; low 16 bits are sign-agnostic
         inc     ax
         mov     [moinfo__sortOrder__gap], ax
-.L380:
-        jmp     .L379
-.L381:
+.L388:
+        jmp     .L387
+.L389:
 ; ---- while ( gap > 0 ) {
-.L383:
+.L391:
         mov     ax, [moinfo__sortOrder__gap]
         test    ax, ax
-        ja      .L386                       ; unsigned >
-        jmp     .L385
-.L386:
+        ja      .L394                       ; unsigned >
+        jmp     .L393
+.L394:
 ; ---- for ( u16 i = gap; i < n; i++ ) {
         mov     ax, [moinfo__sortOrder__gap]
         mov     [moinfo__sortOrder__i], ax
-.L387:
+.L395:
         mov     ax, [moinfo__sortOrder__i]
         mov     bx, [moinfo__sortOrder__n]
         cmp     ax, bx
-        jb      .L390                       ; unsigned <
-        jmp     .L389
-.L390:
+        jb      .L398                       ; unsigned <
+        jmp     .L397
+.L398:
 ; ---- v = order[i]
         mov     ax, [moinfo__sortOrder__i]
         shl     ax, 1                       ; word elements
@@ -2951,13 +2996,13 @@ moinfo__sortOrder:
         mov     ax, [moinfo__sortOrder__i]
         mov     [moinfo__sortOrder__j], ax
 ; ---- while ( j >= gap && before( v, order[ j - gap ] ) ) {
-.L391:
+.L399:
         mov     ax, [moinfo__sortOrder__j]
         mov     bx, [moinfo__sortOrder__gap]
         cmp     ax, bx
-        jae     .L394                       ; unsigned >=
-        jmp     .L393
-.L394:
+        jae     .L402                       ; unsigned >=
+        jmp     .L401
+.L402:
         mov     ax, [moinfo__sortOrder__v]
         mov     [moinfo__before__a], ax
         mov     ax, [moinfo__sortOrder__j]
@@ -2973,7 +3018,7 @@ moinfo__sortOrder:
         mov     al, [moinfo__before__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L393
+        jz      .L401
 ; ---- order[j] = order[ j - gap ]
         mov     ax, [moinfo__sortOrder__j]
         mov     bx, [moinfo__sortOrder__gap]
@@ -2993,9 +3038,9 @@ moinfo__sortOrder:
         mov     bx, [moinfo__sortOrder__gap]
         sub     ax, bx
         mov     [moinfo__sortOrder__j], ax
-.L392:
-        jmp     .L391
-.L393:
+.L400:
+        jmp     .L399
+.L401:
 ; ---- order[j] = v
         mov     ax, [moinfo__sortOrder__v]
         mov     bx, [moinfo__sortOrder__j]
@@ -3003,19 +3048,19 @@ moinfo__sortOrder:
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__order
         mov     es, dx
         mov     [es:bx], ax
-.L388:
+.L396:
         inc     word [moinfo__sortOrder__i]
-        jmp     .L387
-.L389:
+        jmp     .L395
+.L397:
 ; ---- gap /= 3
         mov     ax, [moinfo__sortOrder__gap]
         mov     bx, 3
         xor     dx, dx                      ; clear high half for div
         div     bx
         mov     [moinfo__sortOrder__gap], ax
-.L384:
-        jmp     .L383
-.L385:
+.L392:
+        jmp     .L391
+.L393:
         ret
 
 ; ============================================== sub moinfo__checkFile ====
@@ -3049,13 +3094,13 @@ moinfo__checkFile:
         mov     word [moinfo__checkFile__manifests], 0
 ; ---- for ( u16 i = 0; i < lumps; i++ ) {
         mov     word [moinfo__checkFile__i], 0
-.L396:
+.L404:
         mov     ax, [moinfo__checkFile__i]
         mov     bx, [moinfo__checkFile__lumps]
         cmp     ax, bx
-        jb      .L399                       ; unsigned <
-        jmp     .L398
-.L399:
+        jb      .L407                       ; unsigned <
+        jmp     .L406
+.L407:
 ; ---- order[i] = i
         mov     ax, [moinfo__checkFile__i]
         mov     bx, [moinfo__checkFile__i]
@@ -3120,9 +3165,9 @@ moinfo__checkFile:
         mov     al, [moinfo__isTypes__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L400
+        jz      .L408
         inc     word [moinfo__checkFile__manifests]
-.L400:
+.L408:
 ; ---- if ( sizeHi[i] == 0 && sizeLo[i] == 0 ) continue
         mov     ax, [moinfo__checkFile__i]
         shl     ax, 1                       ; word elements
@@ -3131,7 +3176,7 @@ moinfo__checkFile:
         mov     es, dx
         mov     ax, [es:bx + 18438]
         test    ax, ax
-        jne     .L403                       ; unsigned ==
+        jne     .L411                       ; unsigned ==
         mov     ax, [moinfo__checkFile__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -3139,9 +3184,9 @@ moinfo__checkFile:
         mov     es, dx
         mov     ax, [es:bx + 24584]
         test    ax, ax
-        jne     .L403                       ; unsigned ==
-        jmp     .L397
-.L403:
+        jne     .L411                       ; unsigned ==
+        jmp     .L405
+.L411:
 ; ---- add32( posHi[i], posLo[i], sizeHi[i], sizeLo[i] )
         mov     ax, [moinfo__checkFile__i]
         shl     ax, 1                       ; word elements
@@ -3184,7 +3229,7 @@ moinfo__checkFile:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L409                       ; unsigned <
+        jb      .L417                       ; unsigned <
         mov     ax, [moinfo__checkFile__endHi]
         mov     [moinfo__below32__aHi], ax
         mov     ax, [moinfo__checkFile__endLo]
@@ -3197,10 +3242,10 @@ moinfo__checkFile:
         mov     al, [moinfo__below32__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jnz     .L411
-        jmp     .L407
-.L411:
-.L409:
+        jnz     .L419
+        jmp     .L415
+.L419:
+.L417:
 ; ---- findingIn( f )
         mov     ax, [moinfo__checkFile__f]
         mov     [moinfo__findingIn__f], ax
@@ -3257,15 +3302,15 @@ moinfo__checkFile:
         call    putStr
 ; ---- newline()
         call    newline
-.L407:
-.L397:
+.L415:
+.L405:
         inc     word [moinfo__checkFile__i]
-        jmp     .L396
-.L398:
+        jmp     .L404
+.L406:
 ; ---- if ( manifests > 1 ) {
         mov     ax, [moinfo__checkFile__manifests]
         cmp     ax, 1
-        jbe     .L412                       ; unsigned >
+        jbe     .L420                       ; unsigned >
 ; ---- findingIn( f )
         mov     ax, [moinfo__checkFile__f]
         mov     [moinfo__findingIn__f], ax
@@ -3280,7 +3325,7 @@ moinfo__checkFile:
         call    putStr
 ; ---- newline()
         call    newline
-.L412:
+.L420:
 ; ---- order[lumps] = lumps
         mov     ax, [moinfo__checkFile__lumps]
         mov     bx, [moinfo__checkFile__lumps]
@@ -3339,13 +3384,13 @@ moinfo__checkFile:
         mov     word [moinfo__checkFile__owner], 65535
 ; ---- for ( u16 k = 0; k <= lumps; k++ ) {
         mov     word [moinfo__checkFile__k], 0
-.L415:
+.L423:
         mov     ax, [moinfo__checkFile__k]
         mov     bx, [moinfo__checkFile__lumps]
         cmp     ax, bx
-        jbe     .L418                       ; unsigned <=
-        jmp     .L417
-.L418:
+        jbe     .L426                       ; unsigned <=
+        jmp     .L425
+.L426:
 ; ---- e = order[k]
         mov     ax, [moinfo__checkFile__k]
         shl     ax, 1                       ; word elements
@@ -3361,7 +3406,7 @@ moinfo__checkFile:
         mov     es, dx
         mov     ax, [es:bx + 18438]
         test    ax, ax
-        jne     .L419                       ; unsigned ==
+        jne     .L427                       ; unsigned ==
         mov     ax, [moinfo__checkFile__e]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -3369,9 +3414,9 @@ moinfo__checkFile:
         mov     es, dx
         mov     ax, [es:bx + 24584]
         test    ax, ax
-        jne     .L419                       ; unsigned ==
-        jmp     .L416
-.L419:
+        jne     .L427                       ; unsigned ==
+        jmp     .L424
+.L427:
 ; ---- if ( !below32( posHi[e], posLo[e], endHi, endLo ) ) continue
         mov     ax, [moinfo__checkFile__e]
         shl     ax, 1                       ; word elements
@@ -3395,9 +3440,9 @@ moinfo__checkFile:
         mov     al, [moinfo__below32__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jnz     .L423
-        jmp     .L416
-.L423:
+        jnz     .L431
+        jmp     .L424
+.L431:
 ; ---- if ( below32( posHi[e], posLo[e], reachHi, reachLo ) ) {
         mov     ax, [moinfo__checkFile__e]
         shl     ax, 1                       ; word elements
@@ -3421,9 +3466,9 @@ moinfo__checkFile:
         mov     al, [moinfo__below32__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jnz     .L428
-        jmp     .L426
-.L428:
+        jnz     .L436
+        jmp     .L434
+.L436:
 ; ---- findingIn( f )
         mov     ax, [moinfo__checkFile__f]
         mov     [moinfo__findingIn__f], ax
@@ -3461,24 +3506,24 @@ moinfo__checkFile:
 ; ---- if ( owner == wadNone ) {
         mov     ax, [moinfo__checkFile__owner]
         cmp     ax, 65535
-        jne     .L429                       ; unsigned ==
+        jne     .L437                       ; unsigned ==
 ; ---- putStr( addr( sHeaderIs ) )
         mov     ax, moinfo__sHeaderIs       ; link-time constant
         mov     [putStr__at], ax
         call    putStr
-        jmp     .L430
-.L429:
+        jmp     .L438
+.L437:
 ; ---- putEntry( f, owner )
         mov     ax, [moinfo__checkFile__f]
         mov     [moinfo__putEntry__f], ax
         mov     ax, [moinfo__checkFile__owner]
         mov     [moinfo__putEntry__e], ax
         call    moinfo__putEntry
-.L430:
+.L438:
 ; ---- newline()
         call    newline
-        jmp     .L427
-.L426:
+        jmp     .L435
+.L434:
 ; ---- } else if ( below32( reachHi, reachLo, posHi[e], posLo[e] ) ) {
         mov     ax, [moinfo__checkFile__reachHi]
         mov     [moinfo__below32__aHi], ax
@@ -3502,9 +3547,9 @@ moinfo__checkFile:
         mov     al, [moinfo__below32__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jnz     .L434
-        jmp     .L432
-.L434:
+        jnz     .L442
+        jmp     .L440
+.L442:
 ; ---- sub32( posHi[e], posLo[e], reachHi, reachLo )
         mov     ax, [moinfo__checkFile__e]
         shl     ax, 1                       ; word elements
@@ -3533,8 +3578,8 @@ moinfo__checkFile:
         mov     ax, [moinfo__checkFile__reachLo]
         mov     [moinfo__reportGap__lo], ax
         call    moinfo__reportGap
-.L432:
-.L427:
+.L440:
+.L435:
 ; ---- add32( posHi[e], posLo[e], sizeHi[e], sizeLo[e] )
         mov     ax, [moinfo__checkFile__e]
         shl     ax, 1                       ; word elements
@@ -3578,7 +3623,7 @@ moinfo__checkFile:
         mov     al, [moinfo__below32__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L435
+        jz      .L443
 ; ---- reachHi = sumHi
         mov     ax, [moinfo__sumHi]
         mov     [moinfo__checkFile__reachHi], ax
@@ -3588,11 +3633,11 @@ moinfo__checkFile:
 ; ---- owner = e
         mov     ax, [moinfo__checkFile__e]
         mov     [moinfo__checkFile__owner], ax
-.L435:
-.L416:
+.L443:
+.L424:
         inc     word [moinfo__checkFile__k]
-        jmp     .L415
-.L417:
+        jmp     .L423
+.L425:
 ; ---- if ( below32( reachHi, reachLo, endHi, endLo ) ) {
         mov     ax, [moinfo__checkFile__reachHi]
         mov     [moinfo__below32__aHi], ax
@@ -3606,7 +3651,7 @@ moinfo__checkFile:
         mov     al, [moinfo__below32__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L438
+        jz      .L446
 ; ---- sub32( endHi, endLo, reachHi, reachLo )
         mov     ax, [moinfo__checkFile__endHi]
         mov     [moinfo__sub32__aHi], ax
@@ -3625,7 +3670,7 @@ moinfo__checkFile:
         mov     ax, [moinfo__checkFile__reachLo]
         mov     [moinfo__reportGap__lo], ax
         call    moinfo__reportGap
-.L438:
+.L446:
         ret
 
 ; ============================================== sub moinfo__reportGap ====
@@ -3634,9 +3679,9 @@ moinfo__reportGap:
 ; ---- if ( mode == infoSummary ) {
         mov     al, [moinfo__mode]
         cmp     al, 1                       ; byte operands, no widening
-        je      .L443                       ; unsigned ==
-        jmp     .L441
-.L443:
+        je      .L451                       ; unsigned ==
+        jmp     .L449
+.L451:
 ; ---- counted++
         inc     word [moinfo__counted]
 ; ---- tally[f].gaps++
@@ -3672,7 +3717,7 @@ moinfo__reportGap:
         mov     [moinfo__tally__gapLo + bx], ax
 ; ---- return
         ret
-.L441:
+.L449:
 ; ---- findingIn( f )
         mov     ax, [moinfo__reportGap__f]
         mov     [moinfo__findingIn__f], ax
@@ -3710,12 +3755,12 @@ moinfo__reportGap:
 moinfo__isTypes:
 ; ---- for ( u16 k = 0; k < wadNameBytes; k++ ) {
         mov     word [moinfo__isTypes__k], 0
-.L444:
+.L452:
         mov     ax, [moinfo__isTypes__k]
         cmp     ax, 8
-        jb      .L447                       ; unsigned <
-        jmp     .L446
-.L447:
+        jb      .L455                       ; unsigned <
+        jmp     .L454
+.L455:
 ; ---- if ( peek8( wadName( lump ) + k ) != typesName[k] ) return false
         mov     ax, [moinfo__isTypes__lump]
         mov     [wadName__lump], ax
@@ -3734,23 +3779,23 @@ moinfo__isTypes:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        je      .L448                       ; unsigned !=
+        je      .L456                       ; unsigned !=
         mov     byte [moinfo__isTypes__ret], 0
         ret
-.L448:
+.L456:
 ; ---- if ( typesName[k] == 0 ) return true
         mov     ax, [moinfo__isTypes__k]
         mov     bx, ax
         mov     al, [moinfo__typesName + bx]
         test    al, al
-        jne     .L451                       ; unsigned ==
+        jne     .L459                       ; unsigned ==
         mov     byte [moinfo__isTypes__ret], 1
         ret
-.L451:
-.L445:
+.L459:
+.L453:
         inc     word [moinfo__isTypes__k]
-        jmp     .L444
-.L446:
+        jmp     .L452
+.L454:
 ; ---- return true
         mov     byte [moinfo__isTypes__ret], 1
         ret
@@ -3764,11 +3809,11 @@ moinfo__checkNames:
         mov     [moinfo__checkNames__total], ax
 ; ---- for ( u16 i = 0; i < total; i++ ) {
         mov     word [moinfo__checkNames__i], 0
-.L454:
+.L462:
         mov     ax, [moinfo__checkNames__i]
         mov     bx, [moinfo__checkNames__total]
         cmp     ax, bx
-        jae     .L456                       ; unsigned <
+        jae     .L464                       ; unsigned <
 ; ---- order[i] = i
         mov     ax, [moinfo__checkNames__i]
         mov     bx, [moinfo__checkNames__i]
@@ -3776,10 +3821,10 @@ moinfo__checkNames:
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__order
         mov     es, dx
         mov     [es:bx], ax
-.L455:
+.L463:
         inc     word [moinfo__checkNames__i]
-        jmp     .L454
-.L456:
+        jmp     .L462
+.L464:
 ; ---- byName = true
         mov     byte [moinfo__byName], 1
 ; ---- sortOrder( total )
@@ -3788,11 +3833,11 @@ moinfo__checkNames:
         call    moinfo__sortOrder
 ; ---- for ( u16 i = 0; i < total; i++ ) {
         mov     word [moinfo__checkNames__i], 0
-.L458:
+.L466:
         mov     ax, [moinfo__checkNames__i]
         mov     bx, [moinfo__checkNames__total]
         cmp     ax, bx
-        jae     .L460                       ; unsigned <
+        jae     .L468                       ; unsigned <
 ; ---- sizeLo[i] = 0
         mov     ax, [moinfo__checkNames__i]
         shl     ax, 1                       ; word elements
@@ -3800,29 +3845,29 @@ moinfo__checkNames:
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__sizeLo
         mov     es, dx
         mov     word [es:bx + 24584], 0
-.L459:
+.L467:
         inc     word [moinfo__checkNames__i]
-        jmp     .L458
-.L460:
+        jmp     .L466
+.L468:
 ; ---- for ( u16 k = 0; k < total; k += run ) {
         mov     word [moinfo__checkNames__k], 0
-.L462:
+.L470:
         mov     ax, [moinfo__checkNames__k]
         mov     bx, [moinfo__checkNames__total]
         cmp     ax, bx
-        jb      .L465                       ; unsigned <
-        jmp     .L464
-.L465:
+        jb      .L473                       ; unsigned <
+        jmp     .L472
+.L473:
 ; ---- run = 1
         mov     word [moinfo__checkNames__run], 1
 ; ---- while ( k + run < total && sameName( order[k], order[ k + run ] ) ) {
-.L466:
+.L474:
         mov     ax, [moinfo__checkNames__k]
         mov     bx, [moinfo__checkNames__run]
         add     ax, bx
         mov     bx, [moinfo__checkNames__total]
         cmp     ax, bx
-        jae     .L468                       ; unsigned <
+        jae     .L476                       ; unsigned <
         mov     ax, [moinfo__checkNames__k]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -3843,12 +3888,12 @@ moinfo__checkNames:
         mov     al, [moinfo__sameName__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L468
+        jz      .L476
 ; ---- run++
         inc     word [moinfo__checkNames__run]
-.L467:
-        jmp     .L466
-.L468:
+.L475:
+        jmp     .L474
+.L476:
 ; ---- first = order[k]
         mov     ax, [moinfo__checkNames__k]
         shl     ax, 1                       ; word elements
@@ -3863,13 +3908,13 @@ moinfo__checkNames:
         mov     al, [moinfo__isTypes__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jnz     .L473
-        jmp     .L471
-.L473:
+        jnz     .L481
+        jmp     .L479
+.L481:
 ; ---- for ( u16 j = k; j < k + run; j++ ) {
         mov     ax, [moinfo__checkNames__k]
         mov     [moinfo__checkNames__j], ax
-.L474:
+.L482:
         mov     ax, [moinfo__checkNames__j]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [moinfo__checkNames__k]
@@ -3878,9 +3923,9 @@ moinfo__checkNames:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L477                       ; unsigned <
-        jmp     .L476
-.L477:
+        jb      .L485                       ; unsigned <
+        jmp     .L484
+.L485:
 ; ---- f = wadFileOf( order[j] )
         mov     ax, [moinfo__checkNames__j]
         shl     ax, 1                       ; word elements
@@ -3902,7 +3947,7 @@ moinfo__checkNames:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jae     .L478                       ; unsigned <
+        jae     .L486                       ; unsigned <
         mov     ax, [moinfo__checkNames__j]
         inc     ax
         shl     ax, 1                       ; word elements
@@ -3915,34 +3960,34 @@ moinfo__checkNames:
         mov     ax, [wadFileOf__ret]
         mov     bx, [moinfo__checkNames__f]
         cmp     ax, bx
-        jne     .L478                       ; unsigned ==
+        jne     .L486                       ; unsigned ==
 ; ---- tally[f].repeats++
         mov     ax, [moinfo__checkNames__f]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         inc     word [moinfo__tally__repeats + bx]
-        jmp     .L479
-.L478:
+        jmp     .L487
+.L486:
 ; ---- tally[f].wins++
         mov     ax, [moinfo__checkNames__f]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         inc     word [moinfo__tally__wins + bx]
-.L479:
-.L475:
+.L487:
+.L483:
         inc     word [moinfo__checkNames__j]
-        jmp     .L474
-.L476:
+        jmp     .L482
+.L484:
 ; ---- continue
-        jmp     .L463
-.L471:
+        jmp     .L471
+.L479:
 ; ---- win = run == 1 ? first : wadLump( wadName( first ) )
         mov     ax, [moinfo__checkNames__run]
         cmp     ax, 1
-        jne     .L482                       ; unsigned ==
+        jne     .L490                       ; unsigned ==
         mov     ax, [moinfo__checkNames__first]
-        jmp     .L483
-.L482:
+        jmp     .L491
+.L490:
         mov     ax, [moinfo__checkNames__first]
         mov     [wadName__lump], ax
         call    wadName
@@ -3950,7 +3995,7 @@ moinfo__checkNames:
         mov     [wadLump__name], ax
         call    wadLump
         mov     ax, [wadLump__ret]
-.L483:
+.L491:
         mov     [moinfo__checkNames__win], ax
 ; ---- home = wadFileOf( win )
         mov     [wadFileOf__lump], ax
@@ -3960,7 +4005,7 @@ moinfo__checkNames:
 ; ---- for ( u16 j = k; j < k + run; j++ ) {
         mov     ax, [moinfo__checkNames__k]
         mov     [moinfo__checkNames__j], ax
-.L485:
+.L493:
         mov     ax, [moinfo__checkNames__j]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [moinfo__checkNames__k]
@@ -3969,9 +4014,9 @@ moinfo__checkNames:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L488                       ; unsigned <
-        jmp     .L487
-.L488:
+        jb      .L496                       ; unsigned <
+        jmp     .L495
+.L496:
 ; ---- m = order[j]
         mov     ax, [moinfo__checkNames__j]
         shl     ax, 1                       ; word elements
@@ -3989,58 +4034,58 @@ moinfo__checkNames:
         mov     ax, [moinfo__checkNames__m]
         mov     bx, [moinfo__checkNames__win]
         cmp     ax, bx
-        jne     .L489                       ; unsigned ==
+        jne     .L497                       ; unsigned ==
 ; ---- tally[f].wins++
         mov     ax, [moinfo__checkNames__f]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         inc     word [moinfo__tally__wins + bx]
-        jmp     .L490
-.L489:
+        jmp     .L498
+.L497:
 ; ---- } else if ( f == home ) {
         mov     ax, [moinfo__checkNames__f]
         mov     bx, [moinfo__checkNames__home]
         cmp     ax, bx
-        jne     .L492                       ; unsigned ==
+        jne     .L500                       ; unsigned ==
 ; ---- tally[f].repeats++
         mov     ax, [moinfo__checkNames__f]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         inc     word [moinfo__tally__repeats + bx]
-        jmp     .L493
-.L492:
+        jmp     .L501
+.L500:
 ; ---- tally[f].shadowed++
         mov     ax, [moinfo__checkNames__f]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         inc     word [moinfo__tally__shadowed + bx]
-.L493:
-.L490:
-.L486:
+.L501:
+.L498:
+.L494:
         inc     word [moinfo__checkNames__j]
-        jmp     .L485
-.L487:
+        jmp     .L493
+.L495:
 ; ---- if ( run == 1 ) continue
         mov     ax, [moinfo__checkNames__run]
         cmp     ax, 1
-        jne     .L495                       ; unsigned ==
-        jmp     .L463
-.L495:
+        jne     .L503                       ; unsigned ==
+        jmp     .L471
+.L503:
 ; ---- if ( mode == infoSummary && wadFileOf( first ) == home ) {
         mov     al, [moinfo__mode]
         cmp     al, 1                       ; byte operands, no widening
-        jne     .L498                       ; unsigned ==
+        jne     .L506                       ; unsigned ==
         mov     ax, [moinfo__checkNames__first]
         mov     [wadFileOf__lump], ax
         call    wadFileOf
         mov     ax, [wadFileOf__ret]
         mov     bx, [moinfo__checkNames__home]
         cmp     ax, bx
-        jne     .L498                       ; unsigned ==
+        jne     .L506                       ; unsigned ==
 ; ---- counted++
         inc     word [moinfo__counted]
-        jmp     .L499
-.L498:
+        jmp     .L507
+.L506:
 ; ---- sizeLo[first] = run
         mov     ax, [moinfo__checkNames__run]
         mov     bx, [moinfo__checkNames__first]
@@ -4055,23 +4100,23 @@ moinfo__checkNames:
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__posLo
         mov     es, dx
         mov     [es:bx + 12292], ax
-.L499:
-.L463:
+.L507:
+.L471:
         mov     ax, [moinfo__checkNames__k]
         mov     bx, [moinfo__checkNames__run]
         add     ax, bx
         mov     [moinfo__checkNames__k], ax
-        jmp     .L462
-.L464:
+        jmp     .L470
+.L472:
 ; ---- for ( u16 i = 0; i < total; i++ ) {
         mov     word [moinfo__checkNames__i], 0
-.L502:
+.L510:
         mov     ax, [moinfo__checkNames__i]
         mov     bx, [moinfo__checkNames__total]
         cmp     ax, bx
-        jb      .L505                       ; unsigned <
-        jmp     .L504
-.L505:
+        jb      .L513                       ; unsigned <
+        jmp     .L512
+.L513:
 ; ---- if ( sizeLo[i] == 0 ) continue
         mov     ax, [moinfo__checkNames__i]
         shl     ax, 1                       ; word elements
@@ -4080,9 +4125,9 @@ moinfo__checkNames:
         mov     es, dx
         mov     ax, [es:bx + 24584]
         test    ax, ax
-        jne     .L506                       ; unsigned ==
-        jmp     .L503
-.L506:
+        jne     .L514                       ; unsigned ==
+        jmp     .L511
+.L514:
 ; ---- found++
         inc     word [moinfo__found]
 ; ---- wadPutName( i )
@@ -4137,10 +4182,10 @@ moinfo__checkNames:
         call    putStr
 ; ---- newline()
         call    newline
-.L503:
+.L511:
         inc     word [moinfo__checkNames__i]
-        jmp     .L502
-.L504:
+        jmp     .L510
+.L512:
         ret
 
 ; ============================================== bool moinfo__sameName ====
@@ -4148,12 +4193,12 @@ moinfo__checkNames:
 moinfo__sameName:
 ; ---- for ( u16 k = 0; k < wadNameBytes; k += 2 ) {
         mov     word [moinfo__sameName__k], 0
-.L509:
+.L517:
         mov     ax, [moinfo__sameName__k]
         cmp     ax, 8
-        jb      .L512                       ; unsigned <
-        jmp     .L511
-.L512:
+        jb      .L520                       ; unsigned <
+        jmp     .L519
+.L520:
 ; ---- if ( peek16( wadName( a ) + k ) != peek16( wadName( b ) + k ) ) return false
         mov     ax, [moinfo__sameName__a]
         mov     [wadName__lump], ax
@@ -4175,16 +4220,16 @@ moinfo__sameName:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        je      .L513                       ; unsigned !=
+        je      .L521                       ; unsigned !=
         mov     byte [moinfo__sameName__ret], 0
         ret
-.L513:
-.L510:
+.L521:
+.L518:
         mov     ax, [moinfo__sameName__k]
         add     ax, 2
         mov     [moinfo__sameName__k], ax
-        jmp     .L509
-.L511:
+        jmp     .L517
+.L519:
 ; ---- return true
         mov     byte [moinfo__sameName__ret], 1
         ret
@@ -4194,42 +4239,42 @@ moinfo__sameName:
 moinfo__putRowName:
 ; ---- for ( u16 k = 0; k < wadNameBytes && row[k] != 0; k++ ) {
         mov     word [moinfo__putRowName__k], 0
-.L516:
+.L524:
         mov     ax, [moinfo__putRowName__k]
         cmp     ax, 8
-        jb      .L519                       ; unsigned <
-        jmp     .L518
-.L519:
+        jb      .L527                       ; unsigned <
+        jmp     .L526
+.L527:
         mov     ax, [moinfo__putRowName__k]
         mov     bx, ax
         mov     al, [moinfo__row + bx]
         test    al, al
-        je      .L518                       ; unsigned !=
+        je      .L526                       ; unsigned !=
 ; ---- putChar( row[k] >= 32 && row[k] < 127 ? row[k] : '?' )
         mov     ax, [moinfo__putRowName__k]
         mov     bx, ax
         mov     al, [moinfo__row + bx]
         cmp     al, 32                      ; byte operands, no widening
-        jb      .L521                       ; unsigned >=
+        jb      .L529                       ; unsigned >=
         mov     ax, [moinfo__putRowName__k]
         mov     bx, ax
         mov     al, [moinfo__row + bx]
         cmp     al, 127                     ; byte operands, no widening
-        jae     .L521                       ; unsigned <
+        jae     .L529                       ; unsigned <
         mov     ax, [moinfo__putRowName__k]
         mov     bx, ax
         mov     al, [moinfo__row + bx]
         xor     ah, ah                      ; u8 -> u16
-        jmp     .L522
-.L521:
+        jmp     .L530
+.L529:
         mov     ax, 63
-.L522:
+.L530:
         mov     [putChar__c], al            ; narrowed to u8
         call    putChar
-.L517:
+.L525:
         inc     word [moinfo__putRowName__k]
-        jmp     .L516
-.L518:
+        jmp     .L524
+.L526:
         ret
 
 ; ============================================== sub moinfo__checkRows ====
@@ -4242,7 +4287,7 @@ moinfo__checkRows:
         mov     al, [wadManifestBad__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L525
+        jz      .L533
 ; ---- findingIn( f )
         mov     ax, [moinfo__checkRows__f]
         mov     [moinfo__findingIn__f], ax
@@ -4253,7 +4298,7 @@ moinfo__checkRows:
         call    putStr
 ; ---- newline()
         call    newline
-.L525:
+.L533:
 ; ---- m = wadManifest( f )
         mov     ax, [moinfo__checkRows__f]
         mov     [wadManifest__f], ax
@@ -4262,25 +4307,25 @@ moinfo__checkRows:
         mov     [moinfo__checkRows__m], ax
 ; ---- if ( m == wadNone ) return
         cmp     ax, 65535
-        jne     .L528                       ; unsigned ==
+        jne     .L536                       ; unsigned ==
         ret
-.L528:
+.L536:
 ; ---- wadStartAs( m, wadTypeTypes )
         mov     ax, [moinfo__checkRows__m]
         mov     [wadStartAs__lump], ax
         mov     byte [wadStartAs__want], 5
         call    wadStartAs
 ; ---- while ( wadNext( addr( row ), wadRowBytes ) == wadRowBytes ) {
-.L531:
+.L539:
         mov     ax, moinfo__row             ; link-time constant
         mov     [wadNext__at], ax
         mov     word [wadNext__count], 9
         call    wadNext
         mov     ax, [wadNext__ret]
         cmp     ax, 9
-        je      .L534                       ; unsigned ==
-        jmp     .L533
-.L534:
+        je      .L542                       ; unsigned ==
+        jmp     .L541
+.L542:
 ; ---- lump = wadLump( addr( row ) )
         mov     ax, moinfo__row             ; link-time constant
         mov     [wadLump__name], ax
@@ -4289,7 +4334,7 @@ moinfo__checkRows:
         mov     [moinfo__checkRows__lump], ax
 ; ---- if ( lump == wadNone ) {
         cmp     ax, 65535
-        jne     .L535                       ; unsigned ==
+        jne     .L543                       ; unsigned ==
 ; ---- findingIn( f )
         mov     ax, [moinfo__checkRows__f]
         mov     [moinfo__findingIn__f], ax
@@ -4307,8 +4352,8 @@ moinfo__checkRows:
 ; ---- newline()
         call    newline
 ; ---- continue
-        jmp     .L532
-.L535:
+        jmp     .L540
+.L543:
 ; ---- has = wadTypeOf( lump )
         mov     ax, [moinfo__checkRows__lump]
         mov     [wadTypeOf__lump], ax
@@ -4321,9 +4366,9 @@ moinfo__checkRows:
         mov     al, [wadTypeFrom__ret]
         xor     ah, ah                      ; u8 -> u16
         cmp     ax, 1
-        je      .L540                       ; unsigned ==
-        jmp     .L538
-.L540:
+        je      .L548                       ; unsigned ==
+        jmp     .L546
+.L548:
         mov     al, [moinfo__checkRows__has]
         xor     ah, ah                      ; u8 -> u16
         push    ax                          ; save lhs: rhs is not a leaf
@@ -4332,9 +4377,9 @@ moinfo__checkRows:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jne     .L541                       ; unsigned !=
-        jmp     .L538
-.L541:
+        jne     .L549                       ; unsigned !=
+        jmp     .L546
+.L549:
 ; ---- findingIn( f )
         mov     ax, [moinfo__checkRows__f]
         mov     [moinfo__findingIn__f], ax
@@ -4370,10 +4415,10 @@ moinfo__checkRows:
         call    putStr
 ; ---- newline()
         call    newline
-.L538:
-.L532:
-        jmp     .L531
-.L533:
+.L546:
+.L540:
+        jmp     .L539
+.L541:
         ret
 
 ; ============================================== sub moinfo__putTally ====
@@ -4389,7 +4434,7 @@ moinfo__putTally:
         call    newline
 ; ---- for ( u16 f = 0; f < wadFiles(); f++ ) {
         mov     word [moinfo__putTally__f], 0
-.L542:
+.L550:
         mov     ax, [moinfo__putTally__f]
         push    ax                          ; save lhs: rhs is not a leaf
         call    wadFiles
@@ -4397,9 +4442,9 @@ moinfo__putTally:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jb      .L545                       ; unsigned <
-        jmp     .L544
-.L545:
+        jb      .L553                       ; unsigned <
+        jmp     .L552
+.L553:
 ; ---- putPath( f )
         mov     ax, [moinfo__putTally__f]
         mov     [moinfo__putPath__f], ax
@@ -4460,9 +4505,9 @@ moinfo__putTally:
         mov     bx, ax
         mov     ax, [moinfo__tally__gaps + bx]
         test    ax, ax
-        jne     .L546                       ; unsigned ==
-        jmp     .L543
-.L546:
+        jne     .L554                       ; unsigned ==
+        jmp     .L551
+.L554:
 ; ---- putPath( f )
         mov     ax, [moinfo__putTally__f]
         mov     [moinfo__putPath__f], ax
@@ -4500,12 +4545,12 @@ moinfo__putTally:
         mov     bx, ax
         mov     ax, [moinfo__tally__gaps + bx]
         cmp     ax, 1
-        jne     .L549                       ; unsigned ==
+        jne     .L557                       ; unsigned ==
         mov     ax, moinfo__sGap            ; link-time constant
-        jmp     .L550
-.L549:
+        jmp     .L558
+.L557:
         mov     ax, moinfo__sGaps           ; link-time constant
-.L550:
+.L558:
         mov     [putStr__at], ax
         call    putStr
 ; ---- putStr( addr( sGapTail ) )
@@ -4514,10 +4559,10 @@ moinfo__putTally:
         call    putStr
 ; ---- newline()
         call    newline
-.L543:
+.L551:
         inc     word [moinfo__putTally__f]
-        jmp     .L542
-.L544:
+        jmp     .L550
+.L552:
         ret
 
 ; ============================================== sub moinfo__listLump ====
@@ -4606,7 +4651,7 @@ moinfo__listLump:
         mov     al, [wadTypeFrom__ret]
         xor     ah, ah                      ; u8 -> u16
         test    ax, ax
-        jne     .L552                       ; unsigned ==
+        jne     .L560                       ; unsigned ==
 ; ---- putStr( addr( sDash ) )
         mov     ax, moinfo__sDash           ; link-time constant
         mov     [putStr__at], ax
@@ -4618,8 +4663,8 @@ moinfo__listLump:
         mov     ax, moinfo__sDash           ; link-time constant
         mov     [putStr__at], ax
         call    putStr
-        jmp     .L553
-.L552:
+        jmp     .L561
+.L560:
 ; ---- putStr( wadTypeName( t ) )
         mov     al, [moinfo__listLump__t]
         mov     [wadTypeName__t], al        ; u8 -> u8, no widening
@@ -4647,15 +4692,15 @@ moinfo__listLump:
         mov     al, [wadTypeFrom__ret]
         xor     ah, ah                      ; u8 -> u16
         cmp     ax, 1
-        jne     .L555                       ; unsigned ==
+        jne     .L563                       ; unsigned ==
         mov     ax, moinfo__sHeader         ; link-time constant
-        jmp     .L556
-.L555:
+        jmp     .L564
+.L563:
         mov     ax, moinfo__sRowFrom        ; link-time constant
-.L556:
+.L564:
         mov     [putStr__at], ax
         call    putStr
-.L553:
+.L561:
 ; ---- newline()
         call    newline
         ret
@@ -4673,7 +4718,7 @@ moinfo__showListing:
         call    newline
 ; ---- for ( u16 i = 0; i < wadCount(); i++ ) {
         mov     word [moinfo__showListing__i], 0
-.L558:
+.L566:
         mov     ax, [moinfo__showListing__i]
         push    ax                          ; save lhs: rhs is not a leaf
         call    wadCount
@@ -4681,15 +4726,15 @@ moinfo__showListing:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jae     .L560                       ; unsigned <
+        jae     .L568                       ; unsigned <
 ; ---- listLump( i )
         mov     ax, [moinfo__showListing__i]
         mov     [moinfo__listLump__i], ax
         call    moinfo__listLump
-.L559:
+.L567:
         inc     word [moinfo__showListing__i]
-        jmp     .L558
-.L560:
+        jmp     .L566
+.L568:
         ret
 
 ; ============================================== sub moinfo__showFindings ====
@@ -4721,10 +4766,10 @@ moinfo__showFindings:
 ; ---- if ( haveTable ) {
         mov     al, [moinfo__haveTable]
         test    al, al
-        jz      .L562
+        jz      .L570
 ; ---- for ( u16 f = 0; f < wadFiles(); f++ ) {
         mov     word [moinfo__showFindings__f], 0
-.L565:
+.L573:
         mov     ax, [moinfo__showFindings__f]
         push    ax                          ; save lhs: rhs is not a leaf
         call    wadFiles
@@ -4732,29 +4777,29 @@ moinfo__showFindings:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jae     .L567                       ; unsigned <
+        jae     .L575                       ; unsigned <
 ; ---- checkFile( f )
         mov     ax, [moinfo__showFindings__f]
         mov     [moinfo__checkFile__f], ax
         call    moinfo__checkFile
-.L566:
+.L574:
         inc     word [moinfo__showFindings__f]
-        jmp     .L565
-.L567:
+        jmp     .L573
+.L575:
 ; ---- checkNames()
         call    moinfo__checkNames
-        jmp     .L563
-.L562:
+        jmp     .L571
+.L570:
 ; ---- putStr( addr( sNoTable ) )
         mov     ax, moinfo__sNoTable        ; link-time constant
         mov     [putStr__at], ax
         call    putStr
 ; ---- newline()
         call    newline
-.L563:
+.L571:
 ; ---- for ( u16 f = 0; f < wadFiles(); f++ ) {
         mov     word [moinfo__showFindings__f], 0
-.L569:
+.L577:
         mov     ax, [moinfo__showFindings__f]
         push    ax                          ; save lhs: rhs is not a leaf
         call    wadFiles
@@ -4762,54 +4807,54 @@ moinfo__showFindings:
         mov     bx, ax
         pop     ax
         cmp     ax, bx
-        jae     .L571                       ; unsigned <
+        jae     .L579                       ; unsigned <
 ; ---- checkRows( f )
         mov     ax, [moinfo__showFindings__f]
         mov     [moinfo__checkRows__f], ax
         call    moinfo__checkRows
-.L570:
+.L578:
         inc     word [moinfo__showFindings__f]
-        jmp     .L569
-.L571:
+        jmp     .L577
+.L579:
 ; ---- if ( !haveTable ) return
         mov     al, [moinfo__haveTable]
         test    al, al
-        jnz     .L573
+        jnz     .L581
         ret
-.L573:
+.L581:
 ; ---- if ( found == 0 && counted == 0 ) {
         mov     ax, [moinfo__found]
         test    ax, ax
-        jne     .L576                       ; unsigned ==
+        jne     .L584                       ; unsigned ==
         mov     ax, [moinfo__counted]
         test    ax, ax
-        jne     .L576                       ; unsigned ==
+        jne     .L584                       ; unsigned ==
 ; ---- putStr( addr( sNone ) )
         mov     ax, moinfo__sNone           ; link-time constant
         mov     [putStr__at], ax
         call    putStr
 ; ---- newline()
         call    newline
-        jmp     .L577
-.L576:
+        jmp     .L585
+.L584:
 ; ---- } else if ( found == 0 ) {
         mov     ax, [moinfo__found]
         test    ax, ax
-        jne     .L580                       ; unsigned ==
+        jne     .L588                       ; unsigned ==
 ; ---- putStr( addr( sInTally ) )
         mov     ax, moinfo__sInTally        ; link-time constant
         mov     [putStr__at], ax
         call    putStr
 ; ---- newline()
         call    newline
-.L580:
-.L577:
+.L588:
+.L585:
 ; ---- if ( mode == infoSummary ) putTally()
         mov     al, [moinfo__mode]
         cmp     al, 1                       ; byte operands, no widening
-        jne     .L583                       ; unsigned ==
+        jne     .L591                       ; unsigned ==
         call    moinfo__putTally
-.L583:
+.L591:
         ret
 
 ; ============================================== sub infoRun ====
@@ -4820,21 +4865,21 @@ infoRun:
 ; ---- if ( pathCount == 0 ) {
         mov     ax, [moinfo__pathCount]
         test    ax, ax
-        jne     .L586                       ; unsigned ==
+        jne     .L594                       ; unsigned ==
 ; ---- putUsage()
         call    moinfo__putUsage
 ; ---- return
         ret
-.L586:
+.L594:
 ; ---- for ( u16 f = 0; f < pathCount; f++ ) {
         mov     word [infoRun__f], 0
-.L589:
+.L597:
         mov     ax, [infoRun__f]
         mov     bx, [moinfo__pathCount]
         cmp     ax, bx
-        jb      .L592                       ; unsigned <
-        jmp     .L591
-.L592:
+        jb      .L600                       ; unsigned <
+        jmp     .L599
+.L600:
 ; ---- putNumber( f )
         mov     ax, [infoRun__f]
         mov     [putNumber__n], ax
@@ -4855,7 +4900,7 @@ infoRun:
         mov     al, [wadOpen__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jnz     .L593
+        jnz     .L601
 ; ---- putStr( addr( sRefused ) )
         mov     ax, moinfo__sRefused        ; link-time constant
         mov     [putStr__at], ax
@@ -4869,7 +4914,7 @@ infoRun:
         call    newline
 ; ---- return
         ret
-.L593:
+.L601:
 ; ---- putStr( wadFileIwad( f ) ? addr( sIwad ) : addr( sPwad ) )
         mov     ax, [infoRun__f]
         mov     [wadFileIwad__f], ax
@@ -4877,12 +4922,12 @@ infoRun:
         mov     al, [wadFileIwad__ret]
         xor     ah, ah                      ; bool -> u16
         test    ax, ax
-        jz      .L596
+        jz      .L604
         mov     ax, moinfo__sIwad           ; link-time constant
-        jmp     .L597
-.L596:
+        jmp     .L605
+.L604:
         mov     ax, moinfo__sPwad           ; link-time constant
-.L597:
+.L605:
         mov     [putStr__at], ax
         call    putStr
 ; ---- putNumber( wadFileLumps( f ) )
@@ -4934,22 +4979,22 @@ infoRun:
         call    putStr
 ; ---- newline()
         call    newline
-.L590:
+.L598:
         inc     word [infoRun__f]
-        jmp     .L589
-.L591:
+        jmp     .L597
+.L599:
 ; ---- if ( mode != infoSummary ) showListing()
         mov     al, [moinfo__mode]
         cmp     al, 1                       ; byte operands, no widening
-        je      .L599                       ; unsigned !=
+        je      .L607                       ; unsigned !=
         call    moinfo__showListing
-.L599:
+.L607:
 ; ---- if ( mode != infoListing ) showFindings()
         mov     al, [moinfo__mode]
         cmp     al, 2                       ; byte operands, no widening
-        je      .L602                       ; unsigned !=
+        je      .L610                       ; unsigned !=
         call    moinfo__showFindings
-.L602:
+.L610:
 ; ---- wadClose()
         call    wadClose
         ret
@@ -5094,6 +5139,10 @@ wadOpen__file:  dw      0        ; u16
 wadOpen__ret:   db      0        ; bool
 mowad__wadSource_: db      0        ; u8
 mowad__wadVersion_: db      0        ; u8
+mowad__wadCarried__id: db      0        ; u8
+mowad__wadCarried__ret: db      0        ; bool
+mowad__wadMoAt__lump: dw      0        ; u16
+mowad__wadMoAt__ret: db      0        ; bool
 mowad__wadHeaded__lump: dw      0        ; u16
 mowad__wadHeaded__ret: db      0        ; bool
 wadRowType__name: dw      0        ; u16
@@ -5378,7 +5427,7 @@ putNumber__digits: times 5 db 0        ; u8[5]
 ; No storage is emitted - a .COM owns everything past its image, so
 ; these are addresses and NASM does the arithmetic.
 
-_hstack:        equ     288        ; 32 worst-case + 256 interrupt reserve
+_hstack:        equ     290        ; 34 worst-case + 256 interrupt reserve
 _htop:          equ     0FFFEh - _hstack
 
 _hsize:         dw      _htop - _heap        ; NASM computes this
