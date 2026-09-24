@@ -8540,7 +8540,8 @@ bool      wadFinish()                              // manifest, directory, heade
 ```
 
 beside the accessors a checker wants - a lump's name, file, position and size,
-and a file's base, count, directory, size and manifest.
+the type byte of one that starts `Mo` without a header, and a file's base,
+count, directory, size and manifest.
 
 ### Where the bytes go
 
@@ -8560,20 +8561,25 @@ checks were skipped.
 
 `wadinfo FILE.WAD [PATCH.WAD ...]` opens a chain in the order given and lists
 every lump - index, file, name, offset, size, type, and where the type came
-from. Then its findings: an entry running past the end of its file; two entries
-sharing bytes, and bytes no entry, header or directory covers, from one sweep of
-each file in position order; a name more than one lump carries and which one
+from. Then its findings: an entry running past the end of its file; a lump that
+starts `Mo` without a header, which the reader takes as foreign and says nothing
+about; entries sharing one span exactly, an alias set, as one line giving the
+count, the span and the first three; an entry sharing some of another's bytes
+without being its span, as a line naming both by index and name; and bytes no
+entry, header or directory covers - the last three from one sweep of each file
+in position order. Then a name more than one lump carries and which one
 `wadLump` returns; a TYPES row naming a lump nobody has; and a TYPES row
 disagreeing with the header of the lump it names.
 
 Two switches say less, in either case, before the paths or among them. **`/s`
-is a summary**: no listing, and the bulk - gaps, and a name repeated inside one
-file - counted per file, beside each file's lumps split three ways: those that
-win, those a later file shadows, and those a later lump in the same file does.
-Everything else prints in full, as it does with no switch. **`/l` is the listing
-alone**, and never reaches the checks - not the block, the sorts or the manifest
-scans. Both at once, or any other switch, is refused with the usage before
-anything is opened. The program is `shared/lib/moinfo.momo`, so that `wadsum`,
+is a summary**: no listing, and the bulk - gaps, a name repeated inside one
+file, and alias sets - counted per file, beside each file's lumps split three
+ways: those that win, those a later file shadows, and those a later lump in the
+same file does. A file with alias sets says how many distinct spans serve how
+many entries, and names its three largest sets. Everything else prints in full,
+as it does with no switch. **`/l` is the listing alone**, and never reaches the
+checks - not the block, the sorts or the manifest scans. Both at once, or any
+other switch, is refused with the usage before anything is opened. The program is `shared/lib/moinfo.momo`, so that `wadsum`,
 `wadlist` and `wadusage` can each run it under a tail of their own.
 
 Its fixture is two files the host writer builds from manifests committed beside
@@ -8582,7 +8588,7 @@ manifest has two kinds of line no asset needs - `pad` and `entry`, bytes nothing
 references and a directory entry written as given - because a directory is
 free-form, and a checker's fixture has to be able to say what the checker must
 catch. `wadsum` loads copies of both and a third file from a manifest of its
-own, with a name twice in one file for the counts.
+own, with a name twice in one file and four alias sets for the counts.
 
 ### Rules
 
@@ -8593,6 +8599,11 @@ own, with a name twice in one file for the counts.
   whether a header or only the manifest said so, and what was asked for. A
   foreign lump the manifest typed starts at byte 0; one of ours starts past its
   header.
+- **A header is `Mo` and a type a header can carry.** `Mo` followed by
+  `wadTypeNone` or a byte past the table is not a header, and the lump is
+  foreign - typed by a row if one names it, untyped otherwise. Two bytes are
+  what foreign data starts with by chance, and a typed read trusting them is
+  the silent failure the header exists to stop. `wadinfo` reports each one.
 - **One stream at a time, carrying its own position.** A type asked or an entry
   looked up between two `wadNext` calls leaves the stream where it was.
 - **A row cannot be claimed for a lump the same write gave a header.** Both
@@ -8603,10 +8614,16 @@ own, with a name twice in one file for the counts.
   included (PITFALLS).
 - **Names compare to the first nul.** The index zeroes whatever a writer left
   after one, so two names are equal exactly when their four words are.
-- **A summary counts bulk and nothing else.** Gaps and a name repeated within
-  one file are counted; an override across files, an entry past the end, an
-  overlap, and every TYPES finding print as they do with no switch. A summary
-  that hid damage would be a lie.
+- **An alias set is structure; a partial overlap is the suspect.** Entries with
+  the same position and size are one payload under several names, and print as
+  one line. An entry sharing some of another's bytes without being the same
+  span prints a line naming both. A marker has no bytes and joins no set, and a
+  span an alias set shares is referenced, not a gap.
+- **A summary counts bulk and nothing else.** Gaps, a name repeated within one
+  file, and alias sets are counted; an override across files, an entry past the
+  end, a partial overlap, a lump that only looks headed, and every TYPES finding
+  print as they do with no switch. A summary that hid damage would be a lie, and
+  an alias set is not damage.
 - **`/l` skips the checks rather than hiding them.** A listing that ran them
   and printed nothing would cost what the checks cost.
 
