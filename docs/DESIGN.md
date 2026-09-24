@@ -4014,10 +4014,11 @@ else mentions.
 ### What it unblocks that is not nesting
 
 Any table whose entries are consumed by `peek`/`poke`, which is the interface
-`std/str.momo` already presents. §41's `momowad` directory is one: a lump of
-assets wants a table of where each begins, and the alternative is the same linear
-walk `nthStr` does. §52 and §53 have both landed since; this would have stood
-alone either way.
+`std/str.momo` already presents. §41's `momowad` directory was named here as one,
+and was built without it: a WAD's directory is already a table of where each lump
+begins, in the file, and `mowad` reads an entry back from there rather than
+holding a copy. §52 and §53 have both landed since; this would have stood alone
+either way.
 
 ---
 
@@ -6698,7 +6699,6 @@ from it for as long as the count read "thirteen", and nothing could say so.
 | §33 | Other CPUs - `momo/z80`, `momo/6502` |
 | §34 | Hoisting the ES load, which §16 leaves reloading per access |
 | §40 | Memory past the segment |
-| §41 | `momowad` - asset storage |
 | §42 | A test tier below DOSBox |
 | §46 | `alias` - a name for an indexed access, which §45's `of` is one case of |
 | §50 | A layout DSL: content, layout and paint as three documents |
@@ -8335,3 +8335,318 @@ scale and unit.
 - Emitted comments stay 7-bit: the tools write `.asm` as ascii, so the reset
   comment says "defaults restored on the way out" and cites no section sign.
   The re-encoding trap is CLAUDE.md's opening rule, one format along.
+
+---
+
+## 41. `momowad` - asset storage
+
+**Built.** `shared/lib/mowad.momo` reads and writes the container: a chain of
+WADs open at once, a lookup that finds the last lump registered under a name,
+a typed read that checks the lump's own header, and a writer that emits the
+headers and the manifest. `wadtrip` is the round trip in tier 2, `wadinfo` is
+the tool that lists a chain and says what is wrong with it, and `npm run wad`
+is the host writer, whose type table is the library's own. The storage format
+for everything a program ships with: compatible with Doom's WAD at the
+container, carrying lump types of our own, with PWAD-style override.
+
+```momo
+include "lib/mowad.momo"
+
+wadOpen( addr( baseName ) )
+wadOpen( addr( patchName ) )           // later files override earlier ones
+
+lump = wadLump( addr( nGreet ) )       // the patch's, if it has one
+wadStartAs( lump, wadTypeText )        // stops the run if it is not text
+n = wadNext( addr( buf ), 64 )
+```
+
+### The format, and why it suits this machine
+
+A 12-byte header - a four-character magic, a lump count, and the offset of the
+directory - then the lumps, then a directory of 16-byte entries: a four-byte file
+position, a four-byte size, and **an eight-character name**.
+
+Three things make it a good fit rather than merely an available one.
+
+**Eight-character names are the discipline this repository already keeps.**
+Project directories and entry files are 1-8 characters because DOS requires it, so
+a lump name and a Momo name are the same shape, and nothing has to be truncated or
+mapped on the way in.
+
+**It is little-endian**, which is the machine's own byte order, so every field is
+read by loading it.
+
+**Reading never needs 32-bit arithmetic.** Momo has no `i32`, and a file position
+is four bytes - but DOS seek takes its offset in `CX:DX`, which is exactly two
+words, so the halves go from the directory entry into the two registers without
+being added together. An entry is found the same way: a seek to the directory,
+then a forward seek by the entry's offset in it, and DOS does the add. A lump
+larger than a segment is read in pieces, by design, through `wadNext`.
+
+The claim held in the build, and it has a boundary the design did not draw:
+**writing and checking do add.** The writer keeps the position it has reached,
+which is a carried add of two words per write and one borrowed subtraction per
+lump, and `wadinfo` asks whether a position plus a size passes a file's end,
+which is three 32-bit quantities. Both are a few lines on word pairs, and
+neither reaches the reader.
+
+### What compatibility buys, and what it does not
+
+The container is readable by existing WAD tools - they can list what is in one and
+extract a lump - which is worth having for inspection and for anything written on
+the host side.
+
+They will make no sense of the contents, and that is expected: the lump *types* are
+ours. This is compatibility of the envelope only, so nobody reads the claim as "our
+assets work in Doom".
+
+### The type is a per-lump header
+
+**Doom's WAD has no type field.** A lump's kind comes from its name and from
+where it sits between marker lumps - `S_START` and `S_END` around sprites - and
+four candidates were weighed before the first lump was written: markers, a name
+prefix, a small header inside each lump, and a TYPES lump mapping names to
+kinds. The choice is between the type as *position*, as *convention*, and as a
+*checkable claim*, and this repository's whole doctrine is that conventions the
+system cannot check are where the silent failures live.
+
+**Every lump this format authors opens with four bytes**: the characters `Mo`,
+a type, and a version.
+
+```
+[ 'M' 'o' ] [ type u8 ] [ version u8 ]  then the payload
+```
+
+- The full eight characters of the name stay a name, so a lump name and a Momo
+  name remain the same shape - the virtue the prefix option spent.
+- The type is **in the bytes a reader just loaded**, so every use checks it for
+  free and a mismatch stops the run naming both sides - where a prefix is a
+  promise in the caller's own string that nothing can refute, and markers are
+  the option Doom's own history teeth-checked: a PWAD replacing one sprite does
+  not carry the markers, so position-as-type failed under override, the exact
+  feature this format exists for.
+- The version byte is the schema study's evolution hook, carried for free.
+- The cost is one rule every reader follows - skip four bytes - and that a
+  lump's type is not in the directory. Foreign WAD tools list our names without
+  grouping them, and lose nothing else: a lump they extract and re-insert still
+  says what it is.
+
+The ids are consts in `mowad.momo`, in a unit of their own so a type cannot be
+handed where a version or a count was wanted:
+
+| | |
+|---|---|
+| `wadTypeNone` 0 | what an untyped lump answers; no header carries it |
+| `wadTypeRaw` 1 | bytes with no structure beyond the header |
+| `wadTypeText` 2 | text |
+| `wadTypePalette` 3 | a palette |
+| `wadTypeScene` 4 | a scene, for the binary form §50 wants |
+| `wadTypeTypes` 5 | the manifest itself |
+
+**They have one source.** `npm run wad` compiles the library - load and resolve,
+the front half every tool shares - and takes every const in the unit `wadType`
+as its table, named by what follows `wadType`. The layout constants come from the
+same compile and are checked against what the host writes, so a library that
+changes shape stops the tool by name rather than drifting from it.
+
+### `TYPES` is a manifest, never an authority - except for lumps that cannot speak
+
+A TYPES lump - rows of `[ name u8*8 ][ type u8 ]` - was weighed as the
+authority and rejected: it stores the type away from the lump it describes,
+which is markers' disease with the distance measured in lumps, and it is a
+parallel structure that must agree with the directory, which is LESSONS.md's
+parallel-arrays incident at WAD scale. Under override it re-creates the PWAD
+sprite mess outright: replacing a lump and replacing its description come
+apart.
+
+It survives as two lesser things, one rule covering both: **the header is the
+authority wherever one exists, and TYPES speaks only for lumps that cannot
+speak.**
+
+- **Derived**, for our own lumps: both writers emit rows from the headers they
+  just wrote, so a tool can type a whole file in one read. The reader never
+  consults these; `wadinfo` checks them against the headers, the way
+  `npm run drift` checks INDEX.md against the headings.
+- **Authoritative for foreign lumps only**: `PLAYPAL` in DOOM.WAD can never
+  grow a header, so a TYPES row is the best claim available, and it is
+  convention-grade by nature - unverifiable against the content, admitted at
+  the interop boundary and nowhere else. Rows merge by name across the load
+  chain under the same last-wins rule as lumps themselves, so a PWAD of ours
+  loaded after DOOM.WAD can annotate Doom's lumps without touching them.
+- `wadTypeFrom()` says where a type came from - header, manifest, or untyped -
+  and `wadinfo` prints it, because a claim and a checked fact should never print
+  alike.
+
+Two decisions the design left to the build. **The manifest carries a header of
+its own**, of type `types`: every lump this format authors has one, and a TYPES
+lump somebody else wrote could say anything, so one without the header is not
+read and `wadinfo` says so. And **a file's manifest is its last TYPES**, the one
+`wadLump` would find in it; an earlier one in the same file is shadowed as any
+lump is. Across files the rows merge rather than shadow, which is the whole
+reason a patch can annotate a base.
+
+### Override is the reason for the format rather than a bonus
+
+A PWAD's lumps shadow an IWAD's of the same name, so a base set of assets can be
+patched without being rebuilt. That is a mod system, and it is also how a project
+carries a variant - a different palette, a bigger font - without a second copy of
+everything.
+
+The mechanism is a lookup that finds the **last** lump registered under a name,
+which makes load order the whole of the policy. As built it is nothing more than
+that: the index is one array in load order, a later file's lumps further down it,
+and `wadLump` searches it backwards. Inside one file the later entry wins too,
+as it does in Doom. Up to `wadMaxFiles` files may be open at once.
+
+### The index is names, and an entry is read back when asked
+
+The directory has a cost of its own, and the design offered three answers - hold
+it all, hold names only and re-read entries on demand, or re-read the directory
+per lookup. **The build took the middle one.** Eight bytes a lump in a view of
+the heap, and a lump's position and size read back from its directory entry, two
+seeks and one read, when something asks.
+
+The whole directory of the largest IWAD is most of a heap, and its names are
+half that; DECISIONS §41 has the numbers. The cap, `wadMaxLumps`, is set to hold
+that IWAD with room, inside `wadArenaBytes`, which also holds the stage the
+directory is read through and the writer's pending directory - and a `require`
+holds the parts to the arena, so a cap raised without room is a compile error
+naming both totals. A file past the cap is refused by name rather than indexed in
+part: a lump missing from the index would be a lump `wadLump` says is not there.
+
+The arena is a budget rather than a claim: a view nothing uses is pruned (§17),
+so a program that never writes claims only the index and the stage.
+
+### What a program calls
+
+```momo
+bool      wadOpen( a16 file )                      // register at the end of the chain
+a16       wadWhy()                                 // why the last open refused
+sub       wadClose                                 // close every file, empty the chain
+u16       wadLump( a16 name )                      // the last lump so named, or wadNone
+wadType   wadTypeOf( u16 lump )                    // its type ...
+wadSource wadTypeFrom()                            // ... and header, manifest or untyped
+sub       wadStart( u16 lump )                     // stream from byte 0, header and all
+sub       wadStartAs( u16 lump, wadType want, u8 version = 0 )  // the typed read
+u16       wadNext( a16 at, u16 count )             // the next piece, 0 at the end
+
+bool      wadCreate( a16 file, bool iwad = false )
+sub       wadBegin( a16 name, wadType type, u8 version = 1 )
+sub       wadForeign( a16 name )                   // a lump with no header
+sub       wadPut( a16 at, u16 count )
+sub       wadEnd
+sub       wadClaim( a16 name, wadType type )       // a foreign row
+bool      wadFinish()                              // manifest, directory, header
+```
+
+beside the accessors a checker wants - a lump's name, file, position and size,
+and a file's base, count, directory, size and manifest.
+
+### Where the bytes go
+
+§38's constraint applies in full: DOS reads into the program's own segment, so a
+lump lands in memory the program names - a view of `_heap` (§17) in both
+programs here - and is copied out to `far` memory if it is bound for somewhere
+larger. **Nothing copies one out yet**, so that per-byte cost is still unmeasured,
+and it is the measurement to take when the first consumer does.
+
+`wadinfo` is the one program here that reaches past the segment, and not for
+lumps: its checks sort a table of every lump's position and size, and that table
+beside the index would not fit the heap, so it lives in the block DOS gave the
+program (§47). A machine with no room there gets the listing and is told the
+checks were skipped.
+
+### `wadinfo`
+
+`wadinfo FILE.WAD [PATCH.WAD ...]` opens a chain in the order given and lists
+every lump - index, file, name, offset, size, type, and where the type came
+from. Then its findings: an entry running past the end of its file; two entries
+sharing bytes, and bytes no entry, header or directory covers, from one sweep of
+each file in position order; a name more than one lump carries and which one
+`wadLump` returns; a TYPES row naming a lump nobody has; and a TYPES row
+disagreeing with the header of the lump it names.
+
+Its fixture is two files the host writer builds from manifests committed beside
+them, and the second carries something for every finding. The host writer's
+manifest has two kinds of line no asset needs - `pad` and `entry`, bytes nothing
+references and a directory entry written as given - because a directory is
+free-form, and a checker's fixture has to be able to say what the checker must
+catch.
+
+### Rules
+
+- **Open is all or nothing.** A file is in the index whole or refused, with
+  `wadWhy()` naming which limit: not a WAD, too many lumps, a directory past the
+  end of the file, too many files, or one that will not open.
+- **A typed read of the wrong type stops the run**, naming the lump, what it is,
+  whether a header or only the manifest said so, and what was asked for. A
+  foreign lump the manifest typed starts at byte 0; one of ours starts past its
+  header.
+- **One stream at a time, carrying its own position.** A type asked or an entry
+  looked up between two `wadNext` calls leaves the stream where it was.
+- **A row cannot be claimed for a lump the same write gave a header.** Both
+  writers refuse it: the header is the authority, and a second description of
+  the same lump is the parallel structure refused above.
+- **One write at a time**, holding up to `wadWriteMax` lumps and `wadClaimMax`
+  claimed rows until `wadFinish`, which reports a short write, the close
+  included (PITFALLS).
+- **Names compare to the first nul.** The index zeroes whatever a writer left
+  after one, so two names are equal exactly when their four words are.
+
+### Testing
+
+§41 said a round trip needs no fixture and no host tool, and `wadtrip` is that:
+it writes a base IWAD and a patch PWAD from Momo, reads them back as a chain, and
+prints a digest - names, sizes, types with their source, and a checksum of every
+payload, read through the typed read wherever a lump has a type. The patch
+shadows a lump and outvotes a row, and both show. It ends on a typed read the
+library must refuse, so a check that let it through prints a different last line.
+
+The host writer turned out to be the second reader the round trip lacked. Its
+`list` read the two files DOSBox wrote and agreed with `wadtrip`'s digest line
+for line - two implementations of the same format, neither derived from the
+other.
+
+### What is still open
+
+**Override below the lump.** PWAD override is name-granular and **flat**: the
+unit of replacement is a whole lump, and for a palette or a font that is the
+right unit. The scene work makes data graph-shaped - §50's layout refers to
+content by name, and anything the schema study describes can hold references to
+other records - and then the question is whether the lump stays the override
+unit.
+
+Two positions, and the second is strictly later rather than an alternative:
+
+- **The lump stays the unit.** Overriding one node means shipping the lump that
+  contains it, whole. Coarse, but load order stays the entire policy and
+  nothing a patch does can dangle a reference - the graph arrives and leaves in
+  one piece.
+- **Named nodes join the namespace.** Fine-grained patching of one item in a
+  scene - and now a patch can dangle a reference or close a cycle, so loading
+  gains a mandatory validation walk. The walk is the shape `analysis.ts`
+  already does for calls, and cheap for the same reason, but it has to exist
+  before the first fine-grained patch does, not after.
+
+What decides it is the schema study, in PLAN's Probably tier: a schema knows
+which fields are references, so the validator is generated once rather than
+written per lump type. Until then the first position is the default, and it is
+the only one built.
+
+**The zone allocator.** Doom's zone allocator exists **because** of WADs: its
+purgeable cache tag is what lets a cached lump be dropped when memory runs short,
+which is precisely the policy a program with an asset file and 64 KB needs. §40
+records that the two are one design. What is built here caches nothing - a lump
+is read into memory the program names, every time it is asked for - so the zone
+is still where eviction would live, and it still wants designing with this
+rather than beside it.
+
+**The binary form the scene work has been missing.** A text scene format compiles
+to something, and so far that something has always been a Momo source file full
+of `const` arrays, baked into the program. A lump is the other target: the same
+data, loaded rather than compiled in, which is what lets a program ship more
+assets than fit in its own image. `wadTypeScene` is reserved for it and nothing
+writes one yet.
+
+The record - what the build measured, the teeth, and what surprised it - is
+`DECISIONS.md` §41.

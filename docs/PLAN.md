@@ -25,7 +25,7 @@ happen.
 
 | | | wants |
 |---|---|---|
-| `momowad` (§41) | assets in bulk, with Doom-style PWAD overrides. Compatible with WAD at the container level, carrying our own lump types | nothing - §38 landed |
+| `momowad` (§41) | assets in bulk, with Doom-style PWAD overrides. Compatible with WAD at the container level, carrying our own lump types | built as a library and a checker - the chain, typed reads and both writers are §41; a program that loads its assets from one, and the zone cache §40 pairs it with, are what the destination still imagines |
 | `momoed` (§55) | the editor - **opens, edits, searches, selects and saves several files from an explorer, and holds them past the segment**; text modes `edit.com` never had are what is left | nothing - the directory enumeration the explorer wanted is §38's now, and text in a graphics mode is undesigned rather than blocked |
 | `momode` | a graphical shell and launcher. Single-tasking, and windowed by screen offsets an aware program is handed (§43) | a mouse, and §40's ES gap |
 | `momove` | a small vector editor, for icons and the like | a mouse, §37's geometric booleans |
@@ -34,7 +34,7 @@ happen.
 
 **Two capabilities are missing under all of it**: a mouse and sound. File I/O was
 the third and is built (§38), which takes the deepest of them off this list -
-`momowad` now waits on nothing. Both of the rest are close: §22's port I/O was
+`momowad` was built on it (§41). Both of the rest are close: §22's port I/O was
 justified partly by the PIT and the speaker, and §24 already records that a mouse
 callback is the one thing that would want `retf`.
 
@@ -199,10 +199,10 @@ at all, which makes one a floor rather than a measurement.
   pipeline the scene work already has one instance of, generalised from geometry to
   anything.
 
-  Two things would use it immediately. §41 leaves the lump-type question open -
-  Doom's WAD has no type field, so ours has to choose between markers, a name
-  prefix and a per-lump header - and a schema is what makes that choice once
-  instead of per asset kind. And `momopnt`'s three editors want property
+  Two things would use it immediately. §41 settled which kind a lump is - a
+  per-lump header, whose version byte is this study's evolution hook - and a
+  schema is what would say what each kind's payload holds, once instead of per
+  asset kind. And `momopnt`'s three editors want property
   inspectors over three different shapes, which is exactly where generating the
   interface from the description pays for itself rather than being clever.
 
@@ -343,6 +343,16 @@ All are set out in DESIGN §20 unless noted.
 section that was itself a plan - see the note at the top for why, and where to
 look for the rest.
 
+- **`momowad`.** 2026-09-24. §41, now in `DESIGN.md`, and the record is
+  DECISIONS §41. `mowad.momo` opens a chain of WADs, finds the last lump
+  registered under a name, and holds a typed read to the `Mo` header the lump
+  carries; `wadtrip` writes a base and a patch from Momo and reads them back,
+  `wadinfo` lists a chain and says what is wrong with it, and `npm run wad`
+  builds one on the host from the library's own type table. The index is names
+  only, §41's middle option. The design did not say that writing and checking
+  need the carried adds reading does not, that the manifest wants a header of
+  its own, or which TYPES in a file is its manifest. The zone pairing and
+  override below the lump stay open.
 - **Adopt §49 in momolo and momovec.** 2026-09-24. The record is DECISIONS §49.
   `walkPath`'s booleans are named and `fillPath` is tidy by default, at no cost
   either way. momolo's openers take twelve defaulted settings named at the
@@ -1899,178 +1909,6 @@ a reminder that stale plans hide opportunities as well as being untidy.
 
 ---
 
-## 41. `momowad` - asset storage
-
-**Designed, not built, and blocked on §38.** The storage format for everything a
-program ships with: a container compatible with Doom's WAD, carrying lump types of
-our own, with PWAD-style override.
-
-### The format, and why it suits this machine
-
-A 12-byte header - a four-character magic, a lump count, and the offset of the
-directory - then the lumps, then a directory of 16-byte entries: a four-byte file
-position, a four-byte size, and **an eight-character name**.
-
-Three things make it a good fit rather than merely an available one.
-
-**Eight-character names are the discipline this repository already keeps.**
-Project directories and entry files are 1-8 characters because DOS requires it, so
-a lump name and a Momo name are the same shape, and nothing has to be truncated or
-mapped on the way in.
-
-**It is little-endian**, which is the machine's own byte order, so every field is
-read by loading it.
-
-**The 32-bit fields never need 32-bit arithmetic.** Momo has no `i32`, and a file
-position is four bytes - but DOS seek takes its offset in `CX:DX`, which is exactly
-two words. The high and low halves come out of the directory entry and go straight
-into the two registers without ever being added together. The one place this stops
-working is a lump larger than a segment, which has to be read in chunks anyway.
-
-**The numbers above want checking against a real WAD** before anything relies on
-them.
-
-### What compatibility buys, and what it does not
-
-The container is readable by existing WAD tools - they can list what is in one and
-extract a lump - which is worth having for inspection and for anything written on
-the host side.
-
-They will make no sense of the contents, and that is expected: the lump *types* are
-ours. Worth being plain that this is compatibility of the envelope only, so nobody
-later reads the claim as "our assets work in Doom".
-
-### The type is a per-lump header, settled 2026-09-24
-
-**Doom's WAD has no type field.** A lump's kind comes from its name and from
-where it sits between marker lumps - `S_START` and `S_END` around sprites - and
-four candidates were weighed before the first lump was written: markers, a name
-prefix, a small header inside each lump, and a TYPES lump mapping names to
-kinds. The choice is between the type as *position*, as *convention*, and as a
-*checkable claim*, and this repository's whole doctrine is that conventions the
-system cannot check are where the silent failures live.
-
-**Every lump this format authors opens with four bytes**: the characters `Mo`,
-a type, and a version.
-
-```
-[ 'M' 'o' ] [ type u8 ] [ version u8 ]  then the payload
-```
-
-- The full eight characters of the name stay a name, so a lump name and a Momo
-  name remain the same shape - the virtue the prefix option spent.
-- The type is **in the bytes a reader just loaded**, so every use checks it for
-  free and a mismatch stops the run naming both sides - where a prefix is a
-  promise in the caller's own string that nothing can refute, and markers are
-  the option Doom's own history teeth-checked: a PWAD replacing one sprite does
-  not carry the markers, so position-as-type failed under override, the exact
-  feature this format exists for.
-- The version byte is the schema study's evolution hook, carried for free.
-- The cost is one rule every reader follows - skip four bytes - and that a
-  lump's type is not in the directory. Foreign WAD tools list our names without
-  grouping them, and lose nothing else: a lump they extract and re-insert still
-  says what it is.
-
-### `TYPES` is a manifest, never an authority - except for lumps that cannot speak
-
-A TYPES lump - rows of `[ name u8*8 ][ type u8 ]` - was weighed as the
-authority and rejected: it stores the type away from the lump it describes,
-which is markers' disease with the distance measured in lumps, and it is a
-parallel structure that must agree with the directory, which is LESSONS.md's
-parallel-arrays incident at WAD scale. Under override it re-creates the PWAD
-sprite mess outright: replacing a lump and replacing its description come
-apart.
-
-It survives as two lesser things, one rule covering both: **the header is the
-authority wherever one exists, and TYPES speaks only for lumps that cannot
-speak.**
-
-- **Derived**, for our own lumps: the host-side writer emits rows from the
-  headers, so a tool can type a whole file in one read. The reader never
-  consults these; `wadinfo` checks them against the headers, the way
-  `npm run drift` checks INDEX.md against the headings.
-- **Authoritative for foreign lumps only**: `PLAYPAL` in DOOM.WAD can never
-  grow a header, so a TYPES row is the best claim available, and it is
-  convention-grade by nature - unverifiable against the content, admitted at
-  the interop boundary and nowhere else. Rows merge by name across the load
-  chain under the same last-wins rule as lumps themselves, so a PWAD of ours
-  loaded after DOOM.WAD can annotate Doom's lumps without touching them.
-- `wadinfo` says where every type came from - header, manifest, or untyped -
-  because a claim and a checked fact should never print alike.
-
-### Override is the reason for the format rather than a bonus
-
-A PWAD's lumps shadow an IWAD's of the same name, so a base set of assets can be
-patched without being rebuilt. That is a mod system, and it is also how a project
-carries a variant - a different palette, a bigger font - without a second copy of
-everything.
-
-The mechanism is a lookup that finds the **last** lump registered under a name,
-which makes load order the whole of the policy.
-
-### Override below the lump is open, and graph-shaped data is why
-
-PWAD override is name-granular and **flat**: the unit of replacement is a whole
-lump, and for a palette or a font that is the right unit. The scene work makes
-data graph-shaped - §50's layout refers to content by name, and anything the
-schema study describes can hold references to other records - and then the
-question is whether the lump stays the override unit.
-
-Two positions, and the second is strictly later rather than an alternative:
-
-- **The lump stays the unit.** Overriding one node means shipping the lump that
-  contains it, whole. Coarse, but load order stays the entire policy and
-  nothing a patch does can dangle a reference - the graph arrives and leaves in
-  one piece.
-- **Named nodes join the namespace.** Fine-grained patching of one item in a
-  scene - and now a patch can dangle a reference or close a cycle, so loading
-  gains a mandatory validation walk. The walk is the shape `analysis.ts`
-  already does for calls, and cheap for the same reason, but it has to exist
-  before the first fine-grained patch does, not after.
-
-What decides it is the schema study, already in Probably: a schema knows which
-fields are references, so the validator is generated once rather than written
-per lump type. Until that audit happens the first position is the default, and
-it is compatible with the second later - names inside a lump cost nothing
-before anything resolves them.
-
-### Where the bytes go
-
-§38's constraint applies in full: DOS reads into the program's own segment, so a
-lump lands in a `view` of `_heap` (§17) and is copied out to `far` memory if it is
-bound for somewhere larger. That copy is the per-byte cost of every asset load and
-should be measured once rather than argued about.
-
-The directory has a cost of its own. Five hundred lumps is eight thousand bytes,
-which is a lot to hold resident on a machine with sixty-four thousand. Three
-options, and "slow is acceptable where the work still gets done" makes the last one
-respectable: hold it all, hold names only and re-read entries on demand, or re-read
-the directory per lookup.
-
-### It is the same design as the zone allocator
-
-§40 records this and it belongs here too: Doom's zone allocator exists **because**
-of WADs. Its purgeable cache tag is what lets a cached lump be dropped when memory
-runs short, which is precisely the policy a program with an asset file and 64 KB
-needs. The two want designing together.
-
-### It is the binary form the scene work has been missing
-
-A text scene format compiles to something, and so far that something has always
-been a Momo source file full of `const` arrays, baked into the program. A lump is
-the other target: the same data, loaded rather than compiled in, which is what lets
-a program ship more assets than fit in its own image.
-
-### Testing
-
-A round trip needs no fixture and no host tool: write a small WAD from Momo, read
-it back, and print a digest of what came out - which is a tier 2 test of the kind
-this project already has thirty-five of. A host-side writer is worth having as
-well, since it is what the asset pipeline will actually use, but the test does not
-depend on it.
-
----
-
 ## 42. A test tier below DOSBox
 
 **Designed, not built.** An executor that decodes the assembled `.COM`, to count
@@ -2449,9 +2287,8 @@ spelling above, in the shape the vector work already uses. That also settles
 what it costs to be wrong about the text syntax: a generated file and a
 regeneration, not a language feature. **A scene parsed at runtime is a
 different feature and belongs to §41**: a lump is the binary a scene compiles
-to when it should be loaded rather than built in, and putting a parser on the
-target before there is a wad to read from would be building the expensive half
-first.
+to when it should be loaded rather than built in. There is a wad to read from
+now, and a parser on the target is still the expensive half.
 
 ### Unsettled
 

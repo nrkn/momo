@@ -185,6 +185,8 @@ npm run momoc:all             # every project and the ok- goldens; drives the VS
 npm run build -- <project>    # compile, then assemble in DOSBox
 npm start <project> [args]    # assemble and run, with a DOS command tail
 npm run image                 # build/*.COM -> build/momo.ima, for 86Box
+npm run wad -- build <manifest> <out.wad>  # a WAD from a manifest, typed by mowad.momo (§41)
+npm run wad -- list <file.wad> ...        # what a WAD chain holds, and where each type came from
 
 npm run lex -- <project>      # token dump
 npm run lex:nl -- <project>   # statement terminators only
@@ -496,7 +498,7 @@ The cost of waiting is that the first thing a visitor reads is the weakest
 document in the repo. That trade is made deliberately, and preferred to shipping a
 second draft in the same voice as the first.
 
-879 tier-1 assertions, 69 e2e programs, all green. `npm test` prints the tier 1
+887 tier-1 assertions, 71 e2e programs, all green. `npm test` prints the tier 1
 breakdown, and `npm run drift` holds both figures against the harness and the
 committed expectations. Both have drifted before, which is why a script reads
 them now.

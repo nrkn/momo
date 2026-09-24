@@ -55,7 +55,7 @@ text for.
 | 38 | File I/O | [section](DESIGN.md#38-file-io) |  | [section](DECISIONS.md#38-file-io) |
 | 39 | `unit` | [section](DESIGN.md#39-unit) |  | [section](DECISIONS.md#39-unit) |
 | 40 | Memory past the segment | listed | [section](PLAN.md#40-memory-past-the-segment) |  |
-| 41 | `momowad` - asset storage | listed | [section](PLAN.md#41-momowad---asset-storage) |  |
+| 41 | `momowad` - asset storage | [section](DESIGN.md#41-momowad---asset-storage) |  | [section](DECISIONS.md#41-momowad) |
 | 42 | A test tier below DOSBox | listed | [section](PLAN.md#42-a-test-tier-below-dosbox) |  |
 | 43 | The screen library | [section](DESIGN.md#43-the-screen-library) |  | [section](DECISIONS.md#43-the-screen-library) |
 | 44 | Declaring the counter in a `for` | [section](DESIGN.md#44-declaring-the-counter-in-a-for) |  | [section](DECISIONS.md#44-declaring-the-counter-in-a-for) |

@@ -4927,3 +4927,137 @@ changed no instruction at its three call sites. Defaulting `tidy` moved one
 store from eleven callers into `fillPath`'s exit, so a program calling it once
 is unchanged and `tclip`, which calls it twice, is one instruction smaller -
 as is `momovec`, where the store it lost brought a branch into short range.
+
+## 41. `momowad`
+
+### Residency: names, and the numbers that chose them
+
+Built 2026-09-24, the day its lump type was settled. PLAN §41 offered three
+answers for the directory - all of it resident, names only with entries re-read,
+or the whole directory re-read per lookup - and left the choice to the build.
+The figures, fixed at that date:
+
+```
+DOOM2.WAD, 2,919 entries    at 16 bytes   46,704     as names   23,352
+the cap, 3,072 names                                  24,576
++ stage 512, writer directory 64 x 17, claims 16 x 9  = 26,320 in an arena of 26,624
+wadinfo's heap (_hsize)     54,132 bytes
+```
+
+The whole directory would fit `wadinfo` and leave it about 7 KB, which is the
+wrong shape for a library other programs include - the first version of the
+library's own comment said it "would not leave room", and recounting said
+otherwise. Names leave half the heap. The price is paid per question: a
+position or a size is two seeks and a 16-byte read, and a type is a seek and a
+4-byte read, plus a manifest scan for a lump with no header. The machine tier
+counts none of that as time - an `int` is one instruction there, and the disk is
+free - so what a listing of DOOM.WAD costs on a real drive is not something
+anything here has measured.
+
+The arena is a budget and not a claim. Pruning drops a view nothing uses, so
+`npm run memory` shows `wadtrip`, which writes, claiming 26,688 bytes with its own
+64-byte buffer, and `wadinfo`, which never writes, claiming 25,088 - the index
+and the stage.
+
+### What the design said and the build bent
+
+- **"The 32-bit fields never need 32-bit arithmetic"** held for reading, and the
+  build extended it: an entry is found by a seek to the directory and a forward
+  seek by its offset, so even the address of an entry is DOS's add. It did not
+  hold for writing, where the writer keeps its position as a carried add of two
+  words and a lump's size as a borrowed subtraction, nor for checking, where
+  "past the end" is a position plus a size against a length. Both are a few
+  lines on word pairs; DESIGN §41 draws the boundary.
+- **`fileSeek` hands back only the low word**, and a checker needs a file's
+  whole length. The library issues its own `AH=42h` to the end and reads DX
+  straight after the int, rather than widening `file.momo`'s capture, which
+  every program including it would have paid for in its golden output.
+- **The manifest was given a header of its own.** The design's row format has
+  none, and every lump this format authors does; a TYPES somebody else wrote
+  could hold anything, so one without the header is not read.
+- **A file's manifest is its last TYPES**, and rows merge across files. The
+  design said rows merge "under the same last-wins rule as lumps"; within one
+  file an earlier TYPES is shadowed as any lump would be, and `wadinfo` says so
+  when a file has two.
+- **The host writer's manifest grew two kinds of line no asset needs**, `pad`
+  and `entry`, because the checker's fixture had to contain the damage it
+  checks for, and a writer that could only write well-formed files could not
+  build it.
+- **`wadinfo` takes a chain, not one file.** The brief was one filename; with
+  several, a patch's rows can type a base's foreign lumps, which is §41's
+  interop case, and override winners become visible across files. It is the
+  second project to need `.args`.
+
+### The type table has one source
+
+`npm run wad` compiles `mowad.momo` through `load` and `resolve`, stops short of
+pruning so an unused const is still there, and takes every const whose unit is
+`wadType`. Checking the unit rather than a name prefix means `wadTypeNames`, the
+table of printed names beside them, cannot be mistaken for a type. The layout
+constants - header, entry, name, Mo header and row sizes, and the three entry
+field offsets - are read from the same compile and held against what the writer
+emits, so moving one stops the tool by name. Raising the cap past the arena
+stops it too, because a failed `require` is a failed compile.
+
+### Teeth
+
+Committed first, each check neutered by line with a condition the folder cannot
+see through - `&& lump == wadNone`, `&& pathCount == 99` - the failing test read,
+and the file restored with `git checkout`.
+
+- **The typed read's type check**: `wadtrip` differs from its `.expected` at line
+  21, `the typed read let a palette through as text` where
+  `mowad: RAMP is palette (header), asked for text` should be; in `npm test`,
+  `machine wadtrip`.
+- **Override order, broken to first-wins** by scanning the index forwards:
+  `wadtrip` differs at line 6 - `0 0 GREET 14 text header 39587*`, the base's
+  `GREET` marked the winner - and its lookup reads `0 in file 0 hello, wad`.
+  **`wadinfo` did not notice**, because it read the winner off the end of its own
+  sorted run and so reported the rule rather than the library. It asks
+  `wadLump` now, and the same break fails it at line 21:
+  `HELLO: 2 lumps, and #0 in BASE.WAD wins`.
+- **A derived TYPES row flipped** in the committed `BASE.WAD` - PAL's type byte,
+  offset 112, from 3 to 2 - adds
+  `BASE.WAD: TYPES row PAL says text, and its header says palette` at line 22.
+  The listing still says `palette header`: the header wins, and the row is what
+  is reported.
+- **Each of `wadinfo`'s other checks** - past the end, overlap, gap, duplicate
+  names, a row naming no lump, a row disagreeing - fails at its own line of the
+  `.expected`. Neutering the absent-row check also shows the library refusing
+  lump 65535 by name, `mowad: no lump numbered 65535`, rather than reading
+  whatever the arithmetic reached.
+- **The arena `require`**, with the cap raised to 3,200: `the left side folds
+  to 27344 and the right to 26624`, from both `momoc` and `npm run wad`. **The
+  seek `require`**, with the cap at 4,096 and the arena raised so only it can
+  fail: `the left side folds to 65536 and the right to 65535`.
+- **The ranged unit**: `wadSource_ = 3` is refused, `value 3 does not fit in
+  wadSource, which is u8 < 3`. The first attempt put the 3 in the arm of a
+  ternary and **compiled**, which is §4's rule and not a gap in §75: a ternary
+  with a runtime condition is a runtime value, and neither the fit check nor the
+  range looks inside it. `x = c == 0 ? 1 : 300` into a `u8` compiles the same
+  way. Recorded rather than changed; the arms are constants a reader can see,
+  and whether a constant arm is a landing site is §4's question.
+
+### Measured
+
+```
+            code   data   image   heap claimed by views   stack
+wadtrip     6231   1297    7528   26688                   26
+wadinfo     8949   1915   10864   25088                   26
+```
+
+`wadtrip` runs in 69,651 instructions on the machine tier and `wadinfo` over its
+fixture in 85,790. A stand-in of DOOM.WAD's shape, built in memory by a
+throwaway - 2,004 lumps, markers, ten map lumps repeated for 27 maps, a 68,168-byte
+lump and 2.8 MB, so positions pass both 64 KB and 1 MB - listed and checked clean
+in 16.4 million instructions, reporting the ten map-lump names as 27 lumps each.
+At 2,904 lumps and 3.4 MB, with a patch of two rows loaded after it, it took 26.3
+million, and the patch typed the stand-in's `PLAYPAL` as a palette from the
+manifest. 3,072 lumps opened and 3,073 were refused by name. DOOM.WAD itself is
+not in this repository.
+
+Tier 1 went from 879 assertions to 887: two goldens, two capacities, two round
+trips and two machine runs. Tier 2 went from 69 programs to 71, all passing, and
+both new programs matched DOSBox on their first run there. Every golden `.asm`
+that existed before came out byte-identical under `npm run momoc:all`, by
+`git diff --stat`.
