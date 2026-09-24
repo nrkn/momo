@@ -4281,3 +4281,65 @@ now pins the agreement: eleven values computed once through typed consts and onc
 through variables, and the fixture's claim is that the pairs of output lines are
 identical. Teeth checked by neutering the clamp with a condition tsc cannot fold
 and reading which tier failed.
+
+## 74. `require`
+
+### "Emits nothing" was true of the emitter and not of pruning
+
+Built 2026-09-24, the day it was designed. The design said a require "emits no
+bytes" and that the resolver work was folding an expression it already knew how
+to fold, and both held for the resolver. What neither said is that a const is
+written out as an `equ` whenever pruning finds its label used, and pruning walks
+the retained program generically - so a require would have counted as a use of
+every const it named, and a program would have come out different from itself
+without its requires. This was seen reading the emitter before any code was
+written, and the fix is one line in `prune`'s walk.
+
+Neutering that line fails three tests, which is the evidence it was needed
+rather than a guess that it was: `reqtest`'s golden gains four `equ` lines -
+`viewRows`, `libChunkBytes`, `libArena` and `k`, the consts only its requires
+name - `ok-require-checked`'s gains three, and the identity pair fails on the
+first of them.
+
+### Teeth
+
+Each guard neutered with a condition tsc cannot fold, the suite read for which
+test failed, and the file restored with `git checkout` and rebuilt.
+
+- **The zero check** (`resolved.value !== 0 || node.line > 0`):
+  `err-require-false-compare` and `err-require-false` fail with "expected an
+  error containing ... but it compiled". Nothing else can: every require in
+  `reqtest` holds.
+- **The top-level refusal** (`&& node.line < 0`): `err-require-in-sub` and
+  `err-require-in-block` fail the same way. The neuter showed what the refusal
+  is guarding against, which is worse than a nested require being allowed:
+  nothing else in `resolveStatement` handles one, so its expression is never
+  folded, and the emitter's skip hides it completely. A require in a routine
+  would read as a claim and never be asked.
+- **The prune skip**, as above.
+
+### Two things the design did not say
+
+**A fixed-point side prints as its stored integer.** `speed > i8.8( 2.0 )` with
+`speed` a `const i8.8` of 1.5 fails with "the left side folds to 384 and the
+right to 512". Found by a probe, not held by a fixture, and left as it is: the
+numbers are the machine's, and DESIGN §74 says so.
+
+**A message argument needed its own refusal.** Without one, `require x <= 8,
+"why"` failed with `expected end of statement but found ","`, which enforces the
+rule without saying where the why goes. One check in the parser and one fixture,
+modelled on the comma refusal a `for` declaration already has.
+
+### Measured
+
+Tier 1 went from 748 assertions to 766: seven `err-require-*` files and the two
+`ok-` files of the identity pair (283 compile tests to 292), three goldens, one
+capacity, three round trips, one identity pair and one machine run. Every
+golden `.asm` that existed before came out byte-identical under
+`npm run momoc:all`, by `git diff --stat`.
+
+The spelling question was a grep: `\brequire\b` over every `.momo` file matched
+nothing, the word appearing only inside `requires`, `required` and `requirement`
+in comments. Tier 2 was left for the merge, because the worktree the build ran
+in had no DOSBox configured and the emitter writes nothing new outside the new
+fixtures.

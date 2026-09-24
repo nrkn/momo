@@ -6694,7 +6694,6 @@ from it for as long as the count read "thirteen", and nothing could say so.
 | §50 | A layout DSL: content, layout and paint as three documents |
 | §63 | A document larger than the memory |
 | §73 | `expect` - a contract for the routine a library calls and the program defines |
-| §74 | `require` - a compile-time assertion over constants |
 | §75 | Ranged units - a `unit` with a bound, checked where constants already are |
 | §76 | Table comprehensions - array initialisers the folder computes |
 
@@ -7786,3 +7785,89 @@ their routines are callable, which is what `tennis`'s measurement did.
   passes.
 - **Nothing here is allowed to disagree with tier 2.** Where the two differ, the
   machine is wrong until shown otherwise - tier 2 is the real thing.
+
+---
+
+## 74. `require` - a compile-time assertion
+
+**Built.** `reqtest` runs it in tier 2, the `err-require-*` files hold the
+refusals, and `ok-require-checked` and `ok-require-plain` are the identity pair
+that holds it to costing nothing.
+
+```momo
+require maxCrossings * 2 <= 4096
+require textChunks * chunkBytes + logBytes <= textArena
+```
+
+A top-level statement holding a constant expression; the resolver folds it, and
+zero is a compile error. The customer is every invariant that lives in a comment
+beside a capacity: motext's chunk arithmetic, momovec's derived `maxCoord`, the
+heap-partition chains §17 recommends. The capacity assertions in tier 1 catch
+*totals* overflowing the segment; `require` catches **relationships between
+constants**, which is where a capacity edit goes quietly wrong - raise
+`maxCrossings` and the comment beside it stays agreeable.
+
+### What a failure says
+
+The error quotes the line under a caret, as every diagnostic does. Where the
+expression is a comparison it names what each side folded to - the half a reader
+cannot see from the source - and the caret sits on the operator:
+
+```
+require failed - the left side folds to 6144 and the right to 4096
+```
+
+Anything else can only have folded to zero, and says `it folds to 0`. A
+fixed-point side is shown as the integer it is stored as, so 1.5 in 8.8 reads as
+384: the number the machine holds rather than the one the source wrote.
+
+An expression that does not fold names the innermost part that did not, and
+why - a variable, a call to a routine, an element read, an address:
+
+```
+require folds at compile time, and "count" does not - it is a variable, so its value is known only at runtime
+```
+
+### It is not a use
+
+A require emits nothing. The emitter skips it as it skips a const, source quote
+included, and pruning does not count the names inside it. The second half is the
+one that needed saying: a const is written out as an `equ` when something uses
+it, so a const named only by a require would otherwise keep a line the program
+without its requires does not have. `ok-require-checked` names three consts that
+nothing else does, and the identity tier holds it to the same instructions as
+`ok-require-plain`.
+
+### A library can name the program's constants
+
+The merged program is one namespace, and requires are checked in the second pass,
+after every top-level declaration in every file is in scope. So a require in an
+included file may name a const the including program declares - even one declared
+below the include. That is §73's seam met for numbers: a library asserting
+`require viewRows <= 25` holds the program to a bound the library depends on.
+`reqtest`'s own part does exactly this, and nothing was built to allow it.
+
+### What it cost
+
+Nothing at runtime, asserted rather than argued, and a word: `require` is a
+keyword, and no program or library in the corpus used it as a name.
+
+### Rules
+
+- **Top level only**, like every other declaration-shaped thing. Inside a routine,
+  or in a block the entry point runs, it would read as a check made when control
+  passes, which it is not - and a runtime assert is a different feature with a
+  different cost. The refusal says so.
+- **The expression must fold.** A runtime value in it is an error naming the part
+  that did not fold, never a check deferred to runtime.
+- **Zero fails.** The truthiness rule is `if`'s own, so there is nothing new to
+  remember; in practice every `require` is a comparison and folds to bool.
+- **Checked unconditionally**, whether or not anything nearby survives pruning. A
+  claim about constants is true or false at compile time, and making it
+  pruning-sensitive would mean a wrong constant surfaces only when a routine
+  starts being used, which is the worst possible moment to learn it.
+- **No message argument.** The why belongs in a comment above, where every other
+  why already lives, and a `, "..."` after the expression is refused by name.
+- **§4's typed folds truncate**, which is what makes an answer trustworthy: a
+  require over typed consts is about the value the machine computes. `reqtest`
+  holds `k + 1 == 0` with `k` a `const u16` of 65535.

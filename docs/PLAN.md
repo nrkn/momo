@@ -174,10 +174,6 @@ at all, which makes one a floor rather than a measurement.
   the compiler cannot read, and a wrong definition errors inside the library,
   naming the wrong party. Resolver-only, emits nothing, and the identity tier
   can say so.
-- **`require`.** §74 - a compile-time assertion over constants. The invariants
-  it would check exist today as comments beside capacities, which is the class
-  of claim that goes quietly wrong when the capacity moves. Folds with the
-  machinery the resolver already has, emits nothing.
 - **Ranged units.** §75 - `unit intensity = u8 <= 63`. §4's constant rule
   extended to a unit's bound, checked at the sites §4 already checks; a
   768-entry palette table validated wholesale is the case DECISIONS §1 paid
@@ -364,6 +360,14 @@ All are set out in DESIGN §20 unless noted.
 section that was itself a plan - see the note at the top for why, and where to
 look for the rest.
 
+- **`require`.** 2026-09-24. §74, now in `DESIGN.md`, and the record is DECISIONS
+  §74. A top-level constant expression the resolver folds, with zero an error
+  that names what each side of a comparison came to. "Emits nothing" was not
+  free: pruning counts names as uses, so a const only a require mentioned would
+  have kept an `equ` line, and pruning now skips a require. Both unsettled
+  points closed without a decision - a library naming the program's constants
+  works by construction and `reqtest` does it, and nothing in the corpus was
+  called `require`.
 - **Optimise `tennis`.** 2026-09-23. It flickered on a 286 and not on a 486, and
   the render cleared every object and drew it again each frame. It now draws only
   what moved and never clears what it is about to draw - DESIGN §68's finding -
@@ -2719,64 +2723,6 @@ already express "taken, deliberately" without one.
   else calls by contract, but the caller there is hardware and the signature
   question is different (`iret`, saved registers). Kept separate unless the
   designs turn out to rhyme.
-
----
-
-## 74. `require` - a compile-time assertion
-
-**Undesigned until 2026-09-24; the folder it needs has existed since the
-beginning.** A top-level statement holding a constant expression; the resolver
-folds it, and zero is a compile error:
-
-```momo
-require maxCrossings * 2 <= 4096
-require textChunks * chunkBytes + logBytes <= textArena
-```
-
-The customer is every invariant currently living in a comment: motext's chunk
-arithmetic, momovec's derived `maxCoord`, the heap-partition chains §17
-recommends. The capacity assertions in tier 1 catch *totals* overflowing the
-segment; `require` catches **relationships between constants**, which nothing
-checks today and which is where a capacity edit goes quietly wrong - raise
-`maxCrossings` and the comment beside it stays agreeable.
-
-### The rules, and they are short
-
-- **Top level only**, like every other declaration-shaped thing. Inside a
-  routine it would read as a runtime check, which it is not - and a runtime
-  `assert` is a different feature with a different cost and its own number if
-  ever wanted. The refusal message says so.
-- **The expression must fold.** A runtime value in it is an error naming the
-  part that did not fold, not a check deferred to runtime.
-- **Zero fails.** The truthiness rule is `if`'s own, so there is nothing new to
-  remember; in practice every `require` is a comparison and folds to bool.
-- **Checked unconditionally**, whether or not anything nearby survives pruning.
-  A claim about constants is true or false at compile time; making it
-  pruning-sensitive would mean a wrong constant surfaces only when a routine
-  starts being used, which is the worst possible moment to learn it.
-- **No message argument.** The error quotes the line under a caret, and where
-  the expression is a comparison it names what each side folded to -
-  `the left side folds to 6144` - which is the half a reader cannot see. The
-  *why* belongs in a comment above, where every other why already lives.
-
-### What it costs
-
-Nothing at runtime and almost nothing to build: it emits no bytes, so the
-identity tier can hold a program with and without its `require` lines
-byte-identical, and the resolver work is folding an expression it already knows
-how to fold. §4's rule that typed folds truncate is what makes the answers
-trustworthy - before that rule, a `require` over typed consts could pass on a
-value the machine would wrap.
-
-### Unsettled
-
-- **Whether a library's `require` should name the program's constants.** It can
-  by construction - the merged program is one namespace - and that is the
-  feature: a library asserting `require viewRows <= 25` against a
-  program-declared const is §73's seam, met for numbers. Worth saying
-  explicitly once the first such use exists.
-- **The spelling.** `require` reads right and greps clean; whether it collides
-  with anything a program plausibly names is a grep away.
 
 ---
 
