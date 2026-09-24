@@ -24,6 +24,7 @@
     "index": "tsc && node dist/tools/index.js",
     "editor:install": "tsc && node dist/tools/editor.js",
     "desugar": "tsc && node dist/tools/desugar.js",
+    "wad": "tsc && node dist/tools/wad.js",
     "image": "tsc && node dist/tools/image.js",
     "image:read": "tsc && node dist/tools/image.js --read",
     "drift": "tsc && node dist/tools/drift.js",
