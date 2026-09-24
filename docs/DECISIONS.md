@@ -5061,3 +5061,59 @@ trips and two machine runs. Tier 2 went from 69 programs to 71, all passing, and
 both new programs matched DOSBox on their first run there. Every golden `.asm`
 that existed before came out byte-identical under `npm run momoc:all`, by
 `git diff --stat`.
+
+### The summary and the listing
+
+Added 2026-09-24, from a session reading a patch against its base: DOOM.WAD and
+SIGIL.WAD produced an override story of about forty lines, under 2,400 rows of
+directory. `/s` exists to print the story and count the rest. **Only bulk is
+counted** - gaps, and a name repeated within one file - and everything that says
+a file is damaged prints as it does with no switch, because a summary that hid
+corruption would be a lie. So a summary's findings are the full findings less
+the lines it counts, in the same order, and the tally follows them rather than
+preceding them: it is added up while they print, and it is what stays on the
+screen.
+
+A DOOM.WAD on the author's machine, on the machine tier, fixed at that date:
+
+```
+            lines   instructions
+no switch   2,799     30,304,749   (30,077,355 before the move; output identical)
+/s              8     20,038,613
+/l          2,309     10,410,780   (the first 2,309 lines of the full output)
+```
+
+The summary's one line of counts - 1,832 lumps winning and 474 repeated within
+the file, and 633 bytes in 354 gaps - was recounted from the full output's 134
+repeated names and 354 gap lines, and agreed. 110 of those names are the `DP`
+and `DS` sound lumps, twice each; ten are map lumps, 36 each.
+
+**Each mode is a project**, because a project has one `.args`. `wadsum`,
+`wadlist` and `wadusage` sit beside `wadtrip`, each two lines over
+`shared/lib/moinfo.momo`, which is the whole of what `wadinfo` was - `modir`'s
+precedent, for a different reason. Nothing lighter reached: a second tail needs
+a second project, and a second project reaches shared code only through
+`shared/`. `wadsum` loads a third file from its own manifest because the
+committed pair has no name twice in one file, and the count of those would
+otherwise have been a zero nothing could tell from a broken one.
+
+Teeth, committed first, restored with `git checkout`:
+
+- **The shadowed count, charged to the winner's file**: `wadsum` differs at line
+  14, `BASE.WAD: 7 lumps - 5 win, 0 shadowed by a later file` for `2 shadowed`;
+  in `npm test`, `machine wadsum`.
+- **An overlap routed into the counted path** in a summary: `wadsum` differs at
+  line 7, the `HELLO` override where `PATCH.WAD: ECHO at 12 overlaps HELLO`
+  should be. `wadinfo` still passes, so the break is the summary's alone.
+- **`/l` running the checks** (`|| pathCount > 0` on the line that calls them):
+  `wadlist` differs at line 16, a blank line and then `findings` where it should
+  end, and runs in 87,860 instructions for 50,958. The fixture can see this
+  because every check that runs over PATCH.WAD prints something in every mode.
+  It cannot see silent work: claiming the block and sorting by name, printing
+  nothing, still matched its `.expected`, at 54,097 instructions - and 12.9
+  million for 10.4 on DOOM.WAD. The count is the witness there, and no test
+  reads it.
+
+Tier 1 went from 889 assertions to 901: three goldens, three capacities, three
+round trips and three machine runs. Tier 2 went from 71 programs to 74, all
+passing.

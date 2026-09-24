@@ -8566,12 +8566,23 @@ each file in position order; a name more than one lump carries and which one
 `wadLump` returns; a TYPES row naming a lump nobody has; and a TYPES row
 disagreeing with the header of the lump it names.
 
+Two switches say less, in either case, before the paths or among them. **`/s`
+is a summary**: no listing, and the bulk - gaps, and a name repeated inside one
+file - counted per file, beside each file's lumps split three ways: those that
+win, those a later file shadows, and those a later lump in the same file does.
+Everything else prints in full, as it does with no switch. **`/l` is the listing
+alone**, and never reaches the checks - not the block, the sorts or the manifest
+scans. Both at once, or any other switch, is refused with the usage before
+anything is opened. The program is `shared/lib/moinfo.momo`, so that `wadsum`,
+`wadlist` and `wadusage` can each run it under a tail of their own.
+
 Its fixture is two files the host writer builds from manifests committed beside
 them, and the second carries something for every finding. The host writer's
 manifest has two kinds of line no asset needs - `pad` and `entry`, bytes nothing
 references and a directory entry written as given - because a directory is
 free-form, and a checker's fixture has to be able to say what the checker must
-catch.
+catch. `wadsum` loads copies of both and a third file from a manifest of its
+own, with a name twice in one file for the counts.
 
 ### Rules
 
@@ -8592,6 +8603,12 @@ catch.
   included (PITFALLS).
 - **Names compare to the first nul.** The index zeroes whatever a writer left
   after one, so two names are equal exactly when their four words are.
+- **A summary counts bulk and nothing else.** Gaps and a name repeated within
+  one file are counted; an override across files, an entry past the end, an
+  overlap, and every TYPES finding print as they do with no switch. A summary
+  that hid damage would be a lie.
+- **`/l` skips the checks rather than hiding them.** A listing that ran them
+  and printed nothing would cost what the checks cost.
 
 ### Testing
 
