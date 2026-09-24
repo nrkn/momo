@@ -196,7 +196,7 @@ npm run trace:profile -- <project>  # the same, by routine
 npm run desugar -- <project>  # print the program as lomo, its desugared form
 
 npm test                      # tier 1: compile, golden .asm, types, lexing, the machine
-npm run test:e2e              # tier 2: run in DOSBox headless, compare output
+npm run test:e2e              # tier 2: run in DOSBox headless, in parallel; MOMO_E2E_JOBS=1 for serial
 
 npm run grammar               # regenerate the grammar from tokens.ts
 npm run index                 # regenerate docs/INDEX.md, every § and which file holds it

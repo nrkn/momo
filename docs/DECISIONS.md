@@ -87,6 +87,33 @@ a routine's banner, and `; segment of`. Both sit directly above or beside the
 label they describe and now agree with it. 51 lines across 8 files, and no
 instruction moved.
 
+### Tier 2 went parallel, and the question was measured before it was answered
+
+2026-09-24, from the question "is it the startup, and would one scripted
+instance fix it". Measured first: a bare DOSBox boot-and-exit is ~1.8s, the
+whole fixed cost per test ~2.5s, and `tiger` spent a further ~8s of wall time
+on emulated arithmetic because `cycles = auto` is a fixed real-mode budget. So
+startup was two minutes of the five, and the vector programs were the rest.
+
+**One scripted instance was rejected on the numbers**: it saves only the boots,
+keeps the compute serial, and puts every test behind one hang under one
+timeout - the exact failure mode the per-test timeout was built to end. What
+the tier already had was per-test isolation (each project owns its build
+directory, out.txt and markers), which is the shape a pool wants: seven DOSBox
+instances at once, each worker taking the next project as its last finishes.
+
+**`cycles = max` came along for free.** The tier checks correctness, never
+speed - this file's §27 and CONTRIBUTING are emphatic that DOSBox cannot
+measure performance - so the emulated CPU may run as fast as the host allows.
+`tiger`'s output was byte-identical at max and its run halved; `core = dynamic`
+on top of max measured nothing (5.7s against 6.0s, inside the noise). The conf
+is patched at runtime into `build/` rather than committed as a second file, so
+there is no copy to drift and `npm start` stays playable at `auto`.
+
+**67 programs: ~5-6 minutes serial, 38 seconds pooled.** The teeth check: a
+deliberately wrong `.expected` still reports FAIL with both strings and exits
+1 under the pool, and `MOMO_E2E_JOBS=1` restores the serial run exactly.
+
 ---
 ## 15. Acceptance test
 

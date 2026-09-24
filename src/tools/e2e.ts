@@ -3,9 +3,18 @@
 //
 //   npm run test:e2e
 //
-// Slow, because every case launches DOSBox. This is the tier that catches the
-// bugs unit tests structurally cannot: the ones that live at the NASM boundary,
-// or that only show up when real 8086 code executes.
+// Every case launches its own DOSBox, and that is what makes the tier
+// parallelisable rather than slow: each project already owns its build
+// directory, its out.txt and its marker files, so instances share nothing and
+// a pool of them runs at once. Measured before the pool existed: ~1.8s of the
+// ~2.5s fixed cost per test was DOSBox booting, times 67 tests - two minutes
+// of pure startup that a single scripted instance would also have saved, at
+// the price of one hang stalling every test behind it under one timeout.
+// The pool keeps the per-test timeout and the isolation.
+//
+// This is the tier that catches the bugs unit tests structurally cannot: the
+// ones that live at the NASM boundary, or that only show up when real 8086
+// code executes.
 //
 // Projects are found under projects/<name>/, so a test is just a Momo
 // program. DOS is 8.3, so names are limited to 8 characters.
@@ -13,6 +22,7 @@
 import { spawn } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { cpus } from 'node:os'
 import { join } from 'node:path'
 
 import {
@@ -46,6 +56,32 @@ import { loadToolchain } from './toolchain.js'
 // its recurrence. Both times the failure was real and the suite could not say so
 // without a human. DESIGN §9 recorded the gap; this closes it.
 const runTimeoutMs = 120_000
+
+// How many DOSBox instances run at once. One per core less one, so the machine
+// stays usable, capped where more workers stop paying - the fixed cost per test
+// is ~2.5s, so past eight the pool drains faster than instances boot.
+// MOMO_E2E_JOBS overrides it; 1 restores the old serial run exactly.
+const jobs = Math.max(
+  1,
+  Math.min(8, Number(process.env.MOMO_E2E_JOBS) || cpus().length - 1),
+)
+
+// The tier checks correctness, never speed - CONTRIBUTING is emphatic that
+// DOSBox cannot measure performance - so the emulated CPU may run as fast as
+// the host allows. `cycles = auto` in the shared conf means a fixed budget for
+// real-mode programs, which had `tiger` spending ~8s of wall time on emulated
+// arithmetic; `cycles = max` halves it with byte-identical output. Patched at
+// runtime rather than committed as a second conf, so there is no copy to drift
+// - and the shared conf keeps `auto`, because `npm start` is interactive and a
+// game at max cycles is unplayable.
+const patchedConf = async (): Promise<string> => {
+  const text = await readFile(confPath, 'latin1')
+  const patched = text.replace(/^cycles\s*=\s*auto\s*$/m, 'cycles    = max')
+  const target = join(buildRoot, 'e2e.conf')
+  await mkdir(buildRoot, { recursive: true })
+  await writeFile(target, patched, 'latin1')
+  return target
+}
 
 const runDosbox = (exe: string, args: string[], cwd: string): Promise<'ok' | 'timeout'> =>
   new Promise((resolveRun) => {
@@ -88,7 +124,7 @@ const runDosbox = (exe: string, args: string[], cwd: string): Promise<'ok' | 'ti
 
 // Assemble and run in one DOSBox session, with the program's stdout redirected
 // to a file we can read back - so no human has to watch the window.
-const buildAndRun = async (exe: string, project: string): Promise<string> => {
+const buildAndRun = async (exe: string, conf: string, project: string): Promise<string> => {
   const sourceDir = projectDir(project)
   const buildDir = join(buildRoot, project)
 
@@ -125,7 +161,7 @@ const buildAndRun = async (exe: string, project: string): Promise<string> => {
     // which does not steal focus but does cover whatever it lands on. Nothing is
     // lost: stdio is ignored here, and success is read from a marker file.
     '-noconsole',
-    '-conf', confPath,
+    '-conf', conf,
     '-c', `mount c "${buildDir}"`,
     '-c', `mount d "${nasmDir}"`,
     '-c', 'c:',
@@ -161,10 +197,16 @@ const main = async () => {
 
   if (projects.length === 0) fail('no projects with a .expected file')
 
+  const conf = await patchedConf()
+
   let passed = 0
   const failures: string[] = []
 
-  for (const project of projects) {
+  // One project, end to end. Everything it touches lives under its own build
+  // directory, which is what makes the pool below safe - and the `ok` line
+  // prints on completion, so the order varies run to run while the summary
+  // does not.
+  const runOne = async (project: string) => {
     const entry = entryFor(project)
     const sources = new Map<string, string>()
 
@@ -176,7 +218,7 @@ const main = async () => {
       } catch (error) {
         if (!isMomoError(error)) throw error
         failures.push(`${project}\n${formatError(sources, error)}`)
-        continue
+        return
       }
     }
 
@@ -186,7 +228,7 @@ const main = async () => {
     // A .expected therefore holds the bytes the program prints. The ones here
     // are all ASCII, where every decode agrees; a UTF-8 read would turn the
     // first byte above 0x7F into U+FFFD, and the two tiers would disagree.
-    const actual = await buildAndRun(exe, project)
+    const actual = await buildAndRun(exe, conf, project)
     const expected = await readFile(expectedFor(project), 'latin1')
 
     // Normalise line endings only - everything else must match exactly.
@@ -195,7 +237,7 @@ const main = async () => {
     if (clean(actual) === clean(expected)) {
       passed += 1
       console.log(`  ok    ${project}`)
-      continue
+      return
     }
 
     failures.push(
@@ -204,6 +246,20 @@ const main = async () => {
     )
     console.log(`  FAIL  ${project}`)
   }
+
+  // A pool rather than one big Promise.all, so at most `jobs` instances of
+  // DOSBox exist at once - each worker takes the next project when its last
+  // one finishes, which keeps the heavy vector programs from bunching.
+  let next = 0
+  const worker = async () => {
+    while (next < projects.length) {
+      const project = projects[next]
+      next += 1
+      await runOne(project)
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(jobs, projects.length) }, worker))
 
   for (const failure of failures) console.error(`\n  ${failure}`)
   console.log(`\n${passed}/${passed + failures.length} passed`)
