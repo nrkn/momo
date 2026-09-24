@@ -1,0 +1,6 @@
+// A const array with no declared type infers its element type from the values,
+// and a negative widens it to a signed one - the unconditional element check
+// held this against a u16 stand-in and refused it, for exactly one commit.
+// Found during §76's build; the check now runs only against a DECLARED type.
+const t = [ -1, 0, 1 ]
+i16 out = t[ 0 ]

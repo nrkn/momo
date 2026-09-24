@@ -1098,6 +1098,20 @@ a `u8` and a unit has one storage type, and `grid( iabs( i16( ... ) ) )` at
 `std/math.momo`'s edge. `tennis.asm` changed only in its source quotes.
 
 ---
+### A declared return unit never left the declaration
+
+Found 2026-09-24, during §76's build, present since units landed. A
+parameterised const declared `const px f( u16 v ) = px( v )` handed back plain
+u16: the constfn symbol had an optional returnUnit nobody populated, and the
+cast resolveCall wraps an expansion in carried toFrac but not toUnit - so every
+caller needed the cast the declaration had already written, and §76's fixture
+worked around it with an inferred return before the cause was found. Two
+fields, one line each; `ok-unit-constfn-return` holds the unit arriving and
+`err-unit-constfn-return-mix` holds it refusing to land in a different one.
+The shape is the one §25 warned about when it made frac required rather than
+optional: an optional field a construction site can forget is silent at
+exactly the site that forgets it.
+
 ## 38. File I/O
 
 ### The design's central claim held
@@ -4389,6 +4403,14 @@ nothing did. Closed by making the element and datum checks unconditional, with
 the element-numbered range message kept ahead of the general one so a 768-entry
 table still says which element; `err-unit-mix-element` and `err-unit-mix-field`
 hold it.
+
+**The closure over-reached for one commit.** An INFERRED const array has no
+declared type, and the unconditional check ran against a u16 stand-in - so
+`const t = [ -1, 0, 1 ]`, which inference exists to widen, was refused. Found
+during §76's build, and the fix keeps the closure only where a type was
+declared: an inferred array runs the old scale-mismatch check and nothing else,
+because there is no declared unit or width for an element to disobey.
+`ok-const-infer-negative` and `err-const-infer-scaled` hold the two halves.
 
 A top-level variable initialised by a call, and read by nothing, was an internal
 error rather than a program: `u8 level = bright()` alone reported

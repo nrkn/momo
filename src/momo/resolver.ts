@@ -924,11 +924,15 @@ export const resolve = (program: Program): ResolveResult => {
     let expansion = substitute(symbol.body, bindings)
 
     // A declared return type narrows exactly like an assignment target does.
+    // `toUnit` rides along, or a const declared to return `px` handed back a
+    // plain u16 and every caller needed a cast the declaration had already
+    // written - found during §76's build, DECISIONS §39.
     if (symbol.returnType) {
       expansion = {
         type: 'CastExpression',
         to: symbol.returnType as TypeName,
         toFrac: symbol.returnFrac ?? 0,
+        toUnit: symbol.returnUnit,
         raw: false,
         argument: expansion,
         file: node.file,
@@ -1726,12 +1730,23 @@ export const resolve = (program: Program): ResolveResult => {
       // would otherwise say the same thing without the count.
       checkRange(resolved.value, elementUnit, element, `element ${values.length} (${resolved.value})`)
 
-      // Unconditionally, so an element obeys the same unit rule an assignment
-      // does. This used to run only when the scales differed, which let a typed
-      // constant of the WRONG unit into a table so long as its scale matched -
-      // `const ms k = 3` sat in a `px[2]` without a word said. Found during
-      // §75's build and recorded in DECISIONS §75.
-      checkAssignable(resolved, elementType ?? 'u16', elementFrac, element, elementUnit)
+      // Unconditionally when the element type is DECLARED, so an element obeys
+      // the same unit rule an assignment does. This used to run only when the
+      // scales differed, which let a typed constant of the WRONG unit into a
+      // table so long as its scale matched - `const ms k = 3` sat in a `px[2]`
+      // without a word said. Found during §75's build; DECISIONS §75.
+      //
+      // An INFERRED array keeps the old conditional, because the first fix ran
+      // the check against a u16 stand-in and refused `const t = [ -1, 0, 1 ]` -
+      // there is no declared type for the element to disobey, and the negative
+      // is exactly what inferElementType exists to widen for. Found during
+      // §76's build; the scale-mismatch case still goes through, since a scaled
+      // value in an unscaled inferred table was refused before and stays so.
+      if (elementType !== null) {
+        checkAssignable(resolved, elementType, elementFrac, element, elementUnit)
+      } else if (resolved.frac !== elementFrac) {
+        checkAssignable(resolved, 'u16', elementFrac, element)
+      }
 
       const value = resolved.value
       if (elementType && !fits(value, elementType)) {
@@ -2528,6 +2543,9 @@ export const resolve = (program: Program): ResolveResult => {
         })),
         returnType: node.returnType,
         returnFrac: node.returnFrac,
+        // Without this the symbol's optional returnUnit stayed empty for ever,
+        // which is the other half of the resolveCall fix above.
+        returnUnit: node.returnUnit,
         body: node.body,
       },
       node,

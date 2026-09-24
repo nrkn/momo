@@ -1,0 +1,8 @@
+// A parameterised const declared to return a unit hands the unit back. It used
+// to drop it - the constfn symbol never stored returnUnit and resolveCall's
+// return cast left toUnit out - so every caller of a `const px f(...)` needed
+// the cast the declaration had already written. Found during §76's build.
+unit px = u16
+const px f( u16 v ) = px( v )
+px x = f( 3 )
+u16 out = u16( x )

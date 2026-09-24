@@ -1,0 +1,6 @@
+// EXPECT-ERROR: cannot put i8.8 in u16 - the scales differ, so it needs a cast
+// EXPECT-AT: 5:13
+// An inferred const array has no scale, so a scaled element is still refused -
+// the half of the old conditional the §76 regression fix deliberately kept.
+const t = [ i8.8( 1.5 ) ]
+u16 out = t[ 0 ]

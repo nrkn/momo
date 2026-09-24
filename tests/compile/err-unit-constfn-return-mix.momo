@@ -1,0 +1,8 @@
+// EXPECT-ERROR: cannot put px in ms - it needs a cast
+// EXPECT-AT: 8:8
+// The other half of the returnUnit fix: the unit a const declares is the unit
+// its callers receive, so it refuses to land in a different one.
+unit px = u16
+unit ms = u16
+const px f( u16 v ) = px( v )
+ms m = f( 3 )
