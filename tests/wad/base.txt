@@ -1,0 +1,23 @@
+# The bottom of the host tier's chain: the two readers of §41, `npm run wad --
+# list` and mowad under `wadlist /l`, must agree on every lump's type and where
+# it came from. Built into a scratch directory by the tier, never committed as a
+# WAD, so there is no copy to go stale. The sources end without a newline.
+
+iwad
+
+lump HELLO text hello.txt
+
+# Nobody claims it, and the patch heads a GREET of its own: the row derived from
+# that header must leave this one untyped.
+foreign GREET greet.txt
+
+# Claimed here, and the patch heads a PLAYPAL of another type: this file's row is
+# the word for this lump, and the patch's derived row is not.
+foreign PLAYPAL playpal.txt
+row PLAYPAL palette
+
+# Claimed by the patch, which has no NOTE of its own.
+foreign NOTE note.txt
+
+# Starts 'M' 'o' 'A', and 65 is no type a header carries, so it is foreign.
+foreign NOISE noise.txt

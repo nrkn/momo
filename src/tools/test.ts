@@ -22,9 +22,11 @@
 // their keep: `combineRanges` and `truncate` encode facts about 16-bit integers,
 // not design choices we might revisit.
 
+import { execFileSync } from 'node:child_process'
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join, resolve as resolvePath } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import {
   allProjects,
@@ -37,6 +39,7 @@ import {
   expectedFor,
   okTests,
   projectDir,
+  root,
   sharedRoot,
 } from './cli.js'
 import { filesOf, runDos } from './dos.js'
@@ -727,10 +730,70 @@ const machineTests = (): number => {
   return asserted
 }
 
+// ---- the host lister (§41) ---------------------------------------------------
+//
+// `npm run wad -- list` is the second reader of the format, and it keeps the
+// reader's rules by hand because a host tool cannot include a Momo library.
+// Nothing else runs it, so it is held against the first reader here: the chain
+// in `tests/wad/` built by the host writer into a scratch directory, listed by
+// the host, and listed again by the committed `wadlist` in the machine under
+// `/l`. Index, file, name, offset, size, type and source must agree for every
+// lump. Agreement is the claim, so the fixture carries the cases where the two
+// have disagreed or could: a derived row, a claim across files, a lookalike.
+
+const wadFixtureDir = join(root, 'tests', 'wad')
+const wadTool = fileURLToPath(new URL('./wad.js', import.meta.url))
+
+// A listing's lump lines, from either reader, as their first seven columns.
+const listedLumps = (text: string): string[] =>
+  asLines(text)
+    .filter((line) => /^\s*\d+\s+\d+\s/.test(line))
+    .map((line) => line.trim().split(/\s+/).slice(0, 7).join(' '))
+
+const hostTests = (): number => {
+  const scratch = mkdtempSync(join(tmpdir(), 'momo-wad-'))
+
+  try {
+    const wads = ['BASE.WAD', 'PATCH.WAD']
+    for (const [manifest, wad] of [['base.txt', wads[0]], ['patch.txt', wads[1]]]) {
+      execFileSync(process.execPath, [wadTool, 'build', join(wadFixtureDir, manifest), join(scratch, wad)], {
+        stdio: 'pipe',
+      })
+    }
+
+    const host = listedLumps(
+      execFileSync(process.execPath, [wadTool, 'list', ...wads.map((wad) => join(scratch, wad))], {
+        encoding: 'utf8',
+      }),
+    )
+    const run = runDos(readFileSync(asmFor('wadlist'), 'utf8'), {
+      files: filesOf(scratch),
+      args: `/l ${wads.join(' ')}`,
+    })
+    const mowad = listedLumps(run.output)
+
+    const at = host.findIndex((line, i) => line !== mowad[i])
+    const differs = at >= 0 || host.length !== mowad.length || host.length === 0
+    check(
+      'host wad list',
+      !differs,
+      `lump ${at >= 0 ? at : Math.min(host.length, mowad.length)}` +
+        `\n    mowad: ${mowad[at] ?? '(none)'}\n    host:  ${host[at] ?? '(none)'}`,
+    )
+  } catch (error) {
+    check('host wad list', false, error instanceof Error ? error.message : String(error))
+  } finally {
+    rmSync(scratch, { recursive: true, force: true })
+  }
+
+  return 1
+}
+
 const roundTripCount = roundTripTests()
 const identityCount = identityTests()
 const subsetCount = subsetTests()
 const machineCount = machineTests()
+const hostCount = hostTests()
 
 for (const failure of failures) console.error(`  FAIL  ${failure}`)
 
@@ -739,7 +802,7 @@ console.log(
   `\n${passed}/${total} passed` +
     `  (${compileCount} compile tests, ${goldenCount} golden, ${capacityCount} capacity, ${typeCount} type` +
     `, ${lexCount} lex, ${roundTripCount} round trip, ${identityCount} identity, ${subsetCount} subset` +
-    `, ${machineCount} machine)`,
+    `, ${machineCount} machine, ${hostCount} host)`,
 )
 
 if (failures.some((failure) => failure.includes('first difference'))) {

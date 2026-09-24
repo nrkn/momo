@@ -55,6 +55,7 @@ shared/lib/moview.momo   a window onto a motext buffer (§56)
 shared/scenes/       data read by more than one project
 projects/            programs, as <category>/<name>/<name>.momo
 tests/compile/       tier 1 tests
+tests/wad/           a WAD chain tier 1 lists with both readers, which must agree (§41)
 editor/vscode/       generated syntax highlighting
 docs/                this file, DESIGN.md, PLAN.md, DECISIONS.md,
                      PEEPHOLES.md, STYLE.md, LESSONS.md, PITFALLS.md,
@@ -498,7 +499,7 @@ The cost of waiting is that the first thing a visitor reads is the weakest
 document in the repo. That trade is made deliberately, and preferred to shipping a
 second draft in the same voice as the first.
 
-901 tier-1 assertions, 74 e2e programs, all green. `npm test` prints the tier 1
+902 tier-1 assertions, 74 e2e programs, all green. `npm test` prints the tier 1
 breakdown, and `npm run drift` holds both figures against the harness and the
 committed expectations. Both have drifted before, which is why a script reads
 them now.

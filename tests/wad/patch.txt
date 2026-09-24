@@ -1,0 +1,9 @@
+# Loaded after base.txt's WAD.
+
+lump GREET text greet2.txt
+lump PLAYPAL raw playpal2.txt
+
+row NOTE text
+
+# A header wins over a row: the base's HELLO stays text.
+row HELLO raw
