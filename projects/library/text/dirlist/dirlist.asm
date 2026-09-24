@@ -1124,20 +1124,28 @@ listIsNamed:
         jb      .L118                       ; unsigned <
         jmp     .L117
 .L118:
-; ---- ca = peek8( a + k )
+; ---- ca = strUpper( peek8( a + k ) )
         mov     ax, [listIsNamed__a]
         mov     bx, [listIsNamed__k]
         add     ax, bx
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
-        mov     [listIsNamed__ca], al       ; u8 -> u8, no widening
-; ---- cb = peek8( at + k )
+        mov     [strUpper__ch], al          ; u8 -> u8, no widening
+        call    strUpper
+        mov     al, [strUpper__ret]
+        xor     ah, ah                      ; u8 -> u16
+        mov     [listIsNamed__ca], al       ; narrowed to u8
+; ---- cb = strUpper( peek8( at + k ) )
         mov     ax, [listIsNamed__at]
         mov     bx, [listIsNamed__k]
         add     ax, bx
         mov     bx, ax
         mov     al, [bx]                    ; peek8 - unchecked, by design
-        mov     [listIsNamed__cb], al       ; u8 -> u8, no widening
+        mov     [strUpper__ch], al          ; u8 -> u8, no widening
+        call    strUpper
+        mov     al, [strUpper__ret]
+        xor     ah, ah                      ; u8 -> u16
+        mov     [listIsNamed__cb], al       ; narrowed to u8
 ; ---- if ( ca != cb ) return false
         mov     al, [listIsNamed__ca]
         cmp     al, [listIsNamed__cb]       ; byte operands, no widening

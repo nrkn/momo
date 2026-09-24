@@ -3361,6 +3361,53 @@ With `"alpha\nbeta"` in the test, the same neuter turns `2 5 1 4 1` into
 came back clean and the fixture was the reason - and the third time it was found
 by asking why rather than by moving on.
 
+### Observations from a reading, and what running them showed
+
+2026-09-25: somebody shown parts of `momoed` in isolation made eight
+observations, with the command layer only skimmed. Nothing in the command layer
+answers any of them differently: every open, save and overwrite question goes
+through `loadFile`, `saveFile` and `fileHere`. Seven were held against the
+committed build before anything changed, by a throwaway that runs `momoed /?`
+in the machine and then calls the routines by label, and every one showed:
+
+- **A directory named on the command line opened as a new, empty document under
+  its name**, the previous document gone. That is the floppy case with the drive
+  swapped for a directory - both are an open failing with something other than
+  "not there" - and one `^S` from truncation. The machine could not show it
+  until `dos.ts` answered as DOS does: it returned file-not-found for every
+  failed open, so a program telling the three answers apart was untestable.
+- **The path overran into the name.** A directory one name short of the old
+  limit was accepted, and putting a twelve-character name on the end of it wrote
+  `fileName` to `ONGNAME.TXT`: `openPath` sits directly before it. The old
+  checks measured the directory against its own buffer and not against what is
+  built from it.
+- **Going up from `d:` gave the empty path**, the current drive.
+- **The panel pointed at `SUB` when `x.c` was open.** Not the reported mechanism
+  - there was no descent - but the same two lines: `listIsNamed` compared bytes,
+  DOS lists `X.C`, and the cursor stayed on the first entry. So a file named in
+  lower case on the command line was never marked at all, which nobody had
+  reported because the panel is shut when a file is named.
+- **`^O`'s refusal said "does not fit"** whatever the limit, because the reason
+  was read after the reload cleared it.
+
+The eighth, a clamped width drawing a wide text mode at the wrong stride, is
+reachable only when something sets more than 80 columns in the BIOS data area
+under mode 3 - `adoptMode` refuses any other mode number, and a vendor's 132
+column mode is one. It now imposes 80x25 there, as a graphics mode does, and the
+rows step by `screenStride()`.
+
+The same throwaway against the working tree: 41 checks, none failing. It was not
+committed; whether calling a program's routines by label becomes a tier is not
+decided here.
+
+**What this does not close.** DOS's own critical-error handler still owns the
+screen when a drive is not ready. Fail now refuses the open rather than making a
+new file, and Retry works as it always did; Abort still ends the process from
+inside DOS, past `videoMode`'s close and past every other tab's unsaved work.
+Answering Fail automatically needs a handler on INT 24h, which nothing in the
+language can write yet - no routine returns with `iret`, and the mnemonic is not
+in §1.
+
 ---
 
 ## 59. `mofind`

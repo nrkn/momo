@@ -289,6 +289,13 @@ export const runDos = (assembly: string, options: DosOptions = {}): DosRun => {
       }
       case 0x3d: {
         const name = normalise(stringAt(r.dx, 0))
+        // DOS's three answers for a name it cannot open as a file, because a
+        // program may tell them apart: a directory is access denied, a missing
+        // directory on the way is path not found, and only then is the file
+        // not found.
+        if (directories.has(name)) return dosError(m, 5)
+        const parent = name.includes('\\') ? name.slice(0, name.lastIndexOf('\\')) : ''
+        if (parent !== '' && !directories.has(parent)) return dosError(m, 3)
         if (!files.has(name)) return dosError(m, 2)
         const handle = nextHandle++
         handles.set(handle, { name, position: 0, mode: al & 0x03 })

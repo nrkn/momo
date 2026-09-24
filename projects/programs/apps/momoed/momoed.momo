@@ -32,7 +32,8 @@ include "lib/momenu.momo"
 // region takes a constant size (§16) while the geometry is read back from the
 // BIOS (§43) - 80x43 on EGA and 80x50 on VGA are the same pair of calls, and
 // only the hardware knows which happened. So the declaration is the ceiling and
-// `screenWidth` and `screenHeight` are the truth, clamped to it.
+// `screenWidth` and `screenHeight` are the truth - the height clamped to it, and
+// a screen wider than it not adopted at all.
 const edMaxCols = 80
 const edMaxRows = 50
 
@@ -103,12 +104,18 @@ sub useMono {
 u16 cols
 u16 rows
 
+// **What a row steps by in the frame**, which is `screenStride()` and not the
+// width - §43's rule, and the one `cols` broke while it was clamped: a wider mode
+// clamped to 80 drew every row at the wrong offset. The two agree for every mode
+// this adopts, and nothing measures a row by the other.
+u16 stride
+
 // ---- the explorer ---------------------------------------------------------
 //
-// VS Code's shape rather than a file manager's: it shows the directory the
-// editor was opened in and does not navigate, so there is no `.`, no `..` and
-// nothing to get lost in. `^O` still takes a path, which is what covers the
-// case this deliberately does not.
+// VS Code's shape rather than a file manager's: it opens on the directory the
+// editor was started in, and Enter on a directory goes into it - `..` included,
+// which is the one entry that moves rather than opens. `^O` still takes a path,
+// for a file somewhere the panel has not been.
 //
 // **Fourteen columns, derived rather than picked.** A DOS name is 8.3 and so
 // cannot exceed twelve characters - unlike VS Code, where a name is any length -
@@ -132,10 +139,22 @@ bool needExp
 // and including the last separator, which is empty for a bare filename. The
 // pattern is that plus `*.*`, and an entry is opened by putting a name back on
 // the end of it.
-u8[80] dirPath
+//
+// **The directory stops short of the buffer** by a name and its nul, so that
+// `openPath` holds any entry put back on the end and `dirPat` holds `*.*` with
+// room over. One cap, checked where the directory grows - `takeName`, `addUp`
+// and `goDown` - covers every writer, where checking against the buffer let the
+// pattern and the path run past theirs.
+const pathMax = 80
+const dirMax  = pathMax - listNameMax
+
+u8[pathMax] dirPath
 u16 dirPathLen
-u8[80] dirPat
-u8[80] openPath
+bool pathLong
+u8[pathMax] dirPat
+u8[pathMax] openPath
+
+require dirMax + 4 <= pathMax
 
 // Where the editor starts and how wide it is, which is the one thing showing the
 // panel changes about everything else.
@@ -164,6 +183,9 @@ const nameMax = 80
 
 u8[nameMax] fileName
 u8[nameMax] wasName
+
+// A path the panel opens becomes the name, nul and all.
+require dirMax + listNameMax <= nameMax
 
 // **Where a Save As name waits for an answer.** It used to go straight into
 // `fileName`, which meant Cancel left the document wearing a name nothing on disk
@@ -289,6 +311,9 @@ const u8[] sNoFile  = " (new)$"
 const u8[] sSaved   = " saved$"
 const u8[] sFailed  = "WRITE FAILED - file damaged$"
 const u8[] sTooBig  = "file does not fit - not opened$"
+const u8[] sTooDeep = "path too long - not opened$"
+const u8[] sNoRead  = "cannot read the file - not opened$"
+const u8[] sDosErr  = "DOS error $"
 const u8[] sNoLines = "too many lines$"
 const u8[] sNoChunk = "too much text$"
 const u8[] sNoMem   = "not enough memory past the program$"
@@ -339,8 +364,8 @@ const u8[] sPickSmall = "screen too small for the picker$"
 // is an ordinary `peek` (§10) and needs nothing at all.
 //
 // §38 notes the collision this sits beside: `FindFirst` writes to the DTA, which
-// defaults to these same bytes. Nothing here enumerates a directory, and the
-// explorer that will is what has to move the DTA first.
+// defaults to these same bytes. The explorer enumerates, and `dir.momo` moves the
+// DTA before every call; this runs before the first of them in any case.
 bool takeName() {
   u16 n
   a16 at
@@ -377,14 +402,18 @@ bool takeName() {
     if ( fileName[i] == 92 || fileName[i] == 58 ) dirPathLen = i + 1
   }
 
+  // A directory past the cap is refused at the door, rather than listed as some
+  // other directory or written past the buffers built from it.
+  pathLong = dirPathLen > dirMax
+  if ( pathLong ) dirPathLen = 0
+
   memCopy( addr( dirPath ), addr( fileName ), dirPathLen )
 
   return out > 0
 }
 
-// The directory plus `*.*`. Built once and rebuilt by nothing, because this
-// editor does not change directory - which is the whole of the decision that
-// there is no `..` in the panel.
+// The directory plus `*.*`. Built at startup and again by `descend`, each time
+// the panel moves.
 sub buildPattern {
   memCopy( addr( dirPat ), addr( dirPath ), dirPathLen )
 
@@ -415,12 +444,34 @@ u16 buildOpenPath( a16 nameAt ) {
 
 // ---- the file ----
 
+// The DOS error the last `loadFile` was refused with, or 0 when it was not
+// refused at the open.
+u16 loadErr
+
 // A file that is not there is not an error: it is a new file, which is what an
 // editor is for. Only a file that is there and will not open is worth refusing.
+//
+// **"Not there" is DOS errors 2 and 3, and nothing else.** Any other failure is a
+// file that may well be there - a drive not ready and answered Fail, a directory,
+// a sharing violation - and treating it as new put an empty, clean document under
+// the real file's name, one `^S` from truncating it. So everything else refuses,
+// and is refused **before the buffer is touched**: the open comes first, and a
+// refusal leaves the document that was showing exactly as it was.
 bool loadFile() {
   u16 handle
   u16 got
   u16 kb
+  bool absent
+
+  loadErr = 0
+
+  handle = fileOpen( addr( fileName ), fileReadOnly )
+  absent = fileFailed()
+
+  if ( absent && fileError() != 2 && fileError() != 3 ) {
+    loadErr = fileError()
+    return false
+  }
 
   // **`textClear`, not `textInit`.** §54 is explicit about the difference and it
   // only started to matter when there was a second document to lose: `textInit`
@@ -430,8 +481,7 @@ bool loadFile() {
   // A file that is not there is new, and a new file indents by the default.
   indentWidth = edIndentDefault
 
-  handle = fileOpen( addr( fileName ), fileReadOnly )
-  if ( fileFailed() ) return true
+  if ( absent ) return true
 
   got = fileRead( handle, addr( piece ), pieceSize )
   kb = 0
@@ -514,6 +564,7 @@ bool saveFile() {
 // lines and one that ran out of text want different numbers raised**, and the
 // message that said neither had been the wrong half of the answer twice.
 a16 whyNotOpened() {
+  if ( loadErr != 0 ) return addr( sNoRead )
   if ( textWhyNoRoom() == whyLines ) return addr( sNoLines )
   if ( textWhyNoRoom() == whyChunks ) return addr( sNoChunk )
   if ( textWhyNoRoom() == whyBlock ) return addr( sNoMem )
@@ -524,7 +575,7 @@ a16 whyNotOpened() {
 // ---- the screen ----
 
 sub cellAt( u16 x, u16 y, u8 ch, u8 attr ) {
-  vram[ y * cols + x ] = u16( ch ) | ( u16( attr ) << 8 )
+  vram[ y * stride + x ] = u16( ch ) | ( u16( attr ) << 8 )
 }
 
 // ---- one row, composed before any of it is written (§68) ---------------------
@@ -573,7 +624,7 @@ sub rowStr( u16 x, a16 at, u16 stop, u8 attr ) {
 
 sub rowBlit( u16 y, u16 from, u16 to ) {
   u16 base
-  base = y * cols
+  base = y * stride
 
   for ( u16 x = from; x < to && x < cols; x++ ) {
     vram[ base + x ] = rowBuf[x]
@@ -608,7 +659,7 @@ sub viewRow( u16 y, a16 at, u16 n ) {
   u8  ch
   u8  a
 
-  base = ( edTop() + y ) * cols + edLeft()
+  base = ( edTop() + y ) * stride + edLeft()
   w = edWidth()
 
   // The attribute used to be a `const` and folded into the instruction. It is
@@ -1120,6 +1171,23 @@ sub drawTabs {
   rowBlit( 1, 0, cols )
 }
 
+// Whether the file being edited is in the directory the panel shows, so that
+// what follows `dirPathLen` in `fileName` is a name to look for. **It has to be
+// asked**, for the reason `baseName` looks rather than subtracts: after `descend`
+// the panel is elsewhere, and the bytes at that offset are the tail of some other
+// path - or bytes past its nul, which `docLoadHere`'s whole-slot copy leaves
+// there. A path the panel built is spelled the way the panel spells it; case
+// aside, as `listIsNamed` sets it aside.
+bool editingHere() {
+  if ( !haveName ) return false
+
+  for ( u16 k = 0; k < dirPathLen; k++ ) {
+    if ( strUpper( fileName[k] ) != strUpper( dirPath[k] ) ) return false
+  }
+
+  return true
+}
+
 // The panel. Reverse video like the status line - which is the attribute that
 // survives the mono translation unchanged, `0x70` meaning the same thing on an
 // MDA as on a VGA - with the selected row in *normal*, so it reads as a hole
@@ -1137,8 +1205,10 @@ sub drawExplorer {
   u16 thumbEnd
   u8  attr
   u8  ch
+  bool here
 
   h = edHeight()
+  here = editingHere()
 
   thumbTop = listThumbAt()
   thumbEnd = thumbTop + listThumbSize()
@@ -1153,8 +1223,7 @@ sub drawExplorer {
     // not available in mono, and a column that is blank for every other row
     // costs nothing it was using.
     ch = 32
-    if ( i < listCount() && haveName &&
-         listIsNamed( i, addr( fileName ) + dirPathLen ) ) ch = 42
+    if ( here && i < listCount() && listIsNamed( i, addr( fileName ) + dirPathLen ) ) ch = 42
 
     cellAt( 0, edTop() + y, ch, attr )
 
@@ -1459,7 +1528,7 @@ sub refreshList {
 // the other**: the directory has not changed, only which of its files is in front
 // of you, and re-reading a floppy to answer that would be felt.
 sub pointAtCurrent {
-  if ( !haveName ) return
+  if ( !editingHere() ) return
 
   for ( u16 i = 0; i < listCount(); i++ ) {
     if ( listIsNamed( i, addr( fileName ) + dirPathLen ) ) {
@@ -1500,7 +1569,7 @@ bool isUp( a16 at ) => peek8( at ) == '.' && peek8( at + 1 ) == '.' &&
 // - `..\..\` is a directory like any other, so climbing needs no idea of how
 // deep it started.
 sub addUp {
-  if ( dirPathLen + 3 >= len( dirPath ) ) return
+  if ( dirPathLen + 3 > dirMax ) return
 
   dirPath[dirPathLen]     = '.'
   dirPath[dirPathLen + 1] = '.'
@@ -1513,7 +1582,10 @@ sub goUp {
   u16 n
 
   // Already climbing, or standing where it started: another `..` either way.
-  if ( dirPathLen == 0 ) {
+  // **A bare drive is where it started too.** `d:` is that drive's current
+  // directory, and dropping the letter would land on the current drive's - so
+  // it climbs as `d:..\`, which DOS resolves on `d:`.
+  if ( dirPathLen == 0 || dirPath[dirPathLen - 1] == 58 ) {
     addUp()
     return
   }
@@ -1542,7 +1614,7 @@ sub goDown( a16 nameAt ) {
     n++
   }
 
-  if ( dirPathLen + n + 1 >= len( dirPath ) ) return
+  if ( dirPathLen + n + 1 > dirMax ) return
 
   memCopy( addr( dirPath ) + dirPathLen, nameAt, n )
   dirPath[dirPathLen + n] = 92
@@ -2551,11 +2623,15 @@ sub saveAsCommit {
 // Whether there is something there to lose. `fileCreate` truncates before a byte
 // is written, so this has to be asked *before* the save rather than reported
 // after it.
+//
+// **Only "not there" says no**, by `loadFile`'s rule: DOS errors 2 and 3. A drive
+// that was not ready may have the file on it, and asking about a file that turns
+// out not to exist costs a keystroke where not asking can cost the file.
 bool fileHere( a16 at ) {
   u16 h
 
   h = fileOpen( at, fileReadOnly )
-  if ( fileFailed() ) return false
+  if ( fileFailed() ) return fileError() != 2 && fileError() != 3
 
   fileClose( h )
   return true
@@ -3092,13 +3168,30 @@ bool openNamed( a16 at, u16 n ) {
     return true
   }
 
-  // The name going back may be an empty one, which is the no-file startup. That
-  // needs no special case: `loadFile` opens nothing, fails, and leaves the empty
-  // buffer it had already made.
-  message = addr( sTooBig )
+  // **The reason is read first**, because the reload below goes through
+  // `textClear`, which forgets why the buffer ran out - so read afterwards, every
+  // refusal said the one message that names neither limit.
+  message = whyNotOpened()
   memCopy( addr( fileName ), addr( wasName ), len( fileName ) )
   haveName = fileName[0] != 0
-  loadFile()
+
+  // A file that would not open was never read, and the buffer is still the
+  // document that was showing: there is nothing to put back.
+  if ( loadErr != 0 ) return false
+
+  // The name going back may be an empty one, which is the no-file startup. That
+  // needs no special case: `loadFile` opens nothing, finds nothing there, and
+  // leaves an empty buffer.
+  //
+  // **A reload that fails leaves an untitled document**, never the old name over
+  // what is left in the buffer - which is the new file's first part, or nothing.
+  // Either under the old name is one `^S` from writing over a file that was fine.
+  if ( !loadFile() ) {
+    textClear()
+    fileName[0] = 0
+    haveName = false
+  }
+
   viewUnmark()
   viewHome()
   dirty = false
@@ -3580,6 +3673,9 @@ if ( haveName ) {
 if ( helping ) {
   putStr( addr( sUsage ) )
   newline()
+} else if ( pathLong ) {
+  putStr( addr( sTooDeep ) )
+  newline()
 } else if ( noBuffer || ( haveName && !loadFile() ) ) {
   // Refusing to open is the whole point: an editor that shows you part of a file
   // and then writes that part back over the whole is worse than one that will
@@ -3589,13 +3685,21 @@ if ( helping ) {
   putStr( whyNotOpened() )
   newline()
 
-  putNumber( textLines() )
-  putStr( addr( sOf ) )
-  putNumber( textLineRoom() )
-  putStr( addr( sLines ) )
+  // A file that would not open has no size to report, and the error is what says
+  // which of the reasons it was.
+  if ( loadErr != 0 ) {
+    putStr( addr( sDosErr ) )
+    putNumber( loadErr )
+  } else {
+    putNumber( textLines() )
+    putStr( addr( sOf ) )
+    putNumber( textLineRoom() )
+    putStr( addr( sLines ) )
 
-  putNumber( textRoom() )
-  putStr( addr( sChunks ) )
+    putNumber( textRoom() )
+    putStr( addr( sChunks ) )
+  }
+
   newline()
 } else {
   loud = false
@@ -3615,8 +3719,11 @@ if ( helping ) {
     //
     // Any text mode the descriptor can describe, including mode 7 at 0xB000.
     // Only a graphics mode is refused now, because that is the one `adoptMode`
-    // cannot answer for without §43's full query.
-    if ( !adoptMode() ) setMode( modeText )
+    // cannot answer for without §43's full query - that, and **a text mode wider
+    // than the frame is declared for**. Clamping the width left the stride at the
+    // real one and drew every row at the wrong offset; drawing the left eighty
+    // columns at the right one would leave the rest showing the prompt.
+    if ( !adoptMode() || screenWidth() > edMaxCols ) setMode( modeText )
 
     vramSeg = screenSegment()
 
@@ -3631,8 +3738,10 @@ if ( helping ) {
 
     cols = screenWidth()
     rows = screenHeight()
+    stride = screenStride()
 
-    if ( cols > edMaxCols ) cols = edMaxCols
+    // Fewer rows than the screen has is only a shorter editor, so the height is
+    // clamped where the width could not be.
     if ( rows > edMaxRows ) rows = edMaxRows
 
     // **The panel is open when nothing was named**, because otherwise the screen

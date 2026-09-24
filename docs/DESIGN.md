@@ -6117,7 +6117,17 @@ file.
 miss. `loadFile` empties the buffer before it discovers the file will not fit, so
 stopping at that point leaves an empty document wearing the *new* name and one
 `^S` away from writing nothing over it. The buffer was not dirty to get this far,
-so the file on disk is what it held and reading it back is exact.
+so the file on disk is what it held and reading it back is exact. A reload that
+fails in its turn leaves an untitled document rather than the old name over what
+is left.
+
+**Only "not there" is a new file**: DOS errors 2 and 3. Treating every failed
+open as new was the same hole from the other side - a floppy not ready, answered
+Fail, gave an empty clean document under the real file's name. Anything else
+refuses, and refuses **before the buffer is touched**, because the open now comes
+first: an open DOS turned down leaves the document that was showing exactly as it
+was, with nothing to put back. The overwrite question follows the same rule and
+asks whenever the answer is anything but "not there".
 
 The clipboard survives an open deliberately. Cutting from one file and pasting
 into the next is most of why opening without quitting is worth having.
@@ -6431,8 +6441,12 @@ language feature.
   asked rather than the count compared.
 - **A prompt measures its own label.** The column the field starts at is derived
   from the string, not written beside it.
-- **A refusal cleans up after itself.** `^O` puts back the file it was showing,
-  because the buffer was emptied before the refusal was known.
+- **A refusal cleans up after itself.** `^O` puts back the file it was showing
+  when the buffer was emptied before the refusal was known, and leaves an
+  untitled document if that reload fails in turn. An open DOS refused never
+  emptied it.
+- **Only "not there" is a new file.** DOS errors 2 and 3; every other failed
+  open refuses, and `fileHere` says a file may be there.
 - **A save that could not finish does not clear `dirty`.** `fileCreate`
   truncates before a byte is written, so a failure leaves the file on disk
   shorter than the document - and the copy in memory is then the only correct one
@@ -6445,7 +6459,9 @@ language feature.
   in the status line. How far the key indents and how wide a tab looks are
   separate questions, and the second is §56's.
 - **A refusal says which limit.** Lines, text and memory are three problems and
-  one sentence cannot be all of them.
+  one sentence cannot be all of them, and a file DOS would not open is a fourth.
+  The reason is read before anything clears it - `^O`'s reload goes through
+  `textClear`, which forgets which limit it was.
 - **A load stops at the first refusal**, rather than reading to the end of a
   file it has already declined.
 - **The editor never calls `readKey`.** `nextKey` is the program's, so the
@@ -6479,7 +6495,9 @@ language feature.
   exactly like a hang, which is how this was found.
 - **The program owns the mode; it does not set one by number.** It takes the one
   it was launched into through §43's `adoptMode`, and imposes `modeText` only when
-  that comes back `false` or names a frame it cannot address. `saveMode`/`restoreMode` are a `bracket` (§48) so the
+  that comes back `false`, names a frame it cannot address, or is wider than the
+  frame is declared for - clamping the width left the rows at the real stride's
+  offsets. A row steps by `screenStride()`, never by the width. `saveMode`/`restoreMode` are a `bracket` (§48) so the
   close cannot be forgotten - and the close has to put back a *mode* rather than a
   mode number, which §43 records it did not originally do.
 
@@ -6598,7 +6616,16 @@ path to a file they can see.
 So `..` is an entry and `.` is not, and the path grows and shrinks rather than
 being resolved: going up from `sub\` drops a component, and going up from
 nothing adds `..\`. **DOS resolves the path and this does not have to**, which
-is what keeps it to two small routines and no idea of where it started.
+is what keeps it to two small routines and no idea of where it started. A bare
+drive counts as nothing: `d:` climbs to `d:..\`, since dropping the letter would
+land on the current drive's directory rather than `d:`'s.
+
+**The path stops a name short of its buffer**, so the pattern and a name put back
+on the end always fit; one cap where the directory grows covers every writer,
+and a command line past it is refused before anything is opened. **The `*` asks
+before it marks**: the file being edited is only in the panel when the panel's
+directory is a prefix of its name, spelled the same way - after a descent, what
+sits at that offset in the name is some other path's tail.
 
 **The status line says which directory while the panel has focus.** Twelve
 columns cannot hold a path, and descending immediately raises the question the
@@ -6878,6 +6905,8 @@ would be a second pass over data already in hand.
 
 Directories sort to the front, then names by byte. No case fold: DOS hands names
 back uppercased, so folding would be a branch nothing could exercise.
+`listIsNamed` is the exception, because its other side is not DOS's: it is a
+name somebody typed, and `momoed x.c` has to find `X.C`.
 
 ### A directory larger than the cap is refused, not truncated
 
@@ -7766,7 +7795,9 @@ either (§35). ES is looked up when it changes, which is before every far access
 `dos.ts` models what the tier 2 programs call and nothing else: console output by
 `int 21h` 02, 06 and 09 and by writes to handles 1 and 2; exit; the file calls, on
 an in-memory disk seeded with the project's own directory exactly as tier 2 copies
-it onto C:; directories and the find calls, `.` and `..` included; the PSP, with
+it onto C:, with an open that fails as DOS does - access denied on a directory,
+path not found through a missing one, file not found otherwise; directories and
+the find calls, `.` and `..` included; the PSP, with
 its command tail; the BIOS data area; `int 10h`'s mode, cursor, scroll and
 character calls on the text buffer; and the VGA registers that `porttest` reads
 back. **Anything else stops the run and names the service**, so a gap is a message

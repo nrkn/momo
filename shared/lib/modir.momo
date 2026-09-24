@@ -173,6 +173,9 @@ sub listLoad( a16 pattern, u8 attr ) {
 
 // True when `i` names the file at `at`, so a caller can mark the one it has open
 // without holding an index that a reload would invalidate.
+//
+// **Case aside.** `FindFirst` hands a name back in capitals whatever was typed,
+// so a file opened as `x.c` is listed as `X.C` and is the same file.
 bool listIsNamed( u16 i, a16 at ) {
   a16 a
   u8  ca
@@ -181,8 +184,8 @@ bool listIsNamed( u16 i, a16 at ) {
   a = listName( i )
 
   for ( u16 k = 0; k < listNameMax; k++ ) {
-    ca = peek8( a + k )
-    cb = peek8( at + k )
+    ca = strUpper( peek8( a + k ) )
+    cb = strUpper( peek8( at + k ) )
 
     if ( ca != cb ) return false
     if ( ca == 0 ) return true
