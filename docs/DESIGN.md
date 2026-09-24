@@ -2992,12 +2992,25 @@ language is finished enough to build on. §18 is why: momolo's element is a flat
 record of integers with no nesting, so each field becomes its own array and
 `el[i].w` is `el__w[i]`, with no multiply for the index.
 
-**The config is a `group`, and single-use.** Fourteen optional fields with
-defaults is an object literal in TypeScript and has no spelling here, so the
-config is one `group` written before the call and consumed by it. The builder
-copies it onto the element and resets, so a call site sets only what differs and
-nothing has to remember to reset. The first design asked the caller to reset, and
-the first scene written against it forgot - `build.momo` records what that cost.
+**A box's settings are defaulted parameters, named at the call** (§49). The
+optional fields with defaults that are an object literal in TypeScript are
+parameters here - `openBox( isCol: true, gap: u )` - and each routine restores
+its defaults on the way out, so a call site names only what differs and nothing
+has to remember to reset. mopaint's openers take the same settings and hand
+them on, so a scene names them at the brace:
+
+```momo
+panel( blue, isCol: true, wGrow: true, hGrow: true ) {
+  box( wGrow: true, gap: u ) {
+  }
+}
+```
+
+The settings are shaped for the call site - insets per axis, a fixed size that
+sets both bounds - and `build.momo`'s header lists them. Every routine that
+hands them on restates the defaults and pays a store for each one, named or
+not; DECISIONS §49 has what that cost against the carrier this replaced, and
+DECISIONS §36 what the carrier was.
 
 **Nesting was a convention, and §48 closed it.** `boxOpen` and `closeBox` had to
 pair with nothing checking, and a wrapper may open more than one box, so pairs are
@@ -3006,10 +3019,6 @@ two. `mopaint.momo` now declares the pairs as brackets and the scenes are writte
 as blocks, so the compiler emits every close. The wrapper is unaffected: its own
 two opens still outlive its body, and `strip` is a bracket at all four of its call
 sites because `stripClose` owns both closes.
-
-The carrier is the half that stayed open. `cfg` is still set before the call that
-consumes it, and a block boundary makes that slightly sharper to misread rather
-than better - DECISIONS §20 has where that stands.
 
 **It is resolution-independent.** The caller decides what a unit is: `mopaint`
 makes it a character cell, and the same scenes have been run against a pixel
@@ -3789,11 +3798,9 @@ bracket framed = panelFramed / closeBox
 framed( black, border, lightGray ) {
   labelPaint( addr( sCentred ), yellow, black )
 
-  cfgGrowW()
-  cfg.gap = u
-  box {
-    swatchGrow( addr( sA ), darkGray )
-    swatchGrow( addr( sB ), darkGray )
+  box( wGrow: true, gap: u ) {
+    swatch( addr( sA ), darkGray, wGrow: true )
+    swatch( addr( sB ), darkGray, wGrow: true )
   }
 }
 ```
@@ -8284,8 +8291,8 @@ argument contains a call; the binding just tells each value which slot it
 lands in.
 
 A bracket's open takes names too (§48's lowering carries them through), which
-is what lets a box's settings be named at the brace instead of written into a
-carrier before it - the shape §50 is waiting on.
+is how momolo's boxes take their settings (§36) - named at the brace rather
+than written into a carrier before it, and the shape §50 builds on.
 
 ### Defaults are callee-restored, which only static slots allow
 
@@ -8301,6 +8308,13 @@ alternative, caller-fills, was rejected in the design for costing every call
 site what one routine can pay once. The cost is visible and per-exit: one
 immediate store per defaulted parameter, commented in the output.
 
+**An omission cannot be forwarded.** A wrapper that passes defaulted settings
+on has to declare them itself, defaults and all, and hand every one to the
+routine beneath - a load and a store each, whatever its own caller named -
+and then restore its own. So the cost is per layer, not per call site, and it
+multiplies with every routine between the caller and the one that uses the
+values; momolo's adoption measured it (DECISIONS §49).
+
 A parameterised const takes both halves by substitution instead: an omitted
 parameter substitutes its folded default, spelled to carry the parameter's
 scale and unit.
@@ -8312,6 +8326,9 @@ scale and unit.
 - Parameter slots are observably live state between calls, and defaults are
   what make it observable: rely on it only through this feature, never by
   reading a slot after a call returns.
+- Keep the layers that forward defaulted parameters few. Each one restates the
+  defaults and pays a store per parameter on the way through and another on
+  the way out.
 - The printer keeps an omitted argument omitted and a written name written -
   spelling a default out would store a slot the original call did not, and
   §14's round trip compares instructions.

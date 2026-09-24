@@ -154,20 +154,15 @@ at all, which makes one a floor rather than a measurement.
 
 ### Probably
 
-- **Adopt §49 in momolo and momovec.** The feature is built; what remains is
-  the customers it was measured for - `walkPath`'s three booleans named,
-  `fillPath`'s `tidy` defaulted, and momolo's openers taking their settings as
-  defaulted parameters so `cfg`, `cfgReset` and the wrapper subs can retire.
-  The open measurement rides with it: one scene written both ways under
-  `npm run memory`, recorded in DECISIONS §49.
 - **The layout DSL.** §50 - the shape held in the study and now has a Momo
   spelling: brackets for the layout tree, §52's rows for the content and paint
   tables, cross-document names as consts so the resolver checks the references,
   and a text format that compiles to the same spelling a person writes.
   momoed's dialogs are the named first consumer - its chrome, never its
-  document. §49 (built 2026-09-24) was its gate; what remains ahead of it is
-  the cfg retirement above, so the openers this would call are the retired
-  shape's replacements rather than the carrier.
+  document. §49 (built 2026-09-24) was its gate, and momolo's openers took
+  their settings as named parameters the same day, so what this would call is
+  already the shape it wants. Any vocabulary layered above those openers pays
+  for handing the settings on, which DECISIONS §49 measured.
 - **`alias`.** §46 - a compile-time name for one element or one group instance, at
   an index the program chooses. §45's `of` is this with the index owned by the
   compiler, so the substitution is already built and what is new is a capture rule;
@@ -329,8 +324,8 @@ All are set out in DESIGN §20 unless noted.
   analysis is in §32; three ways out, none chosen.
 
 - **How a nested structure should be built is answered**, and the answer is §48 -
-  the record is DECISIONS §20. The half it does not touch is the config carrier,
-  which is a library design waiting on a language feature nobody has designed.
+  the record is DECISIONS §20. The half it did not touch, the config carrier, is
+  answered too: §49's defaults retired it on 2026-09-24.
 
 - **Does Momo want a third namespacing mechanism?** Arbitrary const trees for
   organisation, whose leaves are ordinary consts - name mangling and nothing more
@@ -348,6 +343,15 @@ All are set out in DESIGN §20 unless noted.
 section that was itself a plan - see the note at the top for why, and where to
 look for the rest.
 
+- **Adopt §49 in momolo and momovec.** 2026-09-24. The record is DECISIONS §49.
+  `walkPath`'s booleans are named and `fillPath` is tidy by default, at no cost
+  either way. momolo's openers take twelve defaulted settings named at the
+  brace, and `cfg`, `cfgReset`, the eight setters and the swatch family are
+  gone. The measurement it carried came out the way the design would not
+  guess: the programs are larger by 500-740 bytes of image, because a
+  defaulted parameter cannot be forwarded as omitted and up to five routines
+  hand the settings on. A draft with one opener and no forward inside the engine came
+  within 30-64 bytes of the carrier and was recorded rather than kept.
 - **`expect`.** 2026-09-24. §73, now in `DESIGN.md`, and the record is DECISIONS
   §73. `expect sub viewRow( u16 y, a16 at, u16 n )` holds the program's
   definition to the library's signature and reports a wrong one at the
@@ -375,8 +379,8 @@ look for the rest.
   written, and only effects pin written-order evaluation, through the stack
   path §5 already had. Defaults are `cfgReset` compiler-generated - the slot's
   data init is the default and every exit restores it - which is the
-  implementation only static slots allow. The momolo/momovec adoption and its
-  size measurement are a Probably entry of their own.
+  implementation only static slots allow. The momolo/momovec adoption is its
+  own entry above.
 - **Ranged units.** 2026-09-24. §75, now in `DESIGN.md`, and the record is
   DECISIONS §75. `unit intensity = u8 <= 63` holds every constant that lands in
   the unit against 63, a whole table included, and emits nothing - the identity
@@ -2373,9 +2377,13 @@ A layout node carries settings, and without named arguments the openers either
 take them positionally - `box( 1, 0, 40, 12, 2 )` is the `cfg` carrier's trap
 with more digits - or keep the carrier this section would otherwise retire. §49
 measured the shape (2.2 settings per open, and the frequent ones are not a
-prefix), concluded both halves or neither, and landed 2026-09-24. What still
-comes ahead of this section is the momolo adoption - the openers taking their
-settings as defaulted parameters - which has its own Probably entry.
+prefix), concluded both halves or neither, and landed 2026-09-24. The momolo
+adoption followed the same day: the openers take their settings as defaulted
+parameters named at the brace, so this section's vocabulary calls those rather
+than a carrier. What that adoption measured bears on the vocabulary directly:
+every layer that hands the settings on costs about 208 bytes whether a call
+names one or none (DECISIONS §49), so a `row` or `put` that wraps an opener
+wants to be the opener rather than one more layer above it.
 
 ### The first consumer is momoed's chrome, not its document
 

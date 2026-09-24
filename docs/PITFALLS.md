@@ -325,6 +325,12 @@ next opening, always. Keep them immediately above it with no blank line between,
 which is what the scenes do, and put a blank line *above* the group instead - so
 the gap separates it from the body it is not part of.
 
+**Since 2026-09-24 this is something that used to be true.** §49's defaulted
+parameters retired the carrier: a box's settings are named at its own brace -
+`box( wGrow: true, gap: u ) {` - so the lines that configure a box can no longer
+sit anywhere but on it. DECISIONS §36 has what the carrier was, and §49 what
+the swap cost.
+
 ---
 
 ## A jump *out of* a bracket body is refused

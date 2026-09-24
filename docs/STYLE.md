@@ -256,10 +256,9 @@ than every time by a writer.
   of the program which file a name came from, which is the question they have. A
   name only one file reads wants `local` (§11) instead.
 
-  **The ported engines are the exception.** momolo exports `el`, `cfg`, `begin`
-  and `leaf`, and mopaint beside it `st`, `vram` and `cellW`, because they keep
+  **The ported engines are the exception.** momolo exports `el`, `begin` and
+  `leaf`, and mopaint beside it `st`, `vram` and `cellW`, because they keep
   the names of what they were ported from: a port is held against its study, and
   the names are part of what lets the two be read side by side. Renaming them
-  would churn every scene and §36's text, and `cfg` has its own way out already,
-  in §49's defaults. momovec's `cx`, `cy` and `rowCount` are the same case for
-  §37. Everything new takes the prefix.
+  would churn every scene and §36's text. momovec's `cx`, `cy` and `rowCount`
+  are the same case for §37. Everything new takes the prefix.

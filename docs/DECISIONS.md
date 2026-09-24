@@ -1444,6 +1444,34 @@ all three were assembled under DOSBox by hand rather than trusting `momoc`'s `ok
 
 ---
 
+### The config carrier, from the port until 2026-09-24
+
+Moved here from `build.momo`'s header and DESIGN §36 when §49 retired it.
+
+momolo's builders take a config object with optional fields and `??` defaults,
+and Momo had no spelling for that, so the port carried the settings in one
+`group cfg` written before the call and consumed by it. `cfgReset` was the one
+place the defaults lived, and eight setters - `cfgCol`, `cfgGrowW`,
+`cfgFixedW`, `cfgInset` and their pairs - wrote the fields a box usually wants
+together.
+
+**The first design asked the caller to reset, and was wrong inside ten
+minutes.** The very first scene written against it forgot a `cfgReset()` before
+a leaf, so the leaf inherited its parent's inset and came out 5x3 instead of
+3x1. In TypeScript that bug cannot exist, because `leaf(l, w, h, c = {})` gets
+a fresh object every call; the group is what introduced it, so the group is
+where it was removed - `pushElement` reset the carrier after copying it, and
+nothing had to remember to. That is callee-restored defaults written by hand,
+which is what §49 found when it came to measure the carrier, and what the
+compiler now emits for any defaulted parameter.
+
+One hazard went with it. At load `cfg.wMax` was 0 rather than unbounded,
+because a group zero-fills, so `begin` had to call `cfgReset` before the first
+box of the program. A parameter's data init is its default, so that call has
+no successor.
+
+---
+
 ## 47. `block`
 
 ### The estimate was right about the library and wrong about the compiler
@@ -4794,24 +4822,91 @@ trailing defaults alone reach none of this, so it was both halves or neither.
   the real character. Emitted text is 7-bit now, by rule in the DESIGN
   section - CLAUDE.md's opening re-encoding trap, met in a second format.
 
-### What is not yet measured
+### The swap, measured: larger, and the forwarding is why
 
-Whether momolo's swap - openers with defaults against `cfg`, `cfgReset` and
-the wrapper subs - comes out smaller or larger. The design refused to settle
-it by argument: the answer is one scene written both ways under
-`npm run memory`, and it belongs here the day the adoption lands.
-
-The carrier's side, taken 2026-09-24 at `80d64d7` before anything was
-converted, every momolo program built and then measured:
+The design refused to say whether momolo's openers with defaults would come
+out smaller or larger than `cfg`, `cfgReset` and the wrapper subs, and asked
+for the real thing under `npm run memory` rather than a sketch. Every momolo
+program runs its scenes through the same openers, so all five were measured
+whole - the carrier at `80d64d7`, built and measured before anything was
+converted, and the adoption as committed, 2026-09-24:
 
 ```
-            code    data   image   stack
-momolo     10297    7125   17422      16
-mlodemo    10480    6876   17356      16
-mlolayer   12086    7590   19676      26
-s6demo     12268    7322   19590      20
-pmdemo     11423    7149   18572      26
+            code            data           image          stack
+momolo     10297 -> 10766   7125 -> 7170   17422 -> 17936   16 -> 14
+mlodemo    10480 -> 10932   6876 -> 6934   17356 -> 17866   16 -> 14
+mlolayer   12086 -> 12750   7590 -> 7662   19676 -> 20412   26 -> 24
+s6demo     12268 -> 12896   7322 -> 7394   19590 -> 20290   20 -> 18
+pmdemo     11423 -> 11869   7149 -> 7205   18572 -> 19074   26 -> 24
 ```
 
-`npm run trace` on the two with an expectation: `momolo` 294,100
-instructions, `mlolayer` 549,929.
+**Larger by 446 to 664 bytes of code and 45 to 72 of data.** Static
+instructions in the golden `.asm` rose by 75 to 140, and `npm run trace` on
+the two with an expectation, both still matching it: `momolo` 294,100 ->
+298,717 instructions, `mlolayer` 549,929 -> 560,562, under 2% each. The stack
+fell by two bytes everywhere, because `cfgReset` was a call beneath
+`pushElement` and nothing is now.
+
+**Where it went is forwarding.** An omitted argument cannot be passed on as
+omitted, so every routine between a scene and the element takes all twelve
+settings with their defaults and hands every one on - 24 moves and 12
+restores, about 208 bytes and 16 bytes of slots per routine, whether the call
+that reached it named one setting or none. As built six routines take them -
+`pushElement` applies them, and `openBox` and each of mopaint's four openers
+forward them - and a program pays for the ones it reaches: five in `momolo`,
+which draws no texture. Against that went `cfgReset`'s 15
+instructions, the eight setters, five swatch routines folding into one, and a
+small change at every call site, where a 3-byte `call cfgGrowW` became a
+5-byte store.
+
+The PLAN text this section grew from said retiring the carrier meant
+"`cfgReset`'s fifteen instructions become compiler-generated and momolo loses
+a global". Both halves are true and neither is the size of it: the fifteen
+became twelve restores in every routine that takes the settings, sixty in
+`momolo`, and its 18-byte `cfg` gave way to 80 bytes of parameter slots. The measurement that
+sentence deferred to is the one that could see the multiplication.
+
+**The drafting then asked whether a leaner shape closes the gap**, and it
+nearly does. Two variants were written, run against both expectations - both
+held - and measured, and neither was kept:
+
+```
+                 as built   one opener   one opener, no engine forward
+momolo image       17936      17632        17470   (carrier 17422)
+mlodemo            17866      17562        17400   (17356)
+mlolayer           20412      19902        19740   (19676)
+s6demo             20290      19782        19620   (19590)
+pmdemo             19074      18772        18610   (18572)
+```
+
+*One opener* puts all four brackets on a single `panelOpen` whose paint
+arguments are defaulted too - `box`, `panel`, `framed` and `textured` become
+names for one routine, and `textured` names its `fg` and `fill`. *No engine
+forward* folds `pushElement` into `openBox` as well, with `leaf` opening a box
+and taking it straight off the stack, which is a hack that prices the forward
+and should not be read as a design. Together they land 30 to 64 bytes over the
+carrier's image, with data within ten bytes of it either way and `momolo` at
+297,819 instructions. The first is a real option: it reshapes mopaint's surface, which
+is why it is recorded here rather than done alongside an adoption.
+
+**What could not be a default** became an ordinary named argument, which is
+what they are for: `begin`'s size, `alignCell`'s alignments, the track and
+column widths `squeezeTrack`, `wrapCol` and `w311Group` are handed, a memory
+bar's `barSize[i] * 3 * u`, and `s6ScrollBar`, whose axis settings were a
+pair of `if` blocks writing the carrier and are now computed from `vertical`
+at the brace. Nothing had to stay a carrier write.
+
+**The settings are shaped for the call site**, and four choices in that shape
+are the adoption's rather than §49's. Insets are per axis, `insetX` and
+`insetY`, because no box ever set one side alone. `fixedW` and `fixedH` are
+the fixed sizes, with 0 meaning none, and `wMin`/`hMin` left the builder's
+surface since only a fixed size ever set them - the element keeps all four.
+`leaf` takes no settings, since no call site ever configured one. And
+`pathEdges`/`pathEdgesSorted` stayed two routines: the second sorts, which is
+behaviour rather than a setting, and each is a stage the study names.
+
+**momovec's half cost what the design said.** Naming `walkPath`'s booleans
+changed no instruction at its three call sites. Defaulting `tidy` moved one
+store from eleven callers into `fillPath`'s exit, so a program calling it once
+is unchanged and `tclip`, which calls it twice, is one instruction smaller -
+as is `momovec`, where the store it lost brought a branch into short range.
