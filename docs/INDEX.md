@@ -63,7 +63,7 @@ text for.
 | 46 | `alias` - a name for an indexed access | listed | [section](PLAN.md#46-alias---a-name-for-an-indexed-access) |  |
 | 47 | `block` - the memory past the segment, as a library | [section](DESIGN.md#47-block---the-memory-past-the-segment-as-a-library) |  | [section](DECISIONS.md#47-block) |
 | 48 | `bracket` - an open/close pair the compiler closes | [section](DESIGN.md#48-bracket---an-openclose-pair-the-compiler-closes) |  | [section](DECISIONS.md#48-bracket) |
-| 49 | Named and default arguments | listed | [section](PLAN.md#49-named-and-default-arguments) |  |
+| 49 | Named and default arguments | [section](DESIGN.md#49-named-and-default-arguments) |  | [section](DECISIONS.md#49-named-and-default-arguments) |
 | 50 | A layout DSL: three documents | listed | [section](PLAN.md#50-a-layout-dsl-three-documents) |  |
 | 51 | `addr()` in an initialiser - the table that cannot be written down | [section](DESIGN.md#51-addr-in-an-initialiser---the-table-that-cannot-be-written-down) |  | [section](DECISIONS.md#51-addr-in-an-initialiser) |
 | 52 | `group` data, written as rows | [section](DESIGN.md#52-group-data-written-as-rows) |  | [section](DECISIONS.md#52-group-data-written-as-rows) |

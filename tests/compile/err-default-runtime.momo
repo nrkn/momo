@@ -1,0 +1,5 @@
+// EXPECT-ERROR: a default is part of the declaration, so it folds at compile time - this does not
+// EXPECT-AT: 4:15
+u8 n = 3
+sub f( u8 a = n ) => n = a
+f()

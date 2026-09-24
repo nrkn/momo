@@ -1,0 +1,7 @@
+// EXPECT-ERROR: a positional argument cannot follow a named one - name this one too
+// EXPECT-AT: 7:10
+// Once a name has appeared, position stops meaning anything (§49).
+sub f( u8 a, u8 b ) {
+  a = b
+}
+f( a: 1, 2 )

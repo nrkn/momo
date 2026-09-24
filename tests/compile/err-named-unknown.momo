@@ -1,0 +1,7 @@
+// EXPECT-ERROR: "q" is not a parameter of "f" - they are a, b
+// EXPECT-AT: 7:7
+sub f( u8 a, u8 b ) {
+  a = b
+}
+u8 n = 1
+f( q: n, b: 2 )

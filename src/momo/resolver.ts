@@ -19,6 +19,7 @@ import type {
   GroupDeclaration,
   GroupField,
   Identifier,
+  Parameter,
   RoutineDeclaration,
   TypeName,
   LValue,
@@ -136,7 +137,10 @@ export type MomoSymbol =
       kind: 'routine'
       name: string
       label: string
-      params: { name: string; label: string; type: ValueType; frac?: number; unit?: string }[]
+      // `init` is a folded default (§49): the slot's data init IS the default,
+      // and the routine restores it on every exit, so a call stores only what
+      // it passes. Absent means required.
+      params: { name: string; label: string; type: ValueType; frac?: number; unit?: string; init?: number }[]
       returnType: ValueType | null
       returnFrac?: number
       returnUnit?: string
@@ -146,7 +150,8 @@ export type MomoSymbol =
       kind: 'constfn'
       name: string
       label: string
-      params: { name: string; type: ValueType; frac?: number; unit?: string }[]
+      // `init` as on a routine's params, but substituted rather than stored.
+      params: { name: string; type: ValueType; frac?: number; unit?: string; init?: number }[]
       returnType: ValueType | null
       returnFrac?: number
       returnUnit?: string
@@ -856,28 +861,156 @@ export const resolve = (program: Program): ResolveResult => {
     return total
   }
 
+  // Binds every written argument to a parameter (§49): positional arguments
+  // fill slots left to right, named ones fill the slot they name, and a slot
+  // left empty must have a default. What comes out is `binding` - the slot each
+  // WRITTEN argument landed in - because written order is what the emitter
+  // honours when arguments have effects, and the binding is how it still fills
+  // the right slots.
   const checkArguments = (
-    node: { args: Expression[]; file: string; line: number; col: number },
+    node: {
+      args: Expression[]
+      names?: (string | null)[]
+      binding?: number[]
+      file: string
+      line: number
+      col: number
+    },
     symbol: MomoSymbol & { kind: 'routine' | 'constfn' },
   ) => {
-    if (node.args.length !== symbol.params.length) {
+    const params = symbol.params
+    const required = params.filter((parameter) => parameter.init === undefined).length
+
+    // The old exact-count message survives for the routine with no defaults
+    // called with no names, which is every call that existed before §49.
+    const arity = (): string =>
+      required === params.length
+        ? `"${symbol.name}" takes ${params.length} argument(s), got ${node.args.length}`
+        : `"${symbol.name}" takes ${required} to ${params.length} argument(s), got ${node.args.length}`
+
+    if (node.args.length > params.length) raise(node, arity())
+    // Too few, all positional: the count message says it in one line. With
+    // names in play the missing SLOT is the useful thing to say, below.
+    if (!node.names && node.args.length < required) raise(node, arity())
+
+    const filled: (Expression | null)[] = new Array<Expression | null>(params.length).fill(null)
+    const binding: number[] = []
+    let seenNamed = false
+
+    for (let i = 0; i < node.args.length; i++) {
+      const name = node.names?.[i] ?? null
+      let slot = i
+
+      if (name === null) {
+        if (seenNamed) {
+          raise(
+            node.args[i],
+            'a positional argument cannot follow a named one - name this one too',
+          )
+        }
+      } else {
+        seenNamed = true
+        slot = params.findIndex((parameter) => parameter.name === name)
+        if (slot < 0) {
+          raise(
+            node.args[i],
+            `"${name}" is not a parameter of "${symbol.name}" - they are ` +
+              params.map((parameter) => parameter.name).join(', '),
+          )
+        }
+        if (filled[slot]) {
+          raise(node.args[i], `"${name}" was already given, as argument ${slot + 1}`)
+        }
+      }
+
+      filled[slot] = node.args[i]
+      binding.push(slot)
+    }
+
+    for (let slot = 0; slot < params.length; slot++) {
+      if (filled[slot] || params[slot].init !== undefined) continue
       raise(
         node,
-        `"${symbol.name}" takes ${symbol.params.length} argument(s), got ${node.args.length}`,
+        `"${symbol.name}" needs "${params[slot].name}", which has no default -` +
+          ' pass it, by name or in position',
       )
     }
 
+    node.binding = binding
+
+    // Type-checked in WRITTEN order, which is the order they will evaluate in
+    // when any has effects - so the errors read in the order the line does.
     for (let i = 0; i < node.args.length; i++) {
-      scaleDecimals(node.args[i], symbol.params[i].frac ?? 0)
+      const slot = binding[i]
+      scaleDecimals(node.args[i], params[slot].frac ?? 0)
       const argument = resolveExpression(node.args[i])
       checkAssignable(
         argument,
-        symbol.params[i].type,
-        symbol.params[i].frac ?? 0,
+        params[slot].type,
+        params[slot].frac ?? 0,
         node.args[i],
-        symbol.params[i].unit ?? null,
+        params[slot].unit ?? null,
       )
     }
+  }
+
+  // The expression an omitted parameter substitutes in a parameterised const
+  // (§49): the folded default, spelled so it resolves to the same type, scale
+  // and unit the parameter declares. A plain parameter takes a bare literal -
+  // untyped, exactly as a written literal would arrive - and a scaled or
+  // united one takes a raw cast, which is the one spelling that sets both
+  // without shifting the bits the fold already scaled.
+  const defaultFor = (
+    parameter: { type: ValueType; frac?: number; unit?: string; init?: number },
+    at: Location,
+  ): Expression => {
+    const value = parameter.init as number
+    const literal: Expression = {
+      type: 'NumberLiteral',
+      value,
+      text: String(value),
+      file: at.file,
+      line: at.line,
+      col: at.col,
+    }
+
+    if ((parameter.frac ?? 0) === 0 && parameter.unit === undefined) return literal
+
+    return {
+      type: 'CastExpression',
+      to: parameter.type as TypeName,
+      toFrac: parameter.frac ?? 0,
+      toUnit: parameter.unit,
+      raw: true,
+      argument: literal,
+      file: at.file,
+      line: at.line,
+      col: at.col,
+    }
+  }
+
+  // A parameter's default (§49), folded where the declaration stands - so like
+  // any const initialiser it can name only what is declared above it, which is
+  // the ordering rule the language already has. Checked against the parameter
+  // exactly as an argument would be, ranges included.
+  const foldDefault = (parameter: Parameter): number | undefined => {
+    if (!parameter.init) return undefined
+    scaleDecimals(parameter.init, parameter.typeNode.frac)
+    const resolved = resolveExpression(parameter.init)
+    if (resolved.value === null) {
+      raise(
+        parameter.init,
+        `a default is part of the declaration, so it folds at compile time - this does not`,
+      )
+    }
+    checkAssignable(
+      resolved,
+      parameter.typeNode.name,
+      parameter.typeNode.frac,
+      parameter.init,
+      parameter.typeNode.unit ?? null,
+    )
+    return resolved.value
   }
 
   const resolveCall = (node: Expression): Resolved => {
@@ -909,16 +1042,24 @@ export const resolve = (program: Program): ResolveResult => {
 
     const bindings = new Map<string, Expression>()
     for (let i = 0; i < node.args.length; i++) {
+      const parameter = symbol.params[(node.binding as number[])[i]]
       // Substitution duplicates the argument wherever the parameter appears. That
       // is harmless for a pure expression, but would call a fn twice.
-      if (countUses(symbol.body, symbol.params[i].name) > 1 && hasEffects(node.args[i])) {
+      if (countUses(symbol.body, parameter.name) > 1 && hasEffects(node.args[i])) {
         raise(
           node.args[i],
-          `argument to "${symbol.name}" calls a fn, and parameter "${symbol.params[i].name}"` +
+          `argument to "${symbol.name}" calls a fn, and parameter "${parameter.name}"` +
             ' is used more than once - assign it to a variable first',
         )
       }
-      bindings.set(symbol.params[i].name, node.args[i])
+      bindings.set(parameter.name, node.args[i])
+    }
+
+    // An omitted parameter substitutes its default (§49) - a folded constant,
+    // so the double-use guard above has nothing to guard.
+    for (const parameter of symbol.params) {
+      if (bindings.has(parameter.name)) continue
+      bindings.set(parameter.name, defaultFor(parameter, node))
     }
 
     let expansion = substitute(symbol.body, bindings)
@@ -2535,12 +2676,16 @@ export const resolve = (program: Program): ResolveResult => {
         kind: 'constfn',
         name: node.name,
         label: labelFor(node.name, node.local),
-        params: node.params.map((parameter) => ({
-          name: parameter.name,
-          type: parameter.typeNode.name,
-          frac: parameter.typeNode.frac,
-          unit: parameter.typeNode.unit,
-        })),
+        params: node.params.map((parameter) => {
+          const init = foldDefault(parameter)
+          return {
+            name: parameter.name,
+            type: parameter.typeNode.name,
+            frac: parameter.typeNode.frac,
+            unit: parameter.typeNode.unit,
+            ...(init === undefined ? {} : { init }),
+          }
+        }),
         returnType: node.returnType,
         returnFrac: node.returnFrac,
         // Without this the symbol's optional returnUnit stayed empty for ever,
@@ -3220,6 +3365,7 @@ export const resolve = (program: Program): ResolveResult => {
       type: ValueType
       frac: number
       unit?: string
+      init?: number
     }[] = []
 
     // Everything below hangs off the label rather than the name, because a
@@ -3232,12 +3378,14 @@ export const resolve = (program: Program): ResolveResult => {
     for (const parameter of node.params) {
       if (seen.has(parameter.name)) raise(parameter, `duplicate parameter "${parameter.name}"`)
       seen.add(parameter.name)
+      const init = foldDefault(parameter)
       params.push({
         name: parameter.name,
         label: `${routineLabel}__${parameter.name}`,
         type: parameter.typeNode.name,
         frac: parameter.typeNode.frac,
         unit: parameter.typeNode.unit,
+        ...(init === undefined ? {} : { init }),
       })
     }
 
@@ -3268,7 +3416,9 @@ export const resolve = (program: Program): ResolveResult => {
         frac: parameter.frac,
         unit: parameter.unit,
         builtin: false,
-        init: 0,
+        // The slot's data init IS the default (§49): the first call finds it
+        // there, and the routine's exits restore it - see the emitter.
+        init: parameter.init === undefined ? 0 : truncate(parameter.init, parameter.type),
         owner: routineLabel,
       })
     }

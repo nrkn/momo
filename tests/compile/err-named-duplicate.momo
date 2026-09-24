@@ -1,0 +1,6 @@
+// EXPECT-ERROR: "a" was already given, as argument 1
+// EXPECT-AT: 6:10
+sub f( u8 a, u8 b ) {
+  a = b
+}
+f( 1, a: 2 )

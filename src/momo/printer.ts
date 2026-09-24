@@ -72,7 +72,25 @@ const printType = (node: TypeNode): string => {
 }
 
 const printParams = (params: Parameter[]): string =>
-  `( ${params.map((p) => `${printType(p.typeNode)} ${p.name}`).join(', ')} )`
+  `( ${params
+    .map(
+      (p) =>
+        `${printType(p.typeNode)} ${p.name}` +
+        (p.init ? ` = ${printExpression(p.init)}` : ''),
+    )
+    .join(', ')} )`
+
+// A call's arguments, with §49's names where they were written. Kept as
+// written rather than normalised: an omitted default must STAY omitted - a
+// printed call that spelled it out would store the slot the original did not,
+// and the round trip compares instructions.
+const printArgs = (args: Expression[], names?: (string | null)[]): string =>
+  args
+    .map((arg, i) => {
+      const name = names?.[i]
+      return name ? `${name}: ${printExpression(arg)}` : printExpression(arg)
+    })
+    .join(', ')
 
 // The precedence of the expression as a whole, for deciding whether a child
 // needs bracketing.
@@ -209,7 +227,7 @@ export const printExpression = (node: Expression): string => {
     }
 
     case 'CallExpression':
-      return `${lowered(node.callee.name, node.callee.label)}( ${node.args.map(printExpression).join(', ')} )`
+      return `${lowered(node.callee.name, node.callee.label)}( ${printArgs(node.args, node.names)} )`
 
     // `mob[i].x` puts the field after the index, so the Identifier's own field
     // cannot simply be printed with it.
@@ -422,7 +440,7 @@ export const printStatement = (node: Statement, depth = 0): string => {
     case 'CallStatement':
       return (
         `${pad}${lowered(node.callee.name, node.callee.label)}` +
-        `( ${node.args.map(printExpression).join(', ')} )`
+        `( ${printArgs(node.args, node.names)} )`
       )
 
     // Both bracket forms (§48) are gone by the time anything prints a resolved
@@ -433,7 +451,7 @@ export const printStatement = (node: Statement, depth = 0): string => {
 
     case 'BracketStatement':
       return (
-        `${pad}${node.name.name}( ${node.args.map(printExpression).join(', ')} ) ` +
+        `${pad}${node.name.name}( ${printArgs(node.args, node.names)} ) ` +
         printBlock(node.body.body, depth)
       )
   }

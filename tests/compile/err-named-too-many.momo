@@ -1,0 +1,5 @@
+// EXPECT-ERROR: "f" takes 1 to 2 argument(s), got 3
+// EXPECT-AT: 5:1
+// The count message grows a range when defaults exist.
+sub f( u8 a, u8 b = 1 ) => a = b
+f( 1, 2, 3 )

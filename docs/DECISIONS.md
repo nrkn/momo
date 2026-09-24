@@ -4651,3 +4651,60 @@ The cost is the resolving, which a written table pays too.
 Tier 2 was left for the merge, because the worktree the build ran in had no
 DOSBox configured; the emitter writes nothing it did not write before, and the
 machine tier ran `gentable` against its `.expected`.
+
+## 49. Named and default arguments
+
+### The measurements, because the premise this inherited was wrong
+
+Lifted from the PLAN section on the day it was built, frozen dates intact.
+`momolo/build.momo` explained the `cfg` carrier by saying a fourteen-parameter
+sub "would be unreadable at every call site" - a claim about a shape nothing
+here had. Across the roughly 260 routines in the 92 `.momo` files under
+`projects/` and `shared/`, **the maximum arity was 6, and exactly two routines
+reached it** - `quadSpan` and `quadLimited`, the six coordinates of a
+quadratic. One routine took five. Nothing else took more than four.
+
+```
+0: 123   1: 49   2: 44   3: 32   4: 8   5: 1   6: 2
+```
+
+The histogram is fixed at its date and the tail is the only part worth
+trusting - both ends were checked by enumerating headers, the buckets between
+are a snapshot. The first version of that table did not survive being
+recounted (`277 routines ... 5: 2   6: 4`, double the true tail), which is the
+same failure §48's wrapper table had.
+
+Over the 32 bracket opens, measured the same day and fixed there:
+
+```
+settings before an open   0: 11   1: 1   2: 7   3: 4   4: 5   5: 3   7: 1
+                          69 settings, mean 2.2, max 7
+```
+
+Ten of the fourteen `cfg` fields were ever set, and five setters carried 50 of
+the 69. **They are not a prefix**, which is the finding that shaped the design:
+trailing defaults alone reach none of this, so it was both halves or neither.
+
+### What the build added to the design
+
+- **Pure arguments store in declaration order; effects evaluate in written
+  order.** The design said "written order is the honest answer"; the build
+  found the split that also keeps the identity claim - a reordering of pure
+  stores is unobservable, so it is normalised, and only effects pin the
+  written order, through the stack path that already existed.
+- **The count message grew a range** (`takes 1 to 2 argument(s)`) only where
+  defaults exist; the exact-count message survives untouched for every call
+  shape that existed before, which one legacy fixture held it to.
+- **An emitted comment mangled itself.** The reset comment first read
+  "defaults restored on the way out (§49)", and the golden tier failed against
+  the fresh compile: the tools write `.asm` as ascii, so the section sign's
+  byte came back as an apostrophe on disk while the in-process compare held
+  the real character. Emitted text is 7-bit now, by rule in the DESIGN
+  section - CLAUDE.md's opening re-encoding trap, met in a second format.
+
+### What is not yet measured
+
+Whether momolo's swap - openers with defaults against `cfg`, `cfgReset` and
+the wrapper subs - comes out smaller or larger. The design refused to settle
+it by argument: the answer is one scene written both ways under
+`npm run memory`, and it belongs here the day the adoption lands.

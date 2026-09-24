@@ -1,0 +1,7 @@
+// EXPECT-ERROR: value 99 does not fit in tone, which is u8 <= 63
+// EXPECT-AT: 6:17
+// A default is checked as an argument would be, ranges included (§49, §75).
+unit tone = u8 <= 63
+u8 out = 0
+sub f( tone t = 99 ) => out = u8( u16( t ) )
+f()

@@ -154,21 +154,20 @@ at all, which makes one a floor rather than a measurement.
 
 ### Probably
 
-- **Named and default arguments.** §49 - `fillPath( p )` where `tidy` defaults to
-  true, and `walkPath( pathIndex, wantPixels: true, ... )` where the corpus has
-  three bare booleans in a row today. The named half needs no codegen change at
-  all; the default half is what §48's `cfg` misreading actually needs, and it
-  rests on a mechanism Momo has and stack languages do not - the callee restores
-  its own defaults, which is what `cfgReset` already does by hand. Measured: max
-  arity in the whole corpus is 6, a box carries 2.2 settings on average, and the
-  frequent ones are not a prefix - so it is both halves or neither.
+- **Adopt §49 in momolo and momovec.** The feature is built; what remains is
+  the customers it was measured for - `walkPath`'s three booleans named,
+  `fillPath`'s `tidy` defaulted, and momolo's openers taking their settings as
+  defaulted parameters so `cfg`, `cfgReset` and the wrapper subs can retire.
+  The open measurement rides with it: one scene written both ways under
+  `npm run memory`, recorded in DECISIONS §49.
 - **The layout DSL.** §50 - the shape held in the study and now has a Momo
   spelling: brackets for the layout tree, §52's rows for the content and paint
   tables, cross-document names as consts so the resolver checks the references,
   and a text format that compiles to the same spelling a person writes.
   momoed's dialogs are the named first consumer - its chrome, never its
-  document. Sequenced behind §49, deliberately: without named arguments the
-  openers re-grow the `cfg` carrier this retires.
+  document. §49 (built 2026-09-24) was its gate; what remains ahead of it is
+  the cfg retirement above, so the openers this would call are the retired
+  shape's replacements rather than the carrier.
 - **`expect`.** §73 - a contract for the forward-call seam. Five libraries
   already document the routine they expect the program to define, in comments
   the compiler cannot read, and a wrong definition errors inside the library,
@@ -364,6 +363,14 @@ look for the rest.
   program's stack reserve. Its four
   unsettled points are still open, and the `in`-over-a-count one now sits with
   the Maybe entry for loops.
+- **Named and default arguments.** 2026-09-24. §49, now in `DESIGN.md`, and the
+  record is DECISIONS §49. Names are a binding, held to zero cost by the
+  identity tier: pure arguments store in declaration order however they are
+  written, and only effects pin written-order evaluation, through the stack
+  path §5 already had. Defaults are `cfgReset` compiler-generated - the slot's
+  data init is the default and every exit restores it - which is the
+  implementation only static slots allow. The momolo/momovec adoption and its
+  size measurement are a Probably entry of their own.
 - **Ranged units.** 2026-09-24. §75, now in `DESIGN.md`, and the record is
   DECISIONS §75. `unit intensity = u8 <= 63` holds every constant that lands in
   the unit against 63, a whole table included, and emits nothing - the identity
@@ -2254,149 +2261,6 @@ hold - and any spelling that lets a binding cross a routine boundary.
 
 ---
 
-## 49. Named and default arguments
-
-**Designed, not built.** Two halves of one feature, which can land separately and
-have different customers:
-
-```momo
-sub walkPath( u16 pathIndex, bool wantPixels, bool wantEdges, bool closeSubpaths )
-
-walkPath( pathIndex, wantPixels: true, wantEdges: false, closeSubpaths: false )
-
-sub fillPath( u16 pathIndex, bool tidy = true )
-
-fillPath( p )
-```
-
-Named arguments say which parameter a value is for. Default arguments let one be
-left out. Neither is new as a language idea; what is worth writing down is that
-Momo's memory model gives the second an implementation no stack-based language
-can use, and that the corpus has already written both out by hand.
-
-### The measurements, because the premise this inherited is wrong
-
-`momolo/build.momo` explains the `cfg` carrier by saying a fourteen-parameter sub
-"would be unreadable at every call site". That is a claim about a shape nothing
-here has. Across the roughly 260 routines in the 92 `.momo` files under
-`projects/` and `shared/`, **the maximum arity is 6, and exactly two routines
-reach it** - `quadSpan` and `quadLimited` in `momovec/subdiv.momo`, which are the
-same shape: the six coordinates of a quadratic. One routine takes five,
-`std/screen.momo`'s `fillRow`. Nothing else takes more than four.
-
-```
-0: 123   1: 49   2: 44   3: 32   4: 8   5: 1   6: 2
-```
-
-**The histogram is fixed at the date and the tail is the only part worth
-trusting.** The two ends are load-bearing in opposite directions - a
-fourteen-parameter sub does not exist here, and the widest thing that does is a
-quadratic's coordinates - and both were checked by enumerating the headers rather
-than by totalling anything. The buckets in between are a snapshot; do not recount
-them, and do not build on the total.
-
-That distinction is here because the first version of this table did not survive
-being recounted. It read `277 routines ... 5: 2   6: 4`, double the true tail, and
-the total could not be reproduced by any counting rule that also gives the tail.
-The load-bearing claim was right and had arrived beside a tally nobody had
-derived from it - which is exactly what §48's wrapper table did, and
-`CONTRIBUTING.md` already records that one.
-
-And a box does not carry fourteen settings. Over the 32 bracket opens (§48),
-measured at the same date and fixed there like the above - it is internally
-consistent, which is as much as a snapshot can be:
-
-```
-settings before an open   0: 11   1: 1   2: 7   3: 4   4: 5   5: 3   7: 1
-                          69 settings, mean 2.2, max 7
-```
-
-Ten of the fourteen fields are ever set, and five setters carry 50 of the 69 -
-`cfgGrowW` 13, `cfg.gap` 12, `cfgGrowH` 9, `cfgCol` 8, `cfgInset` 8.
-
-**They are not a prefix**, which is the finding that shapes the design: setting
-`alignMain` means passing six things nobody cares about. Trailing defaults alone
-do not reach this. It is both halves or neither.
-
-### `cfgReset` is default arguments, hand-rolled
-
-Parameters are mangled globals and a call is stores-then-`call` (§5), so a
-parameter slot persists between calls. That allows an implementation a language
-with stack frames cannot have: **the callee restores its own defaults on exit**,
-and a caller stores only what it changes.
-
-`pushElement` copies `cfg` onto the element and then calls `cfgReset`, so every
-box starts from the defaults and a call site sets only what differs. That is the
-mechanism above, written by hand, in a `group` rather than in parameter slots only
-because parameter slots are not nameable from outside the routine.
-
-So this is less "give the openers fourteen parameters" than "delete a library's
-copy of a missing language feature". `cfgReset`'s fifteen instructions become
-compiler-generated and momolo loses a global.
-
-### Two customers, and they are unequal
-
-**momovec wants names.** `walkPath` takes three booleans after its index and is
-called three times, once as `walkPath( pathIndex, true, false, false )` - the shape
-the argument for named arguments is usually made about. `fillPath` takes one, and
-of its twelve call sites **eleven pass `true` and one passes `false`**, so it wants
-a default as well.
-
-Those two are quoted rather than a total, because "how many call sites pass a bare
-boolean" is a number whose value depends on how the question is filtered - three
-attempts at it here gave 16, 17 and 19. A figure like that drifts the moment
-anybody recounts it differently, so the section names routines instead.
-
-**momolo wants both**, and is the reason the section exists - §48 sharpened a
-misreading it deliberately did not fix, and this is what fixing it needs.
-
-The corpus has also paid for the absence in duplicated wrappers: `swatchGrow`,
-`swatchFixed` and `swatchCapped` differ only in how they set `cfg` before calling
-`swatchBody`, and `pathEdges`/`pathEdgesSorted` are the same shape one library
-along.
-
-### The halves cost very differently
-
-**Named arguments are nearly free.** Reordering into declaration order happens in
-the parser, so the emitter sees exactly what it sees today - no codegen change at
-all, and the identity tier can assert it. One real decision: `f( b: g(), a: h() )`
-must choose between written order and declared order, which matters because §5
-evaluates left to right and spills to the stack when any argument contains a call.
-Written order is the honest answer and costs nothing; it just has to be decided
-rather than fallen into.
-
-**Defaults are the expensive half.** Callee-restore means every defaulted routine
-pays a reset on every call, whether or not a default was used - `cfgReset`'s cost,
-generalised to anything that opts in. Defaults must be foldable constants, which
-the resolver already supports and which is a clean line rather than a compromise.
-The conceptual cost is the one to weigh: parameter slots become observably live
-state between calls. That is true today and currently invisible, and a default
-makes it something a reader has to know.
-
-The alternative implementation, **caller-fills**, is the obvious one and the wrong
-one here: fourteen stores at each of 32 call sites instead of fourteen in one
-routine.
-
-### What is not known, and how to find out
-
-Whether the swap is smaller or larger is **not** settled by argument. `call cfgCol`
-is three bytes against roughly six for the inline store it replaces, but it deletes
-ten routine bodies and `cfgReset`. The measurement is one scene written both ways,
-compared with `npm run memory` - and per the stub trap in `CLAUDE.md` it has to be
-the real thing, since a sketch measures a floor the real design cannot reach.
-
-### Probably, not Definitely
-
-Named arguments have a customer today and cost almost nothing, and would go in
-Definitely on their own. Defaults have one real customer, and building them to fix
-a misreading in one library is the floor-not-a-measurement problem the note under
-Todo describes - the same one §48 was careful about and this would be careless
-about. The two are here together because the measurement above says momolo needs
-both or neither, and splitting them is a decision to make on the way in rather
-than a conclusion already reached.
-
----
-
 ## 50. A layout DSL: three documents
 
 **Not built. The shape is settled and the spelling now has a candidate.** The
@@ -2497,14 +2361,15 @@ The validation the study still owed - the unreferenced item, the rule matching
 nothing - falls to the text compiler's report, next to the crossings it already
 records.
 
-### §49 goes first
+### §49 went first, and is built
 
 A layout node carries settings, and without named arguments the openers either
 take them positionally - `box( 1, 0, 40, 12, 2 )` is the `cfg` carrier's trap
 with more digits - or keep the carrier this section would otherwise retire. §49
 measured the shape (2.2 settings per open, and the frequent ones are not a
-prefix) and concluded both halves or neither; this is the consumer that makes
-the conclusion actionable. Sequenced behind it, deliberately.
+prefix), concluded both halves or neither, and landed 2026-09-24. What still
+comes ahead of this section is the momolo adoption - the openers taking their
+settings as defaulted parameters - which has its own Probably entry.
 
 ### The first consumer is momoed's chrome, not its document
 

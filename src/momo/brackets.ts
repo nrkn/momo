@@ -40,10 +40,14 @@ const callTo = (
   args: Expression[],
   at: Located,
   line: number,
+  // The open's named arguments (§49) ride through the lowering untouched -
+  // which is what lets a bracket's settings be named instead of a `cfg` write.
+  names?: (string | null)[],
 ): CallStatement => ({
   type: 'CallStatement',
   callee: { type: 'Identifier', name: callee.name, file: at.file, line, col: at.col },
   args,
+  ...(names ? { names } : {}),
   file: at.file,
   line,
   col: at.col,
@@ -113,7 +117,7 @@ export const lowerBrackets = (program: Program) => {
           )
         }
 
-        out.push(callTo(pair.open, statement.args, statement, statement.line))
+        out.push(callTo(pair.open, statement.args, statement, statement.line, statement.names))
         out.push(...rewriteList(statement.body.body))
         out.push(callTo(pair.close, [], statement, statement.endLine))
         continue

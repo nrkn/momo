@@ -1,0 +1,12 @@
+// The other half of the pair: the same calls, positional. §49's names are a
+// binding, not code, so the two halves must be byte-identical.
+
+u16 tally = 0
+
+sub take( u8 a, u8 b, u8 c ) {
+  tally = u16( a ) * 100 + u16( b ) * 10 + u16( c )
+}
+
+take( 1, 2, 3 )
+take( 4, 5, 6 )
+take( 7, 8, 9 )

@@ -166,6 +166,13 @@ export type CallExpression = Located & {
   type: 'CallExpression'
   callee: Identifier
   args: Expression[]
+  // §49. Aligned with `args`, null for a positional argument, the parameter's
+  // name for a named one - kept as written, because written order is what the
+  // emitter honours when arguments have effects, and what the printer echoes.
+  names?: (string | null)[]
+  // Set by the resolver: which parameter each written argument binds, so the
+  // emitter stores each into the right slot whatever order they were written.
+  binding?: number[]
   expansion?: Expression
 }
 
@@ -399,6 +406,12 @@ export type Parameter = Located & {
   type: 'Parameter'
   name: string
   typeNode: TypeNode
+  // `u8 gap = 1` - a default (§49). A constant expression the resolver folds at
+  // the declaration; a call that omits the parameter gets this value. For a
+  // routine the mechanism is callee-restore: the slot's data init IS the
+  // default, and the routine re-stores it on every exit, so a caller writes
+  // only what it changes - which is `cfgReset`, generalised.
+  init?: Expression
 }
 
 // `const sqr(u8 n) = n * n` - a parameterised const. Single expression, always
@@ -537,6 +550,9 @@ export type CallStatement = Spanned & {
   type: 'CallStatement'
   callee: Identifier
   args: Expression[]
+  // As on CallExpression (§49).
+  names?: (string | null)[]
+  binding?: number[]
 }
 
 // §48. `bracket box = boxOpen / closeBox` - a compile-time name for an open/close
@@ -561,6 +577,9 @@ export type BracketStatement = Spanned & {
   type: 'BracketStatement'
   name: Identifier
   args: Expression[]
+  // The open's named arguments (§49), riding to the CallStatement the lowering
+  // builds - which is the whole reason a bracket can retire a `cfg` write.
+  names?: (string | null)[]
   body: BlockStatement
 }
 

@@ -1,0 +1,6 @@
+// EXPECT-ERROR: "f" needs "a", which has no default - pass it, by name or in position
+// EXPECT-AT: 6:1
+// Only reachable with names in play: an all-positional shortfall keeps the
+// count message the language always had.
+sub f( u8 a, u8 b = 1 ) => a = b
+f( b: 2 )

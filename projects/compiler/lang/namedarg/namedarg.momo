@@ -1,0 +1,119 @@
+// namedarg.momo - §49: named and default arguments.
+//
+// Three claims, one per section. Names bind, whatever order they are written
+// in: the same call spelled three ways prints the same number. Effects run in
+// WRITTEN order even when the names reorder the slots: `seq` says which fn ran
+// first. And a default is callee-restored: the box lines prove a slot changed
+// by one call is back to its default for the next, because the routine itself
+// puts it back on the way out - the mechanism only static slots allow.
+
+include "lib/std/io.momo"
+
+u16 add3( u8 a, u8 b, u8 c ) {
+  return u16( a ) * 100 + u16( b ) * 10 + u16( c )
+}
+
+// ---- names bind by name, not by position ----
+
+putNumber( add3( 1, 2, 3 ) )
+space()
+putNumber( add3( a: 1, b: 2, c: 3 ) )
+space()
+putNumber( add3( c: 3, a: 1, b: 2 ) )
+newline()
+
+// ---- effects evaluate as written: first() before second() ----
+
+u16 seq = 0
+
+u16 first() {
+  seq = seq * 10 + 1
+  return 1
+}
+
+u16 second() {
+  seq = seq * 10 + 2
+  return 2
+}
+
+putNumber( add3( c: first(), a: second(), b: 0 ) )
+space()
+putNumber( seq )
+newline()
+
+// ---- defaults, restored by the callee on every exit ----
+
+u16 boxGap = 0
+u16 boxCol = 0
+
+sub box( u8 gap = 1, u8 col = 7 ) {
+  boxGap = gap
+  boxCol = col
+}
+
+box()
+putNumber( boxGap )
+space()
+putNumber( boxCol )
+space()
+box( col: 2 )
+putNumber( boxGap )
+space()
+putNumber( boxCol )
+space()
+box( 5 )
+putNumber( boxGap )
+space()
+putNumber( boxCol )
+space()
+box()
+putNumber( boxGap )
+space()
+putNumber( boxCol )
+newline()
+
+// ---- a bracket's open takes names too, which is what retires a cfg write ----
+
+sub openBox( u8 gap = 1 ) {
+  boxGap = gap
+}
+
+sub closeBox {
+  boxGap = 9
+}
+
+bracket boxed = openBox / closeBox
+
+boxed( gap: 4 ) {
+  putNumber( boxGap )
+}
+space()
+putNumber( boxGap )
+newline()
+
+// ---- a parameterised const takes both halves by substitution ----
+
+const u8 pad( u8 n, u8 by = 3 ) = n + by
+
+putNumber( pad( 4 ) )
+space()
+putNumber( pad( 4, by: 10 ) )
+newline()
+
+// ---- a default carries its unit and its scale ----
+
+unit tone = u8 <= 63
+
+tone toneNow = 0
+
+sub setTone( tone level = 21 ) => toneNow = level
+
+const i8.8 half( i8.8 v = 1.5 ) = v
+
+i16 bits = raw i16( half() )
+
+setTone()
+putNumber( u16( toneNow ) )
+space()
+putNumber( u16( bits ) )
+newline()

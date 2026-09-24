@@ -1,0 +1,14 @@
+// One half of §49's identity pair. The same three calls as the plain twin,
+// spelled with names - in declaration order, and reordered where the arguments
+// are pure. Pure arguments store in declaration order whatever order they are
+// written, so this must emit exactly what the positional spelling emits.
+
+u16 tally = 0
+
+sub take( u8 a, u8 b, u8 c ) {
+  tally = u16( a ) * 100 + u16( b ) * 10 + u16( c )
+}
+
+take( a: 1, b: 2, c: 3 )
+take( c: 6, a: 4, b: 5 )
+take( 7, c: 9, b: 8 )

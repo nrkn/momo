@@ -521,21 +521,13 @@ export const parse = (tokens: Token[]): Program => {
       // const. The resolver decides, since the parser has no symbol table.
       if (at('op', '(')) {
         advance()
-        const args: Expression[] = []
-
-        if (!at('op', ')')) {
-          for (;;) {
-            args.push(parseExpression())
-            if (!at('op', ',')) break
-            advance()
-          }
-        }
-
+        const { args, names } = parseArguments()
         expect('op', ')')
         return {
           type: 'CallExpression',
           callee: identifier,
           args,
+          ...namedOrNot(names),
           file: token.file,
           line: token.line,
           col: token.col,
@@ -649,10 +641,20 @@ export const parse = (tokens: Token[]): Program => {
         const typeNode = parseTypeNode()
         if (typeNode.array) raise(start, 'a parameter cannot be an array')
         const name = expect('ident')
+
+        // `u8 gap = 1` - a default (§49). Whether it folds is the resolver's
+        // question; the parser only reads the expression.
+        let init: Expression | undefined
+        if (at('op', '=')) {
+          advance()
+          init = parseExpression()
+        }
+
         params.push({
           type: 'Parameter',
           name: name.text,
           typeNode,
+          ...(init ? { init } : {}),
           file: start.file,
           line: start.line,
           col: start.col,
@@ -665,6 +667,38 @@ export const parse = (tokens: Token[]): Program => {
     expect('op', ')')
     return params
   }
+
+  // The arguments of a call, positional or named (§49). `gap: 2` is a name and
+  // a colon where an expression was due - unambiguous by two tokens of
+  // lookahead, because no expression starts with `ident :` (a ternary's colon
+  // needs a `?` before it). Kept as written: `names` is null per positional
+  // argument, and the resolver decides what the names bind.
+  const parseArguments = (): { args: Expression[]; names: (string | null)[] } => {
+    const args: Expression[] = []
+    const names: (string | null)[] = []
+
+    if (!at('op', ')')) {
+      for (;;) {
+        const following = tokens[Math.min(pos + 1, tokens.length - 1)]
+        if (at('ident') && following.kind === 'op' && following.text === ':') {
+          names.push(advance().text)
+          advance() // the ':'
+        } else {
+          names.push(null)
+        }
+        args.push(parseExpression())
+        if (!at('op', ',')) break
+        advance()
+      }
+    }
+
+    return { args, names }
+  }
+
+  // Only carried when a name was written, so a plain call's AST is unchanged
+  // and everything that walks one stays byte-identical.
+  const namedOrNot = (names: (string | null)[]): { names?: (string | null)[] } =>
+    names.some((name) => name !== null) ? { names } : {}
 
   // Four shapes, told apart by one token of lookahead past the name:
   //   const u8[] a = [...]        type,  then '='  -> array const
@@ -1063,6 +1097,7 @@ export const parse = (tokens: Token[]): Program => {
       type: 'BracketStatement',
       name: call.callee,
       args: call.args,
+      ...(call.names ? { names: call.names } : {}),
       body,
       file: call.file,
       line: call.line,
@@ -1501,19 +1536,13 @@ export const parse = (tokens: Token[]): Program => {
         raise(start, 'cannot call an array element')
       }
       advance()
-      const args: Expression[] = []
-      if (!at('op', ')')) {
-        for (;;) {
-          args.push(parseExpression())
-          if (!at('op', ',')) break
-          advance()
-        }
-      }
+      const { args, names } = parseArguments()
       expect('op', ')')
       return {
         type: 'CallStatement',
         callee: target,
         args,
+        ...namedOrNot(names),
         file: start.file,
         line: start.line,
         col: start.col,

@@ -6693,7 +6693,6 @@ from it for as long as the count read "thirteen", and nothing could say so.
 | §41 | `momowad` - asset storage |
 | §42 | A test tier below DOSBox |
 | §46 | `alias` - a name for an indexed access, which §45's `of` is one case of |
-| §49 | Named and default arguments, which is what §48's `cfg` carrier needs |
 | §50 | A layout DSL: content, layout and paint as three documents |
 | §63 | A document larger than the memory |
 | §73 | `expect` - a contract for the routine a library calls and the program defines |
@@ -8115,3 +8114,73 @@ asserts the text of `gentable` from both sides.
   which none does yet.
 - **Nesting**, for §53's `u8[][]`. No customer; refused by name so that it is a
   decision rather than a discovery.
+
+---
+
+## 49. Named and default arguments
+
+**Built.** `namedarg` runs both halves in tier 2, the `err-named-*` and
+`err-default-*` files hold the refusals, and `ok-named-args` /
+`ok-named-plain` is the identity pair that holds the named half to costing
+nothing. DECISIONS §49 has the measurements that shaped it - the corpus's
+arity histogram, and the finding that a box's frequent settings are not a
+prefix, which is why it is both halves rather than either.
+
+```momo
+sub box( u8 gap = 1, u8 col = 7 )
+
+box()                      // both defaults
+box( col: 2 )              // gap stays 1, and nothing stores it
+box( 5 )                   // positional still works
+```
+
+### Named arguments are a binding, not code
+
+`name: expr` in an argument list binds that expression to the parameter it
+names. Positional arguments fill slots left to right; a positional one after a
+named one is refused, a name that is no parameter is refused naming the real
+ones, and a slot given twice is refused saying how it was given first.
+
+**Pure arguments store in declaration order, whatever order they were
+written**, so a call that merely names its arguments emits exactly what the
+positional spelling emits - the identity tier asserts it. **Arguments with
+effects evaluate in written order**, which is the honest reading of the line,
+through the same evaluate-all-then-store stack path §5 always used when an
+argument contains a call; the binding just tells each value which slot it
+lands in.
+
+A bracket's open takes names too (§48's lowering carries them through), which
+is what lets a box's settings be named at the brace instead of written into a
+carrier before it - the shape §50 is waiting on.
+
+### Defaults are callee-restored, which only static slots allow
+
+A parameter's default is a constant expression, folded where the declaration
+stands - so like any const initialiser it names only what is declared above
+it, and it is checked as an argument would be, scale, unit and range included.
+
+The mechanism is the one `cfgReset` wrote by hand: **the slot's data init IS
+the default, and the routine re-stores its defaults on every exit**, so a call
+stores only what it passes and the next call starts clean. A language with
+stack frames cannot do this - its parameters die with the frame - and the
+alternative, caller-fills, was rejected in the design for costing every call
+site what one routine can pay once. The cost is visible and per-exit: one
+immediate store per defaulted parameter, commented in the output.
+
+A parameterised const takes both halves by substitution instead: an omitted
+parameter substitutes its folded default, spelled to carry the parameter's
+scale and unit.
+
+### Rules
+
+- A default folds at the declaration, or it is an error - a runtime default
+  would be a hidden read at every call site.
+- Parameter slots are observably live state between calls, and defaults are
+  what make it observable: rely on it only through this feature, never by
+  reading a slot after a call returns.
+- The printer keeps an omitted argument omitted and a written name written -
+  spelling a default out would store a slot the original call did not, and
+  §14's round trip compares instructions.
+- Emitted comments stay 7-bit: the tools write `.asm` as ascii, so the reset
+  comment says "defaults restored on the way out" and cites no section sign.
+  The re-encoding trap is CLAUDE.md's opening rule, one format along.

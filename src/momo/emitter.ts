@@ -78,6 +78,24 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
   // repeat. See quoteSource.
   let lastQuoted: string | null = null
   let currentRet: { label: string; type: ValueType } | null = null
+  // §49: the defaulted parameters of the routine being emitted. Every exit
+  // restores them, so a caller stores only what it changes - `cfgReset`,
+  // compiler-generated, which is the implementation only static slots allow.
+  let currentResets: { name: string; label: string; type: ValueType; value: number }[] = []
+
+  // The emitted comment is 7-bit on purpose: the tools write .asm as ascii, so
+  // a section sign would arrive mangled - the same re-encoding trap CLAUDE.md
+  // opens with, one format along.
+  const emitResets = () => {
+    for (const [i, reset] of currentResets.entries()) {
+      storeImmediateTo(
+        reset.label,
+        reset.type,
+        reset.value,
+        i === 0 ? 'defaults restored on the way out' : `${reset.name} = ${reset.value}`,
+      )
+    }
+  }
   // Set the first time a far region is addressed. The int helpers only bother
   // preserving ES if something actually put a segment in it.
   let touchedEs = false
@@ -615,7 +633,15 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
   // evaluated, so there is nothing for an inner call to clobber. Parameter
   // globals are mangled and never in scope, so an argument cannot name one
   // either. Skipping the round trip saves a push/pop at every such call site.
-  const emitCall = (label: string | undefined, args: Expression[]) => {
+  //
+  // §49's named arguments arrive through `binding` - the parameter slot each
+  // WRITTEN argument landed in. Effects evaluate in written order, which is
+  // what the via-stack path already does; pure arguments store in DECLARATION
+  // order instead, so a call that merely names its arguments emits exactly what
+  // the positional spelling emits, and the identity tier holds it to that. An
+  // omitted parameter stores nothing at all: its slot holds the default, put
+  // there by the data section and restored by the callee's every exit.
+  const emitCall = (label: string | undefined, args: Expression[], binding?: number[]) => {
     const symbol = symbolFor(label)
 
     if (symbol.kind !== 'routine') {
@@ -623,13 +649,14 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
       return
     }
 
-    const viaStack = args.length > 1 && args.some(containsCall)
+    const provided = args.map((arg, i) => ({ arg, slot: binding ? binding[i] : i }))
+    const viaStack = provided.length > 1 && provided.some((p) => containsCall(p.arg))
 
     if (viaStack) {
-      const last = args.length - 1
+      const last = provided.length - 1
 
       for (let i = 0; i < last; i++) {
-        emitExpression(args[i])
+        emitExpression(provided[i].arg)
         ins('push', 'ax', 'argument evaluated before any is stored')
       }
 
@@ -641,15 +668,18 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
       // It goes through emitValueToLabel rather than storeToLabel, which is the
       // spelling the direct path uses - so the byte and constant shortcuts reach
       // one argument of a via-stack call too, and the two paths cannot drift.
-      emitValueToLabel(symbol.params[last].label, symbol.params[last].type, args[last])
+      const lastParam = symbol.params[provided[last].slot]
+      emitValueToLabel(lastParam.label, lastParam.type, provided[last].arg)
 
       for (let i = last - 1; i >= 0; i--) {
+        const parameter = symbol.params[provided[i].slot]
         ins('pop', 'ax')
-        storeToLabel(symbol.params[i].label, symbol.params[i].type)
+        storeToLabel(parameter.label, parameter.type)
       }
     } else {
-      for (let i = 0; i < args.length; i++) {
-        emitValueToLabel(symbol.params[i].label, symbol.params[i].type, args[i])
+      const ordered = [...provided].sort((a, b) => a.slot - b.slot)
+      for (const p of ordered) {
+        emitValueToLabel(symbol.params[p.slot].label, symbol.params[p.slot].type, p.arg)
       }
     }
 
@@ -679,10 +709,10 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
   // A constant straight into memory, with no round trip through AX. Shared with
   // storeConstant below so the assignment path and the slots here cannot drift
   // into two spellings of one store.
-  const storeImmediateTo = (label: string, type: ValueType, value: number) => {
+  const storeImmediateTo = (label: string, type: ValueType, value: number, comment = '') => {
     const width = widthOf(type)
     const mask = width === 2 ? 0xffff : 0xff
-    ins('mov', `${width === 2 ? 'word' : 'byte'} [${label}], ${value & mask}`)
+    ins('mov', `${width === 2 ? 'word' : 'byte'} [${label}], ${value & mask}`, comment)
   }
 
   const storeToLabel = (label: string, type: ValueType) => {
@@ -872,7 +902,7 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
         emitExpression(node.expansion)
         return
       }
-      emitCall(node.callee.label, node.args)
+      emitCall(node.callee.label, node.args, node.binding)
       const symbol = symbolFor(node.callee.label)
       if (symbol.kind === 'routine' && symbol.retLabel && symbol.returnType) {
         loadVariable({
@@ -1508,7 +1538,7 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
 
     if (node.type === 'CallStatement') {
       quoteSource(node.file, node.line, node.endLine)
-      emitCall(node.callee.label, node.args)
+      emitCall(node.callee.label, node.args, node.binding)
       return
     }
 
@@ -1630,6 +1660,9 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
       if (node.argument && currentRet) {
         emitValueToLabel(currentRet.label, currentRet.type, node.argument)
       }
+      // After the return value, which may well read a defaulted parameter -
+      // and before the ret, which is the exit these restores exist for.
+      emitResets()
       ins('ret')
     }
   }
@@ -1931,6 +1964,17 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
       symbol.kind === 'routine' && symbol.retLabel && symbol.returnType
         ? { label: symbol.retLabel, type: symbol.returnType }
         : null
+    currentResets =
+      symbol.kind === 'routine'
+        ? symbol.params
+            .filter((parameter) => parameter.init !== undefined)
+            .map((parameter) => ({
+              name: parameter.name,
+              label: parameter.label,
+              type: parameter.type,
+              value: parameter.init as number,
+            }))
+        : []
 
     pushDepth = 0
     maxPushDepth = 0
@@ -1943,9 +1987,13 @@ export const emit = (result: ResolveResult, sources: Map<string, string>): EmitR
     // that uses any.
     temporaries.set(statement.label ?? statement.name, maxPushDepth)
 
+    // A body ending in `return` has already emitted one, resets included.
+    if (lines[lines.length - 1]?.trim() !== 'ret') {
+      emitResets()
+      ins('ret')
+    }
     currentRet = null
-    // A body ending in `return` has already emitted one.
-    if (lines[lines.length - 1]?.trim() !== 'ret') ins('ret')
+    currentResets = []
   }
 
   blank()
