@@ -4800,3 +4800,18 @@ Whether momolo's swap - openers with defaults against `cfg`, `cfgReset` and
 the wrapper subs - comes out smaller or larger. The design refused to settle
 it by argument: the answer is one scene written both ways under
 `npm run memory`, and it belongs here the day the adoption lands.
+
+The carrier's side, taken 2026-09-24 at `80d64d7` before anything was
+converted, every momolo program built and then measured:
+
+```
+            code    data   image   stack
+momolo     10297    7125   17422      16
+mlodemo    10480    6876   17356      16
+mlolayer   12086    7590   19676      26
+s6demo     12268    7322   19590      20
+pmdemo     11423    7149   18572      26
+```
+
+`npm run trace` on the two with an expectation: `momolo` 294,100
+instructions, `mlolayer` 549,929.
