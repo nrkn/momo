@@ -41,9 +41,9 @@
 // prints numbers and a demo that writes VRAM, with no runtime cost and without
 // waiting on DESIGN §19.
 //
-// What a program must supply:
+// What a program must supply: `plot`, where a pixel goes, whose signature is the
+// expect in each file that calls it - `line.momo` and `quad.momo` - and the scene:
 //
-//   sub plot( i16 x, i16 y )        where a pixel goes
 //   const u8[]  opKind              0 move, 1 line, 2 quad
 //   const i16[] px, py              points, 1, 1 or 2 per op
 //   const u16[] pathOpStart, pathOpCount, pathPointStart

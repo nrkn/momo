@@ -25,6 +25,8 @@
 
 include "lib/momovec/edges.momo"
 
+expect sub emitSpan( u16 y, i16 x0, i16 x1 )
+
 // `tidy` clips each span to the canvas and merges the ones that touch.
 //
 // Neither changes a pixel and the study asserts that on every scene, so both forms

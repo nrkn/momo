@@ -70,10 +70,10 @@ sub fieldSet( a16 at, u16 n ) {
 // clipboard its program has rather than owning a second one - which is the whole
 // point, because copying in a document and pasting in a prompt is the thing a
 // person expects and two clipboards cannot do.
-//
-//   sub fieldCopyOut( a16 at, u16 n )
-//   u16 fieldPasteIn( a16 at, u16 max )
-//
+
+expect sub fieldCopyOut( a16 at, u16 n )
+expect u16 fieldPasteIn( a16 at, u16 max )
+
 // A paste **stops at the first newline** rather than flattening it. A clipboard
 // holding three lines pasted into one line has to lose something either way, and
 // losing the lines after the first is a rule somebody can predict where joining

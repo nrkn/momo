@@ -25,6 +25,8 @@ include "lib/std/math.momo"
 include "lib/momovec/types.momo"
 include "lib/momovec/edges.momo"
 
+expect sub plot( i16 x, i16 y )
+
 // `forceDir` overrides the crossing direction, or 0 to use the walk's own `sy`.
 //
 // It exists for the quadratic, which may swap its endpoints to begin with the

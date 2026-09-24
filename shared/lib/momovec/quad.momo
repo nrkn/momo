@@ -24,6 +24,9 @@
 
 include "lib/momovec/line.momo"
 
+// line.momo expects the same, and the two have to agree (§73).
+expect sub plot( i16 x, i16 y )
+
 // `windDir` is captured before the swap below and used for every crossing this
 // routine emits, including the ones from its straight remainder.
 //

@@ -1,9 +1,8 @@
 // moview.momo - a window onto a motext buffer (PLAN §55).
 //
 // It holds a top line, a left column and a size, keeps a cursor inside them, and
-// renders by handing one row at a time to a routine **the program defines**:
-//
-//   sub viewRow( u16 y, a16 at, u16 n )
+// renders by handing one row at a time to a routine **the program defines** -
+// `viewRow`, whose signature is the expect below the include.
 //
 // That is the seam `tiger` and `tigerpic` share over `plot`, and it is why this
 // can be tested at all. A program that prints rows is a tier-2 test with a
@@ -15,6 +14,8 @@
 // before any input exists.
 
 include "lib/motext.momo"
+
+expect sub viewRow( u16 y, a16 at, u16 n )
 
 // A row is copied out of the buffer before it is handed over, because §54's read
 // interface is a slice rather than a character: the chain is walked once per
