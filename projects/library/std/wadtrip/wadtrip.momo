@@ -1,0 +1,264 @@
+// wadtrip.momo - mowad, written and read back (DESIGN §41).
+//
+// §41 says the round trip is the point, and that it needs no fixture: write a
+// small WAD from Momo, read it back, and print a digest of what came out. So
+// every number below is one this run produced.
+//
+// Two files, because override is the reason for the format. The base is an
+// IWAD of five lumps: three of ours with headers, a foreign `PLAYPAL` the base
+// claims is a palette, a foreign `NOTE` it claims is raw, and a foreign `BLOB`
+// nothing claims at all. The patch is a PWAD loaded after it: its own `GREET`,
+// which shadows the base's, and a row saying `NOTE` is text, which outvotes the
+// base's row. The digest shows both winning, and where every type came from.
+//
+// **It ends by stopping.** The last thing it does is ask for a palette lump as
+// text, and the typed read has to refuse that by name. A check that let it
+// through would print the line after it instead.
+
+include "lib/std/io.momo"
+include "lib/std/file.momo"
+include "lib/mowad.momo"
+
+const u8[] baseName  = "TRIPBASE.WAD\0"
+const u8[] patchName = "TRIPPAT.WAD\0"
+const u8[] junkName  = "NOTAWAD.TMP\0"
+const u8[] noName    = "NOSUCH.WAD\0"
+
+const u8[] nGreet   = "GREET\0"
+const u8[] nRamp    = "RAMP\0"
+const u8[] nMap     = "MAP01\0"
+const u8[] nPlaypal = "PLAYPAL\0"
+const u8[] nNote    = "NOTE\0"
+const u8[] nBlob    = "BLOB\0"
+const u8[] nGhost   = "GHOST\0"
+
+const u8[] greetBase  = "hello, wad"
+const u8[] greetPatch = "patched greeting"
+const u8[] ramp       = [ 0, 9, 18, 27, 36, 45, 54, 63, 54, 45, 36, 27 ]
+const u8[] scene      = [ 3, 1, 4, 1, 5, 9, 2, 6 ]
+const u8[] playpal    = [ 63, 0, 0, 0, 63, 0, 0, 0, 63 ]
+const u8[] note       = "from another tool"
+const u8[] blob       = [ 7, 7, 1 ]
+const u8[] junk       = "this is not a wad at all"
+
+const u8[] sWrote   = "wrote: $"
+const u8[] sRefused = "refused: $"
+const u8[] sFiles   = "files: $"
+const u8[] sLumps   = " lumps: $"
+const u8[] sDigest  = "digest:$"
+const u8[] sLookup  = "lookup:$"
+const u8[] sAbsent  = "absent$"
+const u8[] sHeader  = "header$"
+const u8[] sRow     = "manifest$"
+const u8[] sNone    = "untyped$"
+const u8[] sIn      = " in file $"
+const u8[] sLast    = "last: $"
+const u8[] sLeaked  = "the typed read let a palette through as text$"
+
+// Room to read any lump here in one go, after mowad's claim.
+const bufBytes = 64
+view u8[bufBytes] buf = _heap[wadHeap]
+
+u16 handle
+u16 lump
+
+// ---- writing ----
+
+sub writeBase {
+  wadCreate( addr( baseName ), iwad: true )
+
+  wadBegin( addr( nGreet ), wadTypeText )
+  wadPut( addr( greetBase ), len( greetBase ) )
+  wadEnd()
+
+  wadBegin( addr( nRamp ), wadTypePalette, version: 2 )
+  wadPut( addr( ramp ), len( ramp ) )
+  wadEnd()
+
+  wadBegin( addr( nMap ), wadTypeScene )
+  wadPut( addr( scene ), len( scene ) )
+  wadEnd()
+
+  wadForeign( addr( nPlaypal ) )
+  wadPut( addr( playpal ), len( playpal ) )
+  wadEnd()
+  wadClaim( addr( nPlaypal ), wadTypePalette )
+
+  wadForeign( addr( nNote ) )
+  wadPut( addr( note ), len( note ) )
+  wadEnd()
+  wadClaim( addr( nNote ), wadTypeRaw )
+
+  wadForeign( addr( nBlob ) )
+  wadPut( addr( blob ), len( blob ) )
+  wadEnd()
+
+  putNumber( u16( wadFinish() ) )
+}
+
+sub writePatch {
+  wadCreate( addr( patchName ) )
+
+  wadBegin( addr( nGreet ), wadTypeText )
+  wadPut( addr( greetPatch ), len( greetPatch ) )
+  wadEnd()
+
+  wadClaim( addr( nNote ), wadTypeText )
+
+  putNumber( u16( wadFinish() ) )
+}
+
+putStr( addr( sWrote ) )
+writeBase()
+space()
+writePatch()
+newline()
+
+// ---- what is not a WAD is refused, and says why ----
+
+handle = fileCreate( addr( junkName ) )
+fileWrite( handle, addr( junk ), len( junk ) )
+fileClose( handle )
+
+putStr( addr( sRefused ) )
+putNumber( u16( wadOpen( addr( junkName ) ) ) )
+space()
+putStr( wadWhy() )
+newline()
+
+putStr( addr( sRefused ) )
+putNumber( u16( wadOpen( addr( noName ) ) ) )
+space()
+putStr( wadWhy() )
+newline()
+
+// ---- the chain: the base, then the patch over it ----
+
+wadOpen( addr( baseName ) )
+wadOpen( addr( patchName ) )
+
+putStr( addr( sFiles ) )
+putNumber( wadFiles() )
+putStr( addr( sLumps ) )
+putNumber( wadCount() )
+newline()
+
+// A lump's bytes, header and all for an untyped one and the payload for a typed
+// one - which goes through the typed read, so every typed lump here is checked
+// against its own type on the way past. Rotated as it is summed, so bytes in
+// the wrong order do not sum alike.
+u16 checksum( u16 i ) {
+  u16 sum
+  u16 n
+
+  if ( wadTypeOf( i ) == wadTypeNone ) {
+    wadStart( i )
+  } else {
+    wadStartAs( i, wadTypeOf( i ) )
+  }
+
+  sum = 0
+
+  for ( ;; ) {
+    n = wadNext( addr( buf ), bufBytes )
+    if ( n == 0 ) break
+
+    for ( u16 k = 0; k < n; k++ ) {
+      sum = ( ( sum << 1 ) | ( sum >> 15 ) ) + buf[k]
+    }
+  }
+
+  return sum
+}
+
+sub putSource {
+  if ( wadTypeFrom() == wadFromHeader ) {
+    putStr( addr( sHeader ) )
+  } else if ( wadTypeFrom() == wadFromManifest ) {
+    putStr( addr( sRow ) )
+  } else {
+    putStr( addr( sNone ) )
+  }
+}
+
+// One line a lump: index, file, name, size, type, where the type came from,
+// checksum, and a `*` on the lump its name finds - the override winner.
+putStr( addr( sDigest ) )
+newline()
+
+for ( u16 i = 0; i < wadCount(); i++ ) {
+  putNumber( i )
+  space()
+  putNumber( wadFileOf( i ) )
+  space()
+  wadPutName( i )
+  space()
+  putNumber( wadSizeLow( i ) )
+  space()
+  putStr( wadTypeName( wadTypeOf( i ) ) )
+  space()
+  putSource()
+  space()
+  putNumber( checksum( i ) )
+  if ( wadLump( wadName( i ) ) == i ) putChar( '*' )
+  newline()
+}
+
+// ---- lookup by name, typed ----
+
+sub showText( a16 name ) {
+  u16 n
+
+  lump = wadLump( name )
+  wadStartAs( lump, wadTypeText )
+  n = wadNext( addr( buf ), bufBytes )
+
+  putNumber( lump )
+  putStr( addr( sIn ) )
+  putNumber( wadFileOf( lump ) )
+  space()
+
+  for ( u16 k = 0; k < n; k++ ) {
+    putChar( buf[k] )
+  }
+
+  newline()
+}
+
+putStr( addr( sLookup ) )
+newline()
+
+// The patch's greeting, not the base's.
+showText( addr( nGreet ) )
+
+// A foreign lump, typed by the manifest row the patch wrote - which outvotes the
+// base's `raw`, because rows merge last-wins as lumps do.
+showText( addr( nNote ) )
+
+// Typed only by the base's manifest, and read from byte 0, since it has no
+// header to skip.
+lump = wadLump( addr( nPlaypal ) )
+wadStartAs( lump, wadTypePalette )
+putNumber( wadNext( addr( buf ), bufBytes ) )
+space()
+putNumber( buf[0] + buf[4] + buf[8] )
+newline()
+
+// A version asked for and held.
+lump = wadLump( addr( nRamp ) )
+wadStartAs( lump, wadTypePalette, version: 2 )
+putNumber( wadVersion() )
+space()
+putNumber( wadNext( addr( buf ), bufBytes ) )
+newline()
+
+// Nothing carries this name.
+if ( wadLump( addr( nGhost ) ) == wadNone ) putStr( addr( sAbsent ) )
+newline()
+
+// ---- the check that has to stop the run ----
+
+putStr( addr( sLast ) )
+wadStartAs( wadLump( addr( nRamp ) ), wadTypeText )
+putStr( addr( sLeaked ) )
+newline()

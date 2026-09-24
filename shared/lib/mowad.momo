@@ -1,0 +1,929 @@
+// mowad.momo - WAD files as asset storage (DESIGN §41).
+//
+// Doom's container, read and written: a 12-byte header, the lumps, and a
+// directory of 16-byte entries - a file position, a size, and an eight-character
+// name. Two things are ours and not Doom's. **Every lump this writes opens with
+// four bytes, `Mo`, a type and a version**, so a reader asking for a palette is
+// told when it was handed a text; and a `TYPES` lump of `[ name ][ type ]` rows
+// speaks for lumps that cannot speak for themselves, which is only ever a
+// foreign one - `PLAYPAL` in a file somebody else wrote.
+//
+// **More than one WAD open at once, and a name finds the last one registered.**
+// Load order is the whole of the override policy: open the base, then a patch,
+// and the patch's `GREET` is the one `wadLump` returns. Rows merge the same way.
+//
+// Nothing here needs 32-bit arithmetic to *read*. DOS seek takes its position in
+// `CX:DX`, which is two words straight from a directory entry, and an entry is
+// found by seeking to the directory and then forward from there - DOS does the
+// add. Writing is different: the writer keeps the file position it has reached,
+// and that is a carried add of two words, one line each time it happens.
+//
+// The index is **names only**, eight bytes a lump in a view of the heap, and a
+// lump's position and size are read back from its directory entry when asked
+// for. That is §41's middle option. The whole directory at sixteen bytes a lump
+// would not leave room for a program beside DOOM2.WAD's 2,919 entries; the
+// names do.
+
+include "lib/std/io.momo"
+include "lib/std/file.momo"
+
+// ---- the format ----
+
+const wadHeaderBytes = 12
+const wadEntryBytes  = 16
+const wadNameBytes   = 8
+
+// Where each field sits in a directory entry. Little-endian, so every field is
+// read by loading it.
+local const wadEntPos  = 0
+local const wadEntSize = 4
+local const wadEntName = 8
+
+require wadEntSize == wadEntPos + 4
+require wadEntName == wadEntSize + 4
+require wadEntName + wadNameBytes == wadEntryBytes
+
+// ---- the header a lump of ours carries ----
+
+const wadMoM     = 'M'
+const wadMoO     = 'o'
+const wadMoBytes = 4
+
+// A type is its own unit so it cannot be handed where a version or a count was
+// wanted - both are bytes, and they sit side by side in the header.
+unit wadType = u8
+
+// The starter set. `wadTypeNone` is the answer for a lump nothing typed, and no
+// header carries it. The host writer (`npm run wad`) reads this list from here
+// by compiling this file, so a type added below is a type it knows: the name it
+// accepts is the part after `wadType`, lower-cased.
+const wadType wadTypeNone    = 0
+const wadType wadTypeRaw     = 1
+const wadType wadTypeText    = 2
+const wadType wadTypePalette = 3
+const wadType wadTypeScene   = 4
+const wadType wadTypeTypes   = 5
+
+const u8[][] wadTypeNames = [ "none$", "raw$", "text$", "palette$", "scene$", "types$" ]
+
+require len( wadTypeNames ) == wadTypeTypes + 1
+
+// A row of the TYPES manifest: a name, then a type.
+const wadRowBytes = wadNameBytes + 1
+
+// Where a type came from. A checked fact and a claim must never print alike.
+unit wadSource = u8 < 3
+
+const wadSource wadUntyped      = 0
+const wadSource wadFromHeader   = 1
+const wadSource wadFromManifest = 2
+
+// What `wadLump` answers for a name nothing carries.
+const wadNone = 0xFFFF
+
+// ---- residency ----
+//
+// **The cap is what the index holds, and it is required to fit the arena.**
+// Raising `wadMaxLumps` without raising `wadArenaBytes` stops the compile with
+// both numbers, rather than handing a program a view past its own heap.
+//
+// 3,072 names covers DOOM.WAD and DOOM2.WAD, the two largest files this is ever
+// likely to be pointed at, and a file past it is refused by name rather than
+// indexed in part - a lump missing from the index would be a lump `wadLump`
+// says is not there.
+const wadMaxLumps = 3072
+
+// Files open at once. A `.COM` has fifteen handles to spare (§38), each file
+// here holds one for as long as it is open, and a program wants some left.
+const wadMaxFiles = 4
+
+require wadMaxFiles <= 8
+
+// An entry is found by a forward seek of one word from the directory's start.
+require wadMaxLumps * wadEntryBytes <= 65535
+
+// What one read through the stage takes: whole directory entries at open, and
+// whole rows when a manifest is scanned.
+local const wadStageBytes   = 512
+local const wadStageEntries = wadStageBytes / wadEntryBytes
+local const wadStageRows    = wadStageBytes / wadRowBytes
+
+require wadStageEntries * wadEntryBytes == wadStageBytes
+require wadStageRows > 0
+
+// The writer's side: a directory held until `wadFinish` writes it, the type of
+// each entry for the derived manifest, and the foreign rows a program claims.
+const wadWriteMax = 64
+const wadClaimMax = 16
+
+// §17 static partitioning, from the bottom of the heap. A program that includes
+// this puts its own claims at `wadHeap`.
+local const wadIndexAt = 0
+local const wadStageAt = wadIndexAt + wadMaxLumps * wadNameBytes
+local const wadOutAt   = wadStageAt + wadStageBytes
+local const wadKindAt  = wadOutAt + wadWriteMax * wadEntryBytes
+local const wadClaimAt = wadKindAt + wadWriteMax
+local const wadUsed    = wadClaimAt + wadClaimMax * wadRowBytes
+
+const wadArenaBytes = 26624
+const wadHeap = wadArenaBytes
+
+require wadUsed <= wadArenaBytes
+
+local view u8[wadMaxLumps * wadNameBytes] wadNames  = _heap[wadIndexAt]
+local view u8[wadStageBytes]              wadStage  = _heap[wadStageAt]
+local view u8[wadWriteMax * wadEntryBytes] wadOut   = _heap[wadOutAt]
+local view u8[wadWriteMax]                wadKind   = _heap[wadKindAt]
+local view u8[wadClaimMax * wadRowBytes]  wadClaims = _heap[wadClaimAt]
+
+// ---- the chain ----
+
+local group wadFile[wadMaxFiles] {
+  u16  handle
+  u16  base             // the global index of its first lump
+  u16  lumps
+  u16  dirHi
+  u16  dirLo
+  u16  endHi            // its size, which only a checker needs
+  u16  endLo
+  u16  manifest         // its TYPES lump, or wadNone
+  bool badManifest      // a TYPES that is not ours, and so is not read
+  bool iwad
+}
+
+local u16 wadFiles_ = 0
+local u16 wadTotal  = 0
+local a16 wadWhy_   = 0
+
+const u8[] wadSaysNoFile   = "cannot open the file$"
+const u8[] wadSaysShort    = "too short to be a WAD$"
+const u8[] wadSaysNotWad   = "not a WAD - it does not start IWAD or PWAD$"
+const u8[] wadSaysTooMany  = "more lumps than the index holds$"
+const u8[] wadSaysDirShort = "the directory runs past the end of the file$"
+const u8[] wadSaysChain    = "too many files open$"
+
+local const u8[] wadTypesName = "TYPES\0"
+
+// Why the last `wadOpen` refused, as a `$` string. A refusal says which limit,
+// because a file that is not a WAD and a WAD too big to index want different
+// things done next.
+a16 wadWhy() => wadWhy_
+
+u16 wadFiles() => wadFiles_
+u16 wadCount() => wadTotal
+
+// Per file, for a program that checks the file rather than reading assets from
+// it - `wadinfo` is that program.
+u16  wadFileBase( u16 f )     => wadFile[f].base
+u16  wadFileLumps( u16 f )    => wadFile[f].lumps
+bool wadFileIwad( u16 f )     => wadFile[f].iwad
+u16  wadFileDirHigh( u16 f )  => wadFile[f].dirHi
+u16  wadFileDirLow( u16 f )   => wadFile[f].dirLo
+u16  wadFileSizeHigh( u16 f ) => wadFile[f].endHi
+u16  wadFileSizeLow( u16 f )  => wadFile[f].endLo
+u16  wadManifest( u16 f )     => wadFile[f].manifest
+bool wadManifestBad( u16 f )  => wadFile[f].badManifest
+
+// ---- stopping ----
+//
+// A lump of the wrong type is a program asking for something the data is not,
+// and there is nothing sensible to hand back - so the run stops, saying what
+// was asked for and what was there. Exit code 1, after a newline, so the line
+// is whole wherever the output went.
+local sub wadStop {
+  newline()
+  _ax = 0x4C01
+  int 0x21
+}
+
+local const u8[] wadSaysMowad = "mowad: $"
+
+// The name of a type, or `unknown` for one newer than this file.
+a16 wadTypeName( wadType t ) {
+  if ( u16( t ) >= len( wadTypeNames ) ) return addr( wadSaysUnknown )
+  return addr( wadTypeNames[ t ] )
+}
+
+local const u8[] wadSaysUnknown = "unknown$"
+
+// Up to eight characters, stopping at the first nul. A byte that is not
+// printable prints as `?`, because a damaged name is exactly what somebody
+// looking at a listing needs to see as damaged.
+sub wadPutName( u16 lump ) {
+  a16 at
+  u8  ch
+
+  at = wadName( lump )
+
+  for ( u16 i = 0; i < wadNameBytes; i++ ) {
+    ch = peek8( at + i )
+    if ( ch == 0 ) return
+    putChar( ch >= 32 && ch < 127 ? ch : '?' )
+  }
+}
+
+// ---- names ----
+
+// The eight bytes of a name, nul-padded - `wadOpen` zeroes whatever a writer
+// left after the first nul, so two names are equal exactly when their words are.
+// Not terminated when all eight are used.
+a16 wadName( u16 lump ) => addr( wadNames ) + lump * wadNameBytes
+
+// A query, padded the way the index is.
+local u8[wadNameBytes] wadKey
+
+local sub wadSetKey( a16 name ) {
+  bool ended
+  u8   ch
+
+  ended = false
+
+  for ( u16 i = 0; i < wadNameBytes; i++ ) {
+    ch = ended ? 0 : peek8( name + i )
+    if ( ch == 0 ) ended = true
+    wadKey[i] = ch
+  }
+}
+
+local bool wadIsKey( u16 lump ) {
+  a16 at
+
+  at = wadName( lump )
+
+  return peek16( at ) == peek16( addr( wadKey ) ) &&
+         peek16( at + 2 ) == peek16( addr( wadKey ) + 2 ) &&
+         peek16( at + 4 ) == peek16( addr( wadKey ) + 4 ) &&
+         peek16( at + 6 ) == peek16( addr( wadKey ) + 6 )
+}
+
+// Two names, each up to eight bytes and ending at a nul if shorter - a row's
+// name against an index name, where the row may not be padded as the index is.
+local bool wadSameName( a16 a, a16 b ) {
+  u8 ca
+
+  for ( u16 i = 0; i < wadNameBytes; i++ ) {
+    ca = peek8( a + i )
+    if ( ca != peek8( b + i ) ) return false
+    if ( ca == 0 ) return true
+  }
+
+  return true
+}
+
+// **The last lump registered under `name`**, across every file open, or
+// `wadNone`. Backwards from the end of the index, which is the whole override
+// policy: a later file's lump is further down, and inside one file the later
+// entry wins as it does in Doom.
+//
+// `name` is ASCIZ, or eight characters with no terminator.
+u16 wadLump( a16 name ) {
+  wadSetKey( name )
+
+  for ( u16 i = wadTotal; i > 0; i-- ) {
+    if ( wadIsKey( i - 1 ) ) return i - 1
+  }
+
+  return wadNone
+}
+
+// Which file a lump is in. The files are in load order and each holds a run of
+// the index, so it is the last one whose run starts at or below it.
+u16 wadFileOf( u16 lump ) {
+  for ( u16 f = wadFiles_; f > 1; f-- ) {
+    if ( lump >= wadFile[ f - 1 ].base ) return f - 1
+  }
+
+  return 0
+}
+
+// ---- the directory entry, read back when asked for ----
+
+local u8[wadEntryBytes] wadEntryBuf
+
+local u16 wadCur = wadNone
+local u16 wadCurPosHi
+local u16 wadCurPosLo
+local u16 wadCurSizeHi
+local u16 wadCurSizeLo
+
+local const u8[] wadSaysNoLump = "no lump numbered $"
+
+// Seek to the directory, then forward by the entry's offset in it - two seeks,
+// and DOS adds the words. Kept until a different lump is asked about.
+local sub wadEntry( u16 lump ) {
+  u16 f
+  u16 h
+
+  if ( lump == wadCur ) return
+
+  if ( lump >= wadTotal ) {
+    putStr( addr( wadSaysMowad ) )
+    putStr( addr( wadSaysNoLump ) )
+    putNumber( lump )
+    wadStop()
+  }
+
+  f = wadFileOf( lump )
+  h = wadFile[f].handle
+
+  fileSeek( h, fileFromStart, wadFile[f].dirHi, wadFile[f].dirLo )
+  fileSeek( h, fileFromCurrent, 0, ( lump - wadFile[f].base ) * wadEntryBytes )
+  fileRead( h, addr( wadEntryBuf ), wadEntryBytes )
+
+  wadCurPosLo  = peek16( addr( wadEntryBuf ) + wadEntPos )
+  wadCurPosHi  = peek16( addr( wadEntryBuf ) + wadEntPos + 2 )
+  wadCurSizeLo = peek16( addr( wadEntryBuf ) + wadEntSize )
+  wadCurSizeHi = peek16( addr( wadEntryBuf ) + wadEntSize + 2 )
+  wadCur = lump
+}
+
+u16 wadPosHigh( u16 lump ) {
+  wadEntry( lump )
+  return wadCurPosHi
+}
+
+u16 wadPosLow( u16 lump ) {
+  wadEntry( lump )
+  return wadCurPosLo
+}
+
+u16 wadSizeHigh( u16 lump ) {
+  wadEntry( lump )
+  return wadCurSizeHi
+}
+
+u16 wadSizeLow( u16 lump ) {
+  wadEntry( lump )
+  return wadCurSizeLo
+}
+
+// `count` bytes from `skip` into a lump, straight into `at`, with no bookkeeping
+// that a later read could disturb - the manifest scan and the header check use
+// this, so asking a type in the middle of somebody's stream leaves it alone.
+// Short of `count` at the end of the lump. It reaches the first 64 KB of one,
+// which is all a header or a manifest needs; `wadNext` is the reader for the
+// rest.
+local u16 wadReadAt( u16 lump, u16 skip, a16 at, u16 count ) {
+  u16 f
+
+  wadEntry( lump )
+
+  if ( wadCurSizeHi == 0 ) {
+    if ( skip >= wadCurSizeLo ) return 0
+    if ( count > wadCurSizeLo - skip ) count = wadCurSizeLo - skip
+  }
+
+  f = wadFileOf( lump )
+  fileSeek( wadFile[f].handle, fileFromStart, wadCurPosHi, wadCurPosLo )
+  fileSeek( wadFile[f].handle, fileFromCurrent, 0, skip )
+  return fileRead( wadFile[f].handle, at, count )
+}
+
+// ---- opening ----
+
+// Our own seek to the end, because `fileSeek` hands back the low word and a
+// checker needs both: DX is the high half, and it is read straight after the
+// int, before anything else can issue one.
+local u16 wadMeasureHi
+local u16 wadMeasureLo
+
+local sub wadMeasure( u16 h ) {
+  _ax = 0x4202
+  _bx = h
+  _cx = 0
+  _dx = 0
+  int 0x21
+  wadMeasureLo = _ax
+  wadMeasureHi = _dx
+}
+
+local bool wadRefuse( u16 h, a16 why ) {
+  if ( h != 0 ) fileClose( h )
+  wadWhy_ = why
+  return false
+}
+
+// **Register a WAD at the end of the chain.** IWAD and PWAD are both accepted
+// and nothing else is; false with `wadWhy()` saying which limit refused it, and
+// nothing registered - a file is in the index whole or not at all.
+bool wadOpen( a16 file ) {
+  u16 h
+  u16 count
+  u16 dirHi
+  u16 dirLo
+  u16 done
+  u16 batch
+  u16 types
+  a16 from
+  a16 to
+  u8  m0
+
+  if ( wadFiles_ >= wadMaxFiles ) return wadRefuse( 0, addr( wadSaysChain ) )
+
+  h = fileOpen( file, fileReadOnly )
+  if ( fileFailed() ) return wadRefuse( 0, addr( wadSaysNoFile ) )
+
+  if ( fileRead( h, addr( wadStage ), wadHeaderBytes ) != wadHeaderBytes ) {
+    return wadRefuse( h, addr( wadSaysShort ) )
+  }
+
+  m0 = wadStage[0]
+  if ( ( m0 != 'I' && m0 != 'P' ) || wadStage[1] != 'W' || wadStage[2] != 'A' || wadStage[3] != 'D' ) {
+    return wadRefuse( h, addr( wadSaysNotWad ) )
+  }
+
+  // The count is four bytes and only the low word can be anything but zero here.
+  count = peek16( addr( wadStage ) + 4 )
+  if ( peek16( addr( wadStage ) + 6 ) != 0 || count > wadMaxLumps - wadTotal ) {
+    return wadRefuse( h, addr( wadSaysTooMany ) )
+  }
+
+  dirLo = peek16( addr( wadStage ) + 8 )
+  dirHi = peek16( addr( wadStage ) + 10 )
+
+  wadMeasure( h )
+
+  // The names, a stage at a time. A short read is a directory that stops before
+  // it says it does, which is a damaged file, and nothing of it is kept.
+  fileSeek( h, fileFromStart, dirHi, dirLo )
+
+  types = wadNone
+  done = 0
+
+  while ( done < count ) {
+    batch = count - done
+    if ( batch > wadStageEntries ) batch = wadStageEntries
+
+    if ( fileRead( h, addr( wadStage ), batch * wadEntryBytes ) != batch * wadEntryBytes ) {
+      return wadRefuse( h, addr( wadSaysDirShort ) )
+    }
+
+    for ( u16 e = 0; e < batch; e++ ) {
+      from = addr( wadStage ) + e * wadEntryBytes + wadEntName
+      to = wadName( wadTotal + done + e )
+
+      wadSetKey( from )
+      for ( u16 k = 0; k < wadNameBytes; k++ ) {
+        poke8( to + k, wadKey[k] )
+      }
+
+      if ( wadSameName( to, addr( wadTypesName ) ) ) types = wadTotal + done + e
+    }
+
+    done += batch
+  }
+
+  wadFile[ wadFiles_ ].handle = h
+  wadFile[ wadFiles_ ].base = wadTotal
+  wadFile[ wadFiles_ ].lumps = count
+  wadFile[ wadFiles_ ].dirHi = dirHi
+  wadFile[ wadFiles_ ].dirLo = dirLo
+  wadFile[ wadFiles_ ].endHi = wadMeasureHi
+  wadFile[ wadFiles_ ].endLo = wadMeasureLo
+  wadFile[ wadFiles_ ].iwad = m0 == 'I'
+  wadFile[ wadFiles_ ].manifest = wadNone
+  wadFile[ wadFiles_ ].badManifest = false
+
+  wadTotal += count
+  wadFiles_++
+
+  // **A file's manifest is its last TYPES**, the one `wadLump` would find in it,
+  // and only if it says it is one. A TYPES this format did not write could be
+  // anything, and a row read from it would be a claim nobody made.
+  if ( types != wadNone ) {
+    if ( wadHeaded( types ) && wadType( wadHead[2] ) == wadTypeTypes ) {
+      wadFile[ wadFiles_ - 1 ].manifest = types
+    } else {
+      wadFile[ wadFiles_ - 1 ].badManifest = true
+    }
+  }
+
+  return true
+}
+
+// Close every file and empty the chain.
+sub wadClose {
+  for ( u16 f = 0; f < wadFiles_; f++ ) {
+    fileClose( wadFile[f].handle )
+  }
+
+  wadFiles_ = 0
+  wadTotal = 0
+  wadCur = wadNone
+}
+
+// ---- types ----
+
+local u8[wadMoBytes] wadHead
+
+local wadSource wadSource_
+local u8        wadVersion_
+
+// Whether a lump opens with `Mo`, leaving the four bytes in `wadHead`.
+local bool wadHeaded( u16 lump ) {
+  if ( wadReadAt( lump, 0, addr( wadHead ), wadMoBytes ) != wadMoBytes ) return false
+  return wadHead[0] == wadMoM && wadHead[1] == wadMoO
+}
+
+// The manifest's word for a name: the last row naming it in the last file whose
+// manifest has one, or `wadTypeNone`. A row is read from the file each time,
+// because rows are few and a resident copy would be one more thing to keep in
+// step with the chain.
+wadType wadRowType( a16 name ) {
+  u16 m
+  u16 skip
+  u16 n
+  a16 row
+  u8  t
+  bool found
+
+  for ( u16 f = wadFiles_; f > 0; f-- ) {
+    m = wadFile[ f - 1 ].manifest
+    if ( m == wadNone ) continue
+
+    found = false
+    skip = wadMoBytes
+
+    for ( ;; ) {
+      n = wadReadAt( m, skip, addr( wadStage ), wadStageRows * wadRowBytes )
+      if ( n < wadRowBytes ) break
+
+      for ( u16 r = 0; r + wadRowBytes <= n; r += wadRowBytes ) {
+        row = addr( wadStage ) + r
+        if ( wadSameName( row, name ) ) {
+          t = peek8( row + wadNameBytes )
+          found = true
+        }
+      }
+
+      // A manifest past 64 KB is seven thousand rows and nothing this writes;
+      // the rest of one is not read rather than read again from the top.
+      skip += n
+      if ( skip < n ) break
+    }
+
+    if ( found ) return wadType( t )
+  }
+
+  return wadTypeNone
+}
+
+// **A lump's type, and where it came from.** Its header if it has one, and the
+// manifest's row only if it does not - a header-bearing lump ignores its row.
+// `wadTypeFrom()` says which, and `wadVersion()` the header's version.
+wadType wadTypeOf( u16 lump ) {
+  wadType t
+
+  wadVersion_ = 0
+
+  if ( wadHeaded( lump ) ) {
+    wadSource_ = wadFromHeader
+    wadVersion_ = wadHead[3]
+    return wadType( wadHead[2] )
+  }
+
+  t = wadRowType( wadName( lump ) )
+  wadSource_ = t == wadTypeNone ? wadUntyped : wadFromManifest
+  return t
+}
+
+wadSource wadTypeFrom() => wadSource_
+u8 wadVersion() => wadVersion_
+
+// ---- reading ----
+//
+// One stream at a time, which carries its own position - so anything else read
+// between two `wadNext` calls, a type asked or an entry looked up, leaves it
+// where it was.
+
+local u16 wadStrHandle
+local u16 wadStrPosHi
+local u16 wadStrPosLo
+local u16 wadStrLeftHi
+local u16 wadStrLeftLo
+
+local sub wadStreamFrom( u16 lump, u16 skip ) {
+  u16 lo
+
+  wadEntry( lump )
+
+  wadStrHandle = wadFile[ wadFileOf( lump ) ].handle
+  wadStrPosHi = wadCurPosHi
+  wadStrLeftHi = wadCurSizeHi
+
+  lo = wadCurPosLo + skip
+  if ( lo < skip ) wadStrPosHi++
+  wadStrPosLo = lo
+
+  wadStrLeftLo = wadCurSizeLo - skip
+  if ( wadCurSizeLo < skip ) wadStrLeftHi--
+}
+
+// From byte 0, header and all - the untyped read, for a program that knows what
+// it is looking at or does not care.
+sub wadStart( u16 lump ) => wadStreamFrom( lump, 0 )
+
+local const u8[] wadSaysIs     = " is $"
+local const u8[] wadSaysHeader = " (header)$"
+local const u8[] wadSaysRow    = " (manifest)$"
+local const u8[] wadSaysNone   = " has no type$"
+local const u8[] wadSaysAsked  = ", asked for $"
+local const u8[] wadSaysVer    = " version $"
+
+// **The typed read.** The lump's type is checked against `want`, and a mismatch
+// stops the run naming both sides - what was asked for, what was there, and
+// whether the answer was a header or only the manifest's word. Past a header
+// the stream starts at the payload; a foreign lump the manifest typed has no
+// header, so it starts at byte 0.
+//
+// `version` 0 takes any; otherwise a header's version must match it too.
+sub wadStartAs( u16 lump, wadType want, u8 version = 0 ) {
+  wadType t
+
+  t = wadTypeOf( lump )
+
+  if ( t != want ) {
+    putStr( addr( wadSaysMowad ) )
+    wadPutName( lump )
+
+    if ( t == wadTypeNone ) {
+      putStr( addr( wadSaysNone ) )
+    } else {
+      putStr( addr( wadSaysIs ) )
+      putStr( wadTypeName( t ) )
+      putStr( wadSource_ == wadFromHeader ? addr( wadSaysHeader ) : addr( wadSaysRow ) )
+    }
+
+    putStr( addr( wadSaysAsked ) )
+    putStr( wadTypeName( want ) )
+    wadStop()
+  }
+
+  if ( version != 0 && wadSource_ == wadFromHeader && wadVersion_ != version ) {
+    putStr( addr( wadSaysMowad ) )
+    wadPutName( lump )
+    putStr( addr( wadSaysVer ) )
+    putNumber( wadVersion_ )
+    putStr( addr( wadSaysAsked ) )
+    putStr( addr( wadSaysVer ) )
+    putNumber( version )
+    wadStop()
+  }
+
+  wadStreamFrom( lump, wadSource_ == wadFromHeader ? wadMoBytes : 0 )
+}
+
+// The next `count` bytes of the stream into `at`, or fewer at its end, and 0
+// once it is done. A lump larger than a segment is read this way by design: a
+// piece at a time, into memory this program owns.
+u16 wadNext( a16 at, u16 count ) {
+  u16 n
+  u16 lo
+
+  if ( wadStrLeftHi == 0 && count > wadStrLeftLo ) count = wadStrLeftLo
+  if ( count == 0 ) return 0
+
+  fileSeek( wadStrHandle, fileFromStart, wadStrPosHi, wadStrPosLo )
+  n = fileRead( wadStrHandle, at, count )
+
+  lo = wadStrPosLo + n
+  if ( lo < n ) wadStrPosHi++
+  wadStrPosLo = lo
+
+  if ( wadStrLeftLo < n ) wadStrLeftHi--
+  wadStrLeftLo -= n
+
+  return n
+}
+
+// ---- writing ----
+//
+// A lump at a time, in order: `wadBegin` or `wadForeign`, any number of
+// `wadPut`, `wadEnd`. The directory waits in the heap until `wadFinish` writes
+// it after the last lump, with the manifest before it - **derived** from the
+// headers just written, plus whatever foreign rows were claimed. A row cannot
+// be claimed for a lump this write gave a header: the header is the authority,
+// and a second description of it is the parallel structure §41 refused.
+
+local u16  wadOutHandle
+local u16  wadOutPosHi
+local u16  wadOutPosLo
+local u16  wadOutCount
+local u16  wadOutRows
+local bool wadOutIwad
+local bool wadOutLump
+local bool wadOutShort
+
+local const u8[] wadSaysFull    = "more lumps than one write holds$"
+local const u8[] wadSaysClaims  = "more rows claimed than one write holds$"
+local const u8[] wadSaysHasHead = " has a header, so a row cannot speak for it$"
+local const u8[] wadSaysNoType  = "a lump written with a header needs a type$"
+
+local sub wadWriterStop( a16 why ) {
+  putStr( addr( wadSaysMowad ) )
+  putStr( why )
+  wadStop()
+}
+
+local a16 wadOutEntry( u16 e ) => addr( wadOut ) + e * wadEntryBytes
+
+// Start a WAD. `iwad` says what kind; a PWAD, the patch kind, is the default.
+// False when the file cannot be created, and then nothing below has a file to
+// write to. One write at a time.
+bool wadCreate( a16 file, bool iwad = false ) {
+  wadOutHandle = fileCreate( file )
+  if ( fileFailed() ) return false
+
+  wadOutPosHi = 0
+  wadOutPosLo = 0
+  wadOutCount = 0
+  wadOutRows = 0
+  wadOutIwad = iwad
+  wadOutLump = false
+  wadOutShort = false
+
+  // The header is written last, when the directory's position is known. These
+  // twelve bytes hold its place.
+  for ( u16 i = 0; i < wadHeaderBytes; i++ ) {
+    wadStage[i] = 0
+  }
+  wadPut( addr( wadStage ), wadHeaderBytes )
+
+  return true
+}
+
+// Bytes into the lump being written. **A short write is the only sign of a full
+// disk** (PITFALLS), so every count is compared, and `wadFinish` reports it.
+sub wadPut( a16 at, u16 count ) {
+  u16 lo
+
+  if ( count == 0 ) return
+  if ( fileWrite( wadOutHandle, at, count ) != count ) wadOutShort = true
+
+  lo = wadOutPosLo + count
+  if ( lo < count ) wadOutPosHi++
+  wadOutPosLo = lo
+}
+
+local sub wadOpenEntry( a16 name, wadType type ) {
+  a16 at
+
+  if ( wadOutLump ) wadEnd()
+  if ( wadOutCount >= wadWriteMax ) wadWriterStop( addr( wadSaysFull ) )
+
+  at = wadOutEntry( wadOutCount )
+  poke16( at + wadEntPos, wadOutPosLo )
+  poke16( at + wadEntPos + 2, wadOutPosHi )
+
+  wadSetKey( name )
+  for ( u16 k = 0; k < wadNameBytes; k++ ) {
+    poke8( at + wadEntName + k, wadKey[k] )
+  }
+
+  wadKind[ wadOutCount ] = u8( type )
+  wadOutLump = true
+}
+
+// A lump of ours: the header goes first, and the payload follows through
+// `wadPut`.
+sub wadBegin( a16 name, wadType type, u8 version = 1 ) {
+  if ( type == wadTypeNone ) wadWriterStop( addr( wadSaysNoType ) )
+
+  wadOpenEntry( name, type )
+
+  wadHead[0] = wadMoM
+  wadHead[1] = wadMoO
+  wadHead[2] = u8( type )
+  wadHead[3] = version
+  wadPut( addr( wadHead ), wadMoBytes )
+}
+
+// A lump with no header - bytes that belong to some other format, which is what
+// a manifest row exists to describe.
+sub wadForeign( a16 name ) => wadOpenEntry( name, wadTypeNone )
+
+// Close the lump being written. Its size is where the file has got to less where
+// the lump began - the one subtraction of two words the writer makes.
+sub wadEnd {
+  a16 at
+  u16 startHi
+  u16 startLo
+
+  if ( !wadOutLump ) return
+
+  at = wadOutEntry( wadOutCount )
+  startLo = peek16( at + wadEntPos )
+  startHi = peek16( at + wadEntPos + 2 )
+
+  poke16( at + wadEntSize, wadOutPosLo - startLo )
+  poke16( at + wadEntSize + 2, wadOutPosHi - startHi - u16( wadOutPosLo < startLo ) )
+
+  wadOutCount++
+  wadOutLump = false
+}
+
+// A foreign row for the manifest: this name is this type, on this file's word.
+sub wadClaim( a16 name, wadType type ) {
+  a16 at
+
+  if ( wadOutRows >= wadClaimMax ) wadWriterStop( addr( wadSaysClaims ) )
+
+  at = addr( wadClaims ) + wadOutRows * wadRowBytes
+  wadSetKey( name )
+  for ( u16 k = 0; k < wadNameBytes; k++ ) {
+    poke8( at + k, wadKey[k] )
+  }
+  poke8( at + wadNameBytes, u8( type ) )
+
+  wadOutRows++
+}
+
+local u8[wadRowBytes] wadRowOut
+
+local sub wadPutRow( a16 name, u8 type ) {
+  for ( u16 k = 0; k < wadNameBytes; k++ ) {
+    wadRowOut[k] = peek8( name + k )
+  }
+  wadRowOut[wadNameBytes] = type
+  wadPut( addr( wadRowOut ), wadRowBytes )
+}
+
+local const u8[] wadIwadMagic = "IWAD"
+local const u8[] wadPwadMagic = "PWAD"
+
+// **The manifest, the directory and the header**, then close. The manifest is
+// written only when there is something in it. False when any write fell short,
+// the close included - DOS flushes the last sector there, so a full disk can
+// show up nowhere earlier.
+bool wadFinish() {
+  u16 typed
+  u16 lumps
+  u16 dirHi
+  u16 dirLo
+  a16 claim
+
+  if ( wadOutLump ) wadEnd()
+
+  // A claim for a name this write gave a header is refused, whichever order the
+  // two were made in.
+  for ( u16 c = 0; c < wadOutRows; c++ ) {
+    claim = addr( wadClaims ) + c * wadRowBytes
+    for ( u16 e = 0; e < wadOutCount; e++ ) {
+      if ( wadKind[e] != 0 && wadSameName( wadOutEntry( e ) + wadEntName, claim ) ) {
+        putStr( addr( wadSaysMowad ) )
+        for ( u16 k = 0; k < wadNameBytes && peek8( claim + k ) != 0; k++ ) {
+          putChar( peek8( claim + k ) )
+        }
+        putStr( addr( wadSaysHasHead ) )
+        wadStop()
+      }
+    }
+  }
+
+  typed = 0
+  for ( u16 e = 0; e < wadOutCount; e++ ) {
+    if ( wadKind[e] != 0 ) typed++
+  }
+
+  if ( typed > 0 || wadOutRows > 0 ) {
+    // Counted before it is opened: the manifest describes the lumps above it,
+    // and it is not one of them.
+    lumps = wadOutCount
+    wadBegin( addr( wadTypesName ), wadTypeTypes )
+
+    for ( u16 e = 0; e < lumps; e++ ) {
+      if ( wadKind[e] != 0 ) wadPutRow( wadOutEntry( e ) + wadEntName, wadKind[e] )
+    }
+
+    for ( u16 c = 0; c < wadOutRows; c++ ) {
+      claim = addr( wadClaims ) + c * wadRowBytes
+      wadPutRow( claim, peek8( claim + wadNameBytes ) )
+    }
+
+    wadEnd()
+  }
+
+  dirHi = wadOutPosHi
+  dirLo = wadOutPosLo
+  wadPut( addr( wadOut ), wadOutCount * wadEntryBytes )
+
+  wadMagicAt( addr( wadStage ), wadOutIwad ? addr( wadIwadMagic ) : addr( wadPwadMagic ) )
+  poke16( addr( wadStage ) + 4, wadOutCount )
+  poke16( addr( wadStage ) + 6, 0 )
+  poke16( addr( wadStage ) + 8, dirLo )
+  poke16( addr( wadStage ) + 10, dirHi )
+
+  fileSeek( wadOutHandle, fileFromStart, 0, 0 )
+  if ( fileWrite( wadOutHandle, addr( wadStage ), wadHeaderBytes ) != wadHeaderBytes ) wadOutShort = true
+
+  fileClose( wadOutHandle )
+  if ( fileFailed() ) wadOutShort = true
+
+  return !wadOutShort
+}
+
+local sub wadMagicAt( a16 to, a16 from ) {
+  for ( u16 i = 0; i < 4; i++ ) {
+    poke8( to + i, peek8( from + i ) )
+  }
+}
