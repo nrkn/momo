@@ -2300,10 +2300,55 @@ now, and a parser on the target is still the expensive half.
 - **What paint keys on.** The study ran with kind and role both live and both
   held; whether Momo-side paint tables carry both from the start or grow the
   second key when a scene wants it is open.
-- **One file or three.** The study used three documents as three files. The
-  bracket spelling makes one file per scene possible; whether the split
-  survives contact with a real scene directory is for momoed's dialogs to
-  answer.
+- **One file or three - settled by §41, from the outside.** The study used
+  three documents as three files, and the question was whether the split
+  survives contact. It has to, because the documents turned out to be
+  DISTRIBUTION units, not just authoring units - see the next section.
+
+### The three documents are three lump kinds
+
+Written 2026-09-24, the day it was said out loud:
+
+```
+momoed -file french-content.wad editdotcom-layout.wad system6-paint.wad
+```
+
+Content, layout and paint as lump kinds in §41's chain, and the aspect becomes
+the override unit. A localisation is a PWAD carrying only content lumps -
+pure augmentation, the voices.wad pattern doing l10n; a re-flow is a layout
+PWAD that knows no French; a skin is a paint PWAD that knows neither. The
+study's re-skin criterion becomes something a user does at the command line
+against a shipped binary. §50 chose three documents so the aspects could vary
+independently; §41's override is the mechanism for varying independently at
+ship time; this is the two features meeting where they were always pointed.
+
+What it settles, forces and costs:
+
+- **Lookup grows a typed form.** A scene's three lumps want one name -
+  `FINDBOX` as content, layout and paint - and name-keyed last-wins would have
+  a French content lump shadow the layout. `wadLumpOf( name, type )` walks the
+  name's matches newest-first and reads each four-byte Mo header until the
+  type matches - a few tiny reads, short-circuited by a TYPES manifest where
+  one exists. The header we chose is what makes this possible; aspect
+  prefixes in names would be the rejected option B returning.
+- **The load-time reference walk gets its first customer.** §41's
+  override-below-the-lump subsection said the validation walk "has to exist
+  before the first fine-grained patch does": a layout lump naming an item the
+  content PWAD dropped is a dangling cross-document reference at load time,
+  caught when the chain opens, naming the reference and the wad that broke
+  it. Granularity stays honest: one lump is one whole document is the
+  override unit, so aspect-swapping needs nothing below-lump; patching one
+  string does, and still waits for the schema study - whose first three
+  schemas are now named.
+- **The text compiler grows a second backend, and the target a record
+  walker.** The baked path stays as designed - host compiler, `.momo` consts,
+  no runtime parsing. The lump path compiles the same three documents to
+  compact binary records, and the target walks records and makes the same
+  momolo opener calls the baked spelling would: a fixed-format reader, not a
+  text parser, schema-shaped. Loaded scenes cost heap where baked ones cost
+  image - which is also the point, since a UI larger than the segment
+  becomes possible by not living in it.
+- Item names are eight characters, like everything else here.
 
 ### Why it is only now being built
 
