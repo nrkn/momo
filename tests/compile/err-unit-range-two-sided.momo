@@ -1,0 +1,5 @@
+// EXPECT-ERROR: a ranged unit takes an upper bound only
+// EXPECT-AT: 5:17
+// Two comparisons in a row are §6's chained form, which the declaration
+// refuses by name rather than letting the parser mumble about it.
+unit level = u8 >= 1 <= 63

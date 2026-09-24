@@ -1247,6 +1247,16 @@ export const resolve = (program: Program): ResolveResult => {
       // the same path as a cast that does not cross scales at all.
       if (node.raw || argument.frac === node.toFrac) {
         const value = argument.value === null ? null : truncate(argument.value, node.to)
+        // §75. A cast into a ranged unit checks a constant rather than clamping
+        // it - clamping would be runtime cost nobody wrote. A runtime value is
+        // the programmer's claim, as it is everywhere else, and emits nothing.
+        checkRange(
+          value,
+          node.toUnit ?? null,
+          node,
+          value === argument.value ? `${value}` : `${argument.value} (${value} as ${node.to})`,
+          ' - a cast checks a constant rather than clamping it',
+        )
         return annotate(node, { type: node.to, value, frac: node.toFrac, unit: node.toUnit ?? null })
       }
 
@@ -1272,6 +1282,7 @@ export const resolve = (program: Program): ResolveResult => {
             ` - it would scale to ${scaled}, outside ${node.to}`,
         )
       }
+      checkRange(scaled, node.toUnit ?? null, node, `${scaled}`, ' - a cast checks a constant rather than clamping it')
 
       return annotate(node, { type: node.to, value: scaled, frac: node.toFrac, unit: node.toUnit ?? null })
     }
@@ -1582,7 +1593,11 @@ export const resolve = (program: Program): ResolveResult => {
 
     if (init.type === 'StringLiteral') {
       const values: number[] = []
-      for (const ch of init.value) values.push(ch.charCodeAt(0))
+      for (const ch of init.value) {
+        const code = ch.charCodeAt(0)
+        checkRange(code, elementUnit, init, `character ${values.length} of the string (${code})`)
+        values.push(code)
+      }
       return values
     }
 
@@ -1655,6 +1670,10 @@ export const resolve = (program: Program): ResolveResult => {
       if (elementType && !fits(value, elementType)) {
         raise(element, `value ${value} does not fit in ${elementType}`)
       }
+      // §75's reason for existing: a whole table held against the range, and
+      // the refusal names the element, since a caret in a 768-entry literal is
+      // not enough to count by.
+      checkRange(value, elementUnit, element, `element ${values.length} (${value})`)
       values.push(value)
     }
     return values
@@ -1955,6 +1974,88 @@ export const resolve = (program: Program): ResolveResult => {
   // type rather than a thing, and nothing is emitted for it.
   const unitStorage = new Map<string, string>()
 
+  // §75. A ranged unit's largest value, and its declaration spelled with the
+  // bound folded, so a refusal can say what the value was held against.
+  const unitRanges = new Map<string, { max: number; written: string }>()
+
+  // Every site §4 holds a constant against its target comes through here, and
+  // a runtime value - `value` null - passes, exactly as it passes §4's fit.
+  const checkRange = (
+    value: number | null,
+    unit: string | null,
+    at: Location,
+    what = `value ${value}`,
+    tail = '',
+  ) => {
+    if (value === null || unit === null) return
+    const range = unitRanges.get(unit)
+    if (range === undefined || value <= range.max) return
+    raise(at, `${what} does not fit in ${unit}, which is ${range.written}${tail}`)
+  }
+
+  const firstName = (node: unknown): Identifier | null => {
+    if (Array.isArray(node)) {
+      for (const child of node) {
+        const found = firstName(child)
+        if (found) return found
+      }
+      return null
+    }
+    if (typeof node !== 'object' || node === null) return null
+    if ((node as { type?: string }).type === 'Identifier') return node as Identifier
+    return firstName(Object.values(node))
+  }
+
+  // Folded where the declaration is validated, which is before anything else
+  // in the program is declared (see the pre-scan below) - so a bound is
+  // arithmetic on literals, and a name in one is refused rather than resolved.
+  const resolveUnitBound = (node: UnitDeclaration, bound: NonNullable<UnitDeclaration['bound']>) => {
+    const storage = node.storage
+    const spelling = spell(storage.name, storage.frac)
+
+    if (storage.frac !== 0) {
+      raise(storage, `a ranged unit is plain u8 or u16 - a bound on ${spelling} has no customer yet (§75)`)
+    }
+    if (isSigned(storage.name)) {
+      raise(
+        storage,
+        `a ranged unit needs unsigned storage - a signed range wants a lower bound as well,` +
+          ` and "${spelling} >= -40 <= 85" is the chained comparison §6 rules out (§75)`,
+      )
+    }
+    if (storage.name !== 'u8' && storage.name !== 'u16') {
+      raise(storage, `a ranged unit is plain u8 or u16, and ${spelling} is neither (§75)`)
+    }
+
+    const named = firstName(bound.limit)
+    if (named) {
+      raise(
+        named,
+        `a unit's bound is folded before anything else is declared, so it can be` +
+          ` arithmetic on literals but cannot name "${named.name}" (§75)`,
+      )
+    }
+
+    const limit = resolveExpression(bound.limit)
+    if (limit.value === null || limit.type === 'bool' || limit.frac !== 0) {
+      raise(bound.limit, `a unit's bound must be a whole-number constant (§75)`)
+    }
+    if (limit.value < 1) {
+      raise(
+        bound.limit,
+        `a unit's bound must be positive, and ${limit.value} is not - the range runs from 0 up to it (§75)`,
+      )
+    }
+    if (!fits(limit.value, storage.name)) {
+      raise(bound.limit, `the bound ${limit.value} does not fit in ${spelling}, the storage it bounds (§75)`)
+    }
+
+    unitRanges.set(node.name, {
+      max: bound.op === '<' ? limit.value - 1 : limit.value,
+      written: `${spelling} ${bound.op} ${limit.value}`,
+    })
+  }
+
   const resolveUnitDeclaration = (node: UnitDeclaration) => {
     if (builtinUnits[node.name] !== undefined) {
       raise(node, `"${node.name}" is built in - it cannot be declared again (§71)`)
@@ -1981,6 +2082,7 @@ export const resolve = (program: Program): ResolveResult => {
     }
 
     unitStorage.set(node.name, spelling)
+    if (node.bound) resolveUnitBound(node, node.bound)
   }
   const resolveViewDeclaration = (node: ViewDeclaration) => {
     const parent = lookup(node.parent.name)
@@ -2205,6 +2307,7 @@ export const resolve = (program: Program): ResolveResult => {
     if (!fits(resolved.value, field.typeNode.name)) {
       raise(field.init, `value ${resolved.value} does not fit in ${field.typeNode.name}`)
     }
+    checkRange(resolved.value, field.typeNode.unit ?? null, field.init)
     return resolved.value
   }
 
@@ -2548,6 +2651,9 @@ export const resolve = (program: Program): ResolveResult => {
               : ' - it is already scaled, so the value itself is out of range'),
         )
       }
+      // §75. The same line one step narrower: a constant adopting a ranged unit
+      // meets the range as well as the storage.
+      checkRange(value.value, targetUnit, at)
       return
     }
 
@@ -2568,6 +2674,11 @@ export const resolve = (program: Program): ResolveResult => {
     }
 
     if (value.type === 'bool') return
+
+    // A constant already in the unit - a typed const, or a fold over one - is
+    // still a constant, so it meets the range where it lands (§75). The units
+    // agree by now, or the first check above would have refused it.
+    checkRange(value.value, targetUnit, at)
     // A runtime value still narrows implicitly on assignment, per §4.
   }
 
@@ -3052,11 +3163,24 @@ export const resolve = (program: Program): ResolveResult => {
     subName = null
   }
 
-  // ---- pass 1: top-level declarations ---------------------------------------
+  // ---- pass 0: units ---------------------------------------------------------
+  //
+  // Before anything else, because a unit is program-wide (§39): a const typed
+  // with one may sit above its declaration in the merged body, and pass 1 takes
+  // consts in order. A range registered in pass 1 would be missing when that
+  // const was checked, and the check would be skipped without a word (§75).
   //
   // `currentFile` is read off each statement rather than tracked, because the
   // loader has already flattened every include into this one body and each node
   // kept the file it was written in.
+
+  for (const statement of program.body) {
+    if (statement.type !== 'UnitDeclaration') continue
+    currentFile = statement.file
+    resolveUnitDeclaration(statement)
+  }
+
+  // ---- pass 1: top-level declarations ---------------------------------------
 
   for (const statement of program.body) {
     currentFile = statement.file
@@ -3087,10 +3211,6 @@ export const resolve = (program: Program): ResolveResult => {
     }
     if (statement.type === 'ViewDeclaration') {
       resolveViewDeclaration(statement)
-      continue
-    }
-    if (statement.type === 'UnitDeclaration') {
-      resolveUnitDeclaration(statement)
       continue
     }
   }

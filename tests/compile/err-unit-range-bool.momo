@@ -1,0 +1,3 @@
+// EXPECT-ERROR: a unit's bound must be a whole-number constant
+// EXPECT-AT: 3:28
+unit intensity = u8 <= ( 2 > 1 )

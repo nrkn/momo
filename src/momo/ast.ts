@@ -310,6 +310,9 @@ export type UnitDeclaration = Spanned & {
   type: 'UnitDeclaration'
   name: string
   storage: TypeNode
+  // `unit intensity = u8 <= 63` (§75). An upper bound only, folded by the
+  // resolver and held against every constant that lands in the unit.
+  bound?: { op: '<' | '<='; limit: Expression }
 }
 
 export type ViewDeclaration = Spanned & {

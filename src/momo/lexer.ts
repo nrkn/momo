@@ -46,17 +46,17 @@ const escapeCode = (ch: string): number => {
 // is settled: after a file is scanned, every `unit NAME` in it is collected and
 // the matching identifiers are promoted to `type` tokens.
 //
-// Two consequences worth knowing. Within a file the scan runs first, so a unit
-// may be used above its own declaration. Across files it cannot: `knownUnits`
-// arrives from what the loader has already included, which is the same
-// declare-before-use every other name here obeys.
+// The loader runs this over every file before it parses any of them, so a unit
+// is program-wide: it may be used above its own declaration, or in a file
+// included before the one that declares it.
 //
 // The alternative was a symbol table in the parser, which is C's typedef problem
 // and would make `px x` a declaration or not depending on what came before it.
 // Promoting here keeps the parser deciding by token kind alone, as it always has.
 // `unit px = u16` - the name, and the spelling of what it stands for. Matched by
 // shape rather than parsed, which is all this needs: a malformed declaration is
-// simply not collected here and the parser reports it in the ordinary way.
+// simply not collected here and the parser reports it in the ordinary way. A
+// bound (§75) follows the storage token, so `unit column = u8 < 80` matches too.
 export const unitDeclarationsIn = (tokens: Token[]): Map<string, string> => {
   const found = new Map<string, string>()
 

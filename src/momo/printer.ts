@@ -325,8 +325,10 @@ export const printStatement = (node: Statement, depth = 0): string => {
       return `${pad}${head}${params} ${printBlock(node.body.body, depth)}`
     }
 
-    case 'UnitDeclaration':
-      return `${pad}unit ${node.name} = ${printType(node.storage)}`
+    case 'UnitDeclaration': {
+      const bound = node.bound ? ` ${node.bound.op} ${printExpression(node.bound.limit)}` : ''
+      return `${pad}unit ${node.name} = ${printType(node.storage)}${bound}`
+    }
 
     case 'BlockStatement':
       return `${pad}${printBlock(node.body, depth)}`

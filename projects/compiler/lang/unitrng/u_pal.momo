@@ -1,0 +1,21 @@
+// u_pal.momo - tables in ranged units, declared above the units themselves.
+//
+// unitrng includes this before u_units.momo, so every constant here meets its
+// range before the merged program reaches the declaration.
+
+// The case §75 is for: a palette table held against 63 byte by byte.
+const intensity[12] ramp = [ 0, 7, 14, 21, 28, 35, 42, 49, 56, 60, 62, 63 ]
+
+// Rows of one colour each, which lower to three intensity columns.
+group swatch[3] {
+  intensity r
+  intensity g
+  intensity b
+} = [
+  [ 63,  0,  0 ],
+  [  0, 63, 21 ],
+  [ 42, 42, 63 ],
+]
+
+const intensity peak = 60
+const column lastCol = 79

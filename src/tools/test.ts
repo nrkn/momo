@@ -496,6 +496,17 @@ const roundTripCases = (scratch: string): number => {
           'the printer wrote the multiply rather than the call it lowers to',
         )
       }
+
+      // The same blind spot for §75: a range emits nothing, so a printer that
+      // dropped it would round-trip to identical code and pass above.
+      if (name === 'unitrng') {
+        asserted += 1
+        check(
+          'round trip unitrng keeps the bounds',
+          printed.includes('unit intensity = u8 <= 63') && printed.includes('unit cell = u16 < 80 * 25'),
+          'the printer lost a unit\'s bound, which no instruction would show',
+        )
+      }
     } catch (error) {
       // Counted, or the breakdown stops summing to the total.
       asserted += 1
@@ -621,6 +632,7 @@ const capacityCount = capacityTests()
 // files say different things, on purpose.
 const identityPairs: [string, string, string][] = [
   ['units leave no trace (§39)', 'ok-unit-typed.momo', 'ok-unit-plain.momo'],
+  ['a unit\'s range leaves no trace (§75)', 'ok-unit-range-bound.momo', 'ok-unit-range-free.momo'],
   ['an address type leaves no trace (§71)', 'ok-addr-typed.momo', 'ok-addr-plain.momo'],
   [
     'a counter declared in a for leaves no trace (§44)',

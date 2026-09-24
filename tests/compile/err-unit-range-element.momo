@@ -1,0 +1,5 @@
+// EXPECT-ERROR: element 5 (64) does not fit in intensity, which is u8 <= 63
+// EXPECT-AT: 5:47
+// A whole table is held against the range, and the refusal counts for you.
+unit intensity = u8 <= 63
+const intensity[8] ramp = [ 0, 9, 18, 27, 36, 64, 54, 63 ]

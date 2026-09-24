@@ -1,0 +1,8 @@
+// EXPECT-ERROR: 64 does not fit in intensity, which is u8 <= 63 - a cast checks a constant rather than clamping it
+// EXPECT-AT: 8:9
+// A cast of a runtime value emits nothing and checks nothing; a cast of a
+// constant is a constant landing in the unit, and clamping it would be a cost
+// nobody wrote (§75).
+unit intensity = u8 <= 63
+intensity level
+level = intensity( 64 )

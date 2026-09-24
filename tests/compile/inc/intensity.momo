@@ -1,0 +1,5 @@
+// Included by err-unit-range-order.momo, after the constant that breaks its
+// range. Lives in a subdirectory so the tier-1 glob, which is not recursive,
+// does not treat it as a test.
+
+unit intensity = u8 <= 63
