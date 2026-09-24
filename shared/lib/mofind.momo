@@ -29,6 +29,8 @@ include "lib/motext.momo"
 local const findMax    = 64
 local const findWindow = 128
 
+require findWindow > findMax
+
 local u8[findMax]    pattern
 local u8[findWindow] window
 local u16 patLen

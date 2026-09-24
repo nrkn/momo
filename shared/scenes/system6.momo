@@ -65,6 +65,9 @@ const u8[][] sRowSizes = [ "1,142K$", "3,806K$", "284K$", "4K$", "--$" ]
 const u8[][] sRowKinds = [ "folder$", "folder$", "application$", "document$", "folder$" ]
 const s6RowCount       = len( sRowNames )
 
+require len( sRowSizes ) == s6RowCount
+require len( sRowKinds ) == s6RowCount
+
 const u8[] sAboutTitle = "About This Macintosh$"
 const u8[] sTotalMem   = "Total Memory:$"
 const u8[] sMemFigure  = "4,096K$"
@@ -73,6 +76,8 @@ const s6BarCount       = len( sBarNames )
 
 // One size per bar, in the order of the names above.
 const u16[] barSize = [ 6, 3, 2 ]
+
+require len( barSize ) == s6BarCount
 
 const u8[] sSaveAsk  = "Save changes to the document before closing?$"
 const u8[] sCancel   = "Cancel$"

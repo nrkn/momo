@@ -122,6 +122,8 @@ u16 rows
 const expCols = 14
 const expName = 12
 
+require expCols == 1 + expName + 1
+
 bool expShown
 bool expFocus
 bool needExp
@@ -1841,6 +1843,11 @@ const pickGridY = 2
 // border - 21 rows, four inside 25.
 const pickW = pickGridX + 16 * 2 - 1 + 2
 const pickH = pickGridY + 16 + 3
+
+// Inside the smallest text mode this can be launched into, which is what makes
+// `openPicker`'s refusal a guard against a mode nobody has.
+require pickW <= 40
+require pickH <= 25
 
 // Codepage 437's box, which the MDA font has as well as the VGA's - so the frame
 // draws in `mode mono` for the same reason the rest of this does.

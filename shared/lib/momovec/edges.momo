@@ -29,6 +29,8 @@ include "lib/momovec/types.momo"
 // the side of the canvas is KEPT, because a span between two off-screen crossings
 // still crosses it, and dropping those punches holes in anything that overhangs an
 // edge.
+require screenH <= 256
+
 u8[maxCrossings]  cy
 i16[maxCrossings] cx
 i8[maxCrossings]  cdir

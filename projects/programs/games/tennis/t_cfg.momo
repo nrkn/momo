@@ -79,6 +79,8 @@ const grid angleZone4 = hitWindow - angleZone * 3
 const grid angleZone5 = hitWindow - angleZone * 2
 const grid angleZone6 = hitWindow - angleZone
 
+require angleZone4 - angleZone3 > angleZone
+
 const grid ballSpeedStep = serveSpeed
 const grid ballSpeedY1 = ballSpeedStep
 const grid ballSpeedY2 = ballSpeedStep * 2

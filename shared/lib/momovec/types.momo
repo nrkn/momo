@@ -82,6 +82,11 @@ const i16 yMax = screenH - 1
 // place it could happen.
 const i16 maxCoord = 16383
 
+// Twice the bound has to fit a signed word (§74). Divided rather than doubled,
+// because `maxCoord` is an `i16` and §4 folds `maxCoord * 2` as the machine
+// would - wrapped - which is the very failure this is here to catch.
+require maxCoord <= 32767 / 2
+
 // Set when geometry outside the bound is handed to the rasteriser.
 //
 // **Nothing is drawn in that case, deliberately.** A chord is no safer - drawLine has

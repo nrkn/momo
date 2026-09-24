@@ -62,6 +62,12 @@ local const halfChunk = chunkSize / 2
 local const maxChunks = 32000
 local const maxUndo   = 2048
 
+// Held rather than stated (§74). A chunk is a paragraph, which is what makes
+// chunk `c` the paragraph `c` past the base and lets every `Paras` count below
+// divide by `chunkSize` to mean sixteen; and the link array's bound, above.
+require chunkSize == 16
+require maxChunks <= 32767
+
 // **More than one document, sharing one chunk store.**
 //
 // Every region here is either *per document* - the line tables and the undo log
@@ -259,6 +265,16 @@ local const opJoin   = 4
 local const opParas   = maxUndo / chunkSize
 local const lineParas = ( maxUndo * 2 ) / chunkSize
 local const logParas  = opParas * 3 + lineParas * 2
+
+// Every fixed region is sized by a division, which rounds down - and a region
+// that stops short of its last entry is a region whose last entry is somebody
+// else, which is why `textInit` rounds the chunk regions up. These have to come
+// out exact instead, so a `textMaxLines` or a `maxUndo` that does not divide is
+// refused here rather than overlapping its neighbour.
+require headParas * chunkSize >= textMaxLines * 2
+require lenParas * chunkSize >= textMaxLines * 2
+require opParas * chunkSize >= maxUndo
+require lineParas * chunkSize >= maxUndo * 2
 
 local u16 logOpSeg
 local u16 logLineSeg

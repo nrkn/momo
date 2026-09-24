@@ -122,6 +122,9 @@ sub clearColumn( u16 x, u16 y, u16 n ) {
 // The `i16( ... )` is the one place a subgrid value becomes a pixel.
 const subgridToPx( i16 play, grid obj ) = play + 1 + i16( obj >> 2 )
 
+// The shift is the quarter-pixel scale, written as the power of two it is.
+require subgridScale == 1 << 2
+
 // Pixel positions, which are never negative - the subgrid is clamped at 0 and
 // the playfield offset is added on top.
 const paddleRow( grid y ) = u16( subgridToPx( playTop, y ) )
