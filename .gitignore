@@ -12,3 +12,7 @@ _reference/temp
 
 # Machine-local notes - paths and reminders that are not the project's
 LOCAL.md
+
+# DOSBox -noconsole redirects, when one is launched by hand from the root
+stdout.txt
+stderr.txt
