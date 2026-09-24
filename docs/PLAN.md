@@ -1940,22 +1940,63 @@ They will make no sense of the contents, and that is expected: the lump *types* 
 ours. Worth being plain that this is compatibility of the envelope only, so nobody
 later reads the claim as "our assets work in Doom".
 
-### One decision the format does not make for us
+### The type is a per-lump header, settled 2026-09-24
 
-**Doom's WAD has no type field.** A lump's kind comes from its name and from where
-it sits between marker lumps - `S_START` and `S_END` around sprites, and so on.
-That is a convention rather than a structure, and it is the part worth choosing
-deliberately rather than inheriting:
+**Doom's WAD has no type field.** A lump's kind comes from its name and from
+where it sits between marker lumps - `S_START` and `S_END` around sprites - and
+four candidates were weighed before the first lump was written: markers, a name
+prefix, a small header inside each lump, and a TYPES lump mapping names to
+kinds. The choice is between the type as *position*, as *convention*, and as a
+*checkable claim*, and this repository's whole doctrine is that conventions the
+system cannot check are where the silent failures live.
 
-- **markers, as Doom does** - costs nothing, stays maximally compatible, and makes
-  the type a property of position, which is fragile under editing;
-- **a name prefix** - one character of eight spent on the type, checkable in
-  isolation;
-- **a small header inside each lump** - the type where the data is, at the cost of
-  every reader knowing to skip it.
+**Every lump this format authors opens with four bytes**: the characters `Mo`,
+a type, and a version.
 
-No case here yet argues strongly for one. It should be settled before the first
-lump is written rather than after.
+```
+[ 'M' 'o' ] [ type u8 ] [ version u8 ]  then the payload
+```
+
+- The full eight characters of the name stay a name, so a lump name and a Momo
+  name remain the same shape - the virtue the prefix option spent.
+- The type is **in the bytes a reader just loaded**, so every use checks it for
+  free and a mismatch stops the run naming both sides - where a prefix is a
+  promise in the caller's own string that nothing can refute, and markers are
+  the option Doom's own history teeth-checked: a PWAD replacing one sprite does
+  not carry the markers, so position-as-type failed under override, the exact
+  feature this format exists for.
+- The version byte is the schema study's evolution hook, carried for free.
+- The cost is one rule every reader follows - skip four bytes - and that a
+  lump's type is not in the directory. Foreign WAD tools list our names without
+  grouping them, and lose nothing else: a lump they extract and re-insert still
+  says what it is.
+
+### `TYPES` is a manifest, never an authority - except for lumps that cannot speak
+
+A TYPES lump - rows of `[ name u8*8 ][ type u8 ]` - was weighed as the
+authority and rejected: it stores the type away from the lump it describes,
+which is markers' disease with the distance measured in lumps, and it is a
+parallel structure that must agree with the directory, which is LESSONS.md's
+parallel-arrays incident at WAD scale. Under override it re-creates the PWAD
+sprite mess outright: replacing a lump and replacing its description come
+apart.
+
+It survives as two lesser things, one rule covering both: **the header is the
+authority wherever one exists, and TYPES speaks only for lumps that cannot
+speak.**
+
+- **Derived**, for our own lumps: the host-side writer emits rows from the
+  headers, so a tool can type a whole file in one read. The reader never
+  consults these; `wadinfo` checks them against the headers, the way
+  `npm run drift` checks INDEX.md against the headings.
+- **Authoritative for foreign lumps only**: `PLAYPAL` in DOOM.WAD can never
+  grow a header, so a TYPES row is the best claim available, and it is
+  convention-grade by nature - unverifiable against the content, admitted at
+  the interop boundary and nowhere else. Rows merge by name across the load
+  chain under the same last-wins rule as lumps themselves, so a PWAD of ours
+  loaded after DOOM.WAD can annotate Doom's lumps without touching them.
+- `wadinfo` says where every type came from - header, manifest, or untyped -
+  because a claim and a checked fact should never print alike.
 
 ### Override is the reason for the format rather than a bonus
 
