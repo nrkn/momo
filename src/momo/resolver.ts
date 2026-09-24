@@ -1769,7 +1769,7 @@ export const resolve = (program: Program): ResolveResult => {
 
     init.elements.forEach((element, i) => {
       if (element.type === 'ComprehensionLiteral') {
-        raise(element, 'a comprehension as a child of an array of arrays waits for a customer - nesting is not built (§76)')
+        raise(element, 'a comprehension cannot be a child of an array of arrays yet - nesting waits for a customer (§76)')
       }
       if (element.type !== 'StringLiteral' && element.type !== 'ArrayLiteral') {
         raise(element, 'each element of an array of arrays is an array - a string, or [ ... ]')

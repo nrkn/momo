@@ -1,4 +1,4 @@
-// EXPECT-ERROR: a comprehension as a child of an array of arrays waits for a customer - nesting is not built
+// EXPECT-ERROR: a comprehension cannot be a child of an array of arrays yet - nesting waits for a customer
 // EXPECT-AT: 4:32
 // §53's children are written out; generating one is §76's open nesting question.
 const u8[][] menu = [ "File$", [ for ( i in 3 ) i ] ]
