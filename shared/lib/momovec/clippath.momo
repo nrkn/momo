@@ -201,7 +201,7 @@ sub captureClipPath( u16 pathIndex ) {
   clearClipPath()
 
   clipCapturing = true
-  fillPath( pathIndex, true )
+  fillPath( pathIndex )
   clipCapturing = false
 
   clipActive = true

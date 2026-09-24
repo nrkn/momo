@@ -136,14 +136,14 @@ sub walkPath(
 
 // Pixels only, nothing closed - the `pixels` stage.
 sub strokePath( u16 pathIndex ) {
-  walkPath( pathIndex, true, false, false )
+  walkPath( pathIndex, wantPixels: true, wantEdges: false, closeSubpaths: false )
 }
 
 // Crossings only, every subpath closed - the `edges` stage. The list is cleared
 // first, because winding belongs to one path.
 sub pathEdges( u16 pathIndex ) {
   clearCrossings()
-  walkPath( pathIndex, false, true, true )
+  walkPath( pathIndex, wantPixels: false, wantEdges: true, closeSubpaths: true )
 }
 
 // The same, sorted - the `sorted` stage.

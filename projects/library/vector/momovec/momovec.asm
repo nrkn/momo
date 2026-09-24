@@ -217,7 +217,7 @@ __entry:
         pop     ax
         cmp     ax, bx
         jae     .L35                        ; unsigned <
-; ---- fillPath( sceneFirstPath[ s ] + p, false )
+; ---- fillPath( sceneFirstPath[ s ] + p, tidy: false )
         mov     ax, [s]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -242,9 +242,7 @@ __entry:
 .L37:
         mov     ax, [s]
         cmp     ax, 11
-        jb      .L40                        ; unsigned <
-        jmp     .L39
-.L40:
+        jae     .L39                        ; unsigned <
 ; ---- for ( u16 p = 0; p < scenePathCount[ s ]; p++ ) {
         mov     word [p], 0
 .L41:
@@ -258,7 +256,7 @@ __entry:
         pop     ax
         cmp     ax, bx
         jae     .L43                        ; unsigned <
-; ---- fillPath( sceneFirstPath[ s ] + p, true )
+; ---- fillPath( sceneFirstPath[ s ] + p )
         mov     ax, [s]
         shl     ax, 1                       ; word elements
         mov     bx, ax
@@ -266,7 +264,6 @@ __entry:
         mov     bx, [p]
         add     ax, bx
         mov     [fillPath__pathIndex], ax
-        mov     byte [fillPath__tidy], 1
         call    fillPath
 .L42:
         inc     word [p]
@@ -2566,7 +2563,7 @@ walkPath:
 ; ============================================== sub strokePath ====
 
 strokePath:
-; ---- walkPath( pathIndex, true, false, false )
+; ---- walkPath( pathIndex, wantPixels: true, wantEdges: false, closeSubpaths: false )
         mov     ax, [strokePath__pathIndex]
         mov     [walkPath__pathIndex], ax
         mov     byte [walkPath__wantPixels], 1
@@ -2580,7 +2577,7 @@ strokePath:
 pathEdges:
 ; ---- clearCrossings()
         call    clearCrossings
-; ---- walkPath( pathIndex, false, true, true )
+; ---- walkPath( pathIndex, wantPixels: false, wantEdges: true, closeSubpaths: true )
         mov     ax, [pathEdges__pathIndex]
         mov     [walkPath__pathIndex], ax
         mov     byte [walkPath__wantPixels], 0
@@ -2859,6 +2856,7 @@ fillPath:
         mov     al, [fillPath__tidy]
         mov     [walkSpans__tidy], al       ; bool -> bool, no widening
         call    walkSpans
+        mov     byte [fillPath__tidy], 1    ; defaults restored on the way out
         ret
 
 ; ============================================== sub strokeAndFillPath ====
@@ -2866,7 +2864,7 @@ fillPath:
 strokeAndFillPath:
 ; ---- clearCrossings()
         call    clearCrossings
-; ---- walkPath( pathIndex, true, true, true )
+; ---- walkPath( pathIndex, wantPixels: true, wantEdges: true, closeSubpaths: true )
         mov     ax, [strokeAndFillPath__pathIndex]
         mov     [walkPath__pathIndex], ax
         mov     byte [walkPath__wantPixels], 1
@@ -3089,7 +3087,7 @@ pathEdges__pathIndex: dw      0        ; u16
 pathEdgesSorted__pathIndex: dw      0        ; u16
 walkSpans__tidy: db      0        ; bool
 fillPath__pathIndex: dw      0        ; u16
-fillPath__tidy: db      0        ; bool
+fillPath__tidy: db      1        ; bool = 1
 strokeAndFillPath__pathIndex: dw      0        ; u16
 strokeAndFillPath__tidy: db      0        ; bool
 strokeScene__sceneIndex: dw      0        ; u16

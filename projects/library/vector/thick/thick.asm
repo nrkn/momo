@@ -69,10 +69,9 @@ __entry:
 ; ---- currentPath = p
         mov     ax, [p]
         mov     [currentPath], ax
-; ---- fillPath( p, true )
+; ---- fillPath( p )
         mov     ax, [p]
         mov     [fillPath__pathIndex], ax
-        mov     byte [fillPath__tidy], 1
         call    fillPath
 .L10:
         inc     word [p]
@@ -2403,7 +2402,7 @@ walkPath:
 pathEdges:
 ; ---- clearCrossings()
         call    clearCrossings
-; ---- walkPath( pathIndex, false, true, true )
+; ---- walkPath( pathIndex, wantPixels: false, wantEdges: true, closeSubpaths: true )
         mov     ax, [pathEdges__pathIndex]
         mov     [walkPath__pathIndex], ax
         mov     byte [walkPath__wantPixels], 0
@@ -2671,6 +2670,7 @@ fillPath:
         mov     al, [fillPath__tidy]
         mov     [walkSpans__tidy], al       ; bool -> bool, no widening
         call    walkSpans
+        mov     byte [fillPath__tidy], 1    ; defaults restored on the way out
         ret
 
 ; ============================================== sub emitSpan ====
@@ -2876,7 +2876,7 @@ walkPath__closeSubpaths: db      0        ; bool
 pathEdges__pathIndex: dw      0        ; u16
 walkSpans__tidy: db      0        ; bool
 fillPath__pathIndex: dw      0        ; u16
-fillPath__tidy: db      0        ; bool
+fillPath__tidy: db      1        ; bool = 1
 orderHash:      dw      0        ; u16
 currentPath:    dw      0        ; u16
 emitSpan__y:    dw      0        ; u16

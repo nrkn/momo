@@ -120,8 +120,10 @@ sub walkSpans( bool tidy ) {
   if ( tidy && pending ) emitSpan( pendY, pendLo, pendHi )
 }
 
-// One path's interior: crossings, sorted, walked.
-sub fillPath( u16 pathIndex, bool tidy ) {
+// One path's interior: crossings, sorted, walked. Tidy unless told otherwise,
+// because that is what a caller drawing the spans wants; a harness holding the
+// raw spans against the study says `tidy: false`.
+sub fillPath( u16 pathIndex, bool tidy = true ) {
   pathEdges( pathIndex )
   sortCrossings()
   walkSpans( tidy )
@@ -147,7 +149,7 @@ sub fillPath( u16 pathIndex, bool tidy ) {
 // different pixel where the two overlap.
 sub strokeAndFillPath( u16 pathIndex, bool tidy ) {
   clearCrossings()
-  walkPath( pathIndex, true, true, true )
+  walkPath( pathIndex, wantPixels: true, wantEdges: true, closeSubpaths: true )
   sortCrossings()
   walkSpans( tidy )
 }

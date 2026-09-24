@@ -98,7 +98,7 @@ orderHash = 0
 for ( u16 p = 0; p < maxPaths; p++ ) {
   currentPath = p
 
-  fillPath( p, true )
+  fillPath( p )
 }
 
 // ---- the digest ----

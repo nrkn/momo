@@ -77,10 +77,9 @@ __entry:
         mov     al, [pathHasFill + bx]
         test    al, al
         je      .L13                        ; unsigned !=
-; ---- fillPath( p, true )
+; ---- fillPath( p )
         mov     ax, [p]
         mov     [fillPath__pathIndex], ax
-        mov     byte [fillPath__tidy], 1
         call    fillPath
 .L13:
 ; ---- if ( pathHasStroke[p] != 0 ) {
@@ -2442,7 +2441,7 @@ walkPath:
 ; ============================================== sub strokePath ====
 
 strokePath:
-; ---- walkPath( pathIndex, true, false, false )
+; ---- walkPath( pathIndex, wantPixels: true, wantEdges: false, closeSubpaths: false )
         mov     ax, [strokePath__pathIndex]
         mov     [walkPath__pathIndex], ax
         mov     byte [walkPath__wantPixels], 1
@@ -2456,7 +2455,7 @@ strokePath:
 pathEdges:
 ; ---- clearCrossings()
         call    clearCrossings
-; ---- walkPath( pathIndex, false, true, true )
+; ---- walkPath( pathIndex, wantPixels: false, wantEdges: true, closeSubpaths: true )
         mov     ax, [pathEdges__pathIndex]
         mov     [walkPath__pathIndex], ax
         mov     byte [walkPath__wantPixels], 0
@@ -2724,6 +2723,7 @@ fillPath:
         mov     al, [fillPath__tidy]
         mov     [walkSpans__tidy], al       ; bool -> bool, no widening
         call    walkSpans
+        mov     byte [fillPath__tidy], 1    ; defaults restored on the way out
         ret
 
 ; ============================================== sub emitSpan ====
@@ -2930,7 +2930,7 @@ strokePath__pathIndex: dw      0        ; u16
 pathEdges__pathIndex: dw      0        ; u16
 walkSpans__tidy: db      0        ; bool
 fillPath__pathIndex: dw      0        ; u16
-fillPath__tidy: db      0        ; bool
+fillPath__tidy: db      1        ; bool = 1
 orderHash:      dw      0        ; u16
 currentPath:    dw      0        ; u16
 emitSpan__y:    dw      0        ; u16

@@ -117,7 +117,7 @@ for ( u16 p = 0; p < subjectPaths; p++ ) {
   currentPath = p
 
   if ( pathHasFill[p] != 0 ) {
-    fillPath( p, true )
+    fillPath( p )
   }
 }
 

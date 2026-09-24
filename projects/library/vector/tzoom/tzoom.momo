@@ -123,7 +123,7 @@ for ( u16 p = 0; p < maxPaths; p++ ) {
   currentPath = p
 
   if ( pathHasFill[p] != 0 ) {
-    fillPath( p, true )
+    fillPath( p )
   }
 
   if ( pathHasStroke[p] != 0 ) {

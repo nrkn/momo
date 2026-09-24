@@ -161,7 +161,7 @@ spanMode = modeSpans
 
 for ( u16 s in sceneFirstPath ) {
   for ( u16 p = 0; p < scenePathCount[ s ]; p++ ) {
-    fillPath( sceneFirstPath[ s ] + p, false )
+    fillPath( sceneFirstPath[ s ] + p, tidy: false )
   }
 }
 
@@ -172,7 +172,7 @@ spanMode = modeFill
 
 for ( u16 s in sceneFirstPath ) {
   for ( u16 p = 0; p < scenePathCount[ s ]; p++ ) {
-    fillPath( sceneFirstPath[ s ] + p, true )
+    fillPath( sceneFirstPath[ s ] + p )
   }
 }
 

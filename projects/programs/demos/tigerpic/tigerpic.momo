@@ -100,7 +100,7 @@ videoMode {
   for ( u16 p = 0; p < maxPaths; p++ ) {
     if ( pathHasFill[p] != 0 ) {
       ink = pathFill[p]
-      fillPath( p, true )
+      fillPath( p )
     }
 
     if ( pathHasStroke[p] != 0 ) {
