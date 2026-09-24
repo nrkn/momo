@@ -294,10 +294,22 @@ const list = (paths: string[]) => {
   lumps.forEach((lump, i) => {
     let type = '-'
     let source = '-'
-    if (lump.bytes.length >= format.moBytes && lump.bytes[0] === format.magic[0] && lump.bytes[1] === format.magic[1]) {
+    let lookalike = false
+    // The reader's rule, kept in step by hand since this file cannot import the
+    // library: `Mo` is only a header when the type byte is one the table knows
+    // and not `none` - two bytes are too weak alone, so the type id is part of
+    // the magic. A miss here once had the two readers disagreeing over the same
+    // lump: mowad read it as foreign while this listed it as `unknown header`.
+    const startsMo =
+      lump.bytes.length >= format.moBytes &&
+      lump.bytes[0] === format.magic[0] &&
+      lump.bytes[1] === format.magic[1]
+    const knownType = startsMo && lump.bytes[2] !== 0 && format.names.has(lump.bytes[2])
+    if (knownType) {
       type = typeName(lump.bytes[2])
       source = 'header'
     } else {
+      lookalike = startsMo
       for (let f = manifests.length - 1; f >= 0; f--) {
         const row = manifests[f].get(lump.name)
         if (row !== undefined) {
@@ -310,7 +322,8 @@ const list = (paths: string[]) => {
     const shadowed = lumps.findLastIndex((other) => other.name === lump.name) !== i
     console.log(
       `${String(i).padStart(5)} ${lump.file} ${lump.name.padEnd(8)} ${String(lump.offset).padStart(10)} ` +
-        `${String(lump.size).padStart(10)} ${type.padEnd(8)} ${source}${shadowed ? '  (shadowed)' : ''}`,
+        `${String(lump.size).padStart(10)} ${type.padEnd(8)} ${source}` +
+        `${shadowed ? '  (shadowed)' : ''}${lookalike ? '  (starts Mo, unknown type)' : ''}`,
     )
   })
 }
