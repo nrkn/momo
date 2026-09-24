@@ -1,0 +1,12 @@
+// wadusage.momo - `wadinfo` refusing a command tail, as a fixture of its own
+// (DESIGN §41).
+//
+// The program is `wadinfo`'s, from `shared/lib/moinfo.momo`, and only the
+// command tail differs: a project has one `.args`, so a refusal wants a
+// project too. `/s` and `/L` cannot go together, and the refusal has to come
+// before anything is opened - there is no BASE.WAD here, so a run that tried
+// would say so.
+
+include "lib/moinfo.momo"
+
+infoRun()

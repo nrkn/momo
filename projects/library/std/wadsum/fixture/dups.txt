@@ -1,0 +1,21 @@
+# DUPS.WAD - loaded third in wadsum, after copies of wadinfo's BASE.WAD and
+# PATCH.WAD, and holding what a summary counts as well as what it cannot.
+#
+#   npm run wad -- build projects/library/std/wadsum/fixture/dups.txt projects/library/std/wadsum/DUPS.WAD
+#
+# The sources end without a newline, as wadinfo's do.
+
+# Over the patch's HELLO and the base's, so the run crosses three files - and
+# this one is not the winner, because a later HELLO in this file is.
+lump HELLO text hello3.txt
+pad 2
+
+# Twice in this file and nowhere else: bulk, which a summary counts.
+lump DSPISTOL raw pistol.txt
+lump DSPISTOL raw pistol.txt
+
+# The base's PAL, replaced - a second override across files.
+lump PAL palette pal2.txt
+pad 5
+
+lump HELLO text hello4.txt

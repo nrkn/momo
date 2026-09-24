@@ -1,0 +1,18 @@
+0 BASE.WAD: IWAD, 7 lumps, directory at 131, 243 bytes
+1 PATCH.WAD: PWAD, 4 lumps, directory at 79, 143 bytes
+2 DUPS.WAD: PWAD, 6 lumps, directory at 147, 243 bytes
+
+findings
+PATCH.WAD: LOST at 4000, 10 bytes, runs past the end of the file
+PATCH.WAD: ECHO at 12 overlaps HELLO
+HELLO: 4 lumps, and #15 in DUPS.WAD wins
+PAL: 2 lumps, and #14 in DUPS.WAD wins
+PATCH.WAD: TYPES row MAP01 says text, and its header says scene
+PATCH.WAD: TYPES row GHOST names no lump
+
+tally
+BASE.WAD: 7 lumps - 5 win, 2 shadowed by a later file, 0 repeated within the file
+PATCH.WAD: 4 lumps - 3 win, 1 shadowed by a later file, 0 repeated within the file
+PATCH.WAD: 3 bytes in 1 gap that nothing references
+DUPS.WAD: 6 lumps - 4 win, 0 shadowed by a later file, 2 repeated within the file
+DUPS.WAD: 7 bytes in 2 gaps that nothing references

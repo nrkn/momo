@@ -1,0 +1,16 @@
+// wadsum.momo - `wadinfo /s`, the summary, as a fixture of its own (DESIGN §41).
+//
+// The program is `wadinfo`'s, from `shared/lib/moinfo.momo`, and only the
+// command tail differs: a project has one `.args`, so a mode wants a project.
+// The switch comes first and in capitals, which the tail has to accept.
+//
+// `BASE.WAD` and `PATCH.WAD` are copies of `wadinfo`'s, byte for byte - a
+// change is made there and copied here. `DUPS.WAD` is this project's own,
+// built from the manifest in `fixture/` by the command at its top, and loaded
+// third: it holds a name twice in one file, which the summary counts, and two
+// names earlier files already carry, which it prints however much it counts.
+// PATCH.WAD's damage prints in full here as it does under no switch.
+
+include "lib/moinfo.momo"
+
+infoRun()
