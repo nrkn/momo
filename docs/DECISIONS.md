@@ -5285,3 +5285,12 @@ Teeth, committed first, neutered by line, restored with `git checkout`:
 
 The version message has no test either: `wadtrip` ends on one refusal, and it
 is the type check. A probe printed the new line.
+
+**The host tier followed the same day**, for that third tooth. It builds
+`tests/wad/` into a scratch directory, lists it with the host tool, and runs the
+committed `wadlist` under `/l` on the same bytes; every lump's seven columns
+must agree. Neutered by line as above, `host wad list` fails at lump 1 for the
+host's derived-row guard (`GREET ... text manifest` against `- -`), at lump 1
+again for mowad's once `wadlist` is rebuilt from the neutered library, and at
+lump 4 for the host's magic rule (`NOISE ... unknown header`), which is the
+disagreement e4abd88 fixed by hand.

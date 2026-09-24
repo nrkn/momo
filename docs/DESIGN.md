@@ -8652,7 +8652,11 @@ library must refuse, so a check that let it through prints a different last line
 The host writer turned out to be the second reader the round trip lacked. Its
 `list` read the two files DOSBox wrote and agreed with `wadtrip`'s digest line
 for line - two implementations of the same format, neither derived from the
-other.
+other. `npm test` holds them to that: its host tier builds the chain in
+`tests/wad/` with the host writer, lists it with both readers - the host's
+`list`, and `wadlist /l` in the machine - and fails on the first lump they type
+differently. The chain carries the cases a rule kept by hand can lose: a
+derived row over a shadowed foreign lump, a claim across files, a lookalike.
 
 ### What is still open
 
