@@ -193,6 +193,9 @@ npm run check -- <project>    # symbol table
 npm run memory -- <project>   # exact static footprint
 npm run trace -- <project>    # run it without DOSBox: output, instructions, cycles (§72)
 npm run trace:profile -- <project>  # the same, by routine
+npm run trace:check -- <project>    # the same, held against its .expected - one machine-tier case
+npm run instr -- <project>    # static instruction count of its .asm, HEAD vs working tree
+npm run instr:routines -- <project> # the same, by routine - the reading tool for a codegen diff
 npm run desugar -- <project>  # print the program as lomo, its desugared form
 
 npm test                      # tier 1: compile, golden .asm, types, lexing, the machine
@@ -278,8 +281,9 @@ charges roughly per *instruction* rather than modelling `mul` at 118 cycles
 against `shl` at 2 - so it would rank optimisations wrongly. Count instructions
 in the emitted `.asm` and apply documented 8086 timings instead; that is exact,
 and it is what the timing tables in §16, §26 and §27 are built from - the last
-of those now in DECISIONS.md, which is where a measurement lives. Run under DOSBox
-to check correctness, not speed.
+of those now in DECISIONS.md, which is where a measurement lives. `npm run
+instr` does the static count against HEAD, `npm run trace` counts a run
+exactly. Run under DOSBox to check correctness, not speed.
 
 **`build/` keeps the output of everything ever built here**, including projects
 that have since been renamed or deleted - `rl` and `probe` were both still there

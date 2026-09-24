@@ -2125,6 +2125,23 @@ and the answer came from the 286 itself.
 
 ---
 
+### Two throwaways graduated: trace:check and instr
+
+2026-09-24, both born in §49's adoption and promoted on request, each with an
+upgrade on the way in. The scratch `cmpexp` diffed a saved trace against a
+`.expected` by hand; `npm run trace:check` runs the machine and holds the
+output in-process instead, under the byte-wise latin1 rule both tiers follow -
+one machine-tier case on demand, for the spot check a fix wants before the
+suite runs. The scratch `inscount` counted indented lines less the data
+directives; `npm run instr` keeps that test - it is the machine tier's own
+"instructions are the only lines the emitter indents" - and stops counting
+`cpu`, `org` and `align`, which the throwaway priced as if they executed.
+
+Teeth: a corrupted `.expected` fails trace:check at the differing line with
+both strings, exit 1; a duplicated statement shows in instr as +2 against
+HEAD, attributed to its routine, and 0 again once reverted.
+
+
 ## 1. Target
 
 ### A readability heuristic that was correct by accident, for a year
