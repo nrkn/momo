@@ -5241,3 +5241,47 @@ STRIFE1+VOICES chain with zero collisions - the shipped two-WAD design is pure
 augmentation; HEXEN carries 66,059 bytes of slack; SVE.wad's 106 MB and 1,788
 lumps stream clean; and no wild WAD but miniwad has a single alias set -
 dedup-by-directory is a deliberate art, not a toolchain accident.
+
+### A review read alone, and the two it found that the suite could not
+
+2026-09-25: a review of `mowad.momo` by itself, six points. Two were comments
+gone stale - the opening one said reading never keeps a carried position, and
+the stream had since the first commit; the cap's still opened on 5,120 - and
+one a doubled space, `GREET version 2, asked for  version 1`, now
+`GREET version 2, asked for 1`. The other three were about behaviour.
+
+- **The write cap was one short.** `wadFinish` opened the manifest through
+  `wadBegin`, which went through the room check the program's own lumps do, so
+  64 typed lumps stopped the write with `more lumps than one write holds`. The
+  manifest has a slot of its own past `wadWriteMax` now: 17 bytes of arena.
+- **A derived row typed a lump it did not describe.** Rows are found by name
+  and lumps by index, so a patch's own headed `GREET` typed the base's foreign
+  `GREET` - unclaimed by anybody - as `text (manifest)`, through the row
+  derived from the patch's header. DESIGN said the reader never consults a
+  derived row, and both readers did. The review suspected a checker would be
+  surprised; a probe chain of two files showed `wadinfo` listing it that way.
+  A row in a file that heads a lump of that name is now passed over for the
+  file before, which is what a claim refused for that name makes safe.
+- **A newer header type reads as a manifest claim**, `X is unknown (manifest)`,
+  and that one stays. To this reader `Mo` and a type byte past its table is not
+  a header, which is the rule that keeps chance bytes out, so the file's row
+  for it cannot be seen as derived either. The message is true of what this
+  reader relied on, and `wadinfo` reports the lump as a lookalike. Telling a
+  newer header from chance bytes needs a longer magic, the same gap the
+  lookalike section above leaves open.
+
+Teeth, committed first, neutered by line, restored with `git checkout`:
+
+- **The derived row consulted again** (`wadFiles_ != 99 ||` ahead of the
+  check): `machine wadtrip` differs at line 12, `5 0 BLOB 3 raw manifest 43`
+  where `none untyped` should be.
+- **The manifest back under the program's room** (`room: wadWriteMax`):
+  `wadtrip` differs at line 1, `wrote: 1 1 mowad: more lumps than one write
+  holds`.
+- **The host lister's copy of the rule** (`lump.size >= 0 ||`): no test fails,
+  because nothing runs `npm run wad -- list`. By hand, on the probe chain, the
+  base's `GREET` lists as `text manifest` again. That is untested code rather
+  than a failed neuter.
+
+The version message has no test either: `wadtrip` ends on one refusal, and it
+is the type check. A probe printed the new line.
