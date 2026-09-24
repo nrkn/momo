@@ -3034,7 +3034,8 @@ program supplies `plot` and `emitSpan`; `tiger` accumulates a digest and
 library file may call a routine the *program* defines, and it compiles to a direct
 `call`. **That is what §19's routine parameters would have been for, and it needed
 no language feature at all** - the clearest case here of a design being met by
-what already existed.
+what already existed. What it lacked was a way for the library to state the
+signature, which §73's `expect` now is.
 
 **Alternatives are chosen by which file you include.** `direct.momo` or
 `zoom.momo`, never both; `quadflat.momo` or `subdiv.momo` likewise. Each pair
@@ -6696,7 +6697,6 @@ from it for as long as the count read "thirteen", and nothing could say so.
 | §49 | Named and default arguments, which is what §48's `cfg` carrier needs |
 | §50 | A layout DSL: content, layout and paint as three documents |
 | §63 | A document larger than the memory |
-| §73 | `expect` - a contract for the routine a library calls and the program defines |
 
 ---
 
@@ -7786,6 +7786,140 @@ their routines are callable, which is what `tennis`'s measurement did.
   passes.
 - **Nothing here is allowed to disagree with tier 2.** Where the two differ, the
   machine is wrong until shown otherwise - tier 2 is the real thing.
+
+---
+
+## 73. `expect` - the forward-call seam gets a contract
+
+**Built.** `exptest` runs it in tier 2, the `err-expect-*` files hold the
+refusals, and `ok-expect-checked` and `ok-expect-plain` are the identity pair
+that holds it to costing nothing. A library file may call a routine the program
+defines, and it compiles to a direct `call` (§37); an expect is the library
+saying what it calls:
+
+```momo
+expect sub viewRow( u16 y, a16 at, u16 n )
+expect u16 menuCount()
+```
+
+Top level of the file that makes the calls, one per routine, written as a
+routine's head with no body. `moview` expects `viewRow`, `momenu` its table
+routines, `mofield` its clipboard, and momovec's `line`, `quad`, `fill`,
+`clippath` and `path` the routines they bind late - `plot` from two files at
+once. Each of those signatures used to be a comment, and a program that got one
+wrong was told so at a call inside the library, naming the wrong party.
+
+### What a failure says
+
+A definition that disagrees is reported at the definition, naming where the
+expectation was written and quoting it. The caret sits on the parameter that
+differs, or on the head when the count or the return does:
+
+```
+parameter 2 of "viewRow" is u16 here, and moview.momo:18 expects a16: "sub viewRow( u16 y, a16 at, u16 n )"
+```
+
+An absence is reported once, at the expect, with the call that made it owed:
+
+```
+"viewRow" is expected by moview.momo and nothing defines it - the call at moview.momo:262 is reached, so the program must define "sub viewRow( u16 y, a16 at, u16 n )"
+```
+
+Parameter names are documentation and take no part: a call writes its slots by
+position, and the definer's names are its own. Types do, and a unit is part of
+a type - `a16` against `u16` is a different contract over the same word (§71).
+
+### Pruning decides whether it binds
+
+An expect whose calls are all pruned asks for nothing: include `moview`, never
+render, and the program owes no `viewRow`. The absence check runs in
+`compile.ts` after `prune`, over the call sites of the entry point and of the
+routines prune kept - on the path every tool takes, and before the emitter,
+which would otherwise meet a call to a label nothing defines.
+
+**That makes a library compile which could not.** Without an expect, a call in an
+unused library routine is `"viewRow" is not declared`, because the resolver runs
+before pruning - so every program that included `moview` had to define `viewRow`
+whether it rendered or not. `exptest` includes a library nothing calls into,
+expecting a routine nothing defines, and compiles.
+
+A wrong definition is reported whether or not anything calls it, for §74's
+reason: it is written, it is wrong, and it is wrong before the first call as much
+as after.
+
+### Expectations are registered first
+
+Each expect registers a placeholder - a routine symbol with the expected
+signature, claiming its label - in a pass of its own before any declaration,
+for the reason §75's ranges are: an include may sit below the routine that
+answers it. A routine declared under that name is held to the placeholder and
+replaces it, keeping the label without claiming it twice; anything else declared
+under it is refused as not being a routine. So a definition above its include
+and one below are checked in one place, and `exptest` has both.
+
+A placeholder has no slots of its own - `viewRow__y` comes from the definition -
+and it is in the table calls are resolved against, never in the symbol list the
+emitter reads. A call to one checks its arguments against the expectation, as a
+call to the real routine will. One still standing after pruning is what the
+absence check reports, so the emitter never meets one.
+
+**Two expects of one name must agree**, for the reason each must agree with the
+definition: one definition answers both. `line.momo` and `quad.momo` both expect
+`plot`. The second is held to the first before any definition is looked at, and
+the error names both files.
+
+### A local cannot answer one
+
+This needed no rule. `lookup` reads the calling file's privates and then the
+program's names, so a call in the library can reach a local only if it is the
+library's own. A local of the expected name in another file leaves the
+placeholder standing and the absence reported, and the error names that file,
+since a private definition is the likeliest reason for a missing one.
+
+### What it is not
+
+Not §19's routine parameters and not function pointers: the binding is still by
+name, at compile time, exactly as it was. Not a default body either - an expect
+with a fallback is a different feature with a different number, and
+`clippath.momo` shows the library side can already say "taken, deliberately"
+without one, by defining `plot` and `emitSpan` itself as the filter and
+expecting `plotClipped` and `emitClipped` in their place.
+
+### What it cost
+
+Nothing at runtime, asserted rather than argued: the identity pair is one program
+with and without its expects, and adopting them across the libraries moved no
+instruction in any committed `.asm`. And a word: `expect` is a keyword, and no
+program or library in the corpus used it as a name.
+
+### Rules
+
+- **Top level only.** Inside a routine it is refused: a body is not where a file
+  says what the program owes.
+- **A routine's head and nothing more.** `expect sub name`,
+  `expect sub name( ... )` or `expect u16 name( ... )`, and only a sub may leave
+  its list out, as in a declaration (§7). A `{` or `=>` after one is refused by
+  name.
+- **Routines only.** A parameterised const is substituted rather than called, and
+  alternatives among those are chosen by include (§37) - `mapX` and `mapY` stay
+  that way.
+- **Held by position, type, scale and unit**, the return included, and a sub
+  against a typed routine is a difference too.
+- **A wrong definition is reported at the definition; an absence at the expect,
+  and only when a call survives pruning.**
+- **Emits nothing.** The emitter skips it as it skips a require, source quote
+  included. The printer writes it back out, because lomo has to hold its
+  definitions to the same claims the source did.
+
+### Unsettled
+
+- **Whether `expect` also serves §24.** A handler is another routine something
+  else calls by contract, but the caller there is hardware and the signature
+  question is different (`iret`, saved registers). Kept separate unless the
+  designs turn out to rhyme.
+- **§49's defaults.** An expect's parameters are read by the list a routine's
+  are, so once a parameter can carry a default an expect can write one. Whether
+  the default is part of the contract is §49's to settle when it lands.
 
 ---
 

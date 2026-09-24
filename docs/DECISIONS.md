@@ -4323,6 +4323,98 @@ through variables, and the fixture's claim is that the pairs of output lines are
 identical. Teeth checked by neutering the clamp with a condition tsc cannot fold
 and reading which tier failed.
 
+## 73. `expect`
+
+### The design did not say when an expectation is known
+
+Built 2026-09-24, the day it was designed. The brief put the check in `declare`,
+with a second path for a definition the merged body meets before its expect.
+Registering every expect in a pass of its own before any declaration - §75's
+answer to the same question - made the second path unnecessary: every
+placeholder exists before any routine is declared, so there is one check, at the
+definition, in either order. `exptest` defines one routine above its include and
+two below.
+
+### An expect makes a library compile that could not
+
+The design said pruning decides whether an expectation binds. What it did not say
+is that without an expect the question never arose: a call to an undeclared name
+is refused by the resolver, which runs before pruning, so every program including
+`moview` defined `viewRow` whether it rendered or not. `exptest`'s `e_idle.momo`
+is that case, a library nothing calls into expecting a routine nothing defines,
+and it is also why the identity pair cannot hold it: the plain half of such a
+program does not compile.
+
+### The placeholder never reaches the symbol list
+
+The brief's worry was a placeholder surviving to the emitter and emitting `call`
+against a label NASM never sees. It is put in the globals calls are resolved
+against and never pushed to `symbols`, so the emitter's `symbolFor` would throw
+`internal: unresolved symbol` first - and the absence check in `compile.ts` runs
+before either.
+
+### Teeth
+
+Committed first, each guard neutered with a condition tsc cannot fold, the suite
+read for which test failed, and the file restored with `git checkout` and rebuilt.
+
+- **The definition's signature check** (`difference && node.line < 0`): five
+  fixtures fail, and how they fail is the design's case made by the compiler.
+  `err-expect-param-type` and `err-expect-return-type` compile. The other three
+  are refused inside the library, at its call on `inc/expects.momo:11`, naming
+  the wrong party: `"show" takes 2 argument(s), got 3`,
+  `"nextKey" returns nothing - call it as a statement`, and
+  `cannot put a16 in plain u16 - it needs a cast`.
+- **The absence check** (`!site || expectation.line > 0`): `err-expect-absent`
+  and `err-expect-local` fail with `internal: unresolved symbol "hook"` and
+  `"show"` from the emitter - loud, but in a compiler bug's voice rather than the
+  program's. With the placeholder also pushed to `symbols`, the absent fixture
+  compiled and wrote
+
+  ```nasm
+          mov     word [hook__n], 1
+          call    hook
+  ```
+
+  with neither label defined anywhere, which only NASM at tier 2 would refuse.
+  That is the stake: `momoc` would have said `ok`.
+- **The pruning exemption**, inverted by taking call sites from every routine in
+  the unpruned graph rather than from those prune kept: `exptest` fails its
+  golden, capacity and round trip with `"idleHook" is expected by e_idle.momo and
+  nothing defines it - the call at e_idle.momo:11 is reached`, which is false. The
+  exemption is what lets an unused library ask for nothing.
+
+### The adoption
+
+Nine library files, 32 lines in and 15 out, and no instruction moved: every
+committed `.asm` came out byte-identical under `npm run momoc:all`, by
+`git diff --stat`, source quotes included - an expect is never quoted, and no
+quoted line changed. `plot` is expected by both `line.momo` and `quad.momo`, the agreement
+rule's first real customer, and `drawQuadAny` by `path.momo`, which holds
+`quadflat.momo` and `subdiv.momo` to one signature. `emitSpan`, `emitClipped` and
+`plotClipped` were described in prose with no signature, and are expected now.
+
+Two seams the design named are not routines a program writes. `mapX` and `mapY`
+are parameterised consts chosen by include, and a const is substituted rather
+than called, so there is nothing for an expect to hold. And `nextKey` has no
+library behind it: `edloop` defines and calls it in one file, which is a project,
+so there is no seam to state. momoed's menu routines are not `local`, so the
+local question never arose in the corpus; `err-expect-local` is where it does.
+
+A probe against the real library: a program defining `sub viewRow( u16 y, u16 at,
+u16 n )` is refused at its own parameter 2, quoting `moview.momo:18`; one that
+includes `moview` and calls only `viewHome` compiles with no `viewRow` at all;
+one that renders is told the call at `moview.momo:262` is reached.
+
+### Measured
+
+Tier 1 went from 838 assertions to 861: twelve `err-expect-*` files and the two
+`ok-` files of the identity pair (338 compile tests to 352), three goldens, one
+capacity, three round trips, one identity pair and one machine run. The spelling
+question was a grep: `\bexpect\b` over every `.momo` matched three comments and
+nothing else. Tier 2 was left for the merge, because the worktree the build ran
+in had no DOSBox configured.
+
 ## 74. `require`
 
 ### "Emits nothing" was true of the emitter and not of pruning
