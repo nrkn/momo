@@ -217,7 +217,9 @@ at all, which makes one a floor rather than a measurement.
   instead.
 - **`scope`.** §23 - designed in full; no program has wanted it yet.
 - **Interrupt handlers.** §24 - designed in full. A raw scancode reader and
-  held-key input are what would ask for it.
+  held-key input are what would ask for it, and `momoed`'s critical-error
+  handler is the smallest thing that would: a drive not ready, answered Abort,
+  still ends the run past every tab's unsaved work.
 - **Rewrite `README.md`.** `CONTRIBUTING.md` records that it is provisional, in a
   register the other documents do not use, and that rewriting it waits on programs
   worth showing and on a draft written rather than generated.
@@ -1000,8 +1002,10 @@ because a handler ends in `iret` rather than `ret` and there is no way to say so
 - **The keyboard**, but only with chaining below. A handler that replaces the
   BIOS one loses the buffer, the shift state and Ctrl-Alt-Del - the same damage
   as masking IRQ1, arrived at differently.
-- **A crash-cleanup hook on `int 0`**, which is the least settled of the three;
-  see the open question at the end.
+- **A crash-cleanup hook on `int 0`**, which is the least settled of them; see
+  the open question at the end.
+- **A critical-error handler on `int 24h`**, which `momoed` wants now and is the
+  smallest of them; it has a section of its own below.
 
 Timing is deliberately absent from that list. Retrace polling (§22) is a finer
 clock than the BIOS tick, and latching PIT channel 0 through `in8` reads the
@@ -1212,6 +1216,46 @@ And not, on its own, a safe keyboard. The chaining carve-out is what turns an
 ISR keyboard from "the same damage as masking IRQ1, differently arranged" into
 one with no hazard at all. Handlers without chaining would leave the keyboard
 exactly where §22 left it.
+
+### The critical-error handler, which needs the least of it
+
+DOS calls `int 24h` when a device fails under a call - a floppy drive with its
+door open is the case that matters - and its own handler prints *Abort, Retry,
+Fail?* over whatever is on screen. `momoed` has closed half of that (DECISIONS
+§55): Fail makes an open refuse rather than start an empty document under the
+real file's name. **Abort is the half a program cannot close alone.** It ends the
+process from inside DOS, past `videoMode`'s restore and past every other tab's
+unsaved work, and only a handler that answers for the person prevents it.
+
+It is the smallest handler this section describes, because it needs none of the
+expensive parts:
+
+- **No EOI.** It is DOS calling, not an interrupt line.
+- **No chaining and no restore.** DOS keeps the vector in the PSP when the
+  program loads and puts it back when the program ends, however it ends. The
+  install is AH=25h and nothing else - no `cli`/`sti` window, because nothing
+  writes the vector table.
+- **DOS's own constraint is already this section's.** A critical-error handler
+  may make no DOS call above 0Ch, and the no-`int` rule forbids every one.
+
+Three things are its own:
+
+- **It answers in AL**, 3 for Fail - where the surface above says a handler has
+  no return type and may not assign to `_ax`..`_di`, and the computed save set
+  would restore AX over the answer. So it bends two rules, both narrowly:
+  `interrupt u8 onCritical() => 3` is one reading, with AL left out of the saves
+  because it is the result.
+- **Fail arrived in DOS 3.1.** Earlier versions have no such answer, so the
+  install is conditional on AH=30h, and below 3.1 DOS's own handler stays. Ignore
+  was the alternative there, and it hands back a call that did not happen as
+  though it had.
+- **It takes Retry away.** A disk put in after the fact is retried by asking
+  again - `^O`, or Enter in the panel - rather than by a key in DOS's prompt.
+
+The machine tier needs AH=25h and AH=30h modelled to run a program that installs
+it, and nothing there raises `int 24h`, so what tier 1 can check is that it is
+installed, not that it answers. Answering is an acceptance-round check on real
+hardware: a directory a few levels deep on a floppy, and the door opened.
 
 ### The open question is how a fault handler exits
 

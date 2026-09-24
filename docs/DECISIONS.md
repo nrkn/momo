@@ -3406,7 +3406,8 @@ new file, and Retry works as it always did; Abort still ends the process from
 inside DOS, past `videoMode`'s close and past every other tab's unsaved work.
 Answering Fail automatically needs a handler on INT 24h, which nothing in the
 language can write yet - no routine returns with `iret`, and the mnemonic is not
-in §1.
+in §1. Left as it is, deliberately: PLAN §24 designs interrupt handlers, and now
+carries this one as its smallest customer.
 
 ---
 
