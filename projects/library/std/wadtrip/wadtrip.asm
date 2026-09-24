@@ -29,7 +29,7 @@ wadUntyped:     equ     0
 wadFromHeader:  equ     1
 wadFromManifest: equ     2
 wadNone:        equ     65535
-wadMaxLumps:    equ     3072
+wadMaxLumps:    equ     5120
 wadMaxFiles:    equ     4
 mowad__wadStageBytes: equ     512
 mowad__wadStageEntries: equ     32
@@ -37,11 +37,11 @@ mowad__wadStageRows: equ     56
 wadWriteMax:    equ     64
 wadClaimMax:    equ     16
 mowad__wadIndexAt: equ     0
-mowad__wadStageAt: equ     24576
-mowad__wadOutAt: equ     25088
-mowad__wadKindAt: equ     26112
-mowad__wadClaimAt: equ     26176
-wadArenaBytes:  equ     26624
+mowad__wadStageAt: equ     40960
+mowad__wadOutAt: equ     41472
+mowad__wadKindAt: equ     42496
+mowad__wadClaimAt: equ     42560
+wadArenaBytes:  equ     43520
 bufBytes:       equ     64
 
 ; =========================================================== entry ====
@@ -1054,11 +1054,7 @@ mowad__wadEntry:
         mov     ax, [mowad__wadFile__dirLo + bx]
         mov     [fileSeek__low], ax
         call    fileSeek
-; ---- fileSeek( h, fileFromCurrent, 0, ( lump - wadFile[f].base ) * wadEntryBytes )
-        mov     ax, [mowad__wadEntry__h]
-        mov     [fileSeek__handle], ax
-        mov     byte [fileSeek__whence], 1
-        mov     word [fileSeek__high], 0
+; ---- wadEntRel = lump - wadFile[f].base
         mov     ax, [mowad__wadEntry__lump]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [mowad__wadEntry__f]
@@ -1068,8 +1064,18 @@ mowad__wadEntry:
         mov     bx, ax
         pop     ax
         sub     ax, bx
+        mov     [mowad__wadEntRel], ax
+; ---- fileSeek( h, fileFromCurrent, wadEntRel >> 12, wadEntRel << 4 )
+        mov     ax, [mowad__wadEntry__h]
+        mov     [fileSeek__handle], ax
+        mov     byte [fileSeek__whence], 1
+        mov     ax, [mowad__wadEntRel]
+        mov     cl, 12                      ; 8086 has no shift-by-immediate
+        shr     ax, cl                      ; unsigned >>
+        mov     [fileSeek__high], ax
+        mov     ax, [mowad__wadEntRel]
         mov     cl, 4                       ; 8086 has no shift-by-immediate
-        shl     ax, cl                      ; * 16 is << 4
+        shl     ax, cl
         mov     [fileSeek__low], ax
         call    fileSeek
 ; ---- fileRead( h, addr( wadEntryBuf ), wadEntryBytes )
@@ -1345,7 +1351,7 @@ wadOpen:
         jne     .L132                       ; unsigned !=
         mov     ax, [wadOpen__count]
         push    ax                          ; save lhs: rhs is not a leaf
-        mov     ax, 3072
+        mov     ax, 5120
         mov     bx, [mowad__wadTotal]
         sub     ax, bx
         mov     bx, ax
@@ -3258,6 +3264,7 @@ wadLump__name:  dw      0        ; u16
 wadLump__ret:   dw      0        ; u16
 wadFileOf__lump: dw      0        ; u16
 wadFileOf__ret: dw      0        ; u16
+mowad__wadEntRel: dw      0        ; u16
 mowad__wadCur:  dw      65535        ; u16 = 65535
 mowad__wadCurPosHi: dw      0        ; u16
 mowad__wadCurPosLo: dw      0        ; u16
@@ -3499,9 +3506,9 @@ _heapw:         equ     _heap        ; same bytes, u16 view
 ; =========================================================== views ====
 ; No storage: each is a name for an offset into something else.
 
-mowad__wadNames: equ     _heap        ; u8[24576]
-mowad__wadStage: equ     _heap + 24576        ; u8[512]
-mowad__wadOut:  equ     _heap + 25088        ; u8[1024]
-mowad__wadKind: equ     _heap + 26112        ; u8[64]
-mowad__wadClaims: equ     _heap + 26176        ; u8[144]
-buf:            equ     _heap + 26624        ; u8[64]
+mowad__wadNames: equ     _heap        ; u8[40960]
+mowad__wadStage: equ     _heap + 40960        ; u8[512]
+mowad__wadOut:  equ     _heap + 41472        ; u8[1024]
+mowad__wadKind: equ     _heap + 42496        ; u8[64]
+mowad__wadClaims: equ     _heap + 42560        ; u8[144]
+buf:            equ     _heap + 43520        ; u8[64]

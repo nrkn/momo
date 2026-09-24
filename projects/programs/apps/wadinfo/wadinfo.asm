@@ -26,7 +26,7 @@ wadUntyped:     equ     0
 wadFromHeader:  equ     1
 wadFromManifest: equ     2
 wadNone:        equ     65535
-wadMaxLumps:    equ     3072
+wadMaxLumps:    equ     5120
 wadMaxFiles:    equ     4
 mowad__wadStageBytes: equ     512
 mowad__wadStageEntries: equ     32
@@ -34,16 +34,16 @@ mowad__wadStageRows: equ     56
 wadWriteMax:    equ     64
 wadClaimMax:    equ     16
 mowad__wadIndexAt: equ     0
-mowad__wadStageAt: equ     24576
-mowad__wadOutAt: equ     25088
-mowad__wadKindAt: equ     26112
-mowad__wadClaimAt: equ     26176
-wadArenaBytes:  equ     26624
+mowad__wadStageAt: equ     40960
+mowad__wadOutAt: equ     41472
+mowad__wadKindAt: equ     42496
+mowad__wadClaimAt: equ     42560
+wadArenaBytes:  equ     43520
 moinfo__infoFull: equ     0
 moinfo__infoSummary: equ     1
 moinfo__infoListing: equ     2
 moinfo__pathRoom: equ     80
-moinfo__colRows: equ     3073
+moinfo__colRows: equ     5121
 moinfo__topSets: equ     3
 
 ; =========================================================== entry ====
@@ -913,11 +913,7 @@ mowad__wadEntry:
         mov     ax, [mowad__wadFile__dirLo + bx]
         mov     [fileSeek__low], ax
         call    fileSeek
-; ---- fileSeek( h, fileFromCurrent, 0, ( lump - wadFile[f].base ) * wadEntryBytes )
-        mov     ax, [mowad__wadEntry__h]
-        mov     [fileSeek__handle], ax
-        mov     byte [fileSeek__whence], 1
-        mov     word [fileSeek__high], 0
+; ---- wadEntRel = lump - wadFile[f].base
         mov     ax, [mowad__wadEntry__lump]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [mowad__wadEntry__f]
@@ -927,8 +923,18 @@ mowad__wadEntry:
         mov     bx, ax
         pop     ax
         sub     ax, bx
+        mov     [mowad__wadEntRel], ax
+; ---- fileSeek( h, fileFromCurrent, wadEntRel >> 12, wadEntRel << 4 )
+        mov     ax, [mowad__wadEntry__h]
+        mov     [fileSeek__handle], ax
+        mov     byte [fileSeek__whence], 1
+        mov     ax, [mowad__wadEntRel]
+        mov     cl, 12                      ; 8086 has no shift-by-immediate
+        shr     ax, cl                      ; unsigned >>
+        mov     [fileSeek__high], ax
+        mov     ax, [mowad__wadEntRel]
         mov     cl, 4                       ; 8086 has no shift-by-immediate
-        shl     ax, cl                      ; * 16 is << 4
+        shl     ax, cl
         mov     [fileSeek__low], ax
         call    fileSeek
 ; ---- fileRead( h, addr( wadEntryBuf ), wadEntryBytes )
@@ -1240,7 +1246,7 @@ wadOpen:
         jne     .L138                       ; unsigned !=
         mov     ax, [wadOpen__count]
         push    ax                          ; save lhs: rhs is not a leaf
-        mov     ax, 3072
+        mov     ax, 5120
         mov     bx, [mowad__wadTotal]
         sub     ax, bx
         mov     bx, ax
@@ -2972,14 +2978,14 @@ moinfo__before:
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__posHi
         mov     es, dx
-        mov     ax, [es:bx + 6146]
+        mov     ax, [es:bx + 10242]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [moinfo__before__b]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__posHi
         mov     es, dx
-        mov     ax, [es:bx + 6146]
+        mov     ax, [es:bx + 10242]
         mov     bx, ax
         pop     ax
         cmp     ax, bx
@@ -2989,14 +2995,14 @@ moinfo__before:
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__posHi
         mov     es, dx
-        mov     ax, [es:bx + 6146]
+        mov     ax, [es:bx + 10242]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [moinfo__before__b]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__posHi
         mov     es, dx
-        mov     ax, [es:bx + 6146]
+        mov     ax, [es:bx + 10242]
         mov     bx, ax
         pop     ax
         cmp     ax, bx
@@ -3015,14 +3021,14 @@ moinfo__before:
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__posLo
         mov     es, dx
-        mov     ax, [es:bx + 12292]
+        mov     ax, [es:bx + 20484]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [moinfo__before__b]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__posLo
         mov     es, dx
-        mov     ax, [es:bx + 12292]
+        mov     ax, [es:bx + 20484]
         mov     bx, ax
         pop     ax
         cmp     ax, bx
@@ -3032,14 +3038,14 @@ moinfo__before:
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__posLo
         mov     es, dx
-        mov     ax, [es:bx + 12292]
+        mov     ax, [es:bx + 20484]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [moinfo__before__b]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__posLo
         mov     es, dx
-        mov     ax, [es:bx + 12292]
+        mov     ax, [es:bx + 20484]
         mov     bx, ax
         pop     ax
         cmp     ax, bx
@@ -3058,14 +3064,14 @@ moinfo__before:
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__sizeHi
         mov     es, dx
-        mov     ax, [es:bx + 18438]
+        mov     ax, [es:bx + 30726]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [moinfo__before__b]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__sizeHi
         mov     es, dx
-        mov     ax, [es:bx + 18438]
+        mov     ax, [es:bx + 30726]
         mov     bx, ax
         pop     ax
         cmp     ax, bx
@@ -3075,14 +3081,14 @@ moinfo__before:
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__sizeHi
         mov     es, dx
-        mov     ax, [es:bx + 18438]
+        mov     ax, [es:bx + 30726]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [moinfo__before__b]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__sizeHi
         mov     es, dx
-        mov     ax, [es:bx + 18438]
+        mov     ax, [es:bx + 30726]
         mov     bx, ax
         pop     ax
         cmp     ax, bx
@@ -3101,14 +3107,14 @@ moinfo__before:
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__sizeLo
         mov     es, dx
-        mov     ax, [es:bx + 24584]
+        mov     ax, [es:bx + 40968]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [moinfo__before__b]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__sizeLo
         mov     es, dx
-        mov     ax, [es:bx + 24584]
+        mov     ax, [es:bx + 40968]
         mov     bx, ax
         pop     ax
         cmp     ax, bx
@@ -3118,14 +3124,14 @@ moinfo__before:
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__sizeLo
         mov     es, dx
-        mov     ax, [es:bx + 24584]
+        mov     ax, [es:bx + 40968]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [moinfo__before__b]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__sizeLo
         mov     es, dx
-        mov     ax, [es:bx + 24584]
+        mov     ax, [es:bx + 40968]
         mov     bx, ax
         pop     ax
         cmp     ax, bx
@@ -3330,7 +3336,7 @@ moinfo__checkFile:
         shl     bx, 1                       ; word elements
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__posHi
         mov     es, dx
-        mov     [es:bx + 6146], ax
+        mov     [es:bx + 10242], ax
 ; ---- posLo[i] = wadPosLow( base + i )
         mov     ax, [moinfo__checkFile__base]
         mov     bx, [moinfo__checkFile__i]
@@ -3342,7 +3348,7 @@ moinfo__checkFile:
         shl     bx, 1                       ; word elements
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__posLo
         mov     es, dx
-        mov     [es:bx + 12292], ax
+        mov     [es:bx + 20484], ax
 ; ---- sizeHi[i] = wadSizeHigh( base + i )
         mov     ax, [moinfo__checkFile__base]
         mov     bx, [moinfo__checkFile__i]
@@ -3354,7 +3360,7 @@ moinfo__checkFile:
         shl     bx, 1                       ; word elements
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__sizeHi
         mov     es, dx
-        mov     [es:bx + 18438], ax
+        mov     [es:bx + 30726], ax
 ; ---- sizeLo[i] = wadSizeLow( base + i )
         mov     ax, [moinfo__checkFile__base]
         mov     bx, [moinfo__checkFile__i]
@@ -3366,7 +3372,7 @@ moinfo__checkFile:
         shl     bx, 1                       ; word elements
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__sizeLo
         mov     es, dx
-        mov     [es:bx + 24584], ax
+        mov     [es:bx + 40968], ax
 ; ---- if ( isTypes( base + i ) ) manifests++
         mov     ax, [moinfo__checkFile__base]
         mov     bx, [moinfo__checkFile__i]
@@ -3385,7 +3391,7 @@ moinfo__checkFile:
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__sizeHi
         mov     es, dx
-        mov     ax, [es:bx + 18438]
+        mov     ax, [es:bx + 30726]
         test    ax, ax
         jne     .L432                       ; unsigned ==
         mov     ax, [moinfo__checkFile__i]
@@ -3393,7 +3399,7 @@ moinfo__checkFile:
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__sizeLo
         mov     es, dx
-        mov     ax, [es:bx + 24584]
+        mov     ax, [es:bx + 40968]
         test    ax, ax
         jne     .L432                       ; unsigned ==
         jmp     .L426
@@ -3404,28 +3410,28 @@ moinfo__checkFile:
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__posHi
         mov     es, dx
-        mov     ax, [es:bx + 6146]
+        mov     ax, [es:bx + 10242]
         mov     [moinfo__add32__aHi], ax
         mov     ax, [moinfo__checkFile__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__posLo
         mov     es, dx
-        mov     ax, [es:bx + 12292]
+        mov     ax, [es:bx + 20484]
         mov     [moinfo__add32__aLo], ax
         mov     ax, [moinfo__checkFile__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__sizeHi
         mov     es, dx
-        mov     ax, [es:bx + 18438]
+        mov     ax, [es:bx + 30726]
         mov     [moinfo__add32__bHi], ax
         mov     ax, [moinfo__checkFile__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__sizeLo
         mov     es, dx
-        mov     ax, [es:bx + 24584]
+        mov     ax, [es:bx + 40968]
         mov     [moinfo__add32__bLo], ax
         call    moinfo__add32
 ; ---- if ( sumHi < posHi[i] || below32( endHi, endLo, sumHi, sumLo ) ) {
@@ -3436,7 +3442,7 @@ moinfo__checkFile:
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__posHi
         mov     es, dx
-        mov     ax, [es:bx + 6146]
+        mov     ax, [es:bx + 10242]
         mov     bx, ax
         pop     ax
         cmp     ax, bx
@@ -3477,14 +3483,14 @@ moinfo__checkFile:
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__posHi
         mov     es, dx
-        mov     ax, [es:bx + 6146]
+        mov     ax, [es:bx + 10242]
         mov     [moinfo__put32__hi], ax
         mov     ax, [moinfo__checkFile__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__posLo
         mov     es, dx
-        mov     ax, [es:bx + 12292]
+        mov     ax, [es:bx + 20484]
         mov     [moinfo__put32__lo], ax
         call    moinfo__put32
 ; ---- putStr( addr( sComma ) )
@@ -3497,14 +3503,14 @@ moinfo__checkFile:
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__sizeHi
         mov     es, dx
-        mov     ax, [es:bx + 18438]
+        mov     ax, [es:bx + 30726]
         mov     [moinfo__put32__hi], ax
         mov     ax, [moinfo__checkFile__i]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__sizeLo
         mov     es, dx
-        mov     ax, [es:bx + 24584]
+        mov     ax, [es:bx + 40968]
         mov     [moinfo__put32__lo], ax
         call    moinfo__put32
 ; ---- putStr( addr( sPast ) )
@@ -3589,7 +3595,7 @@ moinfo__checkFile:
         shl     bx, 1                       ; word elements
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__posHi
         mov     es, dx
-        mov     [es:bx + 6146], ax
+        mov     [es:bx + 10242], ax
 ; ---- posLo[lumps] = wadFileDirLow( f )
         mov     ax, [moinfo__checkFile__f]
         mov     [wadFileDirLow__f], ax
@@ -3599,14 +3605,14 @@ moinfo__checkFile:
         shl     bx, 1                       ; word elements
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__posLo
         mov     es, dx
-        mov     [es:bx + 12292], ax
+        mov     [es:bx + 20484], ax
 ; ---- sizeHi[lumps] = 0
         mov     ax, [moinfo__checkFile__lumps]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__sizeHi
         mov     es, dx
-        mov     word [es:bx + 18438], 0
+        mov     word [es:bx + 30726], 0
 ; ---- sizeLo[lumps] = lumps * wadEntryBytes
         mov     ax, [moinfo__checkFile__lumps]
         mov     cl, 4                       ; 8086 has no shift-by-immediate
@@ -3615,7 +3621,7 @@ moinfo__checkFile:
         shl     bx, 1                       ; word elements
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__sizeLo
         mov     es, dx
-        mov     [es:bx + 24584], ax
+        mov     [es:bx + 40968], ax
 ; ---- byName = false
         mov     byte [moinfo__byName], 0
 ; ---- sortOrder( lumps + 1 )
@@ -3654,7 +3660,7 @@ moinfo__checkFile:
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__sizeHi
         mov     es, dx
-        mov     ax, [es:bx + 18438]
+        mov     ax, [es:bx + 30726]
         test    ax, ax
         jne     .L451                       ; unsigned ==
         mov     ax, [moinfo__checkFile__e]
@@ -3662,7 +3668,7 @@ moinfo__checkFile:
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__sizeLo
         mov     es, dx
-        mov     ax, [es:bx + 24584]
+        mov     ax, [es:bx + 40968]
         test    ax, ax
         jne     .L451                       ; unsigned ==
         jmp     .L448
@@ -3673,14 +3679,14 @@ moinfo__checkFile:
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__posHi
         mov     es, dx
-        mov     ax, [es:bx + 6146]
+        mov     ax, [es:bx + 10242]
         mov     [moinfo__below32__aHi], ax
         mov     ax, [moinfo__checkFile__e]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__posLo
         mov     es, dx
-        mov     ax, [es:bx + 12292]
+        mov     ax, [es:bx + 20484]
         mov     [moinfo__below32__aLo], ax
         mov     ax, [moinfo__checkFile__endHi]
         mov     [moinfo__below32__bHi], ax
@@ -3762,14 +3768,14 @@ moinfo__checkFile:
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__posHi
         mov     es, dx
-        mov     ax, [es:bx + 6146]
+        mov     ax, [es:bx + 10242]
         mov     [moinfo__below32__aHi], ax
         mov     ax, [moinfo__checkFile__e]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__posLo
         mov     es, dx
-        mov     ax, [es:bx + 12292]
+        mov     ax, [es:bx + 20484]
         mov     [moinfo__below32__aLo], ax
         mov     ax, [moinfo__checkFile__reachHi]
         mov     [moinfo__below32__bHi], ax
@@ -3802,14 +3808,14 @@ moinfo__checkFile:
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__posHi
         mov     es, dx
-        mov     ax, [es:bx + 6146]
+        mov     ax, [es:bx + 10242]
         mov     [moinfo__put32__hi], ax
         mov     ax, [moinfo__checkFile__e]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__posLo
         mov     es, dx
-        mov     ax, [es:bx + 12292]
+        mov     ax, [es:bx + 20484]
         mov     [moinfo__put32__lo], ax
         call    moinfo__put32
 ; ---- putStr( addr( sOverlaps ) )
@@ -3847,14 +3853,14 @@ moinfo__checkFile:
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__posHi
         mov     es, dx
-        mov     ax, [es:bx + 6146]
+        mov     ax, [es:bx + 10242]
         mov     [moinfo__below32__bHi], ax
         mov     ax, [moinfo__checkFile__e]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__posLo
         mov     es, dx
-        mov     ax, [es:bx + 12292]
+        mov     ax, [es:bx + 20484]
         mov     [moinfo__below32__bLo], ax
         call    moinfo__below32
         mov     al, [moinfo__below32__ret]
@@ -3869,14 +3875,14 @@ moinfo__checkFile:
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__posHi
         mov     es, dx
-        mov     ax, [es:bx + 6146]
+        mov     ax, [es:bx + 10242]
         mov     [moinfo__sub32__aHi], ax
         mov     ax, [moinfo__checkFile__e]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__posLo
         mov     es, dx
-        mov     ax, [es:bx + 12292]
+        mov     ax, [es:bx + 20484]
         mov     [moinfo__sub32__aLo], ax
         mov     ax, [moinfo__checkFile__reachHi]
         mov     [moinfo__sub32__bHi], ax
@@ -3911,28 +3917,28 @@ moinfo__checkFile:
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__posHi
         mov     es, dx
-        mov     ax, [es:bx + 6146]
+        mov     ax, [es:bx + 10242]
         mov     [moinfo__add32__aHi], ax
         mov     ax, [moinfo__checkFile__e]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__posLo
         mov     es, dx
-        mov     ax, [es:bx + 12292]
+        mov     ax, [es:bx + 20484]
         mov     [moinfo__add32__aLo], ax
         mov     ax, [moinfo__checkFile__e]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__sizeHi
         mov     es, dx
-        mov     ax, [es:bx + 18438]
+        mov     ax, [es:bx + 30726]
         mov     [moinfo__add32__bHi], ax
         mov     ax, [moinfo__checkFile__e]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__sizeLo
         mov     es, dx
-        mov     ax, [es:bx + 24584]
+        mov     ax, [es:bx + 40968]
         mov     [moinfo__add32__bLo], ax
         call    moinfo__add32
 ; ---- if ( below32( reachHi, reachLo, sumHi, sumLo ) ) {
@@ -4011,14 +4017,14 @@ moinfo__sameSpan:
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__posHi
         mov     es, dx
-        mov     ax, [es:bx + 6146]
+        mov     ax, [es:bx + 10242]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [moinfo__sameSpan__b]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__posHi
         mov     es, dx
-        mov     ax, [es:bx + 6146]
+        mov     ax, [es:bx + 10242]
         mov     bx, ax
         pop     ax
         cmp     ax, bx
@@ -4030,14 +4036,14 @@ moinfo__sameSpan:
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__posLo
         mov     es, dx
-        mov     ax, [es:bx + 12292]
+        mov     ax, [es:bx + 20484]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [moinfo__sameSpan__b]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__posLo
         mov     es, dx
-        mov     ax, [es:bx + 12292]
+        mov     ax, [es:bx + 20484]
         mov     bx, ax
         pop     ax
         cmp     ax, bx
@@ -4049,14 +4055,14 @@ moinfo__sameSpan:
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__sizeHi
         mov     es, dx
-        mov     ax, [es:bx + 18438]
+        mov     ax, [es:bx + 30726]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [moinfo__sameSpan__b]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__sizeHi
         mov     es, dx
-        mov     ax, [es:bx + 18438]
+        mov     ax, [es:bx + 30726]
         mov     bx, ax
         pop     ax
         cmp     ax, bx
@@ -4066,14 +4072,14 @@ moinfo__sameSpan:
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__sizeLo
         mov     es, dx
-        mov     ax, [es:bx + 24584]
+        mov     ax, [es:bx + 40968]
         push    ax                          ; save lhs: rhs is not a leaf
         mov     ax, [moinfo__sameSpan__b]
         shl     ax, 1                       ; word elements
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__sizeLo
         mov     es, dx
-        mov     ax, [es:bx + 24584]
+        mov     ax, [es:bx + 40968]
         mov     bx, ax
         pop     ax
         cmp     ax, bx
@@ -4510,7 +4516,7 @@ moinfo__checkNames:
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__sizeLo
         mov     es, dx
-        mov     word [es:bx + 24584], 0
+        mov     word [es:bx + 40968], 0
 .L527:
         inc     word [moinfo__checkNames__i]
         jmp     .L526
@@ -4758,14 +4764,14 @@ moinfo__checkNames:
         shl     bx, 1                       ; word elements
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__sizeLo
         mov     es, dx
-        mov     [es:bx + 24584], ax
+        mov     [es:bx + 40968], ax
 ; ---- posLo[first] = win
         mov     ax, [moinfo__checkNames__win]
         mov     bx, [moinfo__checkNames__first]
         shl     bx, 1                       ; word elements
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__posLo
         mov     es, dx
-        mov     [es:bx + 12292], ax
+        mov     [es:bx + 20484], ax
 .L567:
 .L531:
         mov     ax, [moinfo__checkNames__k]
@@ -4789,7 +4795,7 @@ moinfo__checkNames:
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__sizeLo
         mov     es, dx
-        mov     ax, [es:bx + 24584]
+        mov     ax, [es:bx + 40968]
         test    ax, ax
         jne     .L574                       ; unsigned ==
         jmp     .L571
@@ -4810,7 +4816,7 @@ moinfo__checkNames:
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__sizeLo
         mov     es, dx
-        mov     ax, [es:bx + 24584]
+        mov     ax, [es:bx + 40968]
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- putStr( addr( sLumps ) )
@@ -4823,7 +4829,7 @@ moinfo__checkNames:
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__posLo
         mov     es, dx
-        mov     ax, [es:bx + 12292]
+        mov     ax, [es:bx + 20484]
         mov     [putNumber__n], ax
         call    putNumber
 ; ---- putStr( addr( sIn ) )
@@ -4836,7 +4842,7 @@ moinfo__checkNames:
         mov     bx, ax
         mov     dx, [moinfo__colSeg]        ; segment of moinfo__posLo
         mov     es, dx
-        mov     ax, [es:bx + 12292]
+        mov     ax, [es:bx + 20484]
         mov     [wadFileOf__lump], ax
         call    wadFileOf
         mov     ax, [wadFileOf__ret]
@@ -5565,7 +5571,7 @@ moinfo__showFindings:
         mov     [moinfo__colSeg], ax
 ; ---- haveTable = blockFits( colSeg, colRows * 5 * 2 )
         mov     [blockFits__seg], ax
-        mov     word [blockFits__bytes], 30730
+        mov     word [blockFits__bytes], 51210
         call    blockFits
         mov     al, [blockFits__ret]
         xor     ah, ah                      ; bool -> u16
@@ -5921,6 +5927,7 @@ wadLump__name:  dw      0        ; u16
 wadLump__ret:   dw      0        ; u16
 wadFileOf__lump: dw      0        ; u16
 wadFileOf__ret: dw      0        ; u16
+mowad__wadEntRel: dw      0        ; u16
 mowad__wadCur:  dw      65535        ; u16 = 65535
 mowad__wadCurPosHi: dw      0        ; u16
 mowad__wadCurPosLo: dw      0        ; u16
@@ -6289,5 +6296,5 @@ _heapw:         equ     _heap        ; same bytes, u16 view
 ; =========================================================== views ====
 ; No storage: each is a name for an offset into something else.
 
-mowad__wadNames: equ     _heap        ; u8[24576]
-mowad__wadStage: equ     _heap + 24576        ; u8[512]
+mowad__wadNames: equ     _heap        ; u8[40960]
+mowad__wadStage: equ     _heap + 40960        ; u8[512]

@@ -87,11 +87,13 @@ const wadNone = 0xFFFF
 // Raising `wadMaxLumps` without raising `wadArenaBytes` stops the compile with
 // both numbers, rather than handing a program a view past its own heap.
 //
-// 3,072 names covers DOOM.WAD and DOOM2.WAD, the two largest files this is ever
-// likely to be pointed at, and a file past it is refused by name rather than
-// indexed in part - a lump missing from the index would be a lump `wadLump`
-// says is not there.
-const wadMaxLumps = 3072
+// 5,120 names covers everything a corpus sweep of 64 real WADs found: 3,072
+// covered DOOM.WAD and DOOM2.WAD but refused HEXEN.WAD (4,270 lumps),
+// STRIFE1.WAD (3,985) and a hand-built free-roam map (3,226) - the refusal
+// firing exactly as designed, at a number the design guessed. A file past the
+// cap is still refused by name rather than indexed in part, because a lump
+// missing from the index would be a lump `wadLump` says is not there.
+const wadMaxLumps = 5120
 
 // Files open at once. A `.COM` has fifteen handles to spare (§38), each file
 // here holds one for as long as it is open, and a program wants some left.
@@ -99,8 +101,9 @@ const wadMaxFiles = 4
 
 require wadMaxFiles <= 8
 
-// An entry is found by a forward seek of one word from the directory's start.
-require wadMaxLumps * wadEntryBytes <= 65535
+// An entry is found by a forward seek of hi:lo from the directory's start -
+// two shifts of the index, where one word capped it at 4,095 entries and
+// HEXEN.WAD's 4,270 was the customer that retired the shortcut.
 
 // What one read through the stage takes: whole directory entries at open, and
 // whole rows when a manifest is scanned.
@@ -125,7 +128,7 @@ local const wadKindAt  = wadOutAt + wadWriteMax * wadEntryBytes
 local const wadClaimAt = wadKindAt + wadWriteMax
 local const wadUsed    = wadClaimAt + wadClaimMax * wadRowBytes
 
-const wadArenaBytes = 26624
+const wadArenaBytes = 43520
 const wadHeap = wadArenaBytes
 
 require wadUsed <= wadArenaBytes
@@ -299,6 +302,9 @@ u16 wadFileOf( u16 lump ) {
 // ---- the directory entry, read back when asked for ----
 
 local u8[wadEntryBytes] wadEntryBuf
+// The index of the entry being sought, relative to its file's base - a slot
+// rather than a local so the seek's two shifts read one load each.
+local u16 wadEntRel = 0
 
 local u16 wadCur = wadNone
 local u16 wadCurPosHi
@@ -327,7 +333,14 @@ local sub wadEntry( u16 lump ) {
   h = wadFile[f].handle
 
   fileSeek( h, fileFromStart, wadFile[f].dirHi, wadFile[f].dirLo )
-  fileSeek( h, fileFromCurrent, 0, ( lump - wadFile[f].base ) * wadEntryBytes )
+
+  // The entry's offset as hi:lo, not one word: an entry is sixteen bytes, so
+  // the pair is two shifts of the index and nothing else. The one-word form
+  // this replaces capped the index at 4,095 entries, and the corpus sweep
+  // found the customers past it the same day it could - HEXEN.WAD's entry
+  // 4,270 lives at byte 68,320 of its directory.
+  wadEntRel = lump - wadFile[f].base
+  fileSeek( h, fileFromCurrent, wadEntRel >> 12, wadEntRel << 4 )
   fileRead( h, addr( wadEntryBuf ), wadEntryBytes )
 
   wadCurPosLo  = peek16( addr( wadEntryBuf ) + wadEntPos )

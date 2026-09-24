@@ -5212,3 +5212,29 @@ wadtrip     6299   1301    7600   26
 `wadinfo` runs its fixture in 132,270 instructions and `wadsum` in 140,077.
 Tier 1 stayed at 901 assertions and tier 2 at 74 programs, all passing; the
 `wadtrip` digest did not move.
+
+### The corpus sweep, and the seek shortcut it retired
+
+2026-09-24, the day the alias upgrade landed: 64 real WADs from a thirty-year
+collection - four games' IWADs, community megawads, a GoldenEye TC, and
+hand-built maps with their editor backups - each run standalone through
+`wadinfo /s` in the machine tier. Zero crashes, zero reader bugs, and one
+design finding with named customers: the 3,072-lump cap refused HEXEN.WAD
+(4,270 lumps), STRIFE1.WAD (3,985) and a free-roam map (3,226), the refusal
+firing exactly as designed at a number the design had guessed.
+
+Raising the cap met its own neighbour: `wadMaxLumps * wadEntryBytes <= 65535`,
+the one-word forward seek, caps any index at 4,095 entries - HEXEN's entry
+4,270 lives at byte 68,320 of its directory. The shortcut is retired for two
+shifts of the index (`rel >> 12 : rel << 4`; an entry is sixteen bytes), the
+cap is 5,120 and the arena 43,520. Teeth, against the customer itself: the hi
+word forced to zero reads the wrong entries past 4,095, and HEXEN's gap figure
+explodes from 66,059 bytes in 258 gaps to 2,826,464 in 131 - no committed
+fixture reaches past 4,095 entries, so this teeth lives against local files
+and says so here.
+
+What the sweep also recorded: voices.wad carries IWAD magic (Rogue's, 1996);
+STRIFE1+VOICES chain with zero collisions - the shipped two-WAD design is pure
+augmentation; HEXEN carries 66,059 bytes of slack; SVE.wad's 106 MB and 1,788
+lumps stream clean; and no wild WAD but miniwad has a single alias set -
+dedup-by-directory is a deliberate art, not a toolchain accident.
