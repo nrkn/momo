@@ -256,8 +256,8 @@ stood.
 
 The sweep that produced `STYLE.md`'s rule about counts found the rule's own first
 draft sitting in `STYLE.md` unapplied, and the sentence it was written about
-drifted a second time underneath it. It also found a tally in a design that had
-not been built yet - §49's routine arities - where the load-bearing claim was
+drifted a second time underneath it. It also found a tally in what was then
+still a plan - §49's routine arities, built since - where the load-bearing claim was
 right and the totals beside it could not be reproduced by any counting rule that
 also gave the right answer. That is twice now, after §48's wrapper table, and it
 is the commonest way a wrong figure gets written down here.
