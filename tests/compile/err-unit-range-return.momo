@@ -2,4 +2,3 @@
 // EXPECT-AT: 4:23
 unit intensity = u8 <= 63
 intensity bright() => 99
-intensity level = bright()
