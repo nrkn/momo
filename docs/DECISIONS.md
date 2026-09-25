@@ -5750,3 +5750,47 @@ nine directories and their dot entries, and `WADINFO.COM` run from inside its
 directory against its fixtures by bare name, printing the committed findings.
 The filesystem this tool writes is only correct when the operating system that
 invented it agrees.
+## 81. Three throwaways graduate
+
+*2026-09-25*
+
+The demo day left a shelf of scratch verification tools, and the standing rule
+became that the promotion call is made here, with everything unpromoted kept in
+`temp/` for a later change of mind. Three earned it, each proven by making the
+promoted form reproduce what its throwaway had done:
+
+- **`npm run expect -- <project> ...`** rewrites a project's `.expected` from
+  its committed `.asm` run in the machine - deliberate adoption with git's diff
+  as the check. Projects are named one by one on purpose: a flag that rewrote
+  every fixture would turn a regression into a commit. It runs the committed
+  assembly rather than compiling afresh, because that is what both tiers run.
+  Proven by scuffing `wadtrip.expected` and watching it come back
+  byte-identical, and by the machine refusing `hello` (hand-written NASM) as a
+  report rather than a crash.
+- **`npm run wad -- sweep <directory>`** is the corpus shakedown as one
+  command: every `.wad` under a directory through `wadinfo /s` in the machine,
+  a survey line each, refusals and crashes surfaced. The throwaway carried its
+  corpus path as a constant; the tool takes it as the argument, which is the
+  whole difference. Against the corpus it reproduced the throwaway's survey
+  line for line except where history moved: GTA Doom, refused before the §41
+  cap raise, now reads clean - so the corpus stands at 64 of 64 with nothing
+  serious anywhere.
+- **`npm run drive -- <project> ...`** runs a committed program in the machine
+  with a scripted keyboard and keeps its screens - the tool for verifying a
+  program that waits for keys without DOSBox or eyes. It covers both input
+  shapes the demos exposed: blocking `readKey` answered in order with a frame
+  snapshot per read, and pollers paced by retrace, with keys injected into the
+  BIOS buffer at scheduled frames and a fake retrace on port 3DAh driven by
+  dos.ts's instruction clock. `dos.ts` grew ten lines of hook surface for it
+  and nothing else moved. Proven against `flatpic` (three frames byte-identical
+  to the fixture tilings, labels and DAC checked) and `starfld` (stars move
+  between snapshots; a held Right from frame 30 moves their mean x the right
+  way). What it cannot drive is honest by construction: `charlstn` stops at the
+  unmodelled timer port, dos.ts's "a gap is a message" rule saying the speaker
+  is not simulated.
+
+Left in `temp/`, deliberately and unpruned: the single-purpose probes
+(`wadrun`, `doomrun`, `foldprobe`), the per-demo checkers (`checksong`,
+`checkflat`, `checkstar`, `mutate`, `variant`, `genflats`, `genbig`, `frames`,
+`precision`, `keys`), and the originals of everything promoted. A throwaway
+that stopped being needed is not the same as one that was wrong.
