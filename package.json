@@ -29,6 +29,7 @@
     "wad": "tsc && node dist/tools/wad.js",
     "image": "tsc && node dist/tools/image.js",
     "image:read": "tsc && node dist/tools/image.js --read",
+    "image:files": "tsc && node dist/tools/image.js --files",
     "drift": "tsc && node dist/tools/drift.js",
     "drift:since": "tsc && node dist/tools/drift.js --since"
   },

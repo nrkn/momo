@@ -22,7 +22,7 @@
 
 import { existsSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 
 import { buildRoot, fail, projectDir } from './cli.js'
 
@@ -111,7 +111,10 @@ const collect = (): Map<string, Entry[]> => {
   return byProject
 }
 
-type Disk = { project: string; entries: Entry[] }[]
+// A project lands as a directory; `loose` puts its files in the root instead,
+// which is the ferry shape - one `mosplit` chunk per disk, opened as `A:DOOM.001`
+// with no directory to name.
+type Disk = { project: string; entries: Entry[]; loose?: boolean }[]
 
 // 32 bytes an entry, so a 512-byte cluster holds sixteen - and a directory
 // spends its first two on `.` and `..`.
@@ -226,7 +229,33 @@ const buildImage = async (disk: Disk, label: string): Promise<Buffer> => {
     into.writeUInt32LE(size, at + 28)
   }
 
-  for (const { project, entries } of disk) {
+  const writeData = async (entry: Entry): Promise<{ first: number; size: number }> => {
+    const data = await readFile(entry.source)
+    const needed = Math.ceil(data.length / bytesPerSector)
+    const first = needed === 0 ? 0 : nextCluster
+
+    for (let n = 0; n < needed; n++) {
+      const cluster = nextCluster + n
+      const at = (dataStart + cluster - 2) * bytesPerSector
+      data.copy(image, at, n * bytesPerSector, Math.min((n + 1) * bytesPerSector, data.length))
+      // The last cluster of a file ends the chain; the rest point at the next.
+      setFatEntry(fat, cluster, n === needed - 1 ? 0xfff : cluster + 1)
+    }
+    nextCluster += needed
+
+    return { first, size: data.length }
+  }
+
+  for (const { project, entries, loose } of disk) {
+    if (loose) {
+      for (const entry of entries) {
+        const { first, size } = await writeData(entry)
+        writeEntry(rootDir, rootSlot, entry.name, entry.ext, 0x20, entry.mtime, first, size)
+        rootSlot += 1
+      }
+      continue
+    }
+
     // The directory's own clusters come first, so its number exists before any
     // entry - its own dot entry included - needs to name it.
     const dirClusters = dirClustersFor(entries.length)
@@ -243,20 +272,8 @@ const buildImage = async (disk: Disk, label: string): Promise<Buffer> => {
 
     let slot = 2
     for (const entry of entries) {
-      const data = await readFile(entry.source)
-      const needed = Math.ceil(data.length / bytesPerSector)
-      const first = needed === 0 ? 0 : nextCluster
-
-      for (let n = 0; n < needed; n++) {
-        const cluster = nextCluster + n
-        const at = (dataStart + cluster - 2) * bytesPerSector
-        data.copy(image, at, n * bytesPerSector, Math.min((n + 1) * bytesPerSector, data.length))
-        // The last cluster of a file ends the chain; the rest point at the next.
-        setFatEntry(fat, cluster, n === needed - 1 ? 0xfff : cluster + 1)
-      }
-      nextCluster += needed
-
-      writeEntry(dir, slot, entry.name, entry.ext, 0x20, entry.mtime, first, data.length)
+      const { first, size } = await writeData(entry)
+      writeEntry(dir, slot, entry.name, entry.ext, 0x20, entry.mtime, first, size)
       slot += 1
     }
 
@@ -417,10 +434,49 @@ const readBack = async (wanted: string) => {
   console.log(`ok: ${out}  (${hits[0].data.length} bytes, from ${where})`)
 }
 
+// One host file per disk, in the root - the ferry for a mosplit set:
+//
+//   npm run image:files -- DOOM.001 DOOM.002 ...
+//
+// Each disk is named after its file - `doom-001.ima` - which keeps it clear of
+// the `momo-N.ima` pattern, so a project-image run neither counts these as its
+// own nor cleans them up.
+const fileDisks = async (paths: string[]) => {
+  if (paths.length === 0) fail('usage: npm run image:files -- <file> [<file> ...]')
+
+  for (const path of paths) {
+    if (!existsSync(path)) fail(`"${path}" does not exist`)
+    const named = dosName(basename(path))
+    // `continue` narrows where `fail` alone cannot - the arrow-typed `never`
+    // gotcha CONTRIBUTING.md records, spelled the loop's way.
+    if (!named) {
+      fail(`"${basename(path)}" is not an 8.3 name, and DOS has to open it`)
+      continue
+    }
+
+    const stat = statSync(path)
+    if (Math.ceil(stat.size / bytesPerSector) > totalClusters) {
+      fail(`"${path}" does not fit a 1.44MB floppy - mosplit it first`)
+    }
+
+    const entry: Entry = { ...named, source: path, size: stat.size, mtime: stat.mtime }
+    const label = named.ext ? `${named.name}.${named.ext}` : named.name
+    const disk: Disk = [{ project: named.name, entries: [entry], loose: true }]
+    const out = join(buildRoot, `${named.name}${named.ext ? `-${named.ext}` : ''}.ima`.toLowerCase())
+
+    writeFileSync(out, await buildImage(disk, label))
+    console.log(`ok: ${out}  (${label}, ${stat.size} bytes)`)
+  }
+}
+
 const main = async () => {
   // The mode is a flag in the script definition rather than one a user passes,
   // because npm drops user flags - which is why `lex:nl` and `momoc:all` exist.
   const args = process.argv.slice(2)
+  if (args.includes('--files')) {
+    await fileDisks(args.filter((arg) => !arg.startsWith('-')))
+    return
+  }
   if (args.includes('--read')) {
     // `?? ''` rather than a check that narrows: `fail` is `never` on the arrow
     // and not on the const, so it does not narrow here - the gotcha
