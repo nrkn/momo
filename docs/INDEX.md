@@ -91,6 +91,7 @@ text for.
 | 74 | `require` - a compile-time assertion | [section](DESIGN.md#74-require---a-compile-time-assertion) |  | [section](DECISIONS.md#74-require) |
 | 75 | Ranged units | [section](DESIGN.md#75-ranged-units) |  | [section](DECISIONS.md#75-ranged-units) |
 | 76 | Table comprehensions | [section](DESIGN.md#76-table-comprehensions) |  | [section](DECISIONS.md#76-table-comprehensions) |
+| 77 | starfld |  |  | [section](DECISIONS.md#77-starfld) |
 
 ## Unnumbered headings
 

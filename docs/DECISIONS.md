@@ -5342,3 +5342,146 @@ host's derived-row guard (`GREET ... text manifest` against `- -`), at lump 1
 again for mowad's once `wadlist` is rebuilt from the neutered library, and at
 lump 4 for the host's magic rule (`NOISE ... unknown header`), which is the
 disagreement e4abd88 fixed by hand.
+
+## 77. starfld
+
+### What was built
+
+2026-09-25: the classic starfield, as a demo and as a study of the divide §25
+has not built. 112 stars in mode 13h, each projected as `160 + x / z` and
+`100 + y / z`, shaded by depth through sixteen greys the program computes and
+loads with `setDac` - the fourth caller, and the first whose palette is not a
+table. A star goes back to the far plane when it passes the viewer or leaves
+the screen. Frames start at the vertical retrace, tennis's pattern, at 70 Hz.
+
+The arrows steer, on both axes. `+` and `-` step the speed through thirteen
+values from 2 to 128 sixteenths of a unit a frame, the fastest crossing the
+whole depth in 24 frames. Esc leaves, and `videoMode` puts the display back.
+
+It is golden-only, as a demo has to be. Tier 1 went from 902 assertions to 905:
+a golden, a capacity and a round trip. The image is 3,162 bytes, 2,113 of them
+code, and it assembles.
+
+### What a frame costs
+
+A throwaway ran `frame` in the machine (§72) 2,000 times from stars spread
+evenly through the depth, and averaged frames 400 to 1,999. Cycles are the
+machine's 8086 estimate.
+
+```
+                              instructions   cycles    respawns
+speed 2                            14,715    193,776      0.21
+speed 12, the default              15,673    202,519      1.28
+speed 128                          17,197    221,114     13.02
+speed 12, both axes steering       20,530    269,048      6.74
+speed 128, both axes steering      20,910    275,853     14.30
+```
+
+At 4.77 MHz, 202,519 cycles is 42 ms, so a real 8086 would draw on every third
+retrace. DOSBox draws on every one.
+
+**The near plane is almost never what sends a star back.** At the default speed
+no star reached it in 1,600 frames - every one left by an edge first - and at
+128 it happened 38 times. So every star is projected every frame.
+
+**337 divides a frame at the default speed**, derived from those counts rather
+than counted as instructions: 224 `idiv`s for the projection, one `div` for the
+shade of each of the 110.72 stars drawn, and two in `randomBelow` for each of the
+1.28 respawns. At 170 and 150 cycles that is 55,072, or 27% of the frame. The
+two perspective divides are 19% by themselves. `moveStar` averages 1,615 cycles
+a star, so most of a frame is not the divide: it is addressing, since every read
+of `star[i].x` recomputes the index in four instructions.
+
+### The divide it wanted, and the one it has
+
+**The numerator decides the far plane.** `x` is pre-scaled so the quotient lands
+in pixels, which means a star at the screen's edge at the far plane has
+`x = 160 * zFarUnits`, and that has to fit an i16 with room for the steering to
+push it. So the far plane is 192 units, and a `require` does the sum.
+
+**Depth is kept in sixteenths and divided in whole units.** The sixteenths are
+what let a star move slower than a unit a frame. The exact projection is
+`x * 16 / z`, a twenty-bit numerator, and Momo zeroes DX before a divide - so the
+demo shifts the depth right by four before the `idiv` and drops them.
+
+What that costs was measured by a throwaway replaying the demo's arithmetic
+against the exact form, for 4,000 stars at each speed. At speeds that are a
+multiple of 16 nothing differs, because the depth never leaves a whole unit. At
+the others, 21.6% to 38.4% of on-screen star-frames land on a different pixel,
+the worst by 30 pixels, and all of the worst at a depth of 2 to 4 units. At the
+slowest speed the largest single-frame jump is 31 pixels against 5 exact: near
+the viewer a slow star holds still for eight frames and then leaps.
+
+Two ways round it were drafted and measured, in the same harness, against the
+same program. All three carried the shade as `z * 5 >> 10`, described below,
+so they agree with each other rather than with the table above:
+
+```
+                                         cycles a frame
+one idiv an axis, depth truncated          204,983      the demo
+exact, three divides an axis               366,590      +79%
+reciprocal table and mulshr8, inline       254,699      +24%
+the same, in a routine                     284,971      +39%
+```
+
+- **Exact costs three 16-bit divides an axis**: the quotient, the remainder,
+  and the remainder's sixteenths. One `div` yields quotient and remainder
+  together, and Momo asks for them as two expressions, so it pays twice.
+- **The reciprocal loses.** `mulshr8( |x|, 65535 / zi )` is the quotient in 8.8,
+  and a `mul` is 46 cycles cheaper than an `idiv`. But the product overflows past
+  255 pixels, so a second table has to cull first, and the sign has to be taken
+  off and put back - and those re-read the star more times than the saving pays
+  for.
+
+**What this says to §25: the customer's divide is an integer over a fixed value,
+giving an integer**, `i16 / u12.4 -> i16`, where §25 describes `i8.8 / i8.8`.
+Its numerator is the integer shifted left by the fraction width in DX:AX. For a
+fraction of eight bits that is byte moves, sketched by hand and not built:
+
+```nasm
+        mov     cx, ax
+        mov     al, ah
+        cbw
+        mov     dx, ax                      ; DX = x >> 8, signed
+        mov     ah, cl
+        xor     al, al                      ; AX = x << 8
+        idiv    bx
+```
+
+Six instructions and 13 cycles by the documented timings, against `cwd`'s 5, and
+no new mnemonic: DX is live inside one expression and never named, which is the
+shape `mulshr8` already has. The quotient cannot fault while the divisor is at
+least 1.0, which a near plane guarantees. With it the depth here would be u8.8,
+192 units in 49,152, and the sixteenths would stop being a compromise.
+
+### What the steering wanted
+
+A turn moves every star by the same distance on screen whatever its depth, so
+the world moves by that distance times the depth: `x -= ( vel * zi ) >> 2`, with
+`vel` in quarter pixels. That is an `i14.2` times a count, and getting back to
+whole units is §25's runtime cast across scales, which is not built - so it is
+two `sar`s, by hand. It takes the whole-unit depth rather than the sixteenths
+because 16 x 3,072 overflows an i16: it wanted the high half of a multiply.
+
+Steering both axes costs 66,529 cycles a frame at the default speed. 224 `mul`s
+are 27,776 of that; the rest is the loads and stores around them, and five more
+respawns a frame as stars are swept off the edges.
+
+**int 16h reports keystrokes, not keys held**, so a held arrow arrives as a
+press, a half-second pause and then repeats. A push lapses after 38 frames unless
+a repeat renews it, which covers the pause, and after 10 once repeats are
+arriving. Scripted keystrokes at the BIOS defaults showed the velocity climbing
+a quarter pixel a frame to its ceiling, holding through the pause without a dip,
+and easing to zero over sixteen frames starting ten after the last repeat. The
+cost is the tap: one press is a 38-frame push.
+
+### The shade
+
+The shade wanted `z / 192`, the far plane's sixteenth. `z * 5 >> 10` is the
+multiply that stands in for it, and was the first draft. On an 8086 the ten-bit
+shift after it is 48 cycles with the count in CL, so the pair is 172 against
+`div`'s 150: measured, the multiply cost 2,546 cycles a frame more, 204,983
+against 202,437. The demo divides. §25's plan for a constant divisor, a multiply
+by a reciprocal, holds on this machine only where the shift after it is free -
+which means taking DX, which Momo cannot name, or a shift of eight done as byte
+moves.
