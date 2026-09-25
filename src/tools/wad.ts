@@ -2,6 +2,7 @@
 //
 //   npm run wad -- build <manifest> <out.wad>
 //   npm run wad -- list <file.wad> [<file.wad> ...]
+//   npm run wad -- sweep <directory>
 //
 // **The type ids live in `shared/lib/mowad.momo` and nowhere else.** This file
 // compiles that library - load and resolve, the front half of every tool - and
@@ -29,10 +30,11 @@
 // is free-form, and a checker's fixture has to be able to say what the checker
 // must catch; nothing else wants them.
 
-import { readFileSync, writeFileSync } from 'node:fs'
-import { dirname, join, resolve as resolvePath } from 'node:path'
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { basename, dirname, join, relative, resolve as resolvePath } from 'node:path'
 
-import { fail, failWith, sharedRoot } from './cli.js'
+import { asmFor, buildRoot, fail, failWith, sharedRoot } from './cli.js'
+import { runDos } from './dos.js'
 import { load } from '../momo/loader.js'
 import { resolve } from '../momo/resolver.js'
 
@@ -335,8 +337,100 @@ const list = (paths: string[]) => {
   })
 }
 
+// ---- the sweep ----------------------------------------------------------------
+//
+// Every .wad under a directory, run one at a time through the committed
+// `wadinfo` under `/s` in the machine - so the survey is the Momo reader's own
+// verdict, not this file's. One line per WAD, the full output kept beside it,
+// and refusals and crashes surfaced rather than averaged away. This is the run
+// that found HEXEN.WAD past the residency cap and GTA Doom past the raise
+// (DECISIONS §41); it graduated from a throwaway so the next box of old WADs
+// gets the same shakedown for one command.
+//
+// Each WAD is handed to the machine as `SWEPT.WAD`, never by its own name: real
+// collections carry names with spaces, which a DOS command tail would split.
+const sweep = (root: string) => {
+  const wads: string[] = []
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name)
+      if (entry.isDirectory()) walk(path)
+      else if (/\.wad$/i.test(entry.name)) wads.push(path)
+    }
+  }
+  walk(root)
+  wads.sort((a, b) => a.localeCompare(b))
+  if (wads.length === 0) fail(`no .wad files under "${root}"`)
+
+  const assembly = readFileSync(asmFor('wadinfo'), 'utf8')
+  const outDir = join(buildRoot, 'sweep')
+  mkdirSync(outDir, { recursive: true })
+
+  const survey: string[] = []
+  const notable: string[] = []
+  let n = 0
+
+  for (const path of wads) {
+    n += 1
+    const rel = relative(root, path).replace(/\\/g, '/')
+    let line = ''
+    try {
+      const bytes = readFileSync(path)
+      const run = runDos(assembly, { files: new Map([['SWEPT.WAD', bytes]]), args: 'SWEPT.WAD /s' })
+      const lines = run.output.replace(/\r\n/g, '\n').split('\n')
+      writeFileSync(join(outDir, `${String(n).padStart(3, '0')}-${basename(path)}.txt`), run.output, 'latin1')
+
+      const head = lines[0] ?? ''
+      const kind = head.match(/: (\w+), (\d+) lumps/)
+      const refused = lines.find((l) => l.includes('not opened') || l.includes('not a WAD'))
+      if (refused || !kind) {
+        line = `${rel.padEnd(44)} REFUSED: ${(refused ?? head).slice(0, 70)}`
+        notable.push(line)
+      } else {
+        const from = lines.indexOf('findings')
+        const to = lines.indexOf('tally')
+        const serious = lines
+          .slice(from + 1, to < 0 ? undefined : to)
+          .filter((l) => l && l !== 'none' && !l.startsWith('none in full'))
+        const tally = lines.slice(to + 1).filter((l) => l)
+        const sets = (tally.find((l) => l.includes('alias set')) ?? '').match(/(\d+) alias sets? - (\d+) distinct/) ?? []
+        const rep = (tally.find((l) => l.includes('repeated')) ?? '').match(/(\d+) repeated/) ?? []
+        const gaps = (tally.find((l) => l.includes('gap')) ?? '').match(/(\d+) bytes in (\d+) gap/) ?? []
+        line =
+          `${rel.padEnd(44)} ${kind[1].padEnd(4)} ${kind[2].padStart(5)} lumps` +
+          ` ${String(bytes.length).padStart(9)}b` +
+          `  sets:${(sets[1] ?? '0').padStart(4)}  rep:${(rep[1] ?? '0').padStart(4)}` +
+          `  gaps:${(gaps[2] ?? '0').padStart(4)}/${(gaps[1] ?? '0').padStart(7)}b` +
+          `  serious:${String(serious.length).padStart(3)}`
+        for (const s of serious.slice(0, 6)) notable.push(`${rel}: ${s}`)
+        if (serious.length > 6) notable.push(`${rel}: ... and ${serious.length - 6} more`)
+      }
+    } catch (error) {
+      line = `${rel.padEnd(44)} CRASHED: ${String(error instanceof Error ? error.message : error).slice(0, 90)}`
+      notable.push(line)
+    }
+    survey.push(line)
+    process.stdout.write(`\r${n}/${wads.length} ${rel.slice(0, 50).padEnd(52)}`)
+  }
+
+  const report = [
+    `corpus sweep: ${wads.length} wads under ${root}`,
+    '',
+    ...survey,
+    '',
+    `notable (${notable.length}):`,
+    ...notable,
+    '',
+  ].join('\n')
+
+  const out = join(buildRoot, 'SWEEP.TXT')
+  writeFileSync(out, report, 'latin1')
+  console.log(`\ndone: ${out}, per-wad outputs in ${outDir}`)
+}
+
 const [command, ...rest] = process.argv.slice(2)
 
 if (command === 'build' && rest.length === 2) build(rest[0], rest[1])
 else if (command === 'list' && rest.length > 0) list(rest)
-else fail('usage: npm run wad -- build <manifest> <out.wad>, or npm run wad -- list <file.wad> ...')
+else if (command === 'sweep' && rest.length === 1) sweep(rest[0])
+else fail('usage: npm run wad -- build <manifest> <out.wad>, list <file.wad> ..., or sweep <directory>')

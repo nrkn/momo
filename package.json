@@ -17,6 +17,7 @@
     "trace:check": "tsc && node dist/tools/trace.js --check",
     "instr": "tsc && node dist/tools/instr.js",
     "instr:routines": "tsc && node dist/tools/instr.js --routines",
+    "expect": "tsc && node dist/tools/expect.js",
     "test": "tsc && node dist/tools/test.js",
     "test:e2e": "tsc && node dist/tools/e2e.js",
     "momoc:all": "tsc && node dist/tools/momoc.js --all",

@@ -188,6 +188,8 @@ npm start <project> [args]    # assemble and run, with a DOS command tail
 npm run image                 # build/ -> build/momo-N.ima floppies, a directory per project, for 86Box
 npm run wad -- build <manifest> <out.wad>  # a WAD from a manifest, typed by mowad.momo (§41)
 npm run wad -- list <file.wad> ...        # what a WAD chain holds, and where each type came from
+npm run wad -- sweep <directory>          # every WAD under a directory through wadinfo /s in the machine
+npm run expect -- <project> ...           # rewrite .expected from the committed .asm's machine run - read the diff
 
 npm run lex -- <project>      # token dump
 npm run lex:nl -- <project>   # statement terminators only
