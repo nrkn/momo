@@ -5485,3 +5485,153 @@ against 202,437. The demo divides. §25's plan for a constant divisor, a multipl
 by a reciprocal, holds on this machine only where the shift after it is free -
 which means taking DX, which Momo cannot name, or a shift of eight done as byte
 moves.
+## 78. `flatpic`
+
+### What was built
+
+Built 2026-09-25: `flatpic`, a flat browser over a WAD chain, and the first
+program here to decode a lump nobody here wrote. It takes one or more WADs from
+the command tail and opens them as `wadinfo` does, loads `PLAYPAL` into the
+DAC, and tiles one flat at a time over the mode 13h frame - five across, three
+and an eighth down - with its name and its place in the set written in the
+corner through the BIOS teletype. Left and Right step, PgUp and PgDn step ten,
+all four wrap, and Esc puts the mode back.
+
+Four decisions the brief left open:
+
+- **The set is every file's span, in load order.** Vanilla DOOM takes the last
+  `F_START` and the last `F_END` in the chain, which is why a patch of flats had
+  to carry the whole set; walking each file on its own lets a patch's flats
+  join the base's. `FF_START` and `FF_END` count as markers, because that is
+  what a patch writes.
+- **A flat is in the set only if `wadLump` on its own name finds it.** A later
+  lump of the name - a patch's flat, or anything else - is what the chain means
+  by it, so load order stays the whole policy, and the replacement shows in its
+  own file's place.
+- **No PLAYPAL is a gray ramp and exit 0**, said on the screen and again once
+  the mode is back. A PWAD of flats alone is a fair thing to look at, so a
+  nonzero exit is kept for a run that shows nothing: no arguments, a file that
+  will not open, a fifth file, no flats, or more than `flatMax` - each refused
+  in text mode before the screen changes. A PLAYPAL under 768 bytes is gray too.
+- **The label is written in the brightest entry**, by r+g+b, because the BIOS
+  paints a character's background in entry 0, which DOOM keeps black.
+
+### The fixture
+
+`FLATS.WAD` and `FLATPAT.WAD`, built by the host writer from manifests beside
+them, from payloads a throwaway generated; each payload's formula is written in
+its manifest. The IWAD holds a 1,536-byte PLAYPAL - two palettes, a warm ramp
+then pure red, so a reader taking more than the first would show it - a
+4,096-byte lump outside the span, three flats inside it under DOOM's nested
+`F1_` and `F2_` markers, and a 10-byte lump in the span that is not a flat. The
+PWAD is one flat, `GRAD` again, as stripes between `FF_` markers: loaded after
+the IWAD it replaces the base's `GRAD`, and alone it is the gray case.
+
+### Verification, and how far it reached
+
+`npm test` holds the golden `.asm` and nothing more, because the program blocks
+on a key. Beyond it, a throwaway drove the committed assembly in `machine.ts`
+under a DOS and BIOS of its own - the file calls, int 10h's mode, cursor, DAC
+and teletype, and a scripted int 16h - and compared every frame drawn, all
+64,000 bytes, with a tiling computed from the manifest formulas; the DAC with
+`dac8` of the palette; and the corner text. The base, the chain, the patch
+alone and five refusals all matched. The first frame is `CHECKER`, so its top
+row reads 32 eight times, then 224 eight times, repeating from x = 64. More
+than `flatMax` flats is refused by code no fixture reaches.
+
+Teeth, each a one-line mutation of a scratch copy, compiled and run through the
+same harness: `setDac` without `dac8` fails the DAC at entry 1, `[1,0,0]`; one
+of the five views writing 0 fails every frame at x = 192; the shadow check
+removed lists four flats in the chain, `1/4`; the size check cut to the high
+word lists markers, `F1_START 1/8`; PgUp stepping forward lands on `GRAD 2/3`;
+and `FF_START` unrecognised drops the patch's flat, `1/2`.
+
+**What has not run.** flatpic has not run in DOSBox or on hardware: NASM
+assembled it through `npm run build`, and nothing has pressed a key at it, so
+the teletype in mode 13h and its background in entry 0 are the BIOS as
+documented rather than as seen. And it has not read a real IWAD: the stand-in
+below has DOOM2.WAD's shape and made-up names.
+
+### Measured
+
+```
+            code   data   image   heap reached by views   unclaimed
+flatpic     5715   1391    7106   54016                   3880
+```
+
+On the fixture, startup to the mode set is 12,837 instructions, and a redraw is
+273,679 instructions and 2,749,738 cycles by the machine's 8086 estimate.
+
+**The first copy out to far memory**, the per-byte cost DESIGN §41 left
+unmeasured: 43 cycles a byte, for 64,000 bytes a frame. The first version was
+one loop of word stores with the flat's column masked, at 6,262,538 cycles a
+redraw; two loops a tile took 5,570,538; one load written five times at
+`off + 32` and on took 3,287,338, because each index went through a push; and
+five views of the frame a tile apart took 2,749,738, because a view's offset is
+a displacement in the address, `[es:bx + 64]`.
+
+**A stand-in of DOOM2.WAD's shape**, built by a throwaway: 2,919 lumps, PLAYPAL
+first, and 147 flats last, inside `F_START` and `F1_START` and closed by
+`F1_END` and `F_END`. Startup took 21,945,525 cycles, split by quitting a
+scratch copy after each step:
+
+```
+open, 2,919 names         11,244,904   93 reads, 2 seeks
+PLAYPAL found and read     1,257,543   wadLump scans every name to reach lump 0
+the span walk              2,225,084   149 sizes: 298 seeks, 149 reads
+147 shadow checks          7,217,994   one wadLump each
+```
+
+The walk first compared four marker names against every lump in the file and
+cost 4,554,057 cycles more; a test of the first byte, since every marker starts
+`F`, turns most lumps away. None of the DOS calls cost anything here - the
+machine charges an `int` as one instruction - so the disk's share is still only
+the count.
+
+### What decoding a foreign payload took
+
+**Every shape here is a convention, and flatpic carries each as a constant or a
+rule**: 768 bytes of full-range RGB at the front of PLAYPAL; 4,096 bytes as 64
+rows of 64 indices; a flat's kind as its position between two names, with the
+lumps of no bytes inside as markers. None is checked against the bytes, and
+none can be. That is what the schema study would describe once, and more than a
+TYPES row can say. A row could call PLAYPAL a `palette`, but `wadTypePalette`
+names a kind and not a layout: `wadtrip`'s palettes are six-bit and one deep,
+DOOM's are eight-bit and fourteen deep, so the row would be right and the
+reader would still have to know which side of `dac8` the data was on. A flat
+has no type at all. Its type is its position, the option §41 turned down for
+its own lumps because a patch replacing one sprite loses the markers - and here
+the reader pays for that instead, by walking each file's span and knowing the
+`FF_` spelling.
+
+**The typed read was no use, and `wadStart` was.** Nothing types PLAYPAL in a
+real IWAD, so `wadStartAs( lump, wadTypePalette )` would stop the run on the
+first palette it was handed.
+
+**The palette crossing is one line**, `setDac( u8( i ), dac8( r ), dac8( g ),
+dac8( b ) )`, and the decision in it - which convention the data carries - is
+one no header records for a foreign lump. The gray ramp is written as eight-bit
+data and takes the same road, so there is one path into the DAC.
+
+**Walking a span needed nothing the library lacks.** A lump is an index in every
+mowad call, `wadFileBase` and `wadFileLumps` give each file's run, and the names
+are resident, so a `wadLumpAt( index )` would have changed nothing: the index
+already is the handle. Three things were worked around rather than missing:
+
+- **A name compared with an index entry.** `wadSameName` and `wadIsKey` are
+  local, so flatpic has its own `nameIs`, twelve lines.
+- **A lookup inside one file.** `wadLump` finds the last lump in the chain and
+  markers belong to files, so the markers are found by walking.
+- **Whether the chain still means a lump.** `wadLump( wadName( i ) ) != i` is
+  right by construction and a scan from the end, a third of startup at DOOM2
+  scale. That is the names-only, unsorted index showing through: every question
+  by name is linear, and a winner bit set at open would need the sort that
+  index was chosen to do without.
+
+One cost the surface makes per lump: a size is a directory entry read back, two
+seeks and a read, so DOOM2's 149 lumps inside the span are 447 DOS calls, where
+two seeks and five reads of 512 bytes through the file API would fetch the same
+entries. flatpic stayed on the library. A batched entry read is the shape the
+library would want if a second reader of spans arrives.
+
+Tier 1 went from 902 assertions to 905: a golden, a capacity and a round trip.

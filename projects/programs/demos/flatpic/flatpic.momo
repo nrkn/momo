@@ -1,0 +1,522 @@
+// flatpic.momo - the flats of a WAD chain, tiled over a mode 13h screen.
+//
+//   flatpic DOOM.WAD
+//   flatpic BASE.WAD PATCH.WAD
+//   npm start flatpic FLATS.WAD
+//
+// Left and Right page through the flats and PgUp and PgDn by ten, all four
+// wrapping; Esc puts the screen back and leaves. The corner says which flat and
+// where it sits in the set.
+//
+// **Everything it reads is foreign.** PLAYPAL and the flats carry no header of
+// ours and no row speaks for them, so their shapes are known here by convention
+// alone - DECISIONS §78 has what that took. PLAYPAL is 768 bytes of RGB
+// triples, full-range, then thirteen more palettes this reads past. A flat is
+// 4096 bytes, 64 rows of 64 palette indices, and it is a flat because of where
+// it sits: between `F_START` and `F_END` in its own file.
+//
+// **The set is every file's span, in load order, and the chain decides names.**
+// Each file is walked on its own, so a patch's flats join the base's rather than
+// replacing the whole set. Inside a span a lump of no bytes is a marker - DOOM
+// nests `F1_START` and the rest inside - and anything else not of 4096 bytes is
+// skipped. `FF_START` and `FF_END` open and close a span too, because that is
+// what a patch writes so as not to disturb the base's markers. A flat whose name
+// a later lump carries is not the one the chain means by it, so it is left out
+// and the later one shows in its own place.
+//
+// **A chain with no PLAYPAL is shown in a gray ramp**, said on the screen and
+// again on the way out, and the run still exits 0: a PWAD of flats alone is a
+// fair thing to look at. A chain with no flats is refused before the screen
+// changes, with exit code 1, as is a file that will not open.
+//
+// A demo rather than a test: it waits for a key, so it has no `.expected`. The
+// fixture is FLATS.WAD and FLATPAT.WAD, built by the host writer from the
+// manifests in `fixture/`, with the command at the top of each.
+
+include "lib/std/io.momo"
+include "lib/std/key.momo"
+include "lib/std/mode.momo"
+include "lib/mowad.momo"
+
+// Mode 13h as words, because a flat's row is 32 of them and the tile is copied
+// two pixels at a time. A constant segment, for the reason `tigerpic` gives.
+far u16[32000] frame = 0xA000
+
+const frameW = 320
+const frameH = 200
+
+const flatSide  = 64
+const flatBytes = flatSide * flatSide
+const palBytes  = 768
+
+const frameRowWords = frameW / 2
+const flatRowWords  = flatSide / 2
+
+require frameW == 5 * flatSide
+
+// The second to fifth tiles across, each a view of the frame one tile further
+// on. A view's offset is a displacement in the address, so a word read from the
+// flat once is written five times with nothing recomputed between.
+view u16[] frame1 = frame[ flatRowWords ]
+view u16[] frame2 = frame[ flatRowWords * 2 ]
+view u16[] frame3 = frame[ flatRowWords * 3 ]
+view u16[] frame4 = frame[ flatRowWords * 4 ]
+
+// Room for the flats of a chain of several IWADs.
+const flatMax = 1024
+
+// §17 partitioning, above mowad's arena: the flat on screen, the palette as it
+// was read, and the lump index of every flat in the set.
+view u16[flatBytes / 2] flatWords = _heap[wadHeap]
+view u8[palBytes]       palette   = _heap[wadHeap + flatBytes]
+view u16[flatMax]       flats     = _heap[wadHeap + flatBytes + palBytes]
+
+u16 flatCount = 0
+
+const u8[] nPlaypal = "PLAYPAL\0"
+const u8[] nFStart  = "F_START\0"
+const u8[] nFEnd    = "F_END\0"
+const u8[] nFFStart = "FF_START"
+const u8[] nFFEnd   = "FF_END\0"
+
+const u8[] sTool     = "flatpic: $"
+const u8[] sUsage    = "usage: flatpic FILE.WAD [PATCH.WAD ...]$"
+const u8[] sUsage2   = "  a later file overrides an earlier one$"
+const u8[] sUsage3   = "  Left and Right page, PgUp and PgDn by ten, Esc leaves$"
+const u8[] sRefused  = ": not opened - $"
+const u8[] sNoFlats  = "no flats - nothing of 4096 bytes between F_START and F_END$"
+const u8[] sTooMany  = "more flats than it holds, which is $"
+const u8[] sNoPal    = "no PLAYPAL$"
+const u8[] sShortPal = "PLAYPAL under 768 bytes$"
+const u8[] sGrayHere = " - gray ramp$"
+const u8[] sGrayExit = ", so the flats were shown in a gray ramp$"
+
+sub quit( u8 code ) {
+  _ah = 0x4C
+  _al = code
+  int 0x21
+}
+
+// ---- the command tail ----
+//
+// Words separated by spaces, each a path, as `wadinfo` reads them. A word
+// starting `/` asks for the usage, since there are no switches to give.
+
+const pathRoom = 80
+
+u8[wadMaxFiles * pathRoom] paths
+u16 pathCount = 0
+
+a16 pathOf( u16 f ) => addr( paths ) + f * pathRoom
+
+sub putPath( u16 f ) {
+  for ( a16 at = pathOf( f ); peek8( at ) != 0; at++ ) {
+    putChar( peek8( at ) )
+  }
+}
+
+sub putUsage {
+  putStr( addr( sUsage ) )
+  newline()
+  putStr( addr( sUsage2 ) )
+  newline()
+  putStr( addr( sUsage3 ) )
+  newline()
+}
+
+sub takeTail {
+  u16 n
+  a16 at
+  u16 w
+  u16 keep
+  a16 to
+
+  n = peek8( 0x80 )
+  at = 0x81
+
+  while ( n > 0 ) {
+    while ( n > 0 && peek8( at ) == ' ' ) {
+      at++
+      n--
+    }
+
+    if ( n == 0 || peek8( at ) == 13 ) return
+
+    w = 0
+    while ( w < n && peek8( at + w ) != ' ' && peek8( at + w ) != 13 ) {
+      w++
+    }
+
+    if ( peek8( at ) == '/' ) {
+      putUsage()
+      quit( 1 )
+    }
+
+    // One path more than the chain holds is refused as mowad would refuse it,
+    // rather than dropped.
+    if ( pathCount == wadMaxFiles ) {
+      putStr( addr( sTool ) )
+      for ( u16 k = 0; k < w; k++ ) {
+        putChar( peek8( at + k ) )
+      }
+      putStr( addr( sRefused ) )
+      putStr( addr( wadSaysChain ) )
+      newline()
+      quit( 1 )
+    }
+
+    to = pathOf( pathCount )
+    keep = w < pathRoom - 1 ? w : pathRoom - 1
+
+    for ( u16 k = 0; k < keep; k++ ) {
+      poke8( to + k, peek8( at + k ) )
+    }
+
+    poke8( to + keep, 0 )
+    pathCount++
+
+    at += w
+    n -= w
+  }
+}
+
+// ---- the palette ----
+
+// Why the screen is gray, as a `$` string, or 0 when PLAYPAL was read.
+a16 grayWhy = 0
+
+// Read before the mode is set, so a refusal would still be in text mode; loaded
+// into the DAC after, because setting a mode resets it.
+sub readPalette {
+  u16 lump
+
+  lump = wadLump( addr( nPlaypal ) )
+
+  if ( lump == wadNone ) {
+    grayWhy = addr( sNoPal )
+    return
+  }
+
+  if ( wadSizeHigh( lump ) == 0 && wadSizeLow( lump ) < palBytes ) {
+    grayWhy = addr( sShortPal )
+    return
+  }
+
+  // Untyped, because nothing types it: in a real IWAD there is no manifest, so
+  // the typed read would stop the run on the first palette it was handed.
+  wadStart( lump )
+  if ( wadNext( addr( palette ), palBytes ) != palBytes ) grayWhy = addr( sShortPal )
+}
+
+// The colour the label is written in: the brightest entry, since the BIOS
+// writes a character's background as entry 0, which DOOM keeps black.
+u8 ink = 0
+
+// **PLAYPAL is full-range, so every entry goes through `dac8`** - mode.momo's
+// named convention for data authored as eight bits, where six-bit data would
+// go to `setDac` as it is. The gray ramp is written as eight-bit data too, so
+// it takes the same road.
+sub loadPalette {
+  u8  r
+  u8  g
+  u8  b
+  u16 sum
+  u16 best
+
+  best = 0
+
+  for ( u16 i = 0; i < 256; i++ ) {
+    if ( grayWhy != 0 ) {
+      r = u8( i )
+      g = r
+      b = r
+    } else {
+      r = palette[ i * 3 ]
+      g = palette[ i * 3 + 1 ]
+      b = palette[ i * 3 + 2 ]
+    }
+
+    setDac( u8( i ), dac8( r ), dac8( g ), dac8( b ) )
+
+    sum = u16( r ) + u16( g ) + u16( b )
+    if ( sum > best ) {
+      best = sum
+      ink = u8( i )
+    }
+  }
+}
+
+// ---- the set ----
+
+// Up to eight characters, to the first nul, against an index name.
+bool nameIs( u16 lump, a16 want ) {
+  a16 at
+  u8  ch
+
+  at = wadName( lump )
+
+  for ( u16 k = 0; k < wadNameBytes; k++ ) {
+    ch = peek8( want + k )
+    if ( ch != peek8( at + k ) ) return false
+    if ( ch == 0 ) return true
+  }
+
+  return true
+}
+
+const markNone  = 0
+const markStart = 1
+const markEnd   = 2
+
+// Whether a lump opens a span, closes one, or neither. Every marker read here
+// starts `F`, so one byte turns most lumps away before a name is compared.
+u8 marker( u16 lump ) {
+  if ( peek8( wadName( lump ) ) != 'F' ) return markNone
+  if ( nameIs( lump, addr( nFStart ) ) || nameIs( lump, addr( nFFStart ) ) ) return markStart
+  if ( nameIs( lump, addr( nFEnd ) ) || nameIs( lump, addr( nFFEnd ) ) ) return markEnd
+  return markNone
+}
+
+// **Each file's spans, walked by index.** The names are resident, so finding
+// the markers reads no disk; a size is a directory entry read back, two seeks
+// and a read, so only a lump inside a span is asked for one. `wadLump` on a
+// flat's own name says whether the chain still means it.
+sub findFlats {
+  u16  first
+  u16  end
+  u8   mark
+  bool inside
+
+  for ( u16 f = 0; f < wadFiles(); f++ ) {
+    first = wadFileBase( f )
+    end = first + wadFileLumps( f )
+    inside = false
+
+    for ( u16 i = first; i < end; i++ ) {
+      mark = marker( i )
+
+      if ( mark != markNone ) {
+        inside = mark == markStart
+        continue
+      }
+
+      if ( !inside ) continue
+      if ( wadSizeHigh( i ) != 0 || wadSizeLow( i ) != flatBytes ) continue
+      if ( wadLump( wadName( i ) ) != i ) continue
+
+      if ( flatCount == flatMax ) {
+        putStr( addr( sTool ) )
+        putStr( addr( sTooMany ) )
+        putNumber( flatMax )
+        newline()
+        quit( 1 )
+      }
+
+      flats[ flatCount ] = i
+      flatCount++
+    }
+  }
+}
+
+// ---- the screen ----
+
+// The flat across the whole frame: five tiles across, and three and an eighth
+// down. `off` walks the first tile's words and the views write the other four.
+sub drawFlat {
+  u16 off
+  u16 row
+  u16 w
+
+  off = 0
+
+  for ( u16 y = 0; y < frameH; y++ ) {
+    row = ( y & ( flatSide - 1 ) ) * flatRowWords
+
+    for ( u16 x = 0; x < flatRowWords; x++ ) {
+      w = flatWords[ row + x ]
+      frame[ off ] = w
+      frame1[ off ] = w
+      frame2[ off ] = w
+      frame3[ off ] = w
+      frame4[ off ] = w
+      off++
+    }
+
+    off += frameRowWords - flatRowWords
+  }
+}
+
+// The BIOS teletype, which mode 13h has with the ROM font: a row and column
+// of forty by twenty-five, and a character in `ink` on entry 0.
+sub ttyAt( u8 row, u8 col ) {
+  _ah = 0x02
+  _bh = 0
+  _dh = row
+  _dl = col
+  int 0x10
+}
+
+sub ttyChar( u8 ch ) {
+  _ah = 0x0E
+  _al = ch
+  _bh = 0
+  _bl = ink
+  int 0x10
+}
+
+sub ttyStr( a16 at ) {
+  for ( ; peek8( at ) != '$'; at++ ) {
+    ttyChar( peek8( at ) )
+  }
+}
+
+sub ttyNumber( u16 n ) {
+  u8[5] digits
+  u8 i
+
+  i = 0
+  for ( ;; ) {
+    digits[i] = u8( n % 10 ) + '0'
+    i++
+    n /= 10
+    if ( n == 0 ) break
+  }
+
+  for ( ; i > 0; i-- ) {
+    ttyChar( digits[ i - 1 ] )
+  }
+}
+
+// ` NAME      3/54 `, the name padded to eight so the count stays put.
+sub label( u16 n ) {
+  a16  at
+  u8   ch
+  bool ended
+
+  ttyAt( 0, 0 )
+  ttyChar( ' ' )
+
+  at = wadName( flats[n] )
+  ended = false
+
+  for ( u16 k = 0; k < wadNameBytes; k++ ) {
+    ch = peek8( at + k )
+    if ( ch == 0 ) ended = true
+    if ( ended ) ch = ' '
+    ttyChar( ch >= 32 && ch < 127 ? ch : '?' )
+  }
+
+  ttyChar( ' ' )
+  ttyChar( ' ' )
+  ttyNumber( n + 1 )
+  ttyChar( '/' )
+  ttyNumber( flatCount )
+  ttyChar( ' ' )
+
+  if ( grayWhy != 0 ) {
+    ttyAt( 1, 0 )
+    ttyChar( ' ' )
+    ttyStr( grayWhy )
+    ttyStr( addr( sGrayHere ) )
+    ttyChar( ' ' )
+  }
+}
+
+// A lump that stops short of its size leaves the rest of the flat black rather
+// than showing the one before it.
+sub showFlat( u16 n ) {
+  u16 got
+
+  wadStart( flats[n] )
+  got = wadNext( addr( flatWords ), flatBytes )
+
+  for ( ; got < flatBytes; got++ ) {
+    poke8( addr( flatWords ) + got, 0 )
+  }
+
+  drawFlat()
+  label( n )
+}
+
+// `readKey` is AH=00h, which hands the grey arrows back with AL=0 as it does
+// the keypad's; AL=0E0h is what AH=10h reports for them, taken too so the
+// test does not depend on which call a BIOS was asked.
+sub browse {
+  u16 key
+  u16 cur
+  u16 shown
+  u8  ch
+  u8  scan
+
+  cur = 0
+  shown = wadNone
+
+  for ( ;; ) {
+    if ( cur != shown ) {
+      showFlat( cur )
+      shown = cur
+    }
+
+    key = readKey()
+    ch = u8( key & 0xFF )
+    scan = u8( key >> 8 )
+
+    if ( ch == keyEsc ) return
+    if ( ch != 0 && ch != 0xE0 ) continue
+
+    if ( scan == keyRight ) {
+      cur = cur + 1 == flatCount ? 0 : cur + 1
+    } else if ( scan == keyLeft ) {
+      cur = cur == 0 ? flatCount - 1 : cur - 1
+    } else if ( scan == keyPgDn ) {
+      cur = ( cur + 10 ) % flatCount
+    } else if ( scan == keyPgUp ) {
+      cur = ( cur + flatCount - 10 % flatCount ) % flatCount
+    }
+  }
+}
+
+// ---- the run ----
+
+takeTail()
+
+if ( pathCount == 0 ) {
+  putUsage()
+  quit( 1 )
+}
+
+for ( u16 f = 0; f < pathCount; f++ ) {
+  if ( !wadOpen( pathOf( f ) ) ) {
+    putStr( addr( sTool ) )
+    putPath( f )
+    putStr( addr( sRefused ) )
+    putStr( wadWhy() )
+    newline()
+    quit( 1 )
+  }
+}
+
+readPalette()
+findFlats()
+
+if ( flatCount == 0 ) {
+  putStr( addr( sTool ) )
+  putStr( addr( sNoFlats ) )
+  newline()
+  quit( 1 )
+}
+
+videoMode {
+  setMode( modeGfx256 )
+  loadPalette()
+  browse()
+}
+
+wadClose()
+
+if ( grayWhy != 0 ) {
+  putStr( addr( sTool ) )
+  putStr( grayWhy )
+  putStr( addr( sGrayExit ) )
+  newline()
+}

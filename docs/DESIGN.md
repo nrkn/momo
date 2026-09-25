@@ -8583,13 +8583,12 @@ count, directory, size and manifest.
 ### Where the bytes go
 
 §38's constraint applies in full: DOS reads into the program's own segment, so a
-lump lands in memory the program names - a view of `_heap` (§17) in both
-programs here - and is copied out to `far` memory if it is bound for somewhere
-larger. **Nothing copies one out yet**, so that per-byte cost is still unmeasured,
-and it is the measurement to take when the first consumer does.
+lump lands in memory the program names - a view of `_heap` (§17) in every
+program here - and is copied out to `far` memory if it is bound for somewhere
+larger. **`flatpic` is the first to copy one out**, a DOOM flat to the mode 13h
+frame, tiled; DECISIONS §78 has what a byte of that costs.
 
-`wadinfo` is the one program here that reaches past the segment, and not for
-lumps: its checks sort a table of every lump's position and size, and that table
+`wadinfo` reaches past the segment too, and not for lumps: its checks sort a table of every lump's position and size, and that table
 beside the index would not fit the heap, so it lives in the block DOS gave the
 program (§47). A machine with no room there gets the listing and is told the
 checks were skipped.

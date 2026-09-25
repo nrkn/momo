@@ -92,6 +92,7 @@ text for.
 | 75 | Ranged units | [section](DESIGN.md#75-ranged-units) |  | [section](DECISIONS.md#75-ranged-units) |
 | 76 | Table comprehensions | [section](DESIGN.md#76-table-comprehensions) |  | [section](DECISIONS.md#76-table-comprehensions) |
 | 77 | starfld |  |  | [section](DECISIONS.md#77-starfld) |
+| 78 | `flatpic` |  |  | [section](DECISIONS.md#78-flatpic) |
 
 ## Unnumbered headings
 
