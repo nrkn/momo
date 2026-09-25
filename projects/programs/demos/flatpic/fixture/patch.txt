@@ -1,0 +1,14 @@
+# FLATPAT.WAD - a PWAD of one flat and no palette, loaded after FLATS.WAD or
+# alone.
+#
+#   npm run wad -- build projects/programs/demos/flatpic/fixture/patch.txt projects/programs/demos/flatpic/FLATPAT.WAD
+#
+# After FLATS.WAD its GRAD is the one the chain means, so the base's drops out
+# of the set and this one takes its place at the end. Alone it is flats with no
+# PLAYPAL, which is shown in a gray ramp. The markers are FF_, the spelling a
+# patch uses so as not to disturb the base's F_START.
+
+# Vertical stripes: (x>>3)*32 + 16.
+entry FF_START 0 0
+foreign GRAD stripes.lmp
+entry FF_END 0 0

@@ -1,0 +1,40 @@
+# FLATS.WAD - a DOOM-shaped IWAD in miniature: a PLAYPAL, and flats between
+# F_START and F_END, nested the way DOOM nests them.
+#
+#   npm run wad -- build projects/programs/demos/flatpic/fixture/flats.txt projects/programs/demos/flatpic/FLATS.WAD
+#
+# Every lump is foreign, as every lump in a real IWAD is. The payloads are
+# generated, and the formula for each is beside it; x and y run 0-63 across a
+# flat, and a flat is its 64 rows in order.
+
+iwad
+
+# Two palettes of 768 bytes, as DOOM's fourteen are, so a reader taking more
+# than the first shows it. The first is a warm ramp, entry i = (i, 3i/4, i/2),
+# full-range; the second is pure red throughout.
+foreign PLAYPAL playpal.lmp
+
+# 4096 bytes and outside the span, so it is not a flat.
+foreign OUTSIDE checker.lmp
+
+entry F_START 0 0
+entry F1_START 0 0
+
+# Eight-pixel squares of 32 and 224: ((x>>3) ^ (y>>3)) & 1 ? 224 : 32.
+foreign CHECKER checker.lmp
+
+# Rows of four shades: y*4 + (x>>4). Asymmetric, so a tile drawn at the wrong
+# phase shows.
+foreign GRAD grad.lmp
+
+entry F1_END 0 0
+entry F2_START 0 0
+
+# Inside the span and not 4096 bytes, so it is skipped.
+foreign NOTFLAT notflat.txt
+
+# Rings about the middle: ((x-32)^2 + (y-32)^2) >> 3, low byte.
+foreign RINGS rings.lmp
+
+entry F2_END 0 0
+entry F_END 0 0
