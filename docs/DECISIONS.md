@@ -5485,6 +5485,15 @@ against 202,437. The demo divides. §25's plan for a constant divisor, a multipl
 by a reciprocal, holds on this machine only where the shift after it is free -
 which means taking DX, which Momo cannot name, or a shift of eight done as byte
 moves.
+
+**On real hardware** (2026-09-25, a 6 MHz 286 under 86Box): the demo runs and
+steers, a shade less smooth than under DOSBox - which is the frame measurement
+showing up on iron. The measured 202,519-cycle frame is three retraces on a
+4.77 MHz 8086, and on a 6 MHz 286 it sits close enough to the 85,714-cycle
+single-retrace budget that some frames must miss it; DOSBox at cycles=max
+misses none. Estimated rather than measured past the 8086 figure, since the
+cycle tables are the 8086's - PLAN §42's executor is what would say it exactly.
+
 ## 78. `flatpic`
 
 ### What was built
@@ -5636,6 +5645,10 @@ library would want if a second reader of spans arrives.
 
 Tier 1 went from 902 assertions to 905: a golden, a capacity and a round trip.
 
+**On real hardware** (2026-09-25, the same 286): ran against its fixture WAD;
+a real IWAD waits until one is copied onto the machine, so the id-art path is
+still DOSBox-only.
+
 ## 79. `charlstn`
 
 *2026-09-25*
@@ -5699,6 +5712,10 @@ dotted-eighth pickup inside bar 20, which is where the sheet puts its words.
 The note table is a ranged unit (§75): every pitch constant in the 140-row song
 table proves at compile time that it names a row of the divisor table, and the
 rest is row zero, whose divisor is never sent.
+
+**On real hardware** (2026-09-25, the same 286): by ear, indistinguishable
+from DOSBox - tempo held, no stumble. The retrace clock is the same 70 Hz
+wherever VGA is VGA, which was the bet the pacing made.
 
 ## 80. The floppy images grow directories
 
