@@ -1,0 +1,297 @@
+// charlstn - The Original Charleston, on the PC speaker.
+//
+// Words and music by Cecil Mack and Jimmy Johnson, published by Harms, Inc.,
+// New York, 1923, plate 6870-4 - public domain in the United States. The
+// refrain below was transcribed from a scan of the 1923 sheet music, bar by
+// bar, and every bar's durations were checked against the cut-time signature
+// before any of it was trusted to a speaker.
+//
+// The first sound in the repository, and a study in what making it costs:
+//
+// - **The tone is PIT channel 2** (DESIGN §22's ports). Mode 3 square wave,
+//   divisor = 1,193,182 / frequency, gate and speaker bits on port 61h. The
+//   divisor table below rounds to the nearest count, which lands every note
+//   within half a cent - the speaker's one-bit cone is off-key by more.
+// - **The clock is the vertical retrace, not the BIOS tick.** A sixteenth
+//   note here is five frames at 70 Hz, 71 ms. On the 18.2 Hz tick the same
+//   sixteenth would be one tick (55 ms) or two (110 ms) - a quantisation the
+//   ear reads as a stumble, not a tempo. Polling retrace costs the whole CPU,
+//   which is this program's luxury and a real player's problem: the honest
+//   fix is counting a reprogrammed timer interrupt, which is PLAN §24.
+// - **Articulation is one silent frame** at the tail of every note. Without
+//   it, the refrain's repeated-note bars ("Charles-ton!", twice on one pitch)
+//   slur into a single long tone.
+//
+// Space pauses, + and - move the tempo, Esc leaves with the speaker off.
+
+include "lib/std/io.momo"
+include "lib/std/key.momo"
+include "lib/std/math.momo"
+
+// ---- pitch ------------------------------------------------------------------
+
+// One tone is one row of `toneDiv`, and the range makes every constant in the
+// song table prove it names a row (§75). Row 0 is the rest, and its divisor is
+// never sent - the gate stays closed instead.
+unit tone = u8 < 12
+
+const tone tR   = 0
+const tone tD4  = 1
+const tone tEb4 = 2
+const tone tE4  = 3
+const tone tF4  = 4
+const tone tFs4 = 5
+const tone tG4  = 6
+const tone tA4  = 7
+const tone tBb4 = 8
+const tone tC5  = 9
+const tone tCs5 = 10
+const tone tD5  = 11
+
+// 1,193,182 / frequency, equal temperament from A4 = 440 Hz. The comment is
+// the frequency the divisor approximates.
+const u16[12] toneDiv = [
+  0,      // rest - never sent
+  4063,   // D4   293.66 Hz
+  3835,   // Eb4  311.13
+  3620,   // E4   329.63
+  3417,   // F4   349.23
+  3225,   // F#4  369.99 (also the refrain's one Gb4, same pipe)
+  3044,   // G4   392.00
+  2712,   // A4   440.00
+  2560,   // Bb4  466.16
+  2280,   // C5   523.25
+  2152,   // C#5  554.37
+  2032,   // D5   587.33
+]
+
+// ---- the refrain ------------------------------------------------------------
+
+// Durations are sixteenths of the engraved cut time: a quarter is 4, a dotted
+// eighth 3, a half 8, the closing whole note 16. Ties are merged, so the
+// engraving's "eighth tied to a half" is one row of 10. Each bar's rows sum to
+// 16, and the last pair carries bar 31 plus the ending's 32.
+unit span = u8 <= 18
+
+const songRows = 140
+
+const tone[140] songTone = [
+  tF4, tR, tF4,                                // 1   Charles-ton!
+  tFs4, tR, tFs4,                              // 2   Charles-ton!
+  tG4, tR, tG4, tG4, tFs4, tG4,                // 3   Made in Car-o-lin-
+  tD5, tR, tG4,                                // 4   a,
+  tG4, tR, tD5,                                // 5   Some dance,
+  tG4, tR, tD5,                                // 6   Some prance,
+  tG4, tR, tBb4,                               // 7   I'll say,
+  tA4, tC5, tA4, tG4, tG4, tA4, tG4, tFs4,     // 8   There's noth-ing fin-er than the (Gb)
+  tF4, tR, tF4,                                // 9   Charles-ton,
+  tFs4, tR, tFs4,                              // 10  Charles-ton,
+  tG4, tR, tG4, tG4, tFs4, tG4,                // 11  Lord how you can
+  tD5, tR, tD5,                                // 12  shuf-fle,
+  tR, tA4, tA4, tA4, tA4, tG4, tF4,            // 13  Ev-'ry step you do,
+  tR, tG4, tG4, tG4, tG4, tF4, tE4,            // 14  Leads to some-thing new, (E natural)
+  tR, tA4, tA4, tA4, tA4, tG4, tFs4,           // 15  Man I'm tell-ing you,
+  tR, tA4, tA4, tA4, tA4, tG4, tF4,            // 16  It's a la-pa-zoo, (F natural)
+  tF4, tR, tF4,                                // 17  Buck dance,
+  tFs4, tR, tFs4,                              // 18  Wing dance,
+  tG4, tR, tG4, tG4, tFs4, tG4,                // 19  Will be a back
+  tD5, tR, tG4, tG4, tR, tG4, tG4,             // 20  num-ber, But the
+  tG4, tR, tD5, tD5, tCs5, tD5,                // 21  Charles-ton, the new
+  tG4, tR, tD5,                                // 22  Charles-ton
+  tG4, tR, tBb4, tBb4,                         // 23  That dance is
+  tA4, tC5, tA4, tG4, tF4,                     // 24  sure-ly a com-er
+  tBb4, tR, tBb4,                              // 25  Some-time,
+  tR, tC5, tC5, tBb4, tC5,                     // 26  You'll dance it one
+  tBb4, tR, tBb4,                              // 27  time,
+  tR, tBb4, tC5, tBb4, tC5,                    // 28  The dance called the
+  tG4, tR, tG4,                                // 29  Charles-ton,
+  tR, tF4, tG4, tA4, tA4, tG4, tF4,            // 30  Made in South Car-o-line.
+  tBb4, tR,                                    // 31  (held, both endings)
+]
+
+const span[140] songSpan = [
+  4, 2, 10,                                    // 1
+  4, 2, 10,                                    // 2
+  4, 2, 2, 3, 1, 4,                            // 3
+  4, 2, 10,                                    // 4
+  4, 2, 10,                                    // 5
+  4, 2, 10,                                    // 6
+  4, 2, 10,                                    // 7
+  2, 2, 2, 2, 2, 2, 2, 2,                      // 8
+  4, 2, 10,                                    // 9
+  4, 2, 10,                                    // 10
+  4, 2, 2, 3, 1, 4,                            // 11
+  4, 2, 10,                                    // 12
+  2, 2, 2, 2, 2, 2, 4,                         // 13
+  2, 2, 2, 2, 2, 2, 4,                         // 14
+  2, 2, 2, 2, 2, 2, 4,                         // 15
+  2, 2, 2, 2, 2, 2, 4,                         // 16
+  4, 2, 10,                                    // 17
+  4, 2, 10,                                    // 18
+  4, 2, 2, 3, 1, 4,                            // 19
+  4, 2, 2, 2, 2, 3, 1,                         // 20
+  4, 2, 2, 3, 1, 4,                            // 21
+  4, 2, 10,                                    // 22
+  4, 2, 6, 4,                                  // 23
+  2, 2, 2, 6, 4,                               // 24
+  4, 2, 10,                                    // 25
+  4, 4, 3, 1, 4,                               // 26
+  4, 2, 10,                                    // 27
+  4, 2, 4, 2, 4,                               // 28
+  4, 2, 10,                                    // 29
+  2, 2, 2, 2, 2, 2, 4,                         // 30
+  18, 14,                                      // 31 + ending
+]
+
+// ---- the words, a phrase at a time -------------------------------------------
+
+const u8[] sTitle  = "charlstn - The Original Charleston$"
+const u8[] sCredit = "words and music by Cecil Mack and Jimmy Johnson, 1923 - public domain$"
+const u8[] sKeys   = "+ and - for tempo, space pauses, Esc quits$"
+
+const u8[] p0  = "Charleston! Charleston!$"
+const u8[] p1  = "Made in Carolina,$"
+const u8[] p2  = "Some dance, some prance, I'll say,$"
+const u8[] p3  = "There's nothing finer than the$"
+const u8[] p4  = "Charleston, Charleston,$"
+const u8[] p5  = "Lord, how you can shuffle,$"
+const u8[] p6  = "Ev'ry step you do leads to something new,$"
+const u8[] p7  = "Man, I'm telling you, it's a lapazoo,$"
+const u8[] p8  = "Buck dance, wing dance,$"
+const u8[] p9  = "Will be a back number,$"
+const u8[] p10 = "But the Charleston, the new Charleston,$"
+const u8[] p11 = "That dance is surely a comer sometime,$"
+const u8[] p12 = "You'll dance it one time,$"
+const u8[] p13 = "The dance called the Charleston,$"
+const u8[] p14 = "Made in South Caroline!$"
+
+local sub line( a16 at ) {
+  putStr( at )
+  newline()
+}
+
+// A phrase begins on the row its words are sung, so the sheet scrolls by as
+// the speaker gets to it.
+local sub sayPhrase( u16 row ) {
+  if ( row == 0 )   line( addr( p0 ) )
+  if ( row == 6 )   line( addr( p1 ) )
+  if ( row == 15 )  line( addr( p2 ) )
+  if ( row == 24 )  line( addr( p3 ) )
+  if ( row == 32 )  line( addr( p4 ) )
+  if ( row == 38 )  line( addr( p5 ) )
+  if ( row == 47 )  line( addr( p6 ) )
+  if ( row == 61 )  line( addr( p7 ) )
+  if ( row == 75 )  line( addr( p8 ) )
+  if ( row == 81 )  line( addr( p9 ) )
+  if ( row == 92 )  line( addr( p10 ) )
+  if ( row == 103 ) line( addr( p11 ) )
+  if ( row == 115 ) line( addr( p12 ) )
+  if ( row == 123 ) line( addr( p13 ) )
+  if ( row == 131 ) line( addr( p14 ) )
+}
+
+// ---- the speaker --------------------------------------------------------------
+
+local const pitMode   = 0x43
+local const pitCh2    = 0x42
+local const spkGate   = 0x61
+// Channel 2, both bytes, mode 3 (square wave), binary.
+local const pitSquare = 0xB6
+// Bit 0 gates the timer into the speaker, bit 1 the speaker itself.
+local const spkOn     = 0x03
+
+// What the speaker is currently saying, so a pause can say it again. Zero is
+// silence, matching row 0's convention.
+local u16 sounding = 0
+
+local sub soundAt( u16 divisor ) {
+  out8( pitMode, pitSquare )
+  out8( pitCh2, lo( divisor ) )
+  out8( pitCh2, hi( divisor ) )
+  out8( spkGate, in8( spkGate ) | spkOn )
+}
+
+local sub soundOff => out8( spkGate, in8( spkGate ) & 0xFC )
+
+// ---- the clock ----------------------------------------------------------------
+
+local const vgaStatus   = 0x3DA
+local const vgaVRetrace = 1 << 3
+
+local bool inRetrace() => ( in8( vgaStatus ) & vgaVRetrace ) != 0
+
+// One full frame edge: let the current retrace pass, then wait for the next.
+local sub waitFrame {
+  while ( inRetrace() ) {}
+  while ( !inRetrace() ) {}
+}
+
+// ---- the player ----------------------------------------------------------------
+
+// Frames per sixteenth. Five is 71 ms, which puts the half note at 105 to the
+// minute - the record's tempo, near enough. Three is a scramble, eight a dirge.
+local const paceFast = 3
+local const paceSlow = 8
+local u8 pace = 5
+
+local bool wantOut = false
+
+local sub keys {
+  while ( keyPending() ) {
+    u16 k
+    u8 c
+
+    k = readKey()
+    c = lo( k )
+
+    if ( c == 27 ) wantOut = true
+    if ( ( c == '+' || c == '=' ) && pace > paceFast ) pace = pace - 1
+    if ( ( c == '-' || c == '_' ) && pace < paceSlow ) pace = pace + 1
+
+    if ( c == ' ' ) {
+      soundOff()
+      readKey()
+      if ( sounding != 0 ) soundAt( sounding )
+    }
+  }
+}
+
+local sub playRow( u16 row ) {
+  u8 frames
+  tone t
+
+  sayPhrase( row )
+
+  t = songTone[row]
+  if ( t != tR ) {
+    sounding = toneDiv[t]
+    soundAt( sounding )
+  } else {
+    sounding = 0
+    soundOff()
+  }
+
+  frames = u8( songSpan[row] ) * pace
+  for ( u8 f = 0; f < frames && !wantOut; f++ ) {
+    // The tail frame is the articulation gap - fourteen silent milliseconds,
+    // so a repeated pitch arrives as two notes rather than one long one.
+    if ( f == frames - 1 ) soundOff()
+    waitFrame()
+    keys()
+  }
+}
+
+putStr( addr( sTitle ) )
+newline()
+putStr( addr( sCredit ) )
+newline()
+putStr( addr( sKeys ) )
+newline()
+newline()
+
+while ( !wantOut ) {
+  for ( u16 row = 0; row < songRows && !wantOut; row++ ) playRow( row )
+  newline()
+}
+
+soundOff()

@@ -5635,3 +5635,67 @@ entries. flatpic stayed on the library. A batched entry read is the shape the
 library would want if a second reader of spans arrives.
 
 Tier 1 went from 902 assertions to 905: a golden, a capacity and a round trip.
+
+## 79. `charlstn`
+
+*2026-09-25*
+
+The repository's first sound: the refrain of *The Original Charleston* - words
+and music by Cecil Mack and Jimmy Johnson, published by Harms, Inc., New York,
+1923, plate 6870-4 - on the PC speaker, with the lyric scrolling past a phrase
+at a time as the speaker reaches it. Space pauses, `+` and `-` move the tempo
+across six steps, Esc leaves with the gate closed. The song is public domain in
+the United States; the University of South Florida's copy of the 1923
+publication carries the rights statement outright, and the transcription was
+made from a scan of the same plate in the Internet Archive's Carner Collection.
+
+### The transcription, and what it took to trust it
+
+No modern edition was used - the 1923 engraving was read directly, and the
+reading was checked rather than believed:
+
+- **Pitches were measured, not eyeballed.** Each notehead's centre was taken
+  from pixel-darkness probes down its column and held against the five staff
+  lines detected in the same column. The scan's page curvature moves the staff
+  by more than half a line-gap within one system, which twice turned a first
+  reading into a different note - the same head reads a third away against a
+  grid borrowed from elsewhere on the page. Per-column lines settled both.
+- **Durations were summed before acceptance.** Every bar had to reach sixteen
+  sixteenths of the engraved cut time, and three engravings that looked wrong
+  at first - an old-style quarter rest, a flagless quarter beside flagged
+  eighths, a dotted-eighth pickup across a barline - were found by a bar
+  refusing to sum, not by staring.
+- **The chromatic details confirmed each other.** Bars 13-16 are two parallel
+  descents, A-A-A-A-G into F sharp answered by the same descent into F natural,
+  and the engraver's courtesy natural on the second is only explicable by the
+  sharp in the first - the reading that made the accidentals necessary is the
+  one that was kept. The refrain's opening does the same in miniature: F, then
+  F sharp, then G, a bar each.
+
+A throwaway checker (not committed, like the corpus sweep's runner) re-derives
+the facts from the committed source: 140 rows across 31 engraved bars, every
+bar summing to sixteen sixteenths and the final held pair to thirty-two, and
+each lyric phrase starting on the row its bar begins - one starts on the
+dotted-eighth pickup inside bar 20, which is where the sheet puts its words.
+
+### What sound cost, and what it said about the plan
+
+- **Pitch is nearly free.** PIT channel 2 in mode 3 takes divisor =
+  1,193,182 / frequency; rounding the twelve divisors to integers lands every
+  note within 0.4 cents of equal temperament, measured. The speaker's one-bit
+  cone is a bigger instrument problem than the arithmetic.
+- **Time is not.** A sixteenth at the record's tempo is about 71 ms. The BIOS
+  tick's 55 ms grid can say only 55 or 110 - an error of up to a quarter of the
+  note, which the ear reads as a stumble. The vertical retrace gives a 14.3 ms
+  grid in text mode too, so the player counts frames: five per sixteenth puts
+  the half note at 105 to the minute, and the whole tempo range is three to
+  eight frames. That was the study's finding: **the machine's usable metronome
+  below the PIT itself is the display**, and it costs the entire CPU to read.
+  A player inside a real program is PLAN §24's timer customer, now named there.
+- **Articulation is a frame of silence** at the tail of every note. The
+  refrain repeats one pitch inside nearly every bar ("Charles-ton!" is F, F),
+  and without the gap the pairs fuse into single long tones.
+
+The note table is a ranged unit (§75): every pitch constant in the 140-row song
+table proves at compile time that it names a row of the divisor table, and the
+rest is row zero, whose divisor is never sent.

@@ -93,6 +93,7 @@ text for.
 | 76 | Table comprehensions | [section](DESIGN.md#76-table-comprehensions) |  | [section](DECISIONS.md#76-table-comprehensions) |
 | 77 | starfld |  |  | [section](DECISIONS.md#77-starfld) |
 | 78 | `flatpic` |  |  | [section](DECISIONS.md#78-flatpic) |
+| 79 | `charlstn` |  |  | [section](DECISIONS.md#79-charlstn) |
 
 ## Unnumbered headings
 

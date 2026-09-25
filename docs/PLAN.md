@@ -219,7 +219,9 @@ at all, which makes one a floor rather than a measurement.
 - **Interrupt handlers.** §24 - designed in full. A raw scancode reader and
   held-key input are what would ask for it, and `momoed`'s critical-error
   handler is the smallest thing that would: a drive not ready, answered Abort,
-  still ends the run past every tab's unsaved work.
+  still ends the run past every tab's unsaved work. `charlstn` is the timer's
+  customer: its beat polls retrace with the whole CPU, which a player inside
+  any real program could not (DECISIONS §79).
 - **Rewrite `README.md`.** `CONTRIBUTING.md` records that it is provisional, in a
   register the other documents do not use, and that rewriting it waits on programs
   worth showing and on a draft written rather than generated.
