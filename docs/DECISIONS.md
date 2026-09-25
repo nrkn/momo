@@ -5837,3 +5837,9 @@ PLAN §24's critical-error handler now lists the joiner among its customers.
 Tier 1 went from 911 assertions to 919: a golden, a capacity and a round trip
 for each program, and both joined tier 2 and the machine tier through their
 `.expected`s - 76 programs under DOSBox.
+
+**On real hardware** (2026-09-25, the 6 MHz 286 under 86Box): all nine disks,
+swapped by hand at the prompt, and the far side printed what the design owed
+it - `DOOM.WAD rebuilt - 12117 KB, set and size agree` - with `DIR` showing
+12,408,292 bytes on C:. The IWAD crossed the sneakernet whole on the day the
+format was designed.
