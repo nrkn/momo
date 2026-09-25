@@ -221,7 +221,9 @@ at all, which makes one a floor rather than a measurement.
   handler is the smallest thing that would: a drive not ready, answered Abort,
   still ends the run past every tab's unsaved work. `charlstn` is the timer's
   customer: its beat polls retrace with the whole CPU, which a player inside
-  any real program could not (DECISIONS §79).
+  any real program could not (DECISIONS §79). `mojoin` waits on floppy swaps,
+  so a door opened mid-read drops DOS's own prompt over its own - the
+  critical-error handler's case again, from the drive this time.
 - **Rewrite `README.md`.** `CONTRIBUTING.md` records that it is provisional, in a
   register the other documents do not use, and that rewriting it waits on programs
   worth showing and on a draft written rather than generated.
@@ -347,6 +349,11 @@ All are set out in DESIGN §20 unless noted.
 section that was itself a plan - see the note at the top for why, and where to
 look for the rest.
 
+- **`mochunk`.** 2026-09-25. §82, in `DESIGN.md`, and the record is DECISIONS
+  §82. A file larger than a floppy crosses as self-describing chunks - §41's
+  header-is-the-authority rule, third time out - split by `mosplit`, rejoined
+  disk by disk by `mojoin`, ferried as one-chunk floppies by
+  `npm run image:files`. DOOM.WAD crossed byte-identical the day it was built.
 - **`momowad`.** 2026-09-24. §41, now in `DESIGN.md`, and the record is
   DECISIONS §41. `mowad.momo` opens a chain of WADs, finds the last lump
   registered under a name, and holds a typed read to the `Mo` header the lump

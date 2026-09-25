@@ -5794,3 +5794,46 @@ Left in `temp/`, deliberately and unpruned: the single-purpose probes
 `checkflat`, `checkstar`, `mutate`, `variant`, `genflats`, `genbig`, `frames`,
 `precision`, `keys`), and the originals of everything promoted. A throwaway
 that stopped being needed is not the same as one that was wrong.
+## 82. `mochunk`, and DOOM.WAD over the sneakernet
+
+*2026-09-25*
+
+Built to move an IWAD onto the 286: `shared/lib/mochunk.momo`, `mosplit`,
+`mojoin`, and `npm run image:files` for the floppies themselves. DESIGN §82 has
+the format; this is what checking it looked like.
+
+**The round trip was the test rig.** A scratch runner split a 2,500-byte
+fixture in the machine, joined the chunks, and required the rebuild
+byte-identical - then doctored the set one way at a time and required the right
+refusal: a flipped payload byte caught by its sum at the reread prompt, a chunk
+from another split refused by set id, disk three in drive two named as disk
+three, a truncated chunk refused against its own header, plain bytes refused
+for want of the magic, and a mislabelled `.001` refused by its sequence.
+Seventeen checks; the committed fixtures are the same bytes the rig proved, and
+`npm run expect` wrote both `.expected` files from the committed assemblies -
+its first real work since graduating.
+
+**The rig corrected the design once.** The plan had `mojoin` refuse a launch
+that named a middle chunk; the build patches the extension digits before the
+first open, so any disk of the set in the drive at launch simply starts the
+walk at 001. The test that expected the refusal was the one that was wrong,
+and the mislabelled-first-chunk case took its place.
+
+**`DosRun` grew a `files` map** - the machine's C: when a run ends, writes
+included. Nothing could read back what a program wrote before that; the round
+trip was the customer, and `drive`'s scripted keys exercised the give-up path
+(two rereads of a doctored disk, Esc, "1 of 3 is incomplete") the same day.
+
+**The real thing, in the machine and then under DOS.** DOOM.WAD - 12,408,292
+bytes - split into nine chunks (16.8s in the machine), each full chunk
+1,457,152 bytes, set id 6804; joined back in 10.2s; byte-identical to the
+source. `image:files` wrote the nine floppies, and DOSBox mounted the first:
+`DIR` shows `DOOM.001` with 512 bytes free - the one spare cluster the payload
+default promises - and DOS's own `COPY` handed back the chunk byte-identical.
+The disk swaps themselves are the 286's to test, and a floppy door opened
+mid-read still lands in DOS's *Abort, Retry, Fail?* over `mojoin`'s prompt -
+PLAN §24's critical-error handler now lists the joiner among its customers.
+
+Tier 1 went from 911 assertions to 919: a golden, a capacity and a round trip
+for each program, and both joined tier 2 and the machine tier through their
+`.expected`s - 76 programs under DOSBox.

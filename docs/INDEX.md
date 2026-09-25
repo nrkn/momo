@@ -96,6 +96,7 @@ text for.
 | 79 | `charlstn` |  |  | [section](DECISIONS.md#79-charlstn) |
 | 80 | The floppy images grow directories |  |  | [section](DECISIONS.md#80-the-floppy-images-grow-directories) |
 | 81 | Three throwaways graduate |  |  | [section](DECISIONS.md#81-three-throwaways-graduate) |
+| 82 | `mochunk` - files across floppies | [section](DESIGN.md#82-mochunk---files-across-floppies) |  | [section](DECISIONS.md#82-mochunk-and-doomwad-over-the-sneakernet) |
 
 ## Unnumbered headings
 

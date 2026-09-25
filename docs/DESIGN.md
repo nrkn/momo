@@ -8731,3 +8731,55 @@ writes one yet.
 
 The record - what the build measured, the teeth, and what surprised it - is
 `DECISIONS.md` §41.
+## 82. `mochunk` - files across floppies
+
+A file larger than a floppy crosses the sneakernet as numbered chunks -
+`DOOM.WAD` becomes `DOOM.001` through `DOOM.009` - and comes back together on
+the far side. `shared/lib/mochunk.momo` holds the format; `mosplit` writes it
+on the fast machine, `mojoin` reads it on the slow one, and
+`npm run image:files` puts one chunk on one floppy image for an emulator with
+no host mounts.
+
+**Every chunk describes itself.** This is §41's rule applied a third time: the
+header is the authority, and the numbered extension is a convention for `DIR`
+and for people. A thirty-two byte header opens each chunk - magic, set id,
+sequence, count, this payload's length, the whole file's length, the payload's
+byte-sum, and the target's 8.3 name - so any disk, inserted at any moment,
+can say what it is and be refused for what it is not. The alternative shapes
+lost the way they lost in §41: bare numbered names trust exactly what a
+sneakernet scrambles, and a catalog on disk one is a manifest with a single
+point of failure that leaves the other disks mute.
+
+**The set id is the whole file's byte-sum, and sums are additive.** The id in
+every header equals the wrapped sum of the chunk sums, so when the last disk is
+in, the joiner's per-chunk arithmetic has already computed the end-to-end
+check: sums' sum against set id, accumulated size against the header's total.
+`mosplit` reads the source twice for this - the id must sit in chunk one's
+header, and it cannot be known before the last byte - which costs nothing on
+the side of the split and buys the verification on the side that swaps disks.
+
+**A disk swap is the same name opening differently.** `mojoin` walks the
+sequence by patching the extension digits and asking for a disk whenever the
+name will not open; naming any chunk of the set at launch works, because the
+digits are replaced before the first open. The wrong disk of the right set
+says which disk it holds and waits; a chunk of another split is refused by set
+id; a payload whose sum disagrees offers to reread the disk before giving up.
+
+### Rules
+
+- **The header is checked before a byte of payload moves.** Magic, set, count
+  and name must agree with chunk one; the sequence must be the one expected.
+- **A chunk of the same content interchanges by construction.** Two splits of
+  an identical file at the same payload produce identical chunks; at a
+  different payload the count disagrees and the mix is refused.
+- **Word pairs, never 32-bit arithmetic** - the same boundary §41 draws. The
+  split and the join each carry position and remainder as hi:lo, one carried
+  add or borrowed subtraction where they move.
+- **The default payload fills a 1.44MB floppy with one cluster spare**: a
+  chunk file of 1,457,152 bytes in a 2,847-cluster data area, so the directory
+  entry always fits.
+- **Refusals name what they refuse** - the disk held, the set seen, the sum
+  read - and Esc always leaves, reporting how much of the set is in.
+
+The record - the round trip that checked it, what the build corrected, and the
+real WAD it carried - is DECISIONS §82.
