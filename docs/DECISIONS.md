@@ -5699,3 +5699,37 @@ dotted-eighth pickup inside bar 20, which is where the sheet puts its words.
 The note table is a ranged unit (§75): every pitch constant in the 140-row song
 table proves at compile time that it names a row of the divisor table, and the
 rest is row zero, whose divisor is never sent.
+
+## 80. The floppy images grow directories
+
+*2026-09-25*
+
+`npm run image` laid every file flat in the floppy root, guarded by a hard
+error on a duplicate 8.3 name, and its own header said the day the guard fired
+was the day the layout grew a directory per project. It fired today, and not
+narrowly: `wadinfo`, `wadlist` and `wadsum` all ship a fixture named
+`BASE.WAD`, because all three demonstrate the same chain. The flat layout was
+carried by a convention - a project's files are named after it - that the WAD
+work outgrew the moment fixtures became data the programs open by name.
+
+So the image is now one directory per project in the root, the files inside,
+and nothing else changed: the packer still walks projects alphabetically and
+greedily onto 1.44MB disks, a project still never splits across two, and the
+tool still prints what landed where - which is also now the answer to "which
+disk is `charlstn` on" without mounting anything. A directory costs its own
+cluster and one root entry, so the arithmetic moved but the shape of the run
+did not. The collision check is gone rather than moved, because the thing it
+guarded no longer exists: one project's files are one directory listing, and a
+directory cannot carry a name twice.
+
+`image:read` learned the other half. It searches the directories, and a bare
+name that lives in several - `BASE.WAD` is in three on one disk - is refused
+with the places listed, the same shape as its old two-disks refusal; naming it
+`WADINFO/BASE.WAD` picks one. Reading a file back out byte-identical is the
+readback's own test, and it passed against the first image written.
+
+The teeth were DOS's, not ours: `momo-5.ima` mounted in DOSBox, `dir` showing
+nine directories and their dot entries, and `WADINFO.COM` run from inside its
+directory against its fixtures by bare name, printing the committed findings.
+The filesystem this tool writes is only correct when the operating system that
+invented it agrees.

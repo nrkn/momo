@@ -94,6 +94,7 @@ text for.
 | 77 | starfld |  |  | [section](DECISIONS.md#77-starfld) |
 | 78 | `flatpic` |  |  | [section](DECISIONS.md#78-flatpic) |
 | 79 | `charlstn` |  |  | [section](DECISIONS.md#79-charlstn) |
+| 80 | The floppy images grow directories |  |  | [section](DECISIONS.md#80-the-floppy-images-grow-directories) |
 
 ## Unnumbered headings
 

@@ -6,18 +6,19 @@
 // header, no container - so the whole job is writing a FAT12 filesystem into a
 // buffer. That needs no dependency: this is `Buffer` and `writeFileSync`.
 //
-// Files are laid out FLAT in the root, which works because of a property the
-// language already enforces: a DOS-visible name is 8.3, and a project's files
-// are named after the project, so `CFTEST.COM` and `CFTEST.ASM` cannot collide
-// with anything. `cftest` depends on exactly that - it opens its own listing to
-// prove a successful `int 21h` clears carry, and would report the wrong answer
-// on a disk that carried only the .COM.
+// Each project is a DIRECTORY in the root, named after it, holding its files.
+// The first draft laid every file flat in the root, guarded by a hard error on
+// a duplicate name, with a note that the day the guard fired was the day this
+// grew a directory per project. It fired on 2026-09-25: `wadinfo` and `wadlist`
+// both ship a fixture WAD named `BASE.WAD`, because both demonstrate the same
+// chain. The image is a build artefact regenerated from scratch, so the change
+// paid no migration - the layout moved and nothing else did.
 //
-// It breaks the day two projects both ship a file NOT named after them - a
-// `MAP.DAT` each. That is guarded rather than pre-solved: a duplicate root name
-// is a hard error naming both projects, so flat can never silently break, and
-// the day it fires is the day this grows a directory per project. The image is a
-// build artefact regenerated from scratch, so there is no migration to pay for.
+// Inside a directory the old flat property holds again and needs no guard: one
+// project's files are one directory listing, and a directory cannot list one
+// name twice. `cftest` still opens its own listing to prove a successful
+// `int 21h` clears carry - run it from its directory, which is where a disk
+// this shape puts you anyway.
 
 import { existsSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
@@ -110,59 +111,51 @@ const collect = (): Map<string, Entry[]> => {
   return byProject
 }
 
+type Disk = { project: string; entries: Entry[] }[]
+
+// 32 bytes an entry, so a 512-byte cluster holds sixteen - and a directory
+// spends its first two on `.` and `..`.
+const entriesPerCluster = bytesPerSector / 32
+
+const dirClustersFor = (files: number) => Math.ceil((files + 2) / entriesPerCluster)
+
 // A project's files stay together: a program and the data it opens have to be on
-// one disk. Alphabetical and greedy, with no attempt to pack tightly.
-const intoDisks = (byProject: Map<string, Entry[]>): Entry[][] => {
-  const disks: Entry[][] = []
-  let current: Entry[] = []
+// one disk. Alphabetical and greedy, with no attempt to pack tightly. Each
+// project costs one root entry for its directory, the directory's own clusters,
+// and its files' clusters.
+const intoDisks = (byProject: Map<string, Entry[]>): Disk[] => {
+  const disks: Disk[] = []
+  let current: Disk = []
   let clusters = 0
 
   const clustersFor = (entries: Entry[]) =>
+    dirClustersFor(entries.length) +
     entries.reduce((total, entry) => total + Math.ceil(entry.size / bytesPerSector), 0)
 
   for (const [project, entries] of byProject) {
+    if (!/^[A-Za-z0-9_-]{1,8}$/.test(project)) {
+      fail(`"${project}" is not an 8.3 directory name, and every project is a directory now`)
+    }
+
     const needed = clustersFor(entries)
 
-    if (needed > totalClusters || entries.length > rootEntries) {
+    if (needed > totalClusters) {
       fail(`"${project}" does not fit on one disk by itself`)
     }
 
     if (current.length && (clusters + needed > totalClusters ||
-        current.length + entries.length > rootEntries)) {
+        current.length + 1 > rootEntries)) {
       disks.push(current)
       current = []
       clusters = 0
     }
 
-    current.push(...entries)
+    current.push({ project, entries })
     clusters += needed
   }
 
   if (current.length) disks.push(current)
   return disks
-}
-
-// Flat means one namespace, so two projects bringing the same 8.3 name would
-// have one quietly overwrite the other. That is the one way this layout can go
-// wrong, so it is the one thing checked.
-const checkCollisions = (byProject: Map<string, Entry[]>) => {
-  const owners = new Map<string, string>()
-
-  for (const [project, entries] of byProject) {
-    for (const entry of entries) {
-      const full = entry.ext ? `${entry.name}.${entry.ext}` : entry.name
-      const previous = owners.get(full)
-      if (previous) {
-        fail(
-          `"${full}" is brought by both "${previous}" and "${project}"\n` +
-            '       the flat layout needs every 8.3 name to be unique, which holds while a' +
-            " project's files are named after it - this is the point at which the image" +
-            ' wants a directory per project',
-        )
-      }
-      owners.set(full, project)
-    }
-  }
 }
 
 // FAT12 packs two entries into three bytes, alternating which nibble each one
@@ -187,7 +180,7 @@ const dosDate = (when: Date): number =>
   ((when.getMonth() + 1) << 5) |
   when.getDate()
 
-const buildImage = async (entries: Entry[], label: string): Promise<Buffer> => {
+const buildImage = async (disk: Disk, label: string): Promise<Buffer> => {
   const image = Buffer.alloc(imageBytes)
 
   // ---- boot sector: no boot code, only the BPB DOS reads to mount it ----
@@ -217,31 +210,59 @@ const buildImage = async (entries: Entry[], label: string): Promise<Buffer> => {
 
   const rootDir = Buffer.alloc(rootSectors * bytesPerSector)
   let nextCluster = 2
-  let slot = 0
+  let rootSlot = 0
 
-  for (const entry of entries) {
-    const data = await readFile(entry.source)
-    const needed = Math.ceil(data.length / bytesPerSector)
-    const first = needed === 0 ? 0 : nextCluster
-
-    for (let n = 0; n < needed; n++) {
-      const cluster = nextCluster + n
-      const at = (dataStart + cluster - 2) * bytesPerSector
-      data.copy(image, at, n * bytesPerSector, Math.min((n + 1) * bytesPerSector, data.length))
-      // The last cluster of a file ends the chain; the rest point at the next.
-      setFatEntry(fat, cluster, n === needed - 1 ? 0xfff : cluster + 1)
-    }
-    nextCluster += needed
-
+  const writeEntry = (
+    into: Buffer, slot: number, name: string, ext: string,
+    attribute: number, mtime: Date, first: number, size: number,
+  ) => {
     const at = slot * 32
-    rootDir.write(entry.name.padEnd(8), at, 8, 'latin1')
-    rootDir.write(entry.ext.padEnd(3), at + 8, 3, 'latin1')
-    rootDir[at + 11] = 0x20 // archive
-    rootDir.writeUInt16LE(dosTime(entry.mtime), at + 22)
-    rootDir.writeUInt16LE(dosDate(entry.mtime), at + 24)
-    rootDir.writeUInt16LE(first, at + 26)
-    rootDir.writeUInt32LE(data.length, at + 28)
-    slot += 1
+    into.write(name.padEnd(8), at, 8, 'latin1')
+    into.write(ext.padEnd(3), at + 8, 3, 'latin1')
+    into[at + 11] = attribute
+    into.writeUInt16LE(dosTime(mtime), at + 22)
+    into.writeUInt16LE(dosDate(mtime), at + 24)
+    into.writeUInt16LE(first, at + 26)
+    into.writeUInt32LE(size, at + 28)
+  }
+
+  for (const { project, entries } of disk) {
+    // The directory's own clusters come first, so its number exists before any
+    // entry - its own dot entry included - needs to name it.
+    const dirClusters = dirClustersFor(entries.length)
+    const dirFirst = nextCluster
+    for (let n = 0; n < dirClusters; n++) {
+      setFatEntry(fat, nextCluster + n, n === dirClusters - 1 ? 0xfff : nextCluster + n + 1)
+    }
+    nextCluster += dirClusters
+
+    const dir = Buffer.alloc(dirClusters * bytesPerSector)
+    const stamp = entries.reduce((latest, e) => (e.mtime > latest ? e.mtime : latest), entries[0].mtime)
+    writeEntry(dir, 0, '.', '', 0x10, stamp, dirFirst, 0)
+    writeEntry(dir, 1, '..', '', 0x10, stamp, 0, 0)
+
+    let slot = 2
+    for (const entry of entries) {
+      const data = await readFile(entry.source)
+      const needed = Math.ceil(data.length / bytesPerSector)
+      const first = needed === 0 ? 0 : nextCluster
+
+      for (let n = 0; n < needed; n++) {
+        const cluster = nextCluster + n
+        const at = (dataStart + cluster - 2) * bytesPerSector
+        data.copy(image, at, n * bytesPerSector, Math.min((n + 1) * bytesPerSector, data.length))
+        // The last cluster of a file ends the chain; the rest point at the next.
+        setFatEntry(fat, cluster, n === needed - 1 ? 0xfff : cluster + 1)
+      }
+      nextCluster += needed
+
+      writeEntry(dir, slot, entry.name, entry.ext, 0x20, entry.mtime, first, data.length)
+      slot += 1
+    }
+
+    dir.copy(image, (dataStart + dirFirst - 2) * bytesPerSector)
+    writeEntry(rootDir, rootSlot, project.toUpperCase(), '', 0x10, stamp, dirFirst, 0)
+    rootSlot += 1
   }
 
   // Both copies are identical; DOS reads the first and repairs from the second.
@@ -274,7 +295,12 @@ const fatEntry = (fat: Buffer, index: number): number => {
     : (fat[at + 1] << 4) | (fat[at] >> 4)
 }
 
-const extract = (image: Buffer, wanted: string): Buffer | null => {
+type Hit = { dir: string | null; data: Buffer }
+
+// Every hit on the image, searching the root and one level of directories -
+// which is every level this tool writes. `wanted` may carry a directory,
+// `WADINFO/BASE.WAD`, and then only that directory answers.
+const extract = (image: Buffer, wanted: string): Hit[] => {
   const bytes = image.readUInt16LE(11)
   const perCluster = image[13]
   const reserved = image.readUInt16LE(14)
@@ -282,7 +308,7 @@ const extract = (image: Buffer, wanted: string): Buffer | null => {
   const roots = image.readUInt16LE(17)
   const fatSectors = image.readUInt16LE(22)
 
-  if (bytes === 0 || perCluster === 0 || fatSectors === 0) return null
+  if (bytes === 0 || perCluster === 0 || fatSectors === 0) return []
 
   const rootStart = reserved + fats * fatSectors
   const rootSectors = Math.ceil((roots * 32) / bytes)
@@ -291,41 +317,64 @@ const extract = (image: Buffer, wanted: string): Buffer | null => {
   const fat = image.subarray(reserved * bytes, (reserved + fatSectors) * bytes)
   const root = image.subarray(rootStart * bytes, dataStart * bytes)
 
-  const target = wanted.toUpperCase()
+  const parts = wanted.toUpperCase().split(/[\\/]/)
+  const targetFile = parts.pop() ?? ''
+  const targetDir = parts.pop() ?? null
 
-  for (let slot = 0; slot < roots; slot++) {
-    const at = slot * 32
-
-    if (root[at] === 0x00) break            // no entry past here has ever been used
-    if (root[at] === 0xe5) continue         // deleted
-    if ((root[at + 11] & 0x0f) === 0x0f) continue   // long-name fragment
-    if (root[at + 11] & 0x08) continue              // volume label
-
-    const name = root.subarray(at, at + 8).toString('latin1').trimEnd()
-    const ext = root.subarray(at + 8, at + 11).toString('latin1').trimEnd()
-    const full = ext ? `${name}.${ext}` : name
-
-    if (full !== target) continue
-
-    const size = root.readUInt32LE(at + 28)
-    const out = Buffer.alloc(size)
-
-    let cluster = root.readUInt16LE(at + 26)
+  const chain = (first: number, most: number): Buffer => {
+    const out = Buffer.alloc(most)
+    let cluster = first
     let written = 0
 
     // 0FF0h and above ends a chain; anything below 2 is not a data cluster, and
     // a file of zero bytes has no chain at all.
-    while (cluster >= 2 && cluster < 0xff0 && written < size) {
+    while (cluster >= 2 && cluster < 0xff0 && written < most) {
       const from = (dataStart + (cluster - 2) * perCluster) * bytes
-      written += image.copy(out, written, from, from + Math.min(perCluster * bytes, size - written))
+      written += image.copy(out, written, from, from + Math.min(perCluster * bytes, most - written))
       cluster = fatEntry(fat, cluster)
     }
 
-    if (written < size) fail(`"${full}" ends early - its chain gave ${written} of ${size} bytes`)
-    return out
+    return out.subarray(0, written)
   }
 
-  return null
+  const hits: Hit[] = []
+
+  const scan = (table: Buffer, slots: number, dir: string | null) => {
+    for (let slot = 0; slot < slots; slot++) {
+      const at = slot * 32
+
+      if (table[at] === 0x00) break            // no entry past here has ever been used
+      if (table[at] === 0xe5) continue         // deleted
+      if ((table[at + 11] & 0x0f) === 0x0f) continue   // long-name fragment
+      if (table[at + 11] & 0x08) continue              // volume label
+
+      const name = table.subarray(at, at + 8).toString('latin1').trimEnd()
+      const ext = table.subarray(at + 8, at + 11).toString('latin1').trimEnd()
+      const full = ext ? `${name}.${ext}` : name
+
+      if (table[at + 11] & 0x10) {
+        // A directory, whose chain is a table of entries with no size field -
+        // its length is the chain's. Dot entries point back at what is already
+        // being walked.
+        if (dir !== null || full === '.' || full === '..') continue
+        if (targetDir !== null && full !== targetDir) continue
+        const entries = chain(table.readUInt16LE(at + 26), totalClusters * perCluster * bytes)
+        scan(entries, Math.floor(entries.length / 32), full)
+        continue
+      }
+
+      if (full !== targetFile) continue
+      if (targetDir !== null && dir !== targetDir) continue
+
+      const size = table.readUInt32LE(at + 28)
+      const data = chain(table.readUInt16LE(at + 26), size)
+      if (data.length < size) fail(`"${full}" ends early - its chain gave ${data.length} of ${size} bytes`)
+      hits.push({ dir, data })
+    }
+  }
+
+  scan(root, roots, null)
+  return hits
 }
 
 // Every image this tool could have written, in the order it writes them.
@@ -342,25 +391,30 @@ const readBack = async (wanted: string) => {
   const images = imageNames()
   if (images.length === 0) fail(`no images in "${buildRoot}" - run: npm run image`)
 
-  const hits: { name: string; data: Buffer }[] = []
+  const hits: { name: string; dir: string | null; data: Buffer }[] = []
 
   for (const name of images) {
-    const found = extract(await readFile(join(buildRoot, name)), wanted)
-    if (found) hits.push({ name, data: found })
+    for (const hit of extract(await readFile(join(buildRoot, name)), wanted)) {
+      hits.push({ name, ...hit })
+    }
   }
 
   if (hits.length === 0) fail(`"${wanted}" is on none of: ${images.join(', ')}`)
 
   if (hits.length > 1) {
+    const places = hits.map((hit) => (hit.dir ? `${hit.name}:${hit.dir}` : hit.name)).join(' and ')
     fail(
-      `"${wanted}" is on ${hits.map((hit) => hit.name).join(' and ')}\n` +
-        '       which of those is current cannot be told from here - run: npm run image',
+      `"${wanted}" is in ${places}\n` +
+        '       which of those is meant cannot be told from here - name the directory,' +
+        ' as in: npm run image:read -- WADINFO/BASE.WAD',
     )
   }
 
-  const out = join(buildRoot, wanted.toUpperCase())
+  const file = wanted.toUpperCase().split(/[\\/]/).pop() ?? ''
+  const out = join(buildRoot, file)
   writeFileSync(out, hits[0].data)
-  console.log(`ok: ${out}  (${hits[0].data.length} bytes, from ${hits[0].name})`)
+  const where = hits[0].dir ? `${hits[0].name}:${hits[0].dir}` : hits[0].name
+  console.log(`ok: ${out}  (${hits[0].data.length} bytes, from ${where})`)
 }
 
 const main = async () => {
@@ -381,8 +435,6 @@ const main = async () => {
   if (byProject.size === 0) {
     fail(`nothing to write - "${buildRoot}" has no built projects, so run: npm run build -- <project>`)
   }
-
-  checkCollisions(byProject)
 
   const disks = intoDisks(byProject)
 
@@ -427,9 +479,14 @@ const main = async () => {
       continue
     }
 
-    const used = image.disk.reduce((total, e) => total + Math.ceil(e.size / bytesPerSector), 0)
+    const used = image.disk.reduce(
+      (total, p) =>
+        total + dirClustersFor(p.entries.length) +
+        p.entries.reduce((sum, e) => sum + Math.ceil(e.size / bytesPerSector), 0),
+      0,
+    )
     console.log(
-      `ok: ${out}  (${image.disk.length} files, ${used} of ${totalClusters} clusters)`,
+      `ok: ${out}  (${used} of ${totalClusters} clusters)\n    ${image.disk.map((p) => p.project).join(' ')}`,
     )
   }
 
