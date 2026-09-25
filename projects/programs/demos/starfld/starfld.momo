@@ -1,0 +1,276 @@
+// starfld.momo - the classic starfield, flown through in mode 13h.
+//
+//   npm start starfld
+//
+// The arrows steer, `+` and `-` change speed, Esc leaves. Every star is a point
+// in front of the viewer, projected by dividing by its depth, shaded by that
+// depth, and sent back to the far plane when it passes the viewer or leaves the
+// screen.
+//
+// A demo like the others beside it: it runs until a key says stop, so it cannot
+// have a `.expected`, and the golden tier is what holds it.
+
+include "lib/std/key.momo"
+include "lib/std/math.momo"
+include "lib/std/mode.momo"
+include "lib/std/rand.momo"
+include "lib/std/time.momo"
+
+// Mode 13h video memory, as a constant segment for the reason `rndpix` gives.
+far u8[64000] pixels = 0xA000
+
+const screenW = 320
+const screenH = 200
+const centreX = screenW / 2
+const centreY = screenH / 2
+
+// ---- depth, and what the divide can afford ----------------------------------
+
+// **Depth is kept in sixteenths of a unit and divided by in whole units.** The
+// sixteenths are what let a star move slower than a unit a frame; the divide
+// drops them because `x / z` with z in sixteenths wants `x * 16` as its
+// numerator, which is twenty bits, and Momo hands `idiv` sixteen.
+const zShift = 4
+const zNear = 1 << zShift
+
+// **The far plane is set by the numerator, not by taste.** A star at the edge
+// of the screen at the far plane has `x = 160 * zFarUnits`, which has to fit an
+// i16 with room left for the steering to push it. That stops short of 200
+// units, and the require does the sum.
+const zFarUnits = 192
+const zFar = zFarUnits << zShift
+
+const spreadX = centreX * zFarUnits
+const spreadY = centreY * zFarUnits
+
+require ( centreX + steerMax / 4 ) * zFarUnits < 32768
+
+// ---- stars ------------------------------------------------------------------
+
+const starCount = 112
+
+// Where a star has no pixel on screen, because it was spawned since it was last
+// drawn. Mode 13h has 64,000 pixels, so the top of the word is never one.
+const noPixel = 0xFFFF
+
+// `x` and `y` are pre-scaled by the depth they are divided by, so the quotient
+// lands in pixels; `off` is the pixel last drawn, so it can be put back.
+group star[starCount] {
+  i16 x
+  i16 y
+  u16 z
+  u16 off
+}
+
+// Anywhere on the far plane's view of the screen. The subtraction wraps as a
+// u16 and the cast reads it as signed, which is the offset from the centre.
+sub spawn( u16 i, u16 z ) {
+  star[i].x = i16( randomBelow( spreadX * 2 ) - spreadX )
+  star[i].y = i16( randomBelow( spreadY * 2 ) - spreadY )
+  star[i].z = z
+}
+
+// ---- shading ----------------------------------------------------------------
+
+// Sixteen greys, put over the CGA colours rather than on the default grey ramp
+// at 16, so a palette that failed to load shows as colour instead of passing
+// for one that worked. The dimmest is not black: a single pixel has to be seen
+// at the far plane to be seen arriving.
+const shadeBase = 1
+const shadeCount = 16
+
+sub loadShades {
+  for ( u8 s = 0; s < shadeCount; s++ ) {
+    setDac( shadeBase + s, 18 + s * 3, 18 + s * 3, 18 + s * 3 )
+  }
+}
+
+// Brightest near, darkest at the far plane. A star is drawn only after a step
+// has taken it inside the far plane, so the depth here is below `zFar` and the
+// quotient below `shadeCount`.
+//
+// **A real divide, and cheaper than a reciprocal would be.** `z * 5 >> 10` is
+// the multiply that would stand in for it, and on an 8086 the ten-bit shift
+// after it costs 48 cycles with its count in CL - so the pair is 172 against
+// `div`'s 150.
+const shadeStep = zFar / shadeCount
+
+const u8 shadeOf( u16 z ) = shadeBase + shadeCount - 1 - u8( z / shadeStep )
+
+require ( zFar - 1 ) / shadeStep == shadeCount - 1
+
+// ---- speed ------------------------------------------------------------------
+
+// Sixteenths of a unit a frame. Roughly a factor of 1.5 a step, so each press
+// feels like the same change from a crawl to the fastest, which crosses the
+// whole depth in 24 frames.
+const u16[] speeds = [ 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128 ]
+
+u8 speed = 5
+
+// ---- steering ---------------------------------------------------------------
+
+// Quarter pixels a frame, positive to the right and down.
+const steerMax = 16
+
+// **int 16h reports keystrokes, not keys held**, so a held arrow is a press, a
+// pause, and then repeats. A push lapses after `holdFirst` frames unless a
+// repeat arrives, which covers the BIOS's default half-second delay at 70 frames
+// a second; once repeats are arriving, `holdRepeat` covers the gap between two
+// at its default 10.9 a second, so letting go stops the push within a seventh of
+// a second.
+const holdFirst = 38
+const holdRepeat = 10
+
+const axisX = 0
+const axisY = 1
+
+group steer[2] {
+  i16 vel
+  i16 dir
+  u8  hold
+}
+
+sub push( u8 a, i16 dir ) {
+  if ( steer[a].hold > 0 && steer[a].dir == dir ) {
+    steer[a].hold = holdRepeat
+  } else {
+    steer[a].hold = holdFirst
+  }
+
+  steer[a].dir = dir
+}
+
+// A quarter pixel a frame of change either way, so the field eases into a turn
+// and out of it rather than jumping between speeds.
+sub glide( u8 a ) {
+  if ( steer[a].hold > 0 ) {
+    steer[a].hold--
+    steer[a].vel = iclamp( steer[a].vel + steer[a].dir, -steerMax, steerMax )
+  } else if ( steer[a].vel > 0 ) {
+    steer[a].vel--
+  } else if ( steer[a].vel < 0 ) {
+    steer[a].vel++
+  }
+}
+
+// ---- a frame ----------------------------------------------------------------
+
+sub erase( u16 i ) {
+  if ( star[i].off != noPixel ) pixels[ star[i].off ] = 0
+}
+
+// Back to the far plane, anywhere on it, with nothing on screen to put back.
+sub respawn( u16 i ) {
+  erase( i )
+  spawn( i, zFar )
+  star[i].off = noPixel
+}
+
+sub moveStar( u16 i ) {
+  i16 zi
+  i16 sx
+  i16 sy
+  u16 off
+
+  if ( star[i].z <= zNear + speeds[speed] ) {
+    respawn( i )
+    return
+  }
+
+  star[i].z -= speeds[speed]
+  zi = i16( star[i].z >> zShift )
+
+  // A turn moves every star by the same angle, which is the same distance on
+  // screen whatever its depth - so the world moves by that distance times the
+  // depth, in quarter pixels.
+  if ( steer[axisX].vel != 0 ) star[i].x -= ( steer[axisX].vel * zi ) >> 2
+  if ( steer[axisY].vel != 0 ) star[i].y -= ( steer[axisY].vel * zi ) >> 2
+
+  sx = centreX + star[i].x / zi
+  sy = centreY + star[i].y / zi
+
+  // One unsigned comparison an axis tests both edges, since a negative
+  // coordinate reads as a large one.
+  if ( u16( sx ) >= screenW || u16( sy ) >= screenH ) {
+    respawn( i )
+    return
+  }
+
+  off = u16( sy ) * screenW + u16( sx )
+  if ( off != star[i].off ) erase( i )
+
+  pixels[off] = shadeOf( star[i].z )
+  star[i].off = off
+}
+
+// ---- input ------------------------------------------------------------------
+
+bool running = true
+
+// Everything waiting, every frame, so a burst of repeats cannot fall behind.
+// Shift is not a different key here, so the flags are passed as none.
+sub readKeys {
+  u16 k
+
+  while ( keyPending() ) {
+    k = keyNorm( readKeyEx(), 0 )
+
+    if ( k == keyEsc ) running = false
+    else if ( k == keyExt + keyLeft ) push( axisX, -1 )
+    else if ( k == keyExt + keyRight ) push( axisX, 1 )
+    else if ( k == keyExt + keyUp ) push( axisY, -1 )
+    else if ( k == keyExt + keyDown ) push( axisY, 1 )
+    else if ( k == '+' || k == '=' ) {
+      if ( speed < len( speeds ) - 1 ) speed++
+    } else if ( k == '-' || k == '_' ) {
+      if ( speed > 0 ) speed--
+    }
+  }
+}
+
+// ---- pacing -----------------------------------------------------------------
+
+const vgaStatus = 0x3DA
+const vgaVRetrace = 1 << 3
+
+bool inRetrace() => ( in8( vgaStatus ) & vgaVRetrace ) != 0
+
+// The start of the next vertical blank, so a frame is drawn from the top of
+// one. Mode 13h refreshes at 70 Hz, and a frame that overruns waits for the one
+// after.
+sub waitRetrace {
+  while ( inRetrace() ) {
+  }
+
+  while ( !inRetrace() ) {
+  }
+}
+
+// ---- entry ------------------------------------------------------------------
+
+sub frame {
+  for ( u16 i = 0; i < starCount; i++ ) moveStar( i )
+
+  readKeys()
+  glide( axisX )
+  glide( axisY )
+}
+
+videoMode {
+  setMode( modeGfx256 )
+  loadShades()
+  seedRandom( ticks() )
+
+  // Spread through the whole depth to begin with, or every star would arrive at
+  // once and leave at once.
+  for ( u16 i = 0; i < starCount; i++ ) {
+    spawn( i, zNear + 1 + randomBelow( zFar - zNear ) )
+    star[i].off = noPixel
+  }
+
+  while ( running ) {
+    waitRetrace()
+    frame()
+  }
+}
