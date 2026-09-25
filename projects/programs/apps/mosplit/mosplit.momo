@@ -1,0 +1,399 @@
+// mosplit - split a file into floppy-sized, self-describing chunks (§82).
+//
+//   MOSPLIT SOURCE [PAYLOAD]
+//
+// Writes SOURCE's bytes into numbered chunks - `DOOM.WAD` becomes `DOOM.001`,
+// `DOOM.002`, ... in the current directory - each opening with the mochunk
+// header that lets `mojoin` refuse the wrong disk by name. PAYLOAD overrides
+// the bytes per chunk, up to 65,535, which exists for tests; the default fills
+// a 1.44MB floppy with a cluster to spare.
+//
+// The file is read twice, and the first pass is what buys the set id: it is
+// the byte-sum of the whole file, it sits in every chunk's header before any
+// payload follows it, and it cannot be known until the last byte has been
+// seen. This runs on the fast side of the sneakernet, where a second pass
+// costs nothing anyone waits for; the joiner on the slow side gets each
+// chunk's sum for free as it streams.
+
+include "lib/std/io.momo"
+include "lib/std/file.momo"
+include "lib/mochunk.momo"
+
+// ---- words ----------------------------------------------------------------------
+
+const u8[] sUsage     = "usage: mosplit SOURCE [PAYLOAD]$"
+const u8[] sTool      = "mosplit: $"
+const u8[] sTwoWords  = "one file and at most a payload - nothing else$"
+const u8[] sBadPay    = "PAYLOAD is decimal bytes, 64 to 65535$"
+const u8[] sLongName  = "the name does not fit 8.3 - split from a shorter one$"
+const u8[] sNotOpened = "not opened$"
+const u8[] sEmpty     = "empty - nothing to split$"
+const u8[] sFits      = "fits one disk already - copy it instead$"
+const u8[] sTooMany   = "more than 999 chunks - raise PAYLOAD$"
+const u8[] sNotMade   = "a chunk was not created$"
+const u8[] sShort     = "a chunk wrote short - disk full?$"
+const u8[] sShortRead = "the source read short of its own length$"
+const u8[] sBytes     = " bytes$"
+const u8[] sKb        = " KB$"
+const u8[] sSum       = "  sum $"
+const u8[] sChunksOf  = " chunks of $"
+const u8[] sSet       = "  set $"
+const u8[] sDash      = " - $"
+
+local sub refuse( a16 why ) {
+  putStr( addr( sTool ) )
+  putStr( why )
+  newline()
+  _ax = 0x4C01
+  int 0x21
+}
+
+// ---- the command tail ------------------------------------------------------------
+
+// One path and at most one number. The tail is at PSP:0080h - a length, the
+// text, a carriage return.
+local const pathRoom = 80
+
+local u8[pathRoom] srcPath
+local u16 srcLen = 0
+
+local u16 payHi = chunkPayHi
+local u16 payLo = chunkPayLo
+local bool payGiven = false
+
+local sub takeTail {
+  u16 n
+  a16 at
+  u16 w
+  u16 value
+  u8 ch
+  bool digits
+
+  n = peek8( 0x80 )
+  at = 0x81
+
+  while ( n > 0 ) {
+    while ( n > 0 && peek8( at ) == ' ' ) {
+      at++
+      n--
+    }
+    if ( n == 0 || peek8( at ) == 13 ) break
+
+    w = 0
+    while ( w < n && peek8( at + w ) != ' ' && peek8( at + w ) != 13 ) {
+      w++
+    }
+
+    if ( srcLen == 0 ) {
+      if ( w >= pathRoom ) refuse( addr( sTwoWords ) )
+      for ( u16 k = 0; k < w; k++ ) {
+        srcPath[k] = peek8( at + k )
+      }
+      srcPath[w] = 0
+      srcLen = w
+    } else if ( !payGiven ) {
+      digits = w > 0 && w <= 5
+      value = 0
+      for ( u16 k = 0; k < w; k++ ) {
+        ch = peek8( at + k )
+        if ( ch < '0' || ch > '9' ) digits = false
+        if ( digits ) value = value * 10 + ( ch - '0' )
+      }
+      if ( !digits || value < 64 ) refuse( addr( sBadPay ) )
+      payHi = 0
+      payLo = value
+      payGiven = true
+    } else {
+      refuse( addr( sTwoWords ) )
+    }
+
+    at += w
+    n -= w
+  }
+
+  if ( srcLen == 0 ) {
+    putStr( addr( sUsage ) )
+    newline()
+    _ax = 0x4C01
+    int 0x21
+  }
+}
+
+// ---- names ----------------------------------------------------------------------
+
+// The target's own name is the source's, stripped of any drive or directory,
+// and it is what every header carries. The chunk names swap its extension for
+// the sequence number.
+local u8[chunkNameRoom + 1] baseName
+local u16 baseLen = 0
+
+local sub takeBaseName {
+  u16 from
+  u8 ch
+
+  from = 0
+  for ( u16 i = 0; i < srcLen; i++ ) {
+    ch = srcPath[i]
+    if ( ch == '\\' || ch == ':' || ch == '/' ) from = i + 1
+  }
+
+  if ( srcLen - from > chunkNameRoom || srcLen == from ) refuse( addr( sLongName ) )
+
+  baseLen = 0
+  for ( u16 i = from; i < srcLen; i++ ) {
+    baseName[baseLen] = srcPath[i]
+    baseLen++
+  }
+  baseName[baseLen] = 0
+}
+
+// DOOM.WAD -> DOOM.001: the stem keeps its length, and the extension is the
+// sequence number.
+local u8[chunkNameRoom + 2] chunkName
+local u16 chunkExtAt = 0
+
+local sub makeChunkName {
+  u16 stem
+
+  stem = baseLen
+  for ( u16 i = 0; i < baseLen; i++ ) {
+    if ( baseName[i] == '.' ) stem = i
+  }
+
+  // A dotless name can reach twelve characters through takeBaseName, and a
+  // stem past eight would put the digits outside the buffer as well as 8.3.
+  if ( stem > 8 ) refuse( addr( sLongName ) )
+
+  for ( u16 i = 0; i < stem; i++ ) {
+    chunkName[i] = baseName[i]
+  }
+  chunkName[stem] = '.'
+  chunkExtAt = stem + 1
+  chunkName[chunkExtAt + 3] = 0
+}
+
+// NUL-terminated for the DOS calls, so the report prints it a byte at a time.
+local sub putChunkName {
+  for ( u16 i = 0; chunkName[i] != 0; i++ ) {
+    putChar( chunkName[i] )
+  }
+}
+
+// ---- the source's whole length ----------------------------------------------------
+
+// Our own seek to the end, because `fileSeek` hands back the low word and a
+// splitter needs both: DX is the high half, read straight after the int.
+local u16 totalHi = 0
+local u16 totalLo = 0
+
+local sub measure( u16 h ) {
+  _ax = 0x4202
+  _bx = h
+  _cx = 0
+  _dx = 0
+  int 0x21
+  totalLo = _ax
+  totalHi = _dx
+  fileSeek( h, fileFromStart, 0, 0 )
+}
+
+// ---- streaming --------------------------------------------------------------------
+
+// One buffer in the heap; splitting is sequential, so one is all it takes.
+local const bufBytes = 32768
+local view u8[bufBytes] buf = _heap[0]
+
+// What is left of the source, counted down chunk by chunk, and what is left of
+// the chunk being written, counted down read by read. Word pairs, one borrow
+// each place they shrink.
+local u16 leftHi = 0
+local u16 leftLo = 0
+local u16 pieceHi = 0
+local u16 pieceLo = 0
+
+local bool wholePayloadLeft() {
+  if ( leftHi != payHi ) return leftHi > payHi
+  return leftLo > payLo
+}
+
+local sub takePiece {
+  if ( wholePayloadLeft() ) {
+    pieceHi = payHi
+    pieceLo = payLo
+  } else {
+    pieceHi = leftHi
+    pieceLo = leftLo
+  }
+  if ( pieceLo > leftLo ) leftHi--
+  leftLo -= pieceLo
+  leftHi -= pieceHi
+}
+
+// The next read: a buffer's worth until the piece runs short of one.
+local u16 nextRead() {
+  if ( pieceHi != 0 || pieceLo >= bufBytes ) return bufBytes
+  return pieceLo
+}
+
+local sub shrinkPiece( u16 by ) {
+  if ( by > pieceLo ) pieceHi--
+  pieceLo -= by
+}
+
+// ---- the header -------------------------------------------------------------------
+
+local u8[chunkHeaderBytes] head
+
+local sub fillHead( u16 set, u16 seq, u16 of ) {
+  for ( u16 i = 0; i < chunkHeaderBytes; i++ ) {
+    head[i] = 0
+  }
+  head[0] = chunkMoM
+  head[1] = chunkMoO
+  head[2] = chunkMoS
+  head[3] = chunkMoP
+  poke16( addr( head ) + chunkAtSet, set )
+  poke16( addr( head ) + chunkAtSeq, seq )
+  poke16( addr( head ) + chunkAtOf, of )
+  poke16( addr( head ) + chunkAtPay, pieceHi )
+  poke16( addr( head ) + chunkAtPay + 2, pieceLo )
+  poke16( addr( head ) + chunkAtTotal, totalHi )
+  poke16( addr( head ) + chunkAtTotal + 2, totalLo )
+  for ( u16 i = 0; i < baseLen; i++ ) {
+    head[chunkAtName + i] = baseName[i]
+  }
+}
+
+// ---- reporting --------------------------------------------------------------------
+
+// Whole kilobytes when the number needs them, bytes while it fits a word -
+// putNumber is sixteen bits and a full chunk is not.
+local sub putSize( u16 hi, u16 lo ) {
+  if ( hi == 0 && lo < 32768 ) {
+    putNumber( lo )
+    putStr( addr( sBytes ) )
+  } else {
+    putNumber( hi * 64 + lo / 1024 )
+    putStr( addr( sKb ) )
+  }
+}
+
+// ---- the passes -------------------------------------------------------------------
+
+local u16 src = 0
+local u16 setId = 0
+local u16 chunks = 0
+
+// Pass one: the set id - and every byte read once before anything is written,
+// so a source that cannot be read to its end refuses before disk one exists.
+local sub sumSource {
+  u16 got
+
+  leftHi = totalHi
+  leftLo = totalLo
+  while ( leftHi != 0 || leftLo != 0 ) {
+    got = fileRead( src, addr( buf ), bufBytes )
+    if ( got == 0 ) refuse( addr( sShortRead ) )
+    setId = chunkSum( addr( buf ), got, setId )
+    if ( got > leftLo ) leftHi--
+    leftLo -= got
+  }
+}
+
+// How many chunks, by walking the payload down the total - the count is small
+// and division on word pairs is not worth owning for it.
+local sub countChunks {
+  leftHi = totalHi
+  leftLo = totalLo
+  while ( leftHi != 0 || leftLo != 0 ) {
+    takePiece()
+    chunks++
+  }
+}
+
+// Pass two: the chunks themselves.
+local sub writeChunk( u16 n ) {
+  u16 out
+  u16 want
+  u16 got
+  u16 sum
+  u16 sizeHi
+  u16 sizeLo
+
+  takePiece()
+  sizeHi = pieceHi
+  sizeLo = pieceLo
+  chunkNumber( addr( chunkName ) + chunkExtAt, n )
+
+  out = fileCreate( addr( chunkName ) )
+  if ( fileFailed() ) refuse( addr( sNotMade ) )
+
+  fillHead( setId, n, chunks )
+  fileWrite( out, addr( head ), chunkHeaderBytes )
+  if ( fileFailed() ) refuse( addr( sShort ) )
+
+  sum = 0
+  while ( pieceHi != 0 || pieceLo != 0 ) {
+    want = nextRead()
+    got = fileRead( src, addr( buf ), want )
+    if ( got == 0 ) refuse( addr( sShortRead ) )
+    sum = chunkSum( addr( buf ), got, sum )
+    if ( fileWrite( out, addr( buf ), got ) != got ) refuse( addr( sShort ) )
+    shrinkPiece( got )
+  }
+
+  // The sum could not go out with the header, since the payload had not been
+  // read when the header was written - so it is patched in behind it.
+  poke16( addr( head ), sum )
+  fileSeek( out, fileFromStart, 0, chunkAtSum )
+  fileWrite( out, addr( head ), 2 )
+  fileClose( out )
+
+  space()
+  space()
+  putChunkName()
+  space()
+  space()
+  putSize( sizeHi, sizeLo )
+  putStr( addr( sSum ) )
+  putNumber( sum )
+  newline()
+}
+
+// ---- the program -------------------------------------------------------------------
+
+takeTail()
+takeBaseName()
+
+src = fileOpen( addr( srcPath ), fileReadOnly )
+if ( fileFailed() ) refuse( addr( sNotOpened ) )
+
+measure( src )
+if ( totalHi == 0 && totalLo == 0 ) refuse( addr( sEmpty ) )
+if ( totalHi < payHi || ( totalHi == payHi && totalLo <= payLo ) ) refuse( addr( sFits ) )
+
+sumSource()
+countChunks()
+if ( chunks > chunkMaxOf ) refuse( addr( sTooMany ) )
+
+fileSeek( src, fileFromStart, 0, 0 )
+makeChunkName()
+leftHi = totalHi
+leftLo = totalLo
+
+for ( u16 n = 1; n <= chunks; n++ ) {
+  writeChunk( n )
+}
+
+fileClose( src )
+
+putNumber( chunks )
+putStr( addr( sChunksOf ) )
+for ( u16 i = 0; i < baseLen; i++ ) {
+  putChar( baseName[i] )
+}
+putStr( addr( sDash ) )
+putSize( totalHi, totalLo )
+putStr( addr( sSet ) )
+putNumber( setId )
+newline()

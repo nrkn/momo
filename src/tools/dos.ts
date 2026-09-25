@@ -18,6 +18,10 @@ export type DosRun = {
   counts: Counts
   profile: Map<string, Counts>
   machine: Machine
+  // Every file on C: when the run ended, writes included - how a caller reads
+  // back what the program made, since the machine's disk is a Map and nothing
+  // else survives the run.
+  files: Map<string, Uint8Array>
 }
 
 export type DosOptions = {
@@ -510,5 +514,6 @@ export const runDos = (assembly: string, options: DosOptions = {}): DosRun => {
     counts: machine.counts,
     profile: machine.profile,
     machine,
+    files,
   }
 }

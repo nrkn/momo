@@ -1,0 +1,423 @@
+// mojoin - reassemble a mosplit set, one floppy at a time (§82).
+//
+//   MOJOIN FIRSTCHUNK [TARGET]
+//
+// `MOJOIN A:DOOM.001` reads the chunk, learns the target's name, the set id
+// and the count from its header, and walks the sequence: when the next chunk's
+// name does not open, it asks for the disk and tries the same name again -
+// which is what a disk swap is, from a program's side of the drive door. The
+// header is checked before a byte of payload moves: the wrong disk of the
+// right set says which disk it is, a chunk from an older split of the same
+// file is refused by set id, and a payload whose sum disagrees with its header
+// offers to reread the disk before giving up - floppies earn that courtesy.
+//
+// TARGET overrides where the file is rebuilt; without it the header's own name
+// is created in the current directory. When every chunk is in one directory -
+// a test, or a hard disk staging area - nothing ever prompts, and the join is
+// one command.
+//
+// The last word is additive: every chunk's sum was checked as it streamed, and
+// the sums' own sum, wrapped, must equal the set id - so the final line is a
+// claim about every byte that crossed the floppies, not about the last disk.
+
+include "lib/std/io.momo"
+include "lib/std/key.momo"
+include "lib/std/math.momo"
+include "lib/std/file.momo"
+include "lib/mochunk.momo"
+
+// ---- words ----------------------------------------------------------------------
+
+const u8[] sUsage     = "usage: mojoin FIRSTCHUNK [TARGET]$"
+const u8[] sTool      = "mojoin: $"
+const u8[] sTwoWords  = "one chunk and at most a target - nothing else$"
+const u8[] sNotNumber = "FIRSTCHUNK ends .NNN - name a chunk file$"
+const u8[] sNoHeader  = "no MoSp header - not a mosplit chunk$"
+const u8[] sNotFirst  = "start with chunk 001 - this is $"
+const u8[] sWrongSet  = "from another split - its set is $"
+const u8[] sWrongOf   = "its count disagrees with the set$"
+const u8[] sWrongName = "it rebuilds a different file$"
+const u8[] sNotMade   = "the target was not created$"
+const u8[] sShortOut  = "the target wrote short - disk full?$"
+const u8[] sShortIn   = "the chunk is shorter than its header says$"
+const u8[] sInsert    = "insert the disk with $"
+const u8[] sAnyKey    = " - any key, Esc gives up$"
+const u8[] sThisIs    = "that is disk $"
+const u8[] sNeed      = " - I need $"
+const u8[] sBadSum    = "the payload's sum disagrees - any key rereads it, Esc gives up$"
+const u8[] sGaveUp    = "gave up - $"
+const u8[] sIncomplete = " is incomplete$"
+const u8[] sRebuilt   = " rebuilt - $"
+const u8[] sAgrees    = "  set and size agree$"
+const u8[] sDisagree  = "  the set's sum disagrees - a doctored set?$"
+const u8[] sOf        = " of $"
+const u8[] sOk        = " ok$"
+const u8[] sBytes     = " bytes$"
+const u8[] sKb        = " KB$"
+const u8[] sMySet     = ", not $"
+
+// ---- the command tail -------------------------------------------------------------
+
+local const pathRoom = 80
+
+local u8[pathRoom] chunkPath
+local u16 chunkLen = 0
+local u16 chunkExtAt = 0
+
+local u8[pathRoom] targetPath
+local u16 targetLen = 0
+
+local sub die {
+  _ax = 0x4C01
+  int 0x21
+}
+
+local sub refuse( a16 why ) {
+  putStr( addr( sTool ) )
+  putStr( why )
+  newline()
+  die()
+}
+
+local sub takeTail {
+  u16 n
+  a16 at
+  u16 w
+
+  n = peek8( 0x80 )
+  at = 0x81
+
+  while ( n > 0 ) {
+    while ( n > 0 && peek8( at ) == ' ' ) {
+      at++
+      n--
+    }
+    if ( n == 0 || peek8( at ) == 13 ) break
+
+    w = 0
+    while ( w < n && peek8( at + w ) != ' ' && peek8( at + w ) != 13 ) {
+      w++
+    }
+    if ( w >= pathRoom ) refuse( addr( sTwoWords ) )
+
+    if ( chunkLen == 0 ) {
+      for ( u16 k = 0; k < w; k++ ) {
+        chunkPath[k] = peek8( at + k )
+      }
+      chunkPath[w] = 0
+      chunkLen = w
+    } else if ( targetLen == 0 ) {
+      for ( u16 k = 0; k < w; k++ ) {
+        targetPath[k] = peek8( at + k )
+      }
+      targetPath[w] = 0
+      targetLen = w
+    } else {
+      refuse( addr( sTwoWords ) )
+    }
+
+    at += w
+    n -= w
+  }
+
+  if ( chunkLen == 0 ) {
+    putStr( addr( sUsage ) )
+    newline()
+    die()
+  }
+}
+
+// The digits are patched into the path where the extension's three characters
+// sit, so `A:\WADS\DOOM.001` walks to `.002` with its drive and directory kept.
+local sub findExtension {
+  u16 dot
+
+  dot = chunkLen
+  for ( u16 i = 0; i < chunkLen; i++ ) {
+    if ( chunkPath[i] == '.' ) dot = i
+  }
+  if ( dot + 4 != chunkLen ) refuse( addr( sNotNumber ) )
+
+  chunkExtAt = dot + 1
+  for ( u16 i = chunkExtAt; i < chunkLen; i++ ) {
+    if ( chunkPath[i] < '0' || chunkPath[i] > '9' ) refuse( addr( sNotNumber ) )
+  }
+}
+
+local sub putChunkPath {
+  for ( u16 i = 0; chunkPath[i] != 0; i++ ) {
+    putChar( chunkPath[i] )
+  }
+}
+
+// ---- what chunk one taught us -------------------------------------------------------
+
+local u16 setId = 0
+local u16 setOf = 0
+local u16 totalHi = 0
+local u16 totalLo = 0
+local u8[chunkNameRoom + 1] wantName
+
+// ---- streaming ----------------------------------------------------------------------
+
+local const bufBytes = 32768
+local view u8[bufBytes] buf = _heap[0]
+
+local u8[chunkHeaderBytes] head
+
+local u16 target = 0
+
+// Where the target stands, as a word pair - both the running size check and
+// the place a reread seeks back to.
+local u16 doneHi = 0
+local u16 doneLo = 0
+local u16 sumAll = 0
+
+// What is left of the chunk being read.
+local u16 pieceHi = 0
+local u16 pieceLo = 0
+
+local u16 nextRead() {
+  if ( pieceHi != 0 || pieceLo >= bufBytes ) return bufBytes
+  return pieceLo
+}
+
+local sub shrinkPiece( u16 by ) {
+  if ( by > pieceLo ) pieceHi--
+  pieceLo -= by
+}
+
+// ---- giving up and waiting ----------------------------------------------------------
+
+local u16 joined = 0
+
+local sub giveUp {
+  newline()
+  putStr( addr( sTool ) )
+  putStr( addr( sGaveUp ) )
+  putNumber( joined )
+  putStr( addr( sOf ) )
+  putNumber( setOf )
+  putStr( addr( sIncomplete ) )
+  newline()
+  if ( target != 0 ) fileClose( target )
+  die()
+}
+
+// Any key carries on; Esc is the one that gives up, because a prompt loop with
+// no exit is how a program earns Ctrl-Alt-Del.
+local sub waitKey {
+  u16 k
+
+  k = readKey()
+  if ( lo( k ) == 27 ) giveUp()
+}
+
+local sub askForDisk {
+  putStr( addr( sInsert ) )
+  putChunkPath()
+  putStr( addr( sAnyKey ) )
+  newline()
+  waitKey()
+}
+
+// ---- one chunk ------------------------------------------------------------------------
+
+// Open the numbered name, asking for its disk until it opens. A swap changes
+// what the same name means, which is the whole mechanism.
+local u16 openChunk( u16 n ) {
+  u16 h
+
+  chunkNumber( addr( chunkPath ) + chunkExtAt, n )
+  while ( true ) {
+    h = fileOpen( addr( chunkPath ), fileReadOnly )
+    if ( !fileFailed() ) return h
+    askForDisk()
+  }
+}
+
+// The header's word for itself, checked before a byte of payload moves. On the
+// wrong disk of the right set it says which disk it holds and waits for the
+// right one; anything else about the header is a refusal.
+local bool headerGood( u16 h, u16 n ) {
+  u16 seq
+
+  if ( fileRead( h, addr( head ), chunkHeaderBytes ) != chunkHeaderBytes ) refuse( addr( sNoHeader ) )
+  if ( !chunkMarked( addr( head ) ) ) refuse( addr( sNoHeader ) )
+
+  seq = peek16( addr( head ) + chunkAtSeq )
+
+  if ( n == 1 ) {
+    if ( seq != 1 ) {
+      putStr( addr( sTool ) )
+      putStr( addr( sNotFirst ) )
+      putNumber( seq )
+      newline()
+      die()
+    }
+    setId = peek16( addr( head ) + chunkAtSet )
+    setOf = peek16( addr( head ) + chunkAtOf )
+    totalHi = peek16( addr( head ) + chunkAtTotal )
+    totalLo = peek16( addr( head ) + chunkAtTotal + 2 )
+    for ( u16 i = 0; i < chunkNameRoom; i++ ) {
+      wantName[i] = head[chunkAtName + i]
+    }
+    return true
+  }
+
+  if ( peek16( addr( head ) + chunkAtSet ) != setId ) {
+    putStr( addr( sTool ) )
+    putStr( addr( sWrongSet ) )
+    putNumber( peek16( addr( head ) + chunkAtSet ) )
+    putStr( addr( sMySet ) )
+    putNumber( setId )
+    newline()
+    return false
+  }
+  if ( peek16( addr( head ) + chunkAtOf ) != setOf ) refuse( addr( sWrongOf ) )
+  for ( u16 i = 0; i < chunkNameRoom; i++ ) {
+    if ( head[chunkAtName + i] != wantName[i] ) refuse( addr( sWrongName ) )
+  }
+
+  if ( seq != n ) {
+    putStr( addr( sTool ) )
+    putStr( addr( sThisIs ) )
+    putNumber( seq )
+    putStr( addr( sNeed ) )
+    putNumber( n )
+    newline()
+    return false
+  }
+
+  return true
+}
+
+// The payload, streamed and summed. A sum that disagrees offers the reread:
+// both files seek back to where this chunk began, and the disk gets another
+// chance to say what the header promised.
+local sub takePayload( u16 h ) {
+  u16 want
+  u16 got
+  u16 sum
+  u16 payHi
+  u16 payLo
+
+  payHi = peek16( addr( head ) + chunkAtPay )
+  payLo = peek16( addr( head ) + chunkAtPay + 2 )
+
+  while ( true ) {
+    sum = 0
+    pieceHi = payHi
+    pieceLo = payLo
+
+    while ( pieceHi != 0 || pieceLo != 0 ) {
+      want = nextRead()
+      got = fileRead( h, addr( buf ), want )
+      if ( got == 0 ) refuse( addr( sShortIn ) )
+      sum = chunkSum( addr( buf ), got, sum )
+      if ( fileWrite( target, addr( buf ), got ) != got ) refuse( addr( sShortOut ) )
+      shrinkPiece( got )
+    }
+
+    if ( sum == peek16( addr( head ) + chunkAtSum ) ) break
+
+    putStr( addr( sTool ) )
+    putStr( addr( sBadSum ) )
+    newline()
+    waitKey()
+
+    fileSeek( h, fileFromStart, 0, chunkHeaderBytes )
+    fileSeek( target, fileFromStart, doneHi, doneLo )
+  }
+
+  sumAll = sumAll + sum
+  doneLo += payLo
+  if ( doneLo < payLo ) doneHi++
+  doneHi += payHi
+}
+
+// ---- reporting --------------------------------------------------------------------------
+
+local sub putSize( u16 hi, u16 lo ) {
+  if ( hi == 0 && lo < 32768 ) {
+    putNumber( lo )
+    putStr( addr( sBytes ) )
+  } else {
+    putNumber( hi * 64 + lo / 1024 )
+    putStr( addr( sKb ) )
+  }
+}
+
+local sub putTargetName {
+  if ( targetLen != 0 ) {
+    for ( u16 i = 0; i < targetLen; i++ ) {
+      putChar( targetPath[i] )
+    }
+  } else {
+    for ( u16 i = 0; i < chunkNameRoom && wantName[i] != 0; i++ ) {
+      putChar( wantName[i] )
+    }
+  }
+}
+
+// ---- one disk, end to end -------------------------------------------------------------------
+
+local sub joinOne( u16 n ) {
+  u16 h
+  bool good
+
+  h = openChunk( n )
+  good = headerGood( h, n )
+  while ( !good ) {
+    fileClose( h )
+    askForDisk()
+    h = openChunk( n )
+    good = headerGood( h, n )
+  }
+
+  if ( n == 1 ) {
+    if ( targetLen == 0 ) {
+      for ( u16 i = 0; i < chunkNameRoom; i++ ) {
+        targetPath[i] = wantName[i]
+      }
+      targetPath[chunkNameRoom] = 0
+    }
+    target = fileCreate( addr( targetPath ) )
+    if ( fileFailed() ) refuse( addr( sNotMade ) )
+  }
+
+  takePayload( h )
+  fileClose( h )
+  joined++
+
+  space()
+  space()
+  putChunkPath()
+  putStr( addr( sOk ) )
+  newline()
+}
+
+// ---- the program --------------------------------------------------------------------------
+
+takeTail()
+findExtension()
+
+for ( u16 n = 1; n <= setOf || n == 1; n++ ) {
+  joinOne( n )
+}
+
+fileClose( target )
+
+putTargetName()
+putStr( addr( sRebuilt ) )
+putSize( doneHi, doneLo )
+newline()
+
+if ( sumAll == setId && doneHi == totalHi && doneLo == totalLo ) {
+  putStr( addr( sAgrees ) )
+  newline()
+} else {
+  putStr( addr( sDisagree ) )
+  newline()
+  die()
+}

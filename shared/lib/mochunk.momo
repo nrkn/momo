@@ -1,0 +1,84 @@
+// mochunk.momo - one file split across floppies, each chunk describing itself.
+//
+// The layout lives here and nowhere else: `mosplit` writes it, `mojoin` reads
+// it, and a second copy of these offsets would be the drift §41's readers
+// refused. The rule is §41's too, applied a third time: **the header is the
+// authority, and the numbered extension is a convention.** A chunk's name says
+// `DOOM.003` for `DIR` and for people; whether it really is the third of nine,
+// of this set, of that file, intact, is the header's to say - so a disk
+// inserted out of order, a stray chunk from an older split of the same file,
+// a short copy and a bad read are all refusals with names, not silent damage.
+//
+// The header is thirty-two bytes:
+//
+//   0   'M' 'o' 'S' 'p'
+//   4   set        u16    byte-sum of the whole source file
+//   6   sequence   u16    1-based
+//   8   of         u16    how many chunks the set has
+//   10  payload    hi:lo  bytes in this chunk, after the header
+//   14  total      hi:lo  bytes in the whole source file
+//   18  sum        u16    byte-sum of this chunk's payload
+//   20  name       12 bytes, the target's 8.3 name, NUL-padded
+//
+// **Byte-sums are additive**, which buys the end-to-end check for nothing: the
+// set id is the whole file's sum, so the sum of the chunk sums, wrapped, must
+// come back to it after the last disk. A joiner that verified every chunk and
+// still disagrees at the end has been fed a doctored set, and says so.
+//
+// The 32-bit quantities are word pairs, never added on the far side of a seek -
+// the same boundary DESIGN §41 draws. Streaming needs one carried add and one
+// borrowed subtraction, both a line each where they happen.
+
+// The default payload puts a chunk file at 1,457,152 bytes with its header -
+// 2,846 clusters of a 1.44MB floppy's 2,847, so one chunk fills one disk with a
+// cluster to spare for the directory's own rounding.
+const chunkPayHi = 0x0016
+const chunkPayLo = 0x3BE0
+
+const chunkHeaderBytes = 32
+const chunkNameRoom    = 12
+
+const chunkMoM = 'M'
+const chunkMoO = 'o'
+const chunkMoS = 'S'
+const chunkMoP = 'p'
+
+const chunkAtSet   = 4
+const chunkAtSeq   = 6
+const chunkAtOf    = 8
+const chunkAtPay   = 10
+const chunkAtTotal = 14
+const chunkAtSum   = 18
+const chunkAtName  = 20
+
+// Three digits fit the extension and nobody splits onto a thousand floppies.
+const chunkMaxOf = 999
+
+// The byte-sum, continued from `carry` so a chunk is summed buffer by buffer.
+// Wrapping u16 addition is the whole checksum - what makes it weak against an
+// adversary is exactly what makes the set id the sum of the chunk sums.
+u16 chunkSum( a16 at, u16 count, u16 carry ) {
+  u16 s
+
+  s = carry
+  for ( u16 i = 0; i < count; i++ ) {
+    s = s + peek8( at + i )
+  }
+
+  return s
+}
+
+bool chunkMarked( a16 h ) {
+  if ( peek8( h ) != chunkMoM ) return false
+  if ( peek8( h + 1 ) != chunkMoO ) return false
+  if ( peek8( h + 2 ) != chunkMoS ) return false
+  return peek8( h + 3 ) == chunkMoP
+}
+
+// The numbered extension, written over three bytes at `at`: chunk 7 of a set
+// is `007`. The caller owns the dot and what follows the digits.
+sub chunkNumber( a16 at, u16 n ) {
+  poke8( at, '0' + u8( n / 100 ) )
+  poke8( at + 1, '0' + u8( n / 10 % 10 ) )
+  poke8( at + 2, '0' + u8( n % 10 ) )
+}
