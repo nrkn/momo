@@ -27,6 +27,13 @@ export type DosOptions = {
   // The command tail, without the leading space DOS adds.
   args?: string
   limit?: number
+  // A driver's hand on the machine, which is how `drive.ts` scripts the keyboard
+  // and watches the screen. An interrupt it answers goes no further; one it
+  // returns false for reaches the DOS and BIOS here as though it had not looked.
+  interrupt?: (vector: number, machine: Machine) => boolean
+  // Every read of the VGA status register, after this file has answered it. The
+  // retrace a program waits on is its clock, and a driver counts frames by it.
+  statusRead?: (status: number, machine: Machine) => void
 }
 
 // What tier 2 copies onto C: - a project directory, whole - keyed as DOS names
@@ -106,7 +113,9 @@ export const runDos = (assembly: string, options: DosOptions = {}): DosRun => {
       // 70 frames a second against 18.2 ticks, the blank about a tenth of each.
       if (port === 0x3da) {
         const phase = machine.counts.instructions % instructionsPerFrame
-        return phase < instructionsPerBlank ? 0x08 : 0
+        const status = phase < instructionsPerBlank ? 0x08 : 0
+        options.statusRead?.(status, machine)
+        return status
       }
       if (port in indexPorts) return indexPorts[port]
       if (port - 1 in indexPorts) return registers[port - 1][indexPorts[port - 1]]
@@ -135,6 +144,7 @@ export const runDos = (assembly: string, options: DosOptions = {}): DosRun => {
       memory[0x6f] = (ticks >> 24) & 0xff
     },
     interrupt: (vector, m) => {
+      if (options.interrupt?.(vector, m)) return true
       if (vector === 0x21) return dos(m)
       if (vector === 0x10) return video(m)
       if (vector === 0x16) return keyboard(m)

@@ -15,6 +15,7 @@
     "trace": "tsc && node dist/tools/trace.js",
     "trace:profile": "tsc && node dist/tools/trace.js --profile",
     "trace:check": "tsc && node dist/tools/trace.js --check",
+    "drive": "tsc && node dist/tools/drive.js",
     "instr": "tsc && node dist/tools/instr.js",
     "instr:routines": "tsc && node dist/tools/instr.js --routines",
     "expect": "tsc && node dist/tools/expect.js",
