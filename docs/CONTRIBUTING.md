@@ -197,6 +197,7 @@ npm run memory -- <project>   # exact static footprint
 npm run trace -- <project>    # run it without DOSBox: output, instructions, cycles (§72)
 npm run trace:profile -- <project>  # the same, by routine
 npm run trace:check -- <project>    # the same, held against its .expected - one machine-tier case
+npm run drive -- <project> keys=...  # run one that waits for keys, from a script, keeping its screens
 npm run instr -- <project>    # static instruction count of its .asm, HEAD vs working tree
 npm run instr:routines -- <project> # the same, by routine - the reading tool for a codegen diff
 npm run desugar -- <project>  # print the program as lomo, its desugared form
