@@ -5647,7 +5647,11 @@ Tier 1 went from 902 assertions to 905: a golden, a capacity and a round trip.
 
 **On real hardware** (2026-09-25, the same 286): ran against its fixture WAD;
 a real IWAD waits until one is copied onto the machine, so the id-art path is
-still DOSBox-only.
+still DOSBox-only. Later the same day the IWAD arrived over mochunk's floppies
+(§82), and flatpic paged DOOM.WAD's own floors on the 6 MHz 286 - slower than
+DOSBox, as §78's startup and redraw measurements price in, and correct. Every
+layer under it - the reader, the chain, the palette convention, the foreign
+payload - has now run on period-class hardware against id's own data.
 
 ## 79. `charlstn`
 
